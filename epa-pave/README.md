@@ -51,9 +51,11 @@ configuration is needed.
   [Who can reach this tool](#who-can-reach-this-tool).
 - **STS has been seen on Linux only.** Two agents imported and started PAVE in Spring Tools 5.4.0 on
   Linux and ran some of its tests there: one on `e70a873` (after the change of D-271), on mock and
-  once on live; one on `ace5914` (after the change of D-272), on mock. Windows and other releases
-  were not tried. A profile typed in the launch dialog is written into a
-  tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
+  once on live; one on `ace5914` (after the change of D-272), on mock. On `d089e65` STS also cloned
+  it from GitHub itself, where its Git import wizard's own choices are the wrong branch and the other
+  application, and an import without a JDK 21 was simulated (D-273). Windows and other releases were
+  not tried by the writers; one Windows workstation has reported a failed import, at the end of that
+  section. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
   said the tool will be productionized one day, which is read here as running it that way (D-270);
   what must exist first, none of it built, is listed under
@@ -88,7 +90,11 @@ OpenJDK Runtime Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)
 OpenJDK 64-Bit Server VM (build 21.0.13.0.3+1-1-24.04.1-Ubuntu, mixed mode, sharing)
 ```
 
-Anything older than 21 will not build or run PAVE. Install a JDK 21 and set `JAVA_HOME` to it.
+Anything older than 21 will not build or run PAVE, and a newer Java alone does not do either: the
+build asks for a Java 21 toolchain and cannot download one. With only a Java 25 on the machine (a
+simulation on Linux, D-273) `./gradlew classes` stopped with "Cannot find a Java installation on your
+machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
+configured." Install a JDK 21 and set `JAVA_HOME` to it.
 
 **2. Get the code and go into the project directory.**
 
@@ -101,7 +107,9 @@ ls run.sh
 Correct output of the last command is `run.sh`.
 
 PAVE lives in the `epa-pave/` directory. The application at the root of the repository is a
-different project; leave it alone. Every command below is run from `epa-pave/`.
+different project; leave it alone. Every command below is run from `epa-pave/`. Cloning from inside
+STS instead? Follow (b) of step 2 of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse):
+two of its Git wizard's choices are wrong for this project.
 
 **3. Build and run the tests.**
 
@@ -1988,8 +1996,9 @@ as `systemProp.javax.net.ssl.trustStore=...` and `systemProp.javax.net.ssl.trust
 **Seen on Linux with Spring Tools 5.4.0, not on Windows.** What follows was seen in the real IDE,
 Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, that is 2026-09, with Buildship 3.1.11) on Linux, driven
 with keyboard and mouse by agents that wrote none of the tool, on `e70a873` and on `ace5914`, which
-adds the launch configuration and the test changes named below (D-272). Nobody has tried it on
-Windows or with another release. The steps, in order:
+adds the launch configuration and the test changes named below (D-272), and on `d089e65`, cloned by
+STS itself from GitHub (D-273). Nobody who writes this README has seen it on Windows or with another
+release; what one Windows workstation reported is at the end of this section. The steps, in order:
 
 **1. Which Spring Tools.** Use Spring Tools 5 for Eclipse. PAVE is a Spring Boot 4 application, and the
 Spring Tools changelog gives 5.0.0 (2025-12-10, built on Eclipse 2025-12) as the first release that
@@ -1997,29 +2006,212 @@ states Spring Boot 4 support. The Spring Tools FAQ says that Spring Tools 5 does
 older than 2025-12 and that Spring Tools 4 gets no more updates. Both were read on 2026-11-20 in the
 Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own; the project still
 needs the JDK 21 of step 1 of the checklist. STS found it by itself at startup (Window, Preferences,
-Java, Installed JREs) and every launch ran on it. On the Linux machine seen, with no WebKit
+Java, Installed JREs) and every launch ran on it.
+
+**What the machine needs: STS and a JDK 21.** STS alone is not enough. This was simulated on Linux
+with STS 5.4.0, the machine's JDK 21 hidden from that one IDE and an empty Gradle home (D-273):
+Installed JREs then listed only `jre`, the Java 25 inside STS. The import ran Gradle 9.5.0 on that Java
+25 and downloaded the Gradle distribution and the dependencies, then ended about 10 seconds after
+Finish with no dialog. The project it left was `epa-pave [Interop epa-pave]` with an error marker and
+no `[boot]`: no source folders, no JRE System Library, nothing under `local` in the Boot Dashboard and
+no tasks in the Gradle Tasks view, so the tool could not be started. The Problems view read "1 error,
+1 warning, 0 others"; the error, of type "Gradle Problem" at "line 0", reads:
+
+```
+The supplied phased action failed with an exception.
+Could not resolve all dependencies for configuration ':houseStyleCompileClasspath'.
+Failed to calculate the value of task ':compileHouseStyleJava' property 'javaCompiler'.
+Cannot find a Java installation on your machine (<your system>) matching: {languageVersion=21, vendor=any vendor, implementation=vendor-specific, nativeImageCapable=false}. Toolchain download repositories have not been configured.
+```
+
+`build.gradle` asks for a Java 21 toolchain, and the build configures no place to download one from,
+so Gradle cannot fetch a JDK 21 by itself. The message names the house style source set, but it is
+not about the house style: from a terminal with only Java 25, `./gradlew classes` failed with the
+same sentence, naming `':compileJava'`. So install a JDK 21 before the import. On the machines seen,
+a JDK 21 installed in the system's usual place (on Linux under `/usr/lib/jvm`) was found by STS and by
+Gradle with no setting; STS looks for installed Javas at startup ("Detect available JVM installations
+at startup", ticked, under Installed JREs). Otherwise give Gradle its Java home as under "If the
+import fails" below. A machine that has a Java 17 and no 21 was not tried. On the Linux machine seen, with no WebKit
 installed, STS's Tip of the Day dialog failed ("No more handles because there is no underlying browser
 available"), followed by "An SWT error has occurred ... Do you want to exit the workbench?"; the
 answer was No, and after the package `libwebkit2gtk-4.1-0` was installed the run went on. A plain
 Eclipse showed a "Chromium Additional Terms of Service" dialog at its first start; Cancel was pressed,
 with no effect on the project.
 
-**2. Clone and build once from a terminal**, as steps 2 and 3 of the
-[First run checklist](#first-run-checklist) say (`./gradlew clean build` in `epa-pave/`), so that you
-know the build works on your machine before the IDE is involved.
+**2. Get the code.** Two ways. Either way, what STS must import in the end is the folder `epa-pave`
+inside your clone, with the clone on the branch `epa-pave`. The top folder of the repository is
+another application, with a Maven build and no Gradle wrapper, and the repository's default branch,
+`claude/cms1500-form-filler-pdf-1wploq`, has no `epa-pave` folder at all.
+
+(a) **From a terminal**, as steps 2 and 3 of the [First run checklist](#first-run-checklist) say
+(`git clone --branch epa-pave ...`, then `./gradlew clean build` in `epa-pave/`), so that you know the
+build works on your machine before the IDE is involved. Then go on with step 3.
+
+(b) **From inside STS, with the Git import wizard.** Seen on Linux on `d089e65`: STS cloned straight
+from GitHub and asked for no credential. STS had been started from a shell whose proxy settings its
+Java picked up (see [TLS behind an inspection proxy](#tls-behind-an-inspection-proxy)); what a
+workstation behind a corporate proxy asks for was not seen. Two of the wizard's choices are wrong for
+this project, at 4 and 6 below.
+1. File, Import..., type `Git` in "Select an import wizard:", select "Projects from Git (with smart
+   import)" and click Next >.
+2. "Select Repository Source": select "Clone URI", Next >.
+3. "Source Git Repository": paste `https://github.com/thehiddenbrain/Interop.git` into "URI:". "Host:"
+   and "Repository path:" fill in by themselves. Leave "User:" and "Password:" empty. Next >.
+4. "Branch Selection" lists nine branches, all ticked. Click "Deselect All", tick only `epa-pave`,
+   Next >.
+5. "Local Destination": "Initial branch:" must read `epa-pave`. With only `epa-pave` ticked it changes
+   to that by itself. With every branch left ticked it reads `claude/cms1500-form-filler-pdf-1wploq`,
+   which has no `epa-pave` folder; choosing `epa-pave` in that drop-down also works. "Directory:"
+   defaults to `git/Interop` in your user folder; change it if you want the clone elsewhere. Next >
+   clones, in a few seconds on the machine seen.
+6. The window becomes "Import Projects from File System or Archive". **Do not press Finish yet.** Its
+   list has one row, `Interop` imported as `Maven`, ticked and greyed out: it cannot be unticked, and
+   `epa-pave` is never listed, not after waiting and not with "Search for nested projects" ticked.
+   **That row is the other application, not PAVE.** Add `/epa-pave` to the end of the path in "Import
+   source:" and press Tab: the only row becomes `epa-pave` (its "Import as" column stays empty).
+7. Finish. After about a minute, once the status bar no longer shows "Synchronize Gradle project", the
+   Package Explorer shows `epa-pave [boot] [Interop epa-pave]`, a Gradle project as step 3 would make
+   it. Skip step 3 and go on with step 4. Started from the Boot Dashboard (step 5), it passed both
+   proofs of "Prove it before handover" on the machine seen.
+
+**Already pressed Finish on the `Interop` row?** Then the Package Explorer holds one project, the top
+folder of your clone (named after that folder), shown as a Maven and Boot project with "JRE System
+Library [JavaSE-17]", "Maven Dependencies", `pom.xml`, and `epa-pave` as a plain folder inside it.
+The Problems view shows about 861 errors, which belong to the other application, and the Boot
+Dashboard lists only that project under `local`. From exactly that state, on Linux, these steps got
+the tool running:
+1. Window, Show View, Other..., type `Git`, select "Git Repositories" under Git, and press Open.
+2. Expand your repository (it reads `<name> [epa-pave] - <the folder of your clone>/.git`), then
+   "Working Tree".
+3. Right click the folder `epa-pave` under "Working Tree", then Projects, Import Projects....
+4. "Import Projects from File System or Archive" opens with "Import source:" already ending in
+   `/epa-pave` and one row, `epa-pave`, ticked. Press Finish and wait until the status bar is idle. A
+   second project appears, `epa-pave [boot] [<name> epa-pave]`: a Gradle project, listed in the
+   Gradle Tasks view, with 0 errors and 25 warnings of its own.
+5. Be rid of the second `PaveApplication` entry (next paragraph), then start `epa-pave` from the Boot
+   Dashboard as in step 5.
+
+The right click menus of the folder `epa-pave` in the Package Explorer and the Project Explorer have
+no entry that does step 3: their "Import..." opens the general Import wizard with nothing filled in.
+File, Import, Gradle, Existing Gradle Project on the same folder (step 3) also worked.
+**Do not open Run, Run Configurations before `epa-pave` is imported.** In that state the shared
+`PaveApplication` is hidden by the dialog's filter; shown and selected, its "Project" was empty ("No
+project selected"), and closing the dialog, without Apply and without any question, rewrote the
+tracked file `epa-pave/PaveApplication.launch` with its project line removed. `git checkout --
+epa-pave/PaveApplication.launch` in the top folder of the clone put it back.
+
+**Two `PaveApplication` entries, and how to be rid of one.** While the Maven project and `epa-pave`
+are both open, the Boot Dashboard shows `epa-pave [0/2]` with two children, both named
+`PaveApplication`, and one press of start launches two Java processes: one serves on 8057, the other
+stops with "Web server failed to start. Port 8057 was already in use." Run Configurations meanwhile
+lists only one `PaveApplication`. Two ways out, each seen with the tool started afterwards (one
+process) and both proofs holding:
+- **Close Project, the safest.** Right click the Maven project, Close Project. No dialog, and nothing
+  is removed. The Boot Dashboard then shows a single `epa-pave`. But Open Project on it brings the
+  second entry back.
+- **Delete, the lasting way.** Select the Maven project and choose Delete. "Delete Resources" asks
+  "Remove project '<name>' from the workspace?" and shows two checkboxes, both unticked: "Delete
+  project contents on disk (cannot be undone)" and "Delete 1 nested project". **Leave both
+  unticked** and press OK. The first would delete your clone from the disk, and with it the tool,
+  because the folder `epa-pave` lies inside that project's folder; the second would take the project
+  `epa-pave` out of the workspace too. Afterwards only `epa-pave` remains, whole, and the Problems
+  view reads "0 errors, 25 warnings, 59 others".
+
+The Maven import leaves `.classpath`, `.project` and `.settings/` in the top folder of the clone, and
+`git status` there lists them as untracked (`??`), because the top folder's `.gitignore` does not
+cover them. Removing the project from the workspace does not delete them. They are Eclipse's files for
+that project; delete them by hand if you want `git status` clean. What STS writes into `epa-pave`
+itself is ignored by `epa-pave/.gitignore`.
 
 **3. Import.** File, Import, Gradle, Existing Gradle Project. Choose the `epa-pave/` directory, not the
-repository root, and leave the Import Options page as it is. The Import Preview shows "Gradle wrapper
-from target build", Gradle 9.5.0, and as Java home the JDK 25 that STS brings (a folder under its
-`plugins/` named `org.eclipse.justj.openjdk...`). That is fine: Gradle ran the import on it with no
-dialog and no error. Press Finish; within about a minute the Package Explorer shows
-`epa-pave [boot]` and the workspace build is over. Only if the import fails:
-- Give Gradle the JDK 21: tick "Override workspace settings" on the Import Options page (Java home is
-  greyed out until then) and set Java home, or set it under Window, Preferences, Gradle. A plain
-  Eclipse 2026-09 with Java home set under Preferences, Gradle imported the project with 0 errors and
-  25 warnings; in STS neither way was tried, because the import with the defaults did not fail.
+repository root, and leave the Import Options page as it is. If "Project root directory" already
+holds a path from an earlier import, clear it first: typing into it adds to that path, and the page
+then says "Project root directory does not exist." The Import Preview shows "Gradle wrapper from
+target build", **Gradle version 9.5.0**, and as Java home the JDK 25 that STS brings (a folder under
+its `plugins/` named `org.eclipse.justj.openjdk...`). With a JDK 21 on the machine that is fine:
+Gradle ran the import on it with no dialog and no error (without one, see step 1). "Unknown" or any
+other Gradle version means something is wrong (below). Press Finish; within about a minute the
+Package Explorer shows `epa-pave [boot]` and the workspace build is over.
+
+**If the import fails.** Each of these was seen on Linux with STS 5.4.0, unless it says otherwise.
+None of them raised an error dialog: look at the Import Preview, at the label of the project in the
+Package Explorer (no `[boot]`) and at the Problems view.
+- **"Preview failed", and the error names `gradle-8.9-bin.zip`.** The Import Preview's header reads
+  "Preview failed"; Gradle user home directory, Gradle version and Java home directory read
+  "Unknown"; Gradle distribution still reads "Gradle wrapper from target build"; and the box under
+  "Gradle project structure:" begins
+  `org.gradle.tooling.BuildException: Could not fetch model of type 'GradleBuild' using connection to Gradle distribution 'https://services.gradle.org/distributions/gradle-8.9-bin.zip'.`
+  *Cause:* the wrong folder. The folder given has no Gradle wrapper, so it is not `epa-pave` (seen
+  with the top folder of a clone, on the branch `epa-pave` and on the default branch alike). With no
+  wrapper, STS 5.4.0 falls back to the Gradle that its Gradle support (Buildship 3.1.11) carries, 8.9,
+  and runs it on the Java 25 inside STS, which Gradle 8.9 cannot run on. That cause is only in the "Caused by" lines, at
+  the end of the trace in the workspace's `.metadata/.log`:
+  `java.lang.IllegalArgumentException: Unsupported class file major version 69` (69 is Java 25).
+  **It is not the network, although it reads like it:** on the machine seen the download of Gradle 8.9
+  succeeded before this error. (Where a download itself failed, in the simulation below, the first
+  line read "Could not install Gradle distribution from ..." instead.) *What to do:* Cancel, and
+  import the `epa-pave` folder of a clone that is on the branch `epa-pave`. Its Import Preview has no
+  error: Gradle user home filled in, Gradle version 9.5.0, Java home the JDK 25 inside STS, and
+  `epa-pave` under "Gradle project structure:".
+- **Finish was pressed on that failed preview.** The Package Explorer shows a project
+  `Interop [Interop epa-pave]` with an error marker; it holds the folders of the whole repository and
+  is neither a Java nor a Maven project. Problems: "1 error, 1 warning, 0 others", the error ending
+  "Unsupported class file major version 69", of type "Gradle Problem". Remove it with Delete, leaving
+  "Delete project contents on disk (cannot be undone)" unticked (its contents are your clone), and
+  OK. As after the Maven import, `git status` in the top folder then still lists `?? .project` and
+  `?? .settings/`; delete them by hand. Then import `epa-pave`.
+- **The clone shows under Git Repositories, and no project is in the Package Explorer.** A clone is
+  not a project: importing its `epa-pave` folder is a step of its own. In the Git Repositories view
+  the repository line shows the branch in brackets; it must read `[epa-pave]`. Then do steps 3 and 4
+  of "Already pressed Finish on the `Interop` row?" above, or step 3 here with that folder.
+- **The top folder came in as a Maven project, and the Boot Dashboard has no `epa-pave`.** That is
+  the wizard's own choice of step 2 (b); see "Already pressed Finish on the `Interop` row?".
+- **Two `PaveApplication` entries, "Port 8057 was already in use."** See "Two `PaveApplication`
+  entries, and how to be rid of one" under step 2.
+- **"Project root directory does not exist."** Next > and Finish stay greyed out. Either the field
+  holds an older path with yours added to it (clear it), or the clone is on a branch that has no
+  `epa-pave` folder, such as the default branch; check out `epa-pave` (below). The other way round: a
+  clone that held `epa-pave` once and was switched to another branch keeps an `epa-pave` folder holding
+  only files git ignores (`.classpath`, `.gradle/`, `.project`, `.settings/`, `bin/`). The wizard
+  accepts that folder; what it then imports was not seen. Check the branch first.
+- **"Cannot find a Java installation on your machine ... matching: {languageVersion=21, ...}".** No
+  JDK 21 for Gradle: see "What the machine needs" under step 1. If a JDK 21 is installed and Gradle
+  still does not find it, give Gradle its Java home: tick "Override workspace settings" on the Import
+  Options page (Java home is greyed out until then) and set Java home to the JDK 21, or set it under
+  Window, Preferences, Gradle. A plain Eclipse 2026-09 with Java home set under Preferences, Gradle
+  imported the project with 0 errors and 25 warnings; in STS neither way was tried. Neither helps a
+  machine that has no JDK 21 at all.
+- **The downloads are refused** (a simulation: STS 5.4.0 on Linux with no network at all, and with no
+  JDK 21). With nothing downloaded yet, the Import Preview failed within a second:
+  `Could not install Gradle distribution from 'https://services.gradle.org/distributions/gradle-9.5.0-bin.zip'.`,
+  caused by `java.net.UnknownHostException: services.gradle.org`. With the Gradle distribution
+  already on the machine and the dependencies not, the preview passed and the import then left one
+  error on `build.gradle`, line 3: `Plugin [id: 'org.springframework.boot', version: '4.0.7'] was not
+  found in any of the following sources:` ... `Searched in the following repositories: MavenRepo,
+  Gradle Central Plugin Repository`. It names no host: those are Maven Central and the Gradle plugin
+  portal. A corporate network may refuse in another way (a time-out, or a certificate error); that was
+  not seen. What helps is under [The Gradle distribution](#the-gradle-distribution) (point the
+  wrapper at a copy of `gradle-9.5.0-bin.zip`), [Dependencies through an internal
+  mirror](#dependencies-through-an-internal-mirror) (`internalRepoUrl` in `~/.gradle/gradle.properties`,
+  the Gradle user home the Import Preview showed) and [TLS behind an inspection
+  proxy](#tls-behind-an-inspection-proxy). Those sections were checked with Gradle from a terminal; from
+  STS they were not tried.
 - Red markers before Gradle has fetched the dependencies are normal. If they stay, right click the
   project and choose Gradle, Refresh Gradle Project. It was never needed.
+
+**Seeing the clone and its branch in STS.** Window, Show View, Other..., type `Git`, select "Git
+Repositories", Open. A repository reads `<name> [epa-pave] - <the folder of your clone>/.git`: its
+name, the branch checked out in brackets, and where the clone is; a down arrow and a number after the
+branch mean it is that many commits behind GitHub. "Working Tree - <the folder of your clone>" lists
+the clone's files, `epa-pave` among them while that branch is checked out. Once a project from the
+clone is imported, the repository is listed by itself. If the view is empty, "Add an existing local
+Git repository" opens "Add Git Repositories": put the folder of your clone in "Directory:", press
+Search, tick the repository found (it is listed unticked, and "Add" stays greyed out until then), and
+Add. To check out `epa-pave`: expand Branches; under Local, right click `epa-pave` and choose "Check
+Out"; if it is only under Remote Tracking, right click `origin/epa-pave`, "Check Out...", then "Check
+out as New Local Branch" in "Check out remote-tracking branch", and Finish in "Create Branch" with
+"Check out new branch" ticked. These menus and dialogs were seen; the switch itself was not made from
+this view.
 
 **4. The Problems view** reads "0 errors, 25 warnings, 59 others".
 - 24 warnings are Java warnings (13 exception classes with no `serialVersionUID`, unused imports, two
@@ -2080,16 +2272,41 @@ the Gradle test task and ends "started by that task (no system property org.grad
 the test is skipped here, not passed." The pane cuts off a few words of it at its edge, even with the
 view maximised.
 
+**8. Later commits.** Right click `epa-pave` and choose Team, Pull (the Team menu also has "Pull...",
+"Fetch from origin" and "Switch To"). With nothing new on GitHub it opened "Pull Result for Interop"
+reading "Nothing to update - everything up to date". A pull that brings new commits was not seen, and
+neither was whether Gradle then needs a refresh. The import leaves automatic synchronisation off, so
+after a pull that changes `build.gradle`, right click the project and choose Gradle, Refresh Gradle
+Project (inferred, not seen). A clone made with only `epa-pave` ticked at 4 of step 2 (b) fetches only
+that branch.
+
 **What was seen, and by whom.** On `e70a873` one agent ran STS 5.4.0 on Linux: the import, the start
 from the Boot Dashboard (after "Choose Main Type") and with Run As, both proofs of "Prove it before
 handover" and every request it tried answering 200 on mock, a start on live through the launch
 dialog, and three of five test classes failing; a plain Eclipse 2026-09, with Java home for Gradle set
 to the JDK 21 and started with Run As, Java Application, imported with 0 errors and 25 warnings and
 gave the same proofs and failures. On `ace5914` another agent saw the start with
-no dialog, the profile written into the file and restored, and the tests as in step 7. **Not seen by
-anyone:** Windows, `run.cmd`, a real tester at a real workstation with a corporate proxy or mirror,
-the screens in a browser after a start from STS, the live profile against a service, the whole test
-suite from the IDE, and STS on a release other than 5.4.0.
+no dialog, the profile written into the file and restored, and the tests as in step 7. On `d089e65`
+four more runs (D-273): STS cloned the repository from GitHub through the Git import wizard as in
+step 2 (b), imported `epa-pave` by changing "Import source:", started it with both proofs holding, and
+saw what Finish on the wizard's own choice gives, the two `PaveApplication` entries and Team, Pull with
+nothing new; the Gradle import was given the top folder of a clone on purpose, which gave the error
+naming `gradle-8.9-bin.zip` and its cause, and the Git Repositories view was looked at; the state
+after Finish on the wizard's own choice was rebuilt and left as under "Already pressed Finish on the
+`Interop` row?", with the tool started and both proofs run after Close Project and after Delete; and
+a workstation with no JDK 21 was simulated, then one whose network refuses the downloads, as under
+"What the machine needs" and "If the import fails". **Reported, not seen by the writers of this
+README:** one operator, on a Windows workstation, let STS make the clone, as for another project. The
+clone showed under Git Repositories with no project in the Package Explorer; a Gradle import then
+failed with the error naming `gradle-8.9-bin.zip`, its cause cut off; their Git Repositories view held
+two clones, one on `epa-pave` and one on another branch and 39 commits behind; the Git wizard's last
+page offered only the top folder, already imported; and the top folder was then a Maven project with
+`epa-pave` a plain folder inside it. Whether the tool has since run there is not known. **Not seen by
+anyone:** Windows beyond that report, `run.cmd`, a credential prompt, a real tester at a real
+workstation with a corporate proxy or mirror, a machine with a Java 17 and no Java 21, "Clone a Git
+repository" in the Git Repositories view, a branch switched from that view, a pull that brings new
+commits, the screens in a browser after a start from STS, the live profile against a service, the
+whole test suite from the IDE, and STS on a release other than 5.4.0.
 
 ## Open items
 
@@ -2165,8 +2382,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
 - **STS was seen on Linux with Spring Tools 5.4.0 only**: the import, the start on mock from the
   Boot Dashboard and Run As, the start on live through the launch dialog (on `e70a873`) and five test
   classes
-  (D-272). No other release, no minimum version and no Windows machine was tried, and the whole
-  suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
+  (D-272); on `d089e65` the clone by STS's Git import wizard, what goes wrong on its way, and an
+  import without a JDK 21, simulated (D-273). No other release, no minimum version and no Windows
+  machine was tried, and the whole suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
   tracked file `PaveApplication.launch`; do not commit that. See
   [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **A mirror that needs credentials and a token server** were not tried.
@@ -2424,7 +2642,11 @@ repeat every finding id; it leaves out nothing a tester has to know.
   subscription read, the page and one stylesheet. What each run saw is under [STS (Spring Tools for
   Eclipse)](#sts-spring-tools-for-eclipse) and in D-272. Before them, on `1b34181` and `05acbf7`, an
   emulation of STS's compiler without STS started the tool, and on `05acbf7` ran the 70 `curl`
-  examples under [Endpoints](#endpoints) (D-271).
+  examples under [Endpoints](#endpoints) (D-271). On `d089e65`, by agents in the same way, four more
+  runs of Spring Tools 5.4.0 on Linux: the clone by its Git import wizard, the import of the wrong
+  folder, the state that wizard leaves, and a machine with no JDK 21 and then no network, both
+  simulated; `GET /api/mode` and the two proofs after each start of the tool, in the first and the
+  third of these (the second and the fourth started nothing) (D-273).
 - **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
   (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
   on that machine):

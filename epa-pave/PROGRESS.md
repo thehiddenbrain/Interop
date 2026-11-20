@@ -38,7 +38,11 @@ question whether the tool was ready to load into STS, the first answer that was 
 code change it led to and what an emulation of STS showed, with what an independent check of that
 entry and the README's STS section found. D-272 records the two runs of the real STS that followed,
 on Linux with Spring Tools 5.4.0, and the change made between them, with what an independent check
-of that entry and the README's STS section found.
+of that entry and the README's STS section found. D-273 records what the operator met when they let
+STS clone the repository on a Windows workstation, what they were told and how it held up, and four
+more runs of the real STS on Linux on `d089e65` (the Git import wizard, the wrong folder on purpose,
+the operator's state rebuilt, and a machine with no JDK 21 and then no network, both simulated); the
+commit that records it changes this file, `DECISIONS.md` and the README only.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and two code changes:
@@ -147,7 +151,20 @@ has looked.
    Not seen: Windows, a real tester at a real workstation with a corporate proxy or mirror, the
    screens in a browser after a start from STS, the live profile against a service, the whole test
    suite from the IDE, and STS on a release other than 5.4.0 (the README, "STS (Spring Tools for
-   Eclipse)"). Also never tried: a mirror with credentials and a token server; a screen reader,
+   Eclipse)"). On `d089e65` (D-273) the real STS 5.4.0 on Linux also cloned the repository from
+   GitHub with its Git import wizard, whose own choices are the wrong branch and the other
+   application; was given the top folder of a clone, which gave the error naming
+   `gradle-8.9-bin.zip` (Gradle 8.9 on STS's Java 25, not the network); was put in the state that
+   wizard leaves and got the tool running from there, with Close Project and Delete each seen; and,
+   simulated, had no JDK 21 (the import leaves a project that cannot start, "Cannot find a Java
+   installation ... languageVersion=21") and then no network. The reports and screenshots are in the
+   integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`, `sts-two/` and
+   `sts-nojdk/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
+   Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of
+   the Git wizard offering only the top folder, and that folder imported as a Maven project with
+   `epa-pave` a plain folder inside it; whether the tool has run there is not known. Not seen: Windows
+   beyond that report, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21.
+   Also never tried: a mirror with credentials and a token server; a screen reader,
    contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
 11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
@@ -505,7 +522,7 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   rule; invented surnames that do not start with `Placeholder` remain in a few tests; empty section
   banners remain in 16 main source files.
 - Documentation: STS was seen on Linux with Spring Tools 5.4.0 only, not on Windows or another
-  release (D-272); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
+  release (D-272, D-273; one Windows workstation has reported, D-273); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
   build` runs them.
 
 **Checked only by unit tests, by reading the source, or at the gateway, never in the running tool.** A
