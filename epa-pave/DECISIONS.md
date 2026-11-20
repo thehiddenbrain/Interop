@@ -26,6 +26,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-227, D-252 | Four questions were put to the operator during the build and had no answer then | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request. The operator's replies, after the pull request was opened: D-269 |
 | D-269 | The operator replied to the four questions of D-227 after the pull request was opened: two answered, two not | The sandbox follows 2.0.1 on the operator's word, not observed; a vendor sample request can be shared and has not arrived; the operator does not know about the NPI's first digit and did not understand the question about the bind, so both stay as they are |
 | D-270 | Told what the bind means, the operator replied that the tool will be run as a real service one day | Nothing changes now and the tool keeps listening on this machine only. **As delivered it is not fit to be run as a shared or production service**, and the bind is not to be opened before a sign-in exists. What must exist first is in the README, "Before PAVE is run as a shared or production service" |
+| D-271 | Asked whether the tool was ready to load into STS, the integrator first answered yes for mock with one caveat; that was wrong in part | Built the way STS builds it, 24 handler arguments in 9 handlers failed with HTTP 500 (History, one run, the note, export, notifications, the four subscription calls). Each now names itself, a test holds it, and an emulation on Linux saw them answer. **No real STS has imported or started the project** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -4883,3 +4884,83 @@ was said.
   tester reference of any run afterwards, and only one suite runs at a time for the whole copy. The
   integrator corrected each in the README and in `PROGRESS.md`. Nobody has checked those last
   corrections.
+
+**D-271. Loading PAVE into STS: what the first answer got wrong, what was changed, and what is known
+and not known.**
+After the pull request was opened the operator asked: "is it ready to load into STS and start
+testing?" STS (Spring Tools for Eclipse) was never available on the build machine, and the README
+said so.
+- **The first answer was wrong in part.** The integrator answered yes for testing on mock, with one
+  caveat: six endpoints whose path variables took their name from the Java name of the argument, which
+  only a compiler that keeps parameter names provides. Inside STS the classes are compiled by the
+  Eclipse compiler, which keeps no parameter names unless a project setting is on, and nothing in the
+  import turns it on. The search behind the caveat matched only a bare `@PathVariable`. The test
+  written for the fix found 24 such arguments in 9 handlers of `RunController` and `PasController`:
+  the History list and its filters, one run, the note, the export, the notifications list and the
+  four subscription calls. "Yes for mock" was true only when the tool is started from what the
+  Gradle build compiles (`run.sh`, `run.cmd`, the jar), because that build passes `-parameters`.
+- **The decision.** Every handler argument names its request parameter or path variable in its
+  annotation (`05acbf7`, merged at `a5040bd`), so the application no longer depends on the compiler
+  keeping parameter names. `HandlerArgumentNamesTest` fails the build when a handler argument of any
+  controller of the application does not name itself, and a second test runs the same check on a
+  probe controller and expects each kind of unnamed argument to be found. The `-parameters` flag and
+  the task `verifyParametersFlag` stay, as a second guard for code the test cannot see. The whole
+  build of `05acbf7` through the shared wrapper: 2872 tests, 0 failures, 0 errors, 2 skipped. The
+  change's author saw the test fail before the controllers were changed, listing all 24 arguments.
+- **What an emulation of STS showed.** An agent that wrote neither the tool nor the change compiled
+  the main, test and houseStyle sources with the Eclipse compiler (ECJ 3.46.100, `--release 21`,
+  without `-parameters`): no error before or after the change; 23 warnings in main, 6 in the tests.
+  It started the tool from those classes with no profile argument, from an empty folder. Before the
+  change (`1b34181`) the tool started on mock and both proofs of "Prove it before handover" held, but
+  the History list, one run, the note, the notifications list and the four subscription calls answered
+  500 with the general internal-error body, and the log named only the exception class
+  (`IllegalArgumentException`), so nothing told a tester why. After it (`05acbf7`) all of them answered
+  200, both proofs held, no error was logged, and all 70 `curl` examples of the README answered the
+  status they state (three rerun by hand, because the script that runs them puts the run id inside the
+  suite run id). The tool started under the Eclipse compiler both times, so its configuration records
+  bound without the flag, which the change's own report had left open. It also read the model Gradle
+  gives an Eclipse import: five source folders, Java 21, 80 classpath entries, no model error. The
+  model lists two folders of Gradle's build output for the houseStyle source set,
+  `build/classes/java/houseStyle` and `build/resources/houseStyle`, which do not exist in a fresh
+  clone. A Gradle build creates the first; the second stays absent even after a full build, because
+  the source set has no resources (seen on this machine, see the report to the integrator). Whether
+  Eclipse marks a missing folder could not be settled here.
+- **What it could not show**, passed on whole: a real STS or Eclipse (its own compiler settings, its
+  default Javadoc processing, problem severities and incremental builds were approximated by the batch
+  compiler); what Buildship does with the model (the `.classpath` and `.settings` it writes, whether it
+  keeps the two missing folders, whether it sets the project encoding to UTF-8, how it limits main
+  code from seeing test jars), read only as the raw model through Gradle 9.5.0's own tooling library
+  because the public copy of that library was refused by the network; which Buildship and STS versions
+  a tester will have; the Boot Dashboard and the Run As, Spring Boot App launch (classpath order,
+  working directory, agents, any profile or argument they add); Windows (paths, the default encoding,
+  line endings, `run.cmd`; `run.sh` was not run either); the JUnit tests run from the Eclipse
+  compiler's output, `HandlerArgumentNamesTest` among them (only compiled); the screens in a browser
+  (only the page and two static files were fetched); the live profile.
+- **How the versions were read.** From the projects' own pages and source, each claim marked as read
+  then from a named source or from memory, and only the first kind used: the Spring Tools wiki
+  (Changelog, FAQ, Boot Dashboard), the Spring Tools and Buildship source, and the Spring Framework
+  6.1 release notes. Two hosts were refused by the machine's network policy (`docs.gradle.org`,
+  `eclipse.dev`), so the Gradle compatibility pages and the Eclipse notes were not read. The agent read
+  three public repositories (Buildship, Spring Tools and the Spring Tools wiki) by cloning them without
+  signing in, although this session's access to GitHub is scoped to this project's repository. The
+  integrator removed those copies when it saw them. Nothing from them is in the project except the
+  facts below, which are public.
+- **What a tester is told** (README, "STS (Spring Tools for Eclipse)"): no STS installation has ever
+  imported or started the project. Use Spring Tools 5: 5.0.0 is the first release that states Spring
+  Boot 4 support and is built on Eclipse 2025-12; Spring Tools 5 does not run on an older Eclipse and
+  Spring Tools 4 gets no more updates; the current release when read was 5.4.0. The project needs a
+  JDK 21 that Gradle can find; Spring Tools 5 brings a JDK 25 of its own, which its Gradle integration
+  uses for the import by default, and the Spring Tools FAQ names Gradle 9.1.0 or later, or choosing
+  another JDK in the import wizard, as the remedy for import failures (the wrapper is 9.5.0). Run the
+  Gradle build once before or right after the import, and refresh the Gradle project if a build path
+  marker stays. Start it from the Boot Dashboard or with Run As, Spring Boot App on `PaveApplication`;
+  it starts on mock with no argument, and `config-store/` and `run-history/` appear in the folder the
+  launch runs in, by default the project folder (inferred, not seen), both ignored by git. No main
+  source or resource holds a character outside ASCII; seven test files do, so tests started from an
+  IDE on Windows need the project's text encoding set to UTF-8, as the Gradle build sets it. Expect
+  yellow warnings, none an error. Buildship sets only the compliance, source and target level from the
+  build, not the setting that keeps parameter names, and the Spring Framework 6.1 release notes tell
+  Eclipse users to switch it on themselves; with this change it is not needed, and ticking it does no
+  harm.
+- The commit that records this changes this file, `PROGRESS.md` and the README only. Nobody has
+  checked this entry or the README section independently.

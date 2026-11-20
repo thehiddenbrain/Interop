@@ -10,9 +10,9 @@ adds these records. The integrator built the line at this content through the sh
 SUCCESSFUL in 4m 31s. The two skipped tests need a folder that cannot be written
 (`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
 `JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
-make; the same refusals are covered by tests that did run. This is the last whole build this file can
-record: the integrator's last gates run on the commit that holds this file, and their result is in the
-pull request description, part 2 (D-267).
+make; the same refusals are covered by tests that did run. The integrator's last gates ran on the
+commit that held the records of that revision, and their result is in the pull request description,
+part 2 (D-267). What the head holds since `902e0d9`, and its later build, follow below.
 
 It holds `428eff5` and, merged since: the records and README pass that settled the lines marked for the
 four closing tasks (`final-touch` at `c4bc498`, D-253 to D-259), and **the four last fixes**, one for
@@ -33,7 +33,17 @@ D-252, those of the four closing tasks D-253 to D-259, and those of the last che
 how the checking ended D-260 to D-268. D-269 records what the operator replied to the four questions of
 D-227 after the pull request was opened, and D-270 the operator's later word that the tool is to be run
 as a real service one day, with what an independent check of that entry found; the commits that record
-them change this file, `DECISIONS.md` and the README only, and no code.
+them change this file, `DECISIONS.md` and the README only, and no code. D-271 records the operator's
+question whether the tool was ready to load into STS, the first answer that was wrong in part, the
+code change it led to and what an emulation of STS showed.
+
+**The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
+D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and one code change:
+`05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
+`HandlerArgumentNamesTest` holds that. The whole build of `05acbf7` through the shared wrapper
+(`gw clean build`): 2872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. Its code is the
+code at the head, so this is now the last whole build this file can record; the integrator's gates
+run after this file, and their result is in the pull request description.
 
 ### Open at the revision handed over, the worst first
 
@@ -124,8 +134,11 @@ has looked.
    or an early NUL byte is skipped unread; a second, weaker copy of the tracking rule; invented surnames
    and 16 files of empty banners remain. The gate does not read commit messages or the pull request
    description.
-10. **Never run or never tried.** `run.cmd` (no Windows machine); the STS minimum version (not stated,
-   not verified); a mirror with credentials and a token server; a screen reader, contrast, 200% zoom
+10. **Never run or never tried.** `run.cmd` (no Windows machine); a real STS: no STS installation has
+   imported or started the project. An emulation of its compiler on Linux started the tool on mock
+   and every call and README example it tried answered as stated after `05acbf7`, but the import, the
+   launch, Windows and the tests run from the IDE were not shown (D-271; the README, "STS (Spring Tools
+   for Eclipse)"); a mirror with credentials and a token server; a screen reader, contrast, 200% zoom
    and phone width; many states listed below under the screens as never drawn.
 11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
@@ -479,7 +492,8 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   near its start is skipped unread; `StaticFrontendTest` keeps a second, weaker copy of the tracking
   rule; invented surnames that do not start with `Placeholder` remain in a few tests; empty section
   banners remain in 16 main source files.
-- Documentation: STS (no minimum version is claimed), a mirror that needs credentials and a token server
+- Documentation: a real STS (no STS installation has imported or started the project; Spring Tools 5
+  is named from its project's own pages; D-271), a mirror that needs credentials and a token server
   were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
   build` runs them.
 
@@ -1274,7 +1288,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 - The build: green at the content of `902e0d9` through the shared wrapper (`gw clean build`), 2870
   tests, 0 failures, 0 errors, 2 skipped, as the integrator ran it (its log, `final/build-c5.log` in the
   build's scratch directory). Nobody else has built this revision; the integrator's last gates are in
-  the pull request description.
+  the pull request description. Since then `05acbf7` (D-271), whose code is the code at the head:
+  2872 tests, 0 failures, 0 errors, 2 skipped, through the same wrapper, built by the change's author.
 
 | Step | State |
 | --- | --- |
