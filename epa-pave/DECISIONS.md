@@ -706,6 +706,8 @@ started under. If the configuration changes while it runs, the run stops and say
 left would have gone to a different target than the cases before them, and one results table
 must describe one target. The rows not reached are marked as not run, which is a different thing
 from failed.
+(Corrected by D-168: a suite stopped by a change of configuration says so without claiming that
+the cases left would have gone to a different target, which for most changes was untrue.)
 
 **D-106. What a suite holds in memory.**
 The uploaded file is not stored. A case holds its member ID until the case has run or the run has
@@ -792,7 +794,9 @@ one. A client that states no origin, such as curl or a vendor's server, is let t
 to the notification receiver is exempt from the host check only. The session cookie is
 SameSite=Strict and HttpOnly, since the production unlock lives in the session.
 (Amended by D-148: where a request comes from is now read from `Sec-Fetch-Site` first, and a request
-another site's page made is refused whatever its method, because on live a read acts.)
+another site's page made is refused whatever its method, because on live a read acts. The one
+exception is a top-level GET navigation, which opens a page but never an answer of the API; and a
+request that carries neither `Sec-Fetch-Site` nor `Origin` is still let through. D-148 says both.)
 
 **D-117. API responses are never stored by the browser, and pages load from this tool only.**
 Every `/api/` response carries `Cache-Control: no-store`: a lookup answers with a member's name and
@@ -988,7 +992,7 @@ climbs with `../`. Neither request reaches a lookup. `application.yml` now sets
 `org.springframework.web.servlet.resource.ResourceHandlerUtils` to ERROR. A test asserts both
 levels and that such requests leave no identifier in the output. A browser sends neither form;
 a hand-typed address can.
-(Extended by D-150: four more loggers are raised.)
+(Extended by D-150: three more loggers are raised.)
 
 **D-129. From the lookups' report: how a lookup answer is read while both response contracts are open.**
 Neither the member API nor the provider directory has a published response contract (section 26
@@ -1143,6 +1147,9 @@ chain that followed another step is marked on its ledger line as not replayable 
 the line does not hold what the earlier step handed on, so replaying a journey sends only its
 CRD call again. The way to run a whole journey again is a suite row of kind chain. D-131 is
 corrected above, and the screen says this wherever a tester meets such a line.
+(Narrowed by D-167: the chain view gives its replay note only when a step of the chain is marked.
+Not true at the revision of D-175: the refusal a tester meets on replay does not point to the
+suite row, and there is no screen on that line. Both are open work.)
 
 **D-139. "Send a request from the collection as it is" does not send the body saved in the collection. D-097 overstated it.**
 Found by the newcomer who followed the README. `POST /api/raw` sends the method, the address and
@@ -1157,8 +1164,10 @@ entry describes the tool.)
 
 ## Decisions of the fix wave
 
-Every audit finding listed in `PROGRESS.md` was given to a fix task. Each task was done by one
-agent, attacked by a second that did not write it, and finished by a third. The entries below
+Every audit finding listed in `PROGRESS.md` was given to a fix task, except those that were the
+operator's or the integrator's to decide: V4-11 (D-153), the findings about the build prompt
+(D-173), the edge's E14, which the merge of the comparison closed, and the guardrail's F15, a
+question of scope (D-175, item 9). Each task was done by one agent, attacked by a second that did not write it, and finished by a third. The entries below
 record what those tasks decided and what the integrator decided for them, in this order: the
 rules set across the wave, then each part, then what was decided not to do, then what was decided
 while joining the parts. Where an entry says "the fix", "the verification" or "the audit", it
@@ -1190,8 +1199,10 @@ key `NextStepView.CARRY_DOC_PURPOSE` (what CRD said the documentation is for), w
 shared types for this. The cost: a sentence on screen is longer, and a response in a later
 version's shape raises findings that are information, not faults. A kind for a broken rule of the
 guide that is neither a missing element nor a code outside a value set (an invariant, an element
-where it may not sit) was asked for by the CRD fix and is not on the line: until it is, such
-findings are filed as `REQUIRED_ELEMENT_MISSING` with a title that names the rule.
+where it may not sit, an element sent more often than allowed) was asked for by the CRD fix. The
+integrator decided after the wave to add it, as `GUIDE_RULE_BROKEN`, and to move to it the same
+misfits in DTR and PAS too. That is open work: at the revision of D-175 such findings are filed
+as `REQUIRED_ELEMENT_MISSING` with a title that names the rule.
 
 **D-141. A value nobody supplied is never invented, and the request says what it left out.**
 Section 8's rule (a coverage status the lookup did not return is not "active") applied to every
@@ -1347,6 +1358,8 @@ not a variable. The decision is always by the name of the place, never by what t
 - A credential typed into a path segment or a host, where no name says what it is, is still shown as
   written.
 - The FHIR element `preAuthRef` is exempt by its exact name (D-175).
+- The list of names lives in `model/Secrets`, a shared type outside the fix's files; the integrator
+  accepted that edit at the merge (D-175, item 9).
 - The configuration store keeps credentials, so its folder and files are for their owner only where
   the file system allows (m4), and a folder made with open modes is tightened at start-up. At
   start-up the tool logs the full paths of the store and the run history, and warns when either lies
@@ -1360,8 +1373,16 @@ browser could make the tool look a member up at the payer with the tool's creden
 browser save the ledger export. The page could not read the answer, but a lookup is an act. Now
 `Sec-Fetch-Site` decides when present (`same-origin` and `none` pass); `Origin` is read only when it
 is absent, and then compared by scheme, host and port, refusing user information, a path, a query
-or a fragment. Anything else from another site is refused, whatever the method. One kind passes: a
-top-level GET navigation, so a link to the tool still opens it. Referrer-Policy is now
+or a fragment. Anything else from another site is refused, whatever the method. One kind passes
+this filter: a top-level GET navigation, so a link to the tool still opens a page. Such a
+navigation is refused when the framework hands it to a controller method
+(`CrossSiteNavigationInterceptor`), so a link from another site opens a page or a static file of
+the tool and never an answer of the API. Left open, as the filter's Javadoc says: a request that
+carries neither `Sec-Fetch-Site` nor `Origin` is let through, as curl is. A browser sends
+`Sec-Fetch-Site` only to an origin it holds to be secure, which includes localhost and the
+loopback addresses but not another name served over plain http, such as an `app.allowed-hosts`
+entry, and an older browser does not send it at all. There another page's image or link still
+reaches a read. Referrer-Policy is now
 `same-origin`, so the tool's own plain form post carries a real Origin, and an address of the tool,
 which can hold a member ID, still never goes to another site.
 
@@ -1422,6 +1443,8 @@ member's identifier, name or date.
 - A line of business is written only when the code list or its aliases know it, in the list's own
   spelling when exactly one list name matches, as typed when known only through an alias; anything
   else is written as its length. Only the tool's three exact statements are accepted as statements.
+  A History filter on a line of business typed in another spelling therefore does not match lines
+  written since, which carry the list's spelling.
 - An authorization number may be written in up to four groups separated by spaces.
 - On mock, a member ID is written in the clear only when it is a `P32H-` sentinel or `S` and nine or
   ten digits; anything else is tokenised as on live.
@@ -1557,7 +1580,7 @@ From findings 04 to 07, 18, 22 and 23, DTR-05, and its verification.
   reading of narrative the 2.0.1 package does not ship, labelled illustrative.
 - The request comparison reads a provider from `PractitionerRole.organization` when the role names no
   practitioner. Three tests outside the CRD files were changed by the CRD fix to follow the new
-  request; they are on the merged line.
+  request; the integrator accepted them at the merge (D-175, item 9).
 
 ### PAS held to 2.0.1
 
@@ -1650,7 +1673,7 @@ or a secret variable in an error text, a link or a property name.
 From the PAS follow-up.
 - An exchange says whether it reached the service: yes when, and only when, a response arrived; no
   for a failure before any of the request was written (connect timeout, refused connection, name
-  not resolved, no route, a TLS handshake failure); cannot say for a read timeout, any other TLS
+  not resolved, no route, a TLS handshake failure, a peer not verified); cannot say for a read timeout, any other TLS
   failure and anything unrecognised. A false "not reached" invites a second prior authorization, a
   false "may have" costs one status check, so the tool errs to "may have". The outcome code
   `UNREACHABLE` covers both and the headline tells them apart.
@@ -1737,7 +1760,12 @@ From the chain review (F1 to F6, F11, F14) and the suites review, with their ver
 - Chains are compared with an earlier suite run case result with case result; an earlier chain with
   no case line shows no previous result.
 - Only a record that used what an earlier step handed on is said to be not replayable alone (D-138),
-  and the chain view no longer says the self-check names a damaged file, which it does not.
+  and the chain view no longer says the self-check names a damaged file, which it does not. A CRD
+  or PAS step counts as having used it whenever it was handed anything at all, even only the
+  procedure codes its own line already holds, so such a step is still marked (the chain review's
+  F7; open).
+- The ledger record gained `caseExpected` and `caseResult`. The History CSV export takes its
+  columns from the record by reflection, so it gained those two columns.
 - A tool failure keeps the frozen status `NOT_RUNNABLE` and is told apart by a fault reference, with
   its own line and count.
 
@@ -1763,7 +1791,12 @@ From the suites review (B1 to B3, M1 to M5, m1 to m11) and the chain review (F8,
   outcomes it can produce. Whether a code assertion's value is in its element's value set is not
   checked before sending.
 - A made-up case id is `case-N`, since it counts cases, not lines. The results file starts with a
-  byte order mark and names its suite state and stop reason.
+  byte order mark and names its suite state and stop reason. Its column `runs` became `what`, and
+  columns were added; a reader of the old file must follow.
+- `SuiteCounts` gained `toolFailed`, `partly` and `failedByFault`, which changed its positional
+  order. The suite answers gained further components (a case's steps, fault reference and next
+  step; a preview's rows that cannot run; the chain view's case result and replay note), all
+  additions.
 
 **D-169. The code list follow-up: the placeholder never reads as the P32H list.**
 From the fixture audit's V4-01 and the code list report.
@@ -1812,8 +1845,9 @@ From the comparison's report and its verification. D-119 says what it is for.
 - `run.sh` changes to its own directory, so the runtime folders land beside it; it builds the jar only
   when it is missing, takes `mock` or `live` first and passes `--` arguments through, and needs Java
   21. `run.cmd` was written to match it and has never been run: there is no Windows machine here.
-- The README examples use port 8091, because the ports from 8058 to 8090 were in use by other agents
-  on this machine; the tool itself defaults to 8057.
+- The README examples use the default port 8057. Where 8057 is taken, the README says to start with
+  `--server.port=8091` and use that port instead; 8091 was chosen because the ports from 8058 to
+  8090 were in use on this machine when the README was checked.
 - The sample collection has the thirteen request names of section 10 and no Authorization header,
   because an undefined token variable would make every mock run a 422. The sample code list uses
   headers that differ from the placeholder's on purpose, to exercise the loader. The sample suite is
@@ -1830,10 +1864,16 @@ They are not on the line D-175 describes. What they decided that a maintainer wo
 rediscover:
 - The browser keeps no copy of words the server owns. Where the server gives no label, the screen
   shows the code and says why, and the server change is open work.
-- Tab in an identifier field looks it up; Enter does too. One picker option per code; the tags are
+- Tab in an identifier field looks it up; Enter does too. Enter never sends a run: in the code
+  picker it adds a code, and anywhere else it does nothing. One picker option per code; the tags are
   PA, No PA and the vendor, and an unknown requirement shows nothing.
 - An empty own-request box is refused on the page, since sending it would build the body from the
   form, the opposite of the choice.
+- With a request of the tester's own, the form's member, provider and codes are not posted. They
+  steered the mock scenario and filled the ledger with a member the body may not be about, and a
+  run absent from the ledger is preferred to a false record. The cost: the ledger records no
+  member, NPI or line of business for such a run, and nothing on its line tells two such runs
+  apart (open, in `PROGRESS.md`).
 - The Config tab does not offer what its shared client cannot send (changing a mapping, removing an
   environment or a collection) and says once what to do instead. A url token that cannot be filled
   is reported before sending; whether to send is the server's decision.
@@ -1849,6 +1889,10 @@ operator's document, so the tool follows 2.0.1 (D-136) and this file records the
   card, not a 2.0.1 place; the delegated vendor in `detail`, a project assumption, not guide content;
   28.3's required-element rule, where 2.0.1 requires `covered`, `coverage`, `date` and
   `coverage-assertion-id`; 28.1's "doc-needed with a DTR link", where 2.0.1 needs no link.
+- The variables the 2.0.1 requests read are named in no section of the prompt: `patientMrn`,
+  `patientMrnSystem` and `hcpcsSystem` for CRD and DTR; `pasServiceType`, `pasRequestType`,
+  `pasHcpcsSystem` and `pasRequestingOrgIdentifier` for PAS; `dtrIntendedUse` for DTR. D-157,
+  D-158, D-160 and D-164 say what each supplies.
 - Section 12 (DTR): the package also carries a draft QuestionnaireResponse the client starts from,
   which must carry `qr-context` and an intended use; the completion status is the FHIR code
   `completed`.
@@ -1863,7 +1907,8 @@ operator's document, so the tool follows 2.0.1 (D-136) and this file records the
   what the answer means in the words of 2.0.1.
 - `model/FieldError.toString` keeps its message: a frozen test reads it. A field error can repeat an
   expectation term the tester typed (D-175, item 7).
-- The session cookie is the server's own, holds no member data and is not a finding (D-020).
+- The session cookie is the server's own, holds no member data and is not a finding (its attributes
+  are in D-116; the unlock it carries is D-020).
 - File permissions on Windows are whatever the folder gives, for the configuration store and the
   ledger alike. Only Linux was observed.
 - A 400 for a query the server cannot read always speaks of "the query of the address". No endpoint
@@ -1901,3 +1946,10 @@ operator's document, so the tool follows 2.0.1 (D-136) and this file records the
    never to the ledger. Only an expectation over the length limit is never quoted.
 8. A lookup the guardrail refuses stays `FAULT` with the error kind `BLOCKED` rather than a status of
    its own (D-146).
+9. Edits outside a fix's own files, accepted by the integrator at the merge. The CRD fix changed
+   three tests outside the CRD files (`service/suite/SuiteServiceTest`,
+   `service/codelist/CodeListConformanceSeamTest`, `web/CrdControllerTest`): they only follow the
+   new behaviour, each with an exact expectation, and the merged line builds green with them. The
+   guardrail fix changed two shared files: `model/Secrets`, for the list of names that read as a
+   credential and the words that make a name a descriptor (D-144, D-147), and
+   `client/lookup/LookupOutcomes`, for the sentence of a refused lookup (D-146).
