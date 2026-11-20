@@ -547,6 +547,21 @@
     .config-upload__fields {
         grid-template-columns: minmax(0, 1fr);
     }
+
+    /* On a narrow window the five views and the controls beside a heading go onto a second line
+       rather than past the edge of the page. */
+    .config-views {
+        flex-wrap: wrap;
+        row-gap: var(--gap-2);
+    }
+
+    .config-read {
+        flex-wrap: wrap;
+    }
+
+    .config-view .panel__head {
+        flex-wrap: wrap;
+    }
 }
 
 /* The raw view has no case: the shared case belongs to the protocol tabs, so its slot and the rule under it are not drawn here. */

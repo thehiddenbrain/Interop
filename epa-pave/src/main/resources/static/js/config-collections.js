@@ -84,8 +84,8 @@ export function createCollectionsView(context) {
             unplaced.length > 0
                 ? el('p', null, el('strong', null, unplaced.length === 1 ? 'One request could not be placed: ' : unplaced.length + ' requests could not be placed: '),
                     unplaced.map((request, index) => [index > 0 ? ', ' : null, request.name]),
-                    calls.canChangeMapping() ? '. That is not an error: each can be sent as written, or mapped by hand below.'
-                        : '. That is not an error: each can be sent as written from "Send a request as written".')
+                    '. That is not an error: ', unplaced.length === 1 ? 'it' : 'each',
+                    calls.canChangeMapping() ? ' can be sent as written, or mapped by hand below.' : ' can be sent as written from "Send a request as written".')
                 : el('p', null, 'Every request was placed.'),
             scripted.length > 0
                 ? el('p', null, el('strong', null, scripted.length === 1 ? 'One request carries a Postman script' : scripted.length + ' requests carry Postman scripts'),
