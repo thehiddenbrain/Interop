@@ -6,18 +6,24 @@ import java.nio.charset.StandardCharsets;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.valves.ErrorReportValve;
+import org.p32h.interop.epa.pave.model.ErrorKind;
 
 /**
  * Answers the errors the embedded server raises before a request reaches this application, in the
- * same error shape everything else uses.
+ * same error shape and with the same headers as everything else.
  *
  * <p>A request the server itself refuses, such as one with characters a url may not hold, never
- * reaches the exception handler. Left alone, the server answers it with an HTML page that names
- * its version and can carry a stack trace. The browser code expects JSON on every error, and no
- * stack trace may reach a browser, so this writes the shared shape instead and nothing else.
+ * reaches the filters or the exception handler. Left alone, the server answers it with an HTML
+ * page that names its version and can carry a stack trace, and with none of the headers that keep
+ * an answer out of the browser's cache. The browser code expects JSON on every error, and no stack
+ * trace may reach a browser, so this writes the shared shape instead, with the five headers
+ * {@link ResponseHeadersFilter} gives every other response.
  *
- * <p>The server builds this class by name, which is why it has no dependencies and writes its
- * JSON by hand: the two sentences are fixed, so there is nothing to escape.
+ * <p>The shape has no {@code httpStatus}: in the shared shape that field is the status a vendor
+ * answered with, and an error of the server's own has none. Its status is the response's.
+ *
+ * <p>The server builds this class by name, which is why it has no dependencies. The sentences are
+ * fixed and nothing of the request is repeated.
  */
 public class JsonErrorReportValve extends ErrorReportValve {
 
@@ -35,12 +41,12 @@ public class JsonErrorReportValve extends ErrorReportValve {
             return;
         }
         boolean serverFault = status >= 500;
-        String body = "{\"kind\":\"" + (serverFault ? "INTERNAL" : "VALIDATION") + "\",\"title\":\""
-                + (serverFault ? "The server could not handle this request." : "The server did not accept this request as it was sent.")
-                + "\",\"action\":\""
-                + (serverFault ? "Try again. If it repeats, report what you were doing." : "Check the address and the request, then send it again.")
-                + "\",\"httpStatus\":" + status + "}";
+        String body = EdgeAnswers.json(serverFault ? ErrorKind.INTERNAL : ErrorKind.VALIDATION,
+                serverFault ? "The server could not handle this request." : "The server did not accept this request as it was sent.",
+                serverFault ? "Try again. If it repeats, report what you were doing." : "Check the address and the request, then send it again.",
+                null);
         try {
+            ResponseHeadersFilter.apply(response);
             response.setContentType("application/json");
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             Writer writer = response.getReporter();

@@ -9,7 +9,25 @@ spring:
     multipart:
       # A vendor collection carries sample bodies and saved responses, so it can be several megabytes.
       max-file-size: 25MB
+      # Also the limit on any request body, JSON included: a tester's own PAS bundle with a document
+      # inline is the largest body sent, and is refused with 413 above this (RequestShapeFilter).
+      # -1 means no limit, to the framework and to that filter alike.
       max-request-size: 30MB
+      # Nothing a tester uploads is written to disk outside the configuration store. A part is held
+      # in memory up to this size, and the server holds every uploaded file to max-file-size, which
+      # is below it, so none is written to the temporary folder, where a hard kill in the middle of
+      # an upload would leave it. Raising max-file-size above this undoes that, and the start-up log
+      # then says so.
+      file-size-threshold: 30MB
+      # An upload is read only by a handler that takes one. Otherwise a multipart request to any
+      # address is read in full before the framework finds there is nothing there to take it.
+      resolve-lazily: true
+  mvc:
+    formcontent:
+      filter:
+        # No endpoint takes a form body. The filter read one for every PUT, PATCH and DELETE, outside
+        # the exception handler, and a bad escape in it was a 500 that wrote the body to the log.
+        enabled: false
 
 server:
   # Deliberately not 8080. The existing tools on this programme use 8080 and this one is meant to
@@ -30,6 +48,9 @@ server:
         # borrow it, and no script needs to read it.
         same-site: strict
         http-only: true
+      # The session, and the production unlock in it, is carried by the cookie only and never by
+      # the address: the cookie's protections do not apply to an id written into a url.
+      tracking-modes: cookie
   error:
     whitelabel:
       enabled: false
@@ -43,6 +64,16 @@ logging:
     # the address out of the log; nothing else these loggers say at the lower levels is needed.
     org.apache.coyote.http11.Http11Processor: WARN
     org.springframework.web.servlet.resource.ResourceHandlerUtils: ERROR
+    # Two more of the same kind. The server's file lookup writes a whole address at WARN when no
+    # controller takes it and it holds a character the platform's file name encoding cannot
+    # represent. The cookie parser writes the name and value of a cookie it cannot parse at INFO,
+    # and a browser sends this tool the cookies every other tool on localhost has set.
+    org.apache.catalina.webresources.AbstractFileResourceSet: ERROR
+    org.apache.tomcat.util.http.parser.Cookie: WARN
+    # When a method of the exception handler itself fails, the framework writes that failure with
+    # its message at WARN, and the message can quote the request. The original exception then goes
+    # on to the outermost filter, which logs its types and frames under a reference.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
 
 epa:
   name: "PAVE"              # shown in the tab title, the masthead and /api/mode

@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -111,6 +112,8 @@ class ApiGuardFilterTest {
         assertThat(refused.getStatus()).isEqualTo(403);
         assertThat(JsonSafe.parse(refused.getContentAsString()).node().get("title").stringValue())
                 .isEqualTo("This request came from a page that is not part of this tool, so it was not carried out.");
+        assertThat(JsonSafe.parse(refused.getContentAsString()).node().get("action").stringValue())
+                .isEqualTo("Open this tool from its own address, http://localhost and its port, and do it from there.");
     }
 
     @Test
@@ -125,18 +128,149 @@ class ApiGuardFilterTest {
         assertThat(passes("POST", "/api/crd", "Host", "localhost", "Origin", "http://localhost")).isTrue();
         assertThat(passes("POST", "/api/crd", "Host", "localhost:80", "Origin", "http://localhost")).isTrue();
         assertThat(passes("POST", "/api/crd", "Host", "localhost:8057", "Origin", "http://localhost")).isFalse();
-        assertThat(passes("POST", "/api/crd", "Host", "localhost:443", "Origin", "https://localhost")).isTrue();
+        // Over plain http, an https origin is another origin, whatever its host and port.
+        assertThat(passes("POST", "/api/crd", "Host", "localhost:443", "Origin", "https://localhost")).isFalse();
         assertThat(passes("POST", "/api/crd", "Host", "[::1]:8057", "Origin", "http://[::1]:8057")).isTrue();
         assertThat(passes("POST", "/api/crd", "Host", "localhost:x", "Origin", "http://localhost:8057")).isFalse();
     }
 
     @Test
-    void aReadIsNotHeldToTheOriginCheckBecauseABrowserWillNotShowItsAnswerToAnotherSite() throws Exception {
-        // No cross-origin header is ever sent, so another site's script cannot read the response.
-        assertThat(passes("GET", "/api/runs", "Host", "localhost:8057", "Origin", "https://attacker.example")).isTrue();
-        assertThat(passes("HEAD", "/api/runs", "Host", "localhost:8057", "Sec-Fetch-Site", "cross-site")).isTrue();
-        // The host check still applies to it.
+    void aReadAnotherSitesPageCausesIsRefusedLikeAChangeBecauseAReadActsToo() throws Exception {
+        // Another site's image or fetch: on live a lookup reaches the payer with this tool's
+        // credentials, and the export is saved to the tester's disk. That the browser hides the
+        // answer from the other page undoes neither.
+        String host = "localhost:8057";
+        for (String method : new String[] {"GET", "HEAD", "OPTIONS"}) {
+            for (String site : new String[] {"cross-site", "same-site", "something-new"}) {
+                assertThat(passes(method, "/api/members/S123456789", "Host", host, "Sec-Fetch-Site", site, "Sec-Fetch-Mode", "no-cors",
+                        "Sec-Fetch-Dest", "image")).as(method + " " + site).isFalse();
+            }
+            // A browser too old to send Sec-Fetch-Site still states the origin of a request a script makes.
+            assertThat(passes(method, "/api/runs", "Host", host, "Origin", "https://attacker.example")).as(method).isFalse();
+            assertThat(passes(method, "/api/runs", "Host", host)).as(method).isTrue();
+        }
+        MockHttpServletResponse refused = send("GET", "/api/runs/export.csv", "Host", host, "Sec-Fetch-Site", "cross-site");
+        assertThat(refused.getStatus()).isEqualTo(403);
+        assertThat(refused.getContentAsString()).doesNotContain("recordType");
+        // The host check still applies to a read.
         assertThat(passes("GET", "/api/runs", "Host", "attacker.example", "Origin", "http://attacker.example")).isFalse();
+    }
+
+    @Test
+    void onlyATopLevelNavigationByGetFromAnotherSiteIsLetPastTheFilterForTheInterceptorToDecide() throws Exception {
+        String host = "localhost:8057";
+        // A link on a wiki page, followed in the window. The interceptor refuses it when a controller method would answer.
+        assertThat(passes("GET", "/", "Host", host, "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "navigate", "Sec-Fetch-Dest", "document"))
+                .isTrue();
+        assertThat(passes("GET", "/api/runs/export.csv", "Host", host, "Sec-Fetch-Site", "same-site", "Sec-Fetch-Mode", "navigate",
+                "Sec-Fetch-Dest", "document")).isTrue();
+        // Anything else that is a navigation is refused here: a form post, a frame, a HEAD.
+        assertThat(passes("POST", "/api/crd", "Host", host, "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "navigate", "Sec-Fetch-Dest",
+                "document")).isFalse();
+        assertThat(passes("GET", "/api/runs/export.csv", "Host", host, "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "navigate",
+                "Sec-Fetch-Dest", "iframe")).isFalse();
+        assertThat(passes("HEAD", "/api/runs/export.csv", "Host", host, "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "navigate",
+                "Sec-Fetch-Dest", "document")).isFalse();
+        assertThat(passes("GET", "/api/runs/export.csv", "Host", host, "Sec-Fetch-Site", "cross-site", "Sec-Fetch-Mode", "no-cors",
+                "Sec-Fetch-Dest", "document")).isFalse();
+    }
+
+    @Test
+    void secFetchSiteDecidesWhenPresentAndOriginIsReadOnlyWhenItIsAbsent() throws Exception {
+        String host = "localhost:8057";
+        // What Chrome sent for a plain form post on the tool's own page under a no-referrer policy.
+        assertThat(passes("POST", "/api/suites/preview", "Host", host, "Origin", "null", "Sec-Fetch-Site", "same-origin", "Sec-Fetch-Mode",
+                "navigate", "Sec-Fetch-Dest", "document")).isTrue();
+        // The address bar, whatever Origin says.
+        assertThat(passes("GET", "/api/mode", "Host", host, "Origin", "https://attacker.example", "Sec-Fetch-Site", "none")).isTrue();
+        // A browser that says another site is not believed over an Origin that names this tool.
+        assertThat(passes("POST", "/api/crd", "Host", host, "Origin", "http://localhost:8057", "Sec-Fetch-Site", "cross-site")).isFalse();
+        // No Sec-Fetch-Site: Origin decides, and null is never this tool's page.
+        assertThat(passes("POST", "/api/crd", "Host", host, "Origin", "null")).isFalse();
+    }
+
+    @Test
+    void anOriginIsThisToolsOnlyWithItsSchemeHostAndPortAndNothingElse() throws Exception {
+        String host = "localhost:8057";
+        for (String origin : new String[] {"https://localhost:8057", "ws://localhost:8057", "ftp://localhost:8057", "chrome-extension://localhost:8057",
+            "//localhost:8057", "http://attacker.example@localhost:8057", "http://user:pass@localhost:8057", "http://localhost:8057/",
+            "http://localhost:8057/x", "http://localhost:8057?x", "http://localhost:8057#x"}) {
+            assertThat(passes("POST", "/api/config/writes", "Host", host, "Origin", origin)).as(origin).isFalse();
+        }
+        assertThat(passes("POST", "/api/config/writes", "Host", host, "Origin", "http://localhost:8057")).isTrue();
+        assertThat(passes("POST", "/api/config/writes", "Host", host, "Origin", "HTTP://LOCALHOST:8057")).isTrue();
+        // Over TLS the tool's own origin is https.
+        MockHttpServletRequest secure = new MockHttpServletRequest("POST", "/api/config/writes");
+        secure.setSecure(true);
+        secure.addHeader("Host", "localhost:8443");
+        secure.addHeader("Origin", "https://localhost:8443");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new ApiGuardFilter(app, environment, TestMvc.mapper()).doFilter(secure, response, chain);
+        assertThat(chain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void theFullyQualifiedSpellingOfANameIsTheName() throws Exception {
+        assertThat(passes("GET", "/api/mode", "Host", "localhost.:8057")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "localhost.")).isTrue();
+        assertThat(passes("POST", "/api/crd", "Host", "localhost.:8057", "Origin", "http://localhost.:8057")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "localhost..:8057")).isFalse();
+        assertThat(passes("GET", "/api/mode", "Host", "attacker.example.:8057")).isFalse();
+        assertThat(passes("GET", "/api/mode", "Host", ".")).isFalse();
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void anAllowedHostWrittenWithAPortIsReadAsTheHostAndTheOperatorIsToldOnce(
+            org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        app = AppProperties.of(Map.of("allowed-hosts", "qa-laptop.example:8062, fd00::5, [fd00::6]:8062, qa-other.example"));
+        assertThat(passes("GET", "/api/mode", "Host", "qa-laptop.example:8062")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "qa-laptop.example:9000")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "[fd00::5]:8062")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "[fd00::6]:8062")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "qa-other.example:8062")).isTrue();
+        assertThat(output.getAll()).contains("The entry qa-laptop.example:8062 under app.allowed-hosts names a port. A host name is "
+                + "matched whatever port it is used with, so the port is ignored and qa-laptop.example is used.")
+                .contains("The entry [fd00::6]:8062 under app.allowed-hosts names a port.")
+                .doesNotContain("The entry fd00::5").doesNotContain("The entry qa-other.example");
+        assertThat(ApiGuardFilter.entryHost("QA-Laptop.example:8062")).isEqualTo("qa-laptop.example");
+        assertThat(ApiGuardFilter.entryHost("fd00::5")).isEqualTo("fd00::5");
+        assertThat(ApiGuardFilter.entryHost("[fd00::5]")).isEqualTo("fd00::5");
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void theOperatorIsToldOfAPortOnlyWhenAnEntryNamesOne(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        // The fully qualified spelling names no port: it is the name, accepted without a word.
+        app = AppProperties.of(Map.of("allowed-hosts", "QA-Laptop.example., qa-other.example.:8062"));
+        assertThat(passes("GET", "/api/mode", "Host", "qa-laptop.example:8057")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "qa-other.example:8057")).isTrue();
+        assertThat(output.getAll()).doesNotContain("The entry QA-Laptop.example.")
+                .contains("The entry qa-other.example.:8062 under app.allowed-hosts names a port. A host name is matched whatever port it "
+                        + "is used with, so the port is ignored and qa-other.example is used.");
+        assertThat(ApiGuardFilter.entryHost("localhost.")).isEqualTo("localhost");
+        assertThat(ApiGuardFilter.entryNamesPort("localhost.")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("fd00::5")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("[fd00::5]")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("[fd00::5]:8062")).isTrue();
+        assertThat(ApiGuardFilter.entryNamesPort("qa-laptop.example:8062")).isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void anEntryThatIsNotAHostNameStopsTheStartAndIsNamed(org.springframework.boot.test.system.CapturedOutput output) {
+        // Read as a host, http://qa-other.example was the host "http": a name nobody meant let in,
+        // the name meant still refused, and a start-up line saying a port had been ignored.
+        for (String entry : new String[] {"http://qa-other.example", "https://qa-other.example:8062", "qa-other.example/pave",
+                "user@qa-other.example", "qa-other.example:", "qa-other.example:http", "[fd00::5", "[fd00::5]x", ":8062", "."}) {
+            app = AppProperties.of(Map.of("allowed-hosts", entry));
+            assertThatThrownBy(() -> new ApiGuardFilter(app, environment, TestMvc.mapper())).as(entry)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("The entry " + entry + " under app.allowed-hosts is not a host name, so the tool did not start. Write the "
+                            + "name alone, such as qa-laptop.example, with no scheme such as http://, no path and no user name.");
+        }
+        assertThat(output.getAll()).doesNotContain("names a port");
     }
 
     @Test
@@ -194,6 +328,7 @@ class ApiGuardFilterTest {
         assertThat(ApiGuardFilter.hostOf("[::1]:8057")).isEqualTo("::1");
         assertThat(ApiGuardFilter.hostOf("[FD00::5]")).isEqualTo("fd00::5");
         assertThat(ApiGuardFilter.hostOf("[::1")).isNull();
+        assertThat(ApiGuardFilter.hostOf("localhost.:8057")).isEqualTo("localhost");
         assertThat(ApiGuardFilter.hostOf("")).isNull();
         assertThat(ApiGuardFilter.hostOf(null)).isNull();
     }

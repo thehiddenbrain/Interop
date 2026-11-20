@@ -260,20 +260,12 @@ class LookupControllerTest {
     }
 
     @Test
-    void anIdentifierIsNeverCutShortByASemicolonInTheAddress() throws Exception {
+    void anIdentifierWithCharactersAUrlReadsAsItsOwnArrivesWholeWhenPercentEncoded() throws Exception {
         MockMvc mvc = mvc();
-        // Unencoded, everything from the semicolon on would be dropped before the lookup, and the
-        // member looked up would not be the one that was typed.
-        mvc.perform(get(URI.create("/api/members/S123456789;x=1"))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.kind").value("VALIDATION"))
-                .andExpect(jsonPath("$.title").value("This lookup cannot be made as it was addressed. Nothing was sent."))
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("memberId"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.containsString("semicolon")));
-        mvc.perform(get(URI.create("/api/providers/1234567893;x=1"))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"));
-        assertThat(asked).isEmpty();
-
-        // Percent-encoded, a semicolon is part of the identifier and arrives whole. So does every
+        // An address with a semicolon that is not percent-encoded never reaches this controller:
+        // RequestShapeFilter refuses it for every address, which LookupOverTheServerTest checks
+        // through the running server. Percent-encoded, a semicolon is part of the identifier and
+        // arrives whole. So does every
         // other character a url would otherwise read as its own.
         Map<String, String> whole = new java.util.LinkedHashMap<>();
         whole.put("/api/members/S123456789%3Bx=1", "S123456789;x=1");
@@ -301,11 +293,6 @@ class LookupControllerTest {
             assertThat(JsonSafe.parse(body).node().get("status").asString()).as(address).isEqualTo("FOUND");
         }
         assertThat(asked).containsExactly("member", "member", "member", "member");
-        // A semicolon anywhere in the address is still refused: what follows it is cut off.
-        mvc.perform(get(URI.create("/api;x=1/members/P32H-PA-REQ"))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.containsString("semicolon")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("P32H-PA-REQ"))));
-        assertThat(asked).hasSize(4);
     }
 
     @Test
