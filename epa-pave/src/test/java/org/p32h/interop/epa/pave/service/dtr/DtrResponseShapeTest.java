@@ -52,7 +52,16 @@ class DtrResponseShapeTest {
                 "http://hl7.org/fhir/us/davinci-crd/CodeSystem/coverage-information-codes|withclaim"), Map.of());
         assertThat(pair.intendedUses().get(0).at("/coding/0/system").asString())
                 .isEqualTo("http://hl7.org/fhir/us/davinci-crd/CodeSystem/coverage-information-codes");
-        assertThat(pair.notes()).isEmpty();
+        // It is outside the 2.0.1 binding, and the note says so and names the version whose code system it is.
+        assertThat(pair.notes()).containsExactly("The variable dtrIntendedUse names the code system "
+                + "http://hl7.org/fhir/us/davinci-crd/CodeSystem/coverage-information-codes for the intended use withclaim, so the pair was "
+                + "sent as written. It is not a code of the CRD 2.0.1 value set DocReason that DTR 2.0.1 binds the intended use to (withpa, "
+                + "withclaim, withorder, retain-doc, OTH, each in its own code system). The CRD 2.2.0 ballot puts withclaim in that code "
+                + "system; CRD 2.0.1 puts it in http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp.");
+        // A pair that is in the 2.0.1 value set is said to be.
+        assertThat(DtrResponseShape.read(variables("dtrIntendedUse", TEMP + "|withpa"), Map.of()).notes()).containsExactly("The variable "
+                + "dtrIntendedUse names the code system " + TEMP + " for the intended use withpa, so the pair was sent as written. It is a "
+                + "code of the CRD 2.0.1 value set DocReason.");
 
         // A bare code outside the 2.0.1 value set is sent as stated, with no system, and the note quotes the 2.0.1 list as the 2.0.1 list.
         DtrResponseShape outside = DtrResponseShape.read(variables("dtrIntendedUse", "retain"), Map.of());
@@ -80,6 +89,14 @@ class DtrResponseShapeTest {
         assertThat(none.statesIntendedUse()).isFalse();
         assertThat(none.intendedUseSource()).isNull();
         assertThat(DtrResponseShape.read(null, null).statesIntendedUse()).isFalse();
+    }
+
+    @Test
+    void aVariableThatHoldsNoCodeIsReadAsNotSetSoWhatCrdSaidIsUsed() {
+        DtrResponseShape comma = DtrResponseShape.read(variables("dtrIntendedUse", " , "), crdSaid("withclaim"));
+        assertThat(comma.codes()).containsExactly("withclaim");
+        assertThat(comma.intendedUseSource()).isEqualTo("as CRD said the documentation is for (doc-purpose)");
+        assertThat(comma.notes()).containsExactly("The variable dtrIntendedUse is set but holds no code, so it was read as not set.");
     }
 
     @Test

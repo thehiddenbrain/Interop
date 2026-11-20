@@ -171,6 +171,11 @@ public final class OnyxDtrConventions {
      * QuestionnaireResponse profile, dtr-questionnaireresponse.
      */
     public static final String PROFILE_QR_ADAPT_LATER = "dtr-questionnaireresponse-adapt";
+    /**
+     * READ: the DTR 2.0.1 profile of the questionnaire inside an adaptive QuestionnaireResponse
+     * (url 0..0, derivedFrom 1..1, questionnaireAdaptive 1..1).
+     */
+    public static final String PROFILE_QUESTIONNAIRE_ADAPT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt";
 
     /** The information-origin extension an answer carries, or null when it carries none. */
     public static JsonNode origin(JsonNode answer) {
@@ -290,6 +295,23 @@ public final class OnyxDtrConventions {
      * <p>When the markers contradict each other, or there is no marker and no item, nothing settles
      * the kind and none is picked.
      */
+    /**
+     * True when a questionnaire carries the questionnaireAdaptive extension set to true or to a
+     * url, which the DTR 2.0.1 adaptive questionnaire profile requires exactly once. Profiles are not
+     * looked at: this is whether the marker the profile requires is there.
+     */
+    public static boolean markedAdaptive(JsonNode questionnaire) {
+        for (JsonNode extension : JsonSafe.elements(questionnaire, "extension")) {
+            String url = JsonSafe.presentText(extension, "url");
+            if (url != null && normalise(url).endsWith(ADAPTIVE_EXTENSION)
+                    && (Boolean.TRUE.equals(JsonSafe.child(extension, "valueBoolean").isBoolean() ? JsonSafe.bool(extension, "valueBoolean") : null)
+                    || Texts.firstPresent(JsonSafe.presentText(extension, "valueUrl"), JsonSafe.presentText(extension, "valueUri")) != null)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Kind kind(JsonNode questionnaire) {
         List<String> saysAdaptive = new ArrayList<>();
         List<String> saysStatic = new ArrayList<>();

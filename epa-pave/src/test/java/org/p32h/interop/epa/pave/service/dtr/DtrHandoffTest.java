@@ -43,14 +43,17 @@ class DtrHandoffTest {
         given.put(NextStepView.CARRY_DELEGATED_VENDOR, List.of("eviCore"));
         given.put(NextStepView.CARRY_DTR_LINK_URL, List.of("https://example.org/p32h-placeholder/dtr/launch"));
         given.put(NextStepView.CARRY_DTR_APP_CONTEXT, List.of("questionnaire=" + ONE));
+        given.put(NextStepView.CARRY_DOC_PURPOSE, List.of("withpa"));
         given.put(NextStepView.CARRY_PROCEDURE_CODES, List.of("00000"));
         given.put("somethingElse", List.of("not a key this tool defines"));
         Map<String, List<String>> carry = new NextStepView(org.p32h.interop.epa.pave.model.NextAction.REVIEW, "Next: read.", "Because.",
                 DtrHandoff.afterPackage(RUN, List.of("95810"), List.of(ONE), given).carry(null)).carry();
         assertThat(carry).containsOnlyKeys(NextStepView.CARRY_COVERAGE_ASSERTION_ID, NextStepView.CARRY_ORDER, NextStepView.CARRY_DELEGATED_VENDOR,
-                NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT, NextStepView.CARRY_PROCEDURE_CODES,
+                NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT, NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_PROCEDURE_CODES,
                 NextStepView.CARRY_QUESTIONNAIRE, NextStepView.CARRY_RUN_ID);
         assertThat(carry.get(NextStepView.CARRY_DELEGATED_VENDOR)).containsExactly("eviCore");
+        // What CRD said the documentation is for reaches the step that builds the response, which reads it as the intended use.
+        assertThat(carry.get(NextStepView.CARRY_DOC_PURPOSE)).containsExactly("withpa");
         // What the step establishes itself replaces what it was handed.
         assertThat(carry.get(NextStepView.CARRY_PROCEDURE_CODES)).containsExactly("95810");
         assertThat(carry.get(NextStepView.CARRY_QUESTIONNAIRE)).containsExactly(ONE);

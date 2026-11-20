@@ -30,6 +30,9 @@ final class DtrProfileCheck {
 
     private static final String QR_PROFILE = "The DTR 2.0.1 QuestionnaireResponse profile (dtr-questionnaireresponse)";
     private static final String ADAPT_PROFILE = "The DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt)";
+    private static final String DTR_PROFILES = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/";
+    /** The DTR 2.0.1 questionnaire profiles whose snapshot makes Questionnaire.url 1..1. */
+    private static final List<String> URL_REQUIRED = List.of("dtr-std-questionnaire", "dtr-questionnaire-adapt-search");
 
     /**
      * One element left out.
@@ -55,6 +58,7 @@ final class DtrProfileCheck {
         List<String> contexts = new ArrayList<>();
         boolean laterCoverage = false;
         boolean intendedUse = false;
+        List<String> unbound = new ArrayList<>();
         for (JsonNode extension : JsonSafe.elements(response, "extension")) {
             String url = JsonSafe.presentText(extension, "url");
             if (OnyxDtrConventions.EXT_QR_CONTEXT.equals(url)) {
@@ -63,6 +67,10 @@ final class DtrProfileCheck {
                 laterCoverage = true;
             } else if (OnyxDtrConventions.EXT_INTENDED_USE.equals(url)) {
                 intendedUse = true;
+                String code = boundCode(JsonSafe.child(extension, "valueCodeableConcept"));
+                if (code != null) {
+                    unbound.add(code);
+                }
             }
         }
         if (contexts.size() < 2) {
@@ -88,6 +96,13 @@ final class DtrProfileCheck {
                     + "from the CRD 2.0.1 value set DocReason. None is stated: it comes from the variable "
                     + DtrResponseShape.VAR_INTENDED_USE + ", or from what CRD said the documentation is for (doc-purpose), and neither "
                     + "stated one. This tool does not assume one."));
+        }
+        if (!unbound.isEmpty()) {
+            gaps.add(new Gap("QuestionnaireResponse.extension:intendedUse (DocReason)", QR_PROFILE + " binds the intended use to the "
+                    + "CRD 2.0.1 value set DocReason, required: " + String.join(", ", DtrCodes.DOC_REASON_201.keySet()) + ", each in its own "
+                    + "code system. " + (unbound.size() == 1 ? "The intended use " + unbound.get(0) + " is" : "The intended uses "
+                    + String.join(", ", unbound) + " are") + " not in it, so the response states no intended use 2.0.1 accepts. It was "
+                    + "sent as stated."));
         }
         if (!response.has("subject")) {
             gaps.add(new Gap("QuestionnaireResponse.subject", QR_PROFILE + " requires a subject. " + (builtHere
@@ -138,6 +153,20 @@ final class DtrProfileCheck {
             gaps.add(new Gap("Questionnaire.text", ADAPT_PROFILE + " requires a narrative text on the questionnaire inside the response. "
                     + "The questionnaire the package returned has none, and this tool does not write one."));
         }
+        if (!OnyxDtrConventions.markedAdaptive(contained)) {
+            gaps.add(new Gap("Questionnaire.extension:questionnaireAdaptive", ADAPT_PROFILE + " requires the questionnaire inside the "
+                    + "response to carry the questionnaireAdaptive extension. The questionnaire the package returned is not marked adaptive, "
+                    + "and this tool does not mark it."));
+            for (JsonNode profile : JsonSafe.elements(JsonSafe.child(contained, "meta"), "profile")) {
+                String declared = JsonSafe.presentText(profile);
+                String name = declared == null ? "" : declared.substring(declared.lastIndexOf('/') + 1);
+                if (declared != null && declared.startsWith(DTR_PROFILES) && URL_REQUIRED.contains(name) && !contained.has("url")) {
+                    gaps.add(new Gap("Questionnaire.url (" + name + ")", "The questionnaire inside the response still declares the DTR 2.0.1 "
+                            + "profile " + name + ", which requires a url, and the copy has none, because the DTR 2.0.1 adaptive questionnaire "
+                            + "profile allows none. It is not marked adaptive, so this tool leaves the profile it declares as it came."));
+                }
+            }
+        }
         if (JsonSafe.elements(contained, "derivedFrom").size() != 1) {
             gaps.add(new Gap("Questionnaire.derivedFrom", ADAPT_PROFILE + " requires the questionnaire inside the response to name "
                     + "exactly one questionnaire it is derived from. The questionnaire the package returned has no url, so there is "
@@ -182,6 +211,26 @@ final class DtrProfileCheck {
         if (!present) {
             gaps.add(new Gap(element, profile + " requires " + element + ". " + why));
         }
+    }
+
+    /**
+     * The intended use a CodeableConcept states, as the tester would read it, when none of its
+     * codings is a code of the CRD 2.0.1 value set DocReason in the code system 2.0.1 puts it in.
+     * Null when one of them is.
+     */
+    private static String boundCode(JsonNode concept) {
+        List<String> stated = new ArrayList<>();
+        for (JsonNode coding : JsonSafe.elements(concept, "coding")) {
+            String code = JsonSafe.presentText(coding, "code");
+            String system = JsonSafe.presentText(coding, "system");
+            if (code != null && system != null && system.equals(DtrCodes.DOC_REASON_201.get(code))) {
+                return null;
+            }
+            String later = DtrCodes.DOC_REASON_LATER_SYSTEM.equals(system) && DtrCodes.DOC_REASON_201.containsKey(code)
+                    ? " (the code system the CRD 2.2.0 ballot moves it to)" : "";
+            stated.add(system == null ? Texts.orElse(code, "(no code)") + " (no code system)" : system + "|" + Texts.orElse(code, "") + later);
+        }
+        return stated.isEmpty() ? "(no coding)" : String.join(" or ", stated);
     }
 
     /** True when an information-origin extension meets dtrx-1: an author exactly when the source is not auto. */

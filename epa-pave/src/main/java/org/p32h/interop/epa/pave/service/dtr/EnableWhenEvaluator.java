@@ -181,11 +181,15 @@ public final class EnableWhenEvaluator {
             return questions().stream().filter(ItemState::answered).toList();
         }
 
-        /** The shown questions still waiting for an answer. */
+        /**
+         * The shown questions still waiting for an answer. A question hidden by questionnaire-hidden,
+         * on itself or on a group above it, is not asked of the person answering, so it is left out
+         * here even though this tool does not apply that rule otherwise.
+         */
         public List<QuestionRef> asked() {
             List<QuestionRef> out = new ArrayList<>();
             for (ItemState state : shownQuestions()) {
-                if (state.given().isEmpty()) {
+                if (state.given().isEmpty() && !DtrNotApplied.hides(state.notApplied())) {
                     out.add(ref(state, null));
                 }
             }
@@ -328,8 +332,9 @@ public final class EnableWhenEvaluator {
             try {
                 ItemState parent = item.parent() == null ? null : state(item.parent());
                 List<Condition> conditions = new ArrayList<>();
+                List<DtrNotApplied.Rule> through = new ArrayList<>();
                 for (JsonNode entry : JsonSafe.elements(item.node(), "enableWhen")) {
-                    conditions.add(condition(entry));
+                    conditions.add(condition(entry, through));
                 }
                 ItemEnabled own = ItemEnabled.ENABLED;
                 String reason = null;
@@ -364,6 +369,11 @@ public final class EnableWhenEvaluator {
                     }
                 }
                 List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));
+                if (own == ItemEnabled.UNDETERMINED) {
+                    // A condition that reads an answer a rule this tool does not apply would fill in decides nothing here, so neither
+                    // does the item: whether it still needs an answer rests on that rule.
+                    through.stream().filter(rule -> !rules.contains(rule)).forEach(rules::add);
+                }
                 List<DtrNotApplied.Rule> shownBy = rules.stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN).toList();
                 if (!shownBy.isEmpty() && own != ItemEnabled.DISABLED) {
                     own = ItemEnabled.UNDETERMINED;
@@ -399,7 +409,12 @@ public final class EnableWhenEvaluator {
             }
         }
 
-        private Condition condition(JsonNode entry) {
+        /**
+         * @param through receives, for a condition that could not be evaluated because the question
+         *                it reads has no answer and a rule this tool does not apply fills its answer
+         *                in, that rule as one that decides whether this item is shown
+         */
+        private Condition condition(JsonNode entry, List<DtrNotApplied.Rule> through) {
             String question = JsonSafe.presentText(entry, "question");
             String operator = JsonSafe.presentText(entry, "operator");
             String key = QuestionnaireJson.valueKey(entry, "answer");
@@ -434,6 +449,14 @@ public final class EnableWhenEvaluator {
             } else if (looked.enabled() == ItemEnabled.UNDETERMINED && !given.isEmpty()) {
                 return notEvaluated(question, operator, key, "whether the question it looks at is enabled could not be worked out, so its "
                         + "answer cannot be relied on");
+            } else if (given.isEmpty()) {
+                List<DtrNotApplied.Rule> filling = DtrNotApplied.governing(dependency.node()).stream()
+                        .filter(rule -> rule.effect() == DtrNotApplied.Effect.VALUE).toList();
+                if (!filling.isEmpty()) {
+                    through.add(DtrNotApplied.through(filling, question));
+                    return notEvaluated(question, operator, key, "the question it looks at, " + question + ", has no answer here, and its "
+                            + "answer is filled in by " + DtrNotApplied.names(filling) + ", which this tool does not apply");
+                }
             }
 
             if ("exists".equals(operator)) {

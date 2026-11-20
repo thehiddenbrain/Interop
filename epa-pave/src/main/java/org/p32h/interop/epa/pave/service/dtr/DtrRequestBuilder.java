@@ -627,6 +627,21 @@ public final class DtrRequestBuilder {
                     : "derivedFrom was set to " + canonical + " alone, in place of " + String.join(", ", before)
                     + ", because the profile allows exactly one");
         }
+        List<String> declared = new ArrayList<>();
+        JsonSafe.elements(JsonSafe.child(copy, "meta"), "profile").forEach(profile -> {
+            String text = JsonSafe.presentText(profile);
+            if (text != null) {
+                declared.add(text);
+            }
+        });
+        // Only a copy marked adaptive is declared adaptive: a static questionnaire sent to next-question keeps what it said it was.
+        if (OnyxDtrConventions.markedAdaptive(copy) && !declared.isEmpty() && !declared.equals(List.of(OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT))
+                && copy.get("meta") instanceof ObjectNode meta) {
+            meta.set("profile", JSON.arrayNode().add(OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT));
+            changes.add("the " + (declared.size() == 1 ? "profile it declared, " + declared.get(0) + ", was" : "profiles it declared, "
+                    + String.join(", ", declared) + ", were") + " replaced by " + OnyxDtrConventions.PROFILE_QUESTIONNAIRE_ADAPT
+                    + ", because the copy is now the questionnaire inside an adaptive response, which is what that profile describes");
+        }
         int items = QuestionnaireJson.items(copy).size();
         if (!answersGiven && copy.has("item")) {
             copy.remove("item");

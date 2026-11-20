@@ -117,14 +117,72 @@ class DtrNotAppliedTest {
         JsonNode node = json(withRules.replace("\"title\":\"Rules\",", "\"title\":\"Rules\",\"extension\":[" + extension(
                 "http://hl7.org/fhir/StructureDefinition/cqf-library", "\"valueCanonical\":\"https://example.org/p32h-placeholder/Library/rules\"") + "],"));
         assertThat(DtrNotApplied.describe(node)).containsExactly(
-                "The questionnaire carries cqf-library, which names a CQL library whose results pre-populate answers. This tool runs no CQL, "
-                        + "so no answer is pre-populated from it. This tool does not apply it.",
+                "The questionnaire carries cqf-library, which names a CQL library whose expressions the initialExpression and similar "
+                        + "extensions of the items call to pre-populate answers. This tool runs no CQL, so no answer is pre-populated from it. "
+                        + "A question that carries no such extension of its own is judged on the answers given, so a required one with no "
+                        + "answer is still reported as unanswered. This tool does not apply it.",
                 "2 items carry initialExpression, which fills in the item's first answer by an expression. This tool does not apply it, so "
                         + "whether those items still need an answer is not known: they are marked undetermined, and never reported as a "
-                        + "required question with no answer.",
+                        + "required question with no answer. An item whose enableWhen reads their answer, while there is none, is marked "
+                        + "undetermined too.",
                 "1 item carries unitOption, which names a unit a quantity answer may use. This tool does not apply it, so an answer is not "
                         + "checked against it.");
         assertThat(DtrNotApplied.describe(json(questionnaire()))).isEmpty();
+        // One item takes the singular verb.
+        assertThat(DtrNotApplied.describe(json(questionnaire(item("a", extension(SDC + "sdc-questionnaire-calculatedExpression", EXPRESSION))))))
+                .containsExactly("1 item carries calculatedExpression, which works out the item's answer by an expression. This tool does not "
+                        + "apply it, so whether that item still needs an answer is not known: it is marked undetermined, and never reported as "
+                        + "a required question with no answer. An item whose enableWhen reads its answer, while there is none, is marked "
+                        + "undetermined too.");
+    }
+
+    @Test
+    void anItemWhoseEnableWhenReadsAnAnswerARuleThisToolDoesNotApplyFillsInIsUndeterminedWhileThatAnswerIsMissing() {
+        JsonNode questionnaire = json(questionnaire(
+                item("filled", extension(SDC + "sdc-questionnaire-initialExpression", EXPRESSION)),
+                "{\"linkId\":\"follow\",\"text\":\"follow\",\"type\":\"string\",\"required\":true,\"enableWhen\":[{\"question\":\"filled\","
+                        + "\"operator\":\"exists\",\"answerBoolean\":false}]}",
+                "{\"linkId\":\"either\",\"text\":\"either\",\"type\":\"string\",\"required\":true,\"enableBehavior\":\"any\",\"enableWhen\":["
+                        + "{\"question\":\"filled\",\"operator\":\"exists\",\"answerBoolean\":true},{\"question\":\"plain\",\"operator\":\"=\","
+                        + "\"answerBoolean\":true}]}"));
+        Form form = EnableWhenEvaluator.evaluate(questionnaire, Map.of());
+
+        // Whether follow is enabled rests on an answer initialExpression would fill in, so it is not judged. Without the rule the
+        // condition would hold on an empty answer and follow would be called required and unanswered.
+        assertThat(linkIds(form.requiredUnanswered())).containsExactly("plain");
+        assertThat(linkIds(form.undetermined())).containsExactly("filled", "follow", "either");
+        EnableWhenEvaluator.ItemState follow = form.state("item[2]");
+        assertThat(follow.enabled()).isEqualTo(ItemEnabled.UNDETERMINED);
+        assertThat(follow.conditions()).singleElement().satisfies(condition -> assertThat(condition.explanation()).isEqualTo(
+                "Not evaluated: the question it looks at, filled, has no answer here, and its answer is filled in by initialExpression, "
+                        + "which this tool does not apply."));
+        assertThat(follow.reason()).isEqualTo("Undetermined: whether it is shown is decided by initialExpression on filled, which this tool "
+                + "does not apply. It is still shown, and it is never reported as a required question with no answer.");
+        assertThat(form.undetermined().get(1).note()).isEqualTo("Not judged: it is decided by initialExpression on filled, which this tool "
+                + "does not apply, so whether it still needs an answer is not known.");
+
+        // Another condition that settles it settles it: with enableBehavior any and plain answered true, either is enabled and judged.
+        Form plainTrue = EnableWhenEvaluator.evaluate(questionnaire, Map.of("plain", List.of(json("{\"valueBoolean\":true}"))));
+        assertThat(plainTrue.state("item[3]").enabled()).isEqualTo(ItemEnabled.ENABLED);
+        assertThat(linkIds(plainTrue.requiredUnanswered())).containsExactly("either");
+        assertThat(linkIds(plainTrue.undetermined())).containsExactly("filled", "follow");
+
+        // Once the answer is there, the condition is evaluated on it as usual.
+        Form answered = EnableWhenEvaluator.evaluate(questionnaire, Map.of("filled", List.of(json("{\"valueString\":\"given\"}"))));
+        assertThat(answered.state("item[2]").enabled()).isEqualTo(ItemEnabled.DISABLED);
+        assertThat(linkIds(answered.undetermined())).isEmpty();
+    }
+
+    @Test
+    void aHiddenItemAndTheQuestionsOfAHiddenGroupAreNotAmongWhatIsAsked() {
+        String hide = extension("http://hl7.org/fhir/StructureDefinition/questionnaire-hidden", "\"valueBoolean\":true");
+        JsonNode questionnaire = json(questionnaire(item("hidden", hide),
+                item("shown", extension("http://hl7.org/fhir/StructureDefinition/questionnaire-hidden", "\"valueBoolean\":false")),
+                "{\"linkId\":\"group\",\"type\":\"group\",\"extension\":[" + hide + "],\"item\":[{\"linkId\":\"inside\",\"type\":\"string\"}]}"));
+        Form form = EnableWhenEvaluator.evaluate(questionnaire, Map.of());
+        assertThat(linkIds(form.asked())).containsExactly("plain", "shown");
+        // They are still not judged: hidden is not applied, so whether a hidden required item needs an answer is not known.
+        assertThat(linkIds(form.undetermined())).containsExactly("hidden");
     }
 
     @Test

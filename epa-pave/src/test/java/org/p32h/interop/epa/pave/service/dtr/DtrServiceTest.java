@@ -345,9 +345,9 @@ class DtrServiceTest {
         assertThat(askedNothing.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
         assertThat(askedNothing.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire "
                 + "response goes with it.");
-        assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question, so it holds "
-                + "no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does "
-                + "not hand PAS a response that does not conform to it, so the response is shown here and not carried.");
+        assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question. This "
+                + "response holds no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). "
+                + "This tool does not hand PAS a response that does not conform to it, so the response is shown here and not carried.");
 
         // The same expectation passes for one and fails for the other.
         assertThat(askedNothing.expectation().result()).isEqualTo(TestResult.PASS);

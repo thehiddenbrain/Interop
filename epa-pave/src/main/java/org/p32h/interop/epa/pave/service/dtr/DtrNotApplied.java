@@ -95,7 +95,10 @@ final class DtrNotApplied {
     /** The extensions the questionnaire itself can carry. */
     private static final List<Rule> QUESTIONNAIRE_RULES = List.of(
             new Rule("cqf-library", CORE + "cqf-library", Effect.OTHER,
-                    "names a CQL library whose results pre-populate answers. This tool runs no CQL, so no answer is pre-populated from it"),
+                    "names a CQL library whose expressions the initialExpression and similar extensions of the items call to pre-populate "
+                            + "answers. This tool runs no CQL, so no answer is pre-populated from it. A question that carries no such "
+                            + "extension of its own is judged on the answers given, so a required one with no answer is still reported as "
+                            + "unanswered"),
             new Rule("launchContext", SDC + "sdc-questionnaire-launchContext", Effect.OTHER,
                     "names the data the expressions of the questionnaire read"),
             new Rule("variable", CORE + "variable", Effect.OTHER, "defines a value the expressions of the questionnaire read"),
@@ -145,6 +148,24 @@ final class DtrNotApplied {
         return !"itemHidden".equals(rule.name()) || !Boolean.FALSE.equals(JsonSafe.bool(extension, "valueBoolean"));
     }
 
+    /**
+     * The rule that decides whether an item is shown when its enableWhen reads a question whose
+     * answer one of {@code filling} fills in, and that question has no answer. Whether the condition
+     * holds rests on an answer this tool does not work out, so the item is undetermined.
+     *
+     * @param filling the rules on the question read that decide its answer
+     * @param linkId  the linkId of the question read
+     */
+    static Rule through(List<Rule> filling, String linkId) {
+        return new Rule(names(filling) + " on " + linkId, filling.get(0).url(), Effect.SHOWN,
+                "fills in the answer of " + linkId + ", which the item's enableWhen reads");
+    }
+
+    /** True when one of the rules hides the item from the person answering. */
+    static boolean hides(List<Rule> rules) {
+        return rules.stream().anyMatch(rule -> "itemHidden".equals(rule.name()));
+    }
+
     /** The names of rules, for a sentence. */
     static String names(List<Rule> rules) {
         return String.join(", ", rules.stream().map(Rule::name).toList());
@@ -184,9 +205,11 @@ final class DtrNotApplied {
         }
         String where = items == 1 ? "1 item carries " : items + " items carry ";
         String consequence = rule.effect() == Effect.OTHER ? " This tool does not apply it, so an answer is not checked against it."
-                : " This tool does not apply it, so whether " + (items == 1 ? "that item" : "those items")
-                + " still need an answer is not known: " + (items == 1 ? "it is" : "they are") + " marked undetermined, and never reported "
-                + "as a required question with no answer.";
+                : " This tool does not apply it, so whether " + (items == 1 ? "that item still needs" : "those items still need")
+                + " an answer is not known: " + (items == 1 ? "it is" : "they are") + " marked undetermined, and never reported "
+                + "as a required question with no answer." + (rule.effect() == Effect.VALUE
+                ? " An item whose enableWhen reads " + (items == 1 ? "its" : "their") + " answer, while there is none, is marked "
+                + "undetermined too." : "");
         out.add(where + rule.name() + ", which " + rule.what() + "." + consequence);
     }
 }

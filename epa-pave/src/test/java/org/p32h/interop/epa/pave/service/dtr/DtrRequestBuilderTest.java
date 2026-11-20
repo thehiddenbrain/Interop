@@ -214,7 +214,8 @@ class DtrRequestBuilderTest {
                         + "allows none; derivedFrom was set to https://example.org/p32h-placeholder/Questionnaire/no-id."));
         // What the response leaves out that DTR 2.0.1 requires is listed as gaps, each naming the profile.
         assertThat(first.gaps()).extracting(DtrProfileCheck.Gap::element).containsExactly("QuestionnaireResponse.extension:context",
-                "QuestionnaireResponse.extension:intendedUse", "QuestionnaireResponse.item", "Questionnaire.title", "Questionnaire.text");
+                "QuestionnaireResponse.extension:intendedUse", "QuestionnaireResponse.item", "Questionnaire.title", "Questionnaire.text",
+                "Questionnaire.extension:questionnaireAdaptive");
         // The member is named by the local id of the Patient resource, never by the member ID.
         assertThat(sent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
         assertThat(first.json()).doesNotContain("S123456789");
@@ -222,6 +223,71 @@ class DtrRequestBuilderTest {
         assertThat(sent.has("item")).isFalse();
         // The body sent is the response itself, and the same response is what the changes are worked out from.
         assertThat(json(first.json())).isEqualTo(first.response());
+    }
+
+    private static final String ADAPTIVE_MARKER = "{\"url\":\"http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive\","
+            + "\"valueUrl\":\"https://example.org/p32h-placeholder/fhir\"}";
+    private static final String BRANCHING = "{\"resourceType\":\"Questionnaire\",\"id\":\"adaptive\",\"url\":\"https://example.org/"
+            + "p32h-placeholder/Questionnaire/adaptive\",\"version\":\"1.0.0\",\"title\":\"Adaptive\",\"text\":{\"status\":\"generated\","
+            + "\"div\":\"<div xmlns=\\\"http://www.w3.org/1999/xhtml\\\">Adaptive</div>\"},\"meta\":{\"profile\":[\"http://hl7.org/fhir/us/"
+            + "davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search\"]},\"extension\":[" + ADAPTIVE_MARKER + "],\"status\":\"active\","
+            + "\"item\":[{\"linkId\":\"q1\",\"type\":\"boolean\",\"text\":\"First\"},{\"linkId\":\"q2\",\"type\":\"string\","
+            + "\"text\":\"Second\",\"enableWhen\":[{\"question\":\"q1\",\"operator\":\"=\",\"answerBoolean\":true}]}]}";
+
+    @Test
+    void theCopyOfAnAdaptiveQuestionnaireDeclaresTheAdaptiveProfileItNowMeetsAndTheNoteSaysSo() {
+        DtrRequestBuilder.LoopBody first = builder.buildNextQuestion(DtrAnswers.read(BRANCHING, null, List.of()), answering("S123456789"),
+                DtrFixtures.CLOCK, null);
+        JsonNode copy = first.response().at("/contained/0");
+        // dtr-questionnaire-adapt-search requires a url (1..1 in DTR 2.0.1) and the copy has none, so it declares dtr-questionnaire-adapt.
+        assertThat(copy.at("/meta/profile")).hasSize(1);
+        assertThat(copy.at("/meta/profile/0").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt");
+        assertThat(copy.has("url")).isFalse();
+        assertThat(first.notes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire was copied into the QuestionnaireResponse "
+                + "and shaped to the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): ").contains("the profile it declared, "
+                + "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search, was replaced by "
+                + "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt, because the copy is now the questionnaire "
+                + "inside an adaptive response, which is what that profile describes"));
+        // The copy meets what dtr-questionnaire-adapt asks of it: the marker, a title, a narrative and one derivedFrom.
+        assertThat(first.gaps()).extracting(DtrProfileCheck.Gap::element).noneMatch(element -> element.startsWith("Questionnaire."));
+    }
+
+    @Test
+    void theCopyOfAStaticQuestionnaireKeepsWhatItSaidItWasAndTheGapsSayWhatTheAdaptiveProfileStillLacks() {
+        String unmarked = BRANCHING.replace("dtr-questionnaire-adapt-search", "dtr-std-questionnaire").replace("\"extension\":[" + ADAPTIVE_MARKER + "],", "");
+        DtrRequestBuilder.LoopBody first = builder.buildNextQuestion(DtrAnswers.read(unmarked, null, List.of()),
+                answering("S123456789"), DtrFixtures.CLOCK, null);
+        JsonNode copy = first.response().at("/contained/0");
+        // It is not marked adaptive, so this tool does not declare it adaptive: it keeps the profile it came with.
+        assertThat(copy.at("/meta/profile/0").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-std-questionnaire");
+        assertThat(first.gaps()).extracting(DtrProfileCheck.Gap::element).contains("Questionnaire.extension:questionnaireAdaptive",
+                "Questionnaire.url (dtr-std-questionnaire)");
+        assertThat(first.gaps()).filteredOn(gap -> gap.element().equals("Questionnaire.url (dtr-std-questionnaire)")).singleElement()
+                .satisfies(gap -> assertThat(gap.sentence()).isEqualTo("The questionnaire inside the response still declares the DTR 2.0.1 "
+                        + "profile dtr-std-questionnaire, which requires a url, and the copy has none, because the DTR 2.0.1 adaptive "
+                        + "questionnaire profile allows none. It is not marked adaptive, so this tool leaves the profile it declares as it came."));
+    }
+
+    @Test
+    void aFirstCallWithNoAnswerCarriesNoItemsAndOneThatAddsAnAnswerKeepsThemWithoutConditions() {
+        DtrRequestBuilder.LoopBody bare = builder.buildNextQuestion(DtrAnswers.read(BRANCHING, null, List.of()), answering("S123456789"),
+                DtrFixtures.CLOCK, null);
+        // SDC: on the first call neither the response nor the questionnaire inside it has items.
+        assertThat(bare.response().at("/contained/0").has("item")).isFalse();
+        assertThat(bare.response().has("item")).isFalse();
+        assertThat(bare.notes()).anySatisfy(note -> assertThat(note).contains("its 2 items were left out, because SDC has the first "
+                + "next-question call carry no items and the service asks the questions itself"));
+
+        DtrRequestBuilder.LoopBody answered = builder.buildNextQuestion(DtrAnswers.read(BRANCHING, null, List.of(DtrAnswerInput.of("q1", "true"))),
+                answering("S123456789"), DtrFixtures.CLOCK, null);
+        JsonNode inside = answered.response().at("/contained/0");
+        // The answer has to sit under its item, so the items stay, and dtr-questionnaire-adapt allows no enableWhen on them.
+        assertThat(inside.get("item")).hasSize(2);
+        assertThat(inside.get("item")).noneMatch(item -> item.has("enableWhen") || item.has("enableBehavior"));
+        assertThat(answered.response().at("/item/0/linkId").asString()).isEqualTo("q1");
+        assertThat(answered.notes()).anySatisfy(note -> assertThat(note).contains("the enableWhen conditions of its items were taken off, "
+                + "because the profile allows none. The items were kept, because the answers given in this step sit under them"));
+        assertThat(answered.notes()).noneMatch(note -> note.contains("items were left out"));
     }
 
     @Test
@@ -362,7 +428,7 @@ class DtrRequestBuilderTest {
         // Nothing states an intended use, so none is sent, and the gap names the 2.0.1 profile and what would supply one.
         // The questionnaire of this test has no url, title or narrative, so the copy inside cannot carry them either.
         assertThat(built.gaps()).extracting(DtrProfileCheck.Gap::element).containsExactly("QuestionnaireResponse.extension:intendedUse",
-                "Questionnaire.title", "Questionnaire.text", "Questionnaire.derivedFrom");
+                "Questionnaire.title", "Questionnaire.text", "Questionnaire.extension:questionnaireAdaptive", "Questionnaire.derivedFrom");
         assertThat(built.gaps().get(0).sentence()).isEqualTo("The DTR 2.0.1 QuestionnaireResponse profile (dtr-questionnaireresponse) "
                 + "requires at least one intendedUse extension, from the CRD 2.0.1 value set DocReason. None is stated: it comes from the "
                 + "variable dtrIntendedUse, or from what CRD said the documentation is for (doc-purpose), and neither stated one. This tool "

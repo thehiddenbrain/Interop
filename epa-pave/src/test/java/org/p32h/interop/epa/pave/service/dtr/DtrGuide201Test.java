@@ -229,4 +229,71 @@ class DtrGuide201Test {
             assertThat(item.at("/answer/0/extension/0/extension/1/url").asString()).isEqualTo("author");
         }
     }
+
+    @Test
+    void whatCrdSaidTheDocumentationIsForReachesTheResponseThroughThePackageStep() {
+        // Only the package step is handed doc-purpose, as it is in the journey from CRD. The response step is handed what the package
+        // step hands on, and nothing else.
+        RunEnvelope<DtrDetail> fetched = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR")
+                .carry(Map.of(NextStepView.CARRY_DOC_PURPOSE, List.of("withpa"))).build(), RunOrigin.manual(), null);
+        assertThat(fetched.nextStep().carry().get(NextStepView.CARRY_DOC_PURPOSE)).containsExactly("withpa");
+        RunEnvelope<DtrDetail> answered = service().runResponse(DtrResponseRequest.builder().member(DtrFixtures.member("P32H-DOC-DTR"))
+                .provider(DtrFixtures.provider()).procedureCodes(List.of(CodeInput.of("95810"))).carry(fetched.nextStep().carry())
+                .questionnaire(fetched.detail().questionnaires().get(0).json())
+                .answers(List.of(DtrAnswerInput.of("sleep-1", "true"), DtrAnswerInput.of("sleep-2", "14"), DtrAnswerInput.of("sleep-3", "snoring")))
+                .build(), RunOrigin.manual());
+        JsonNode response = JsonSafe.parse(answered.detail().questionnaireResponses().get(0).json()).node();
+        assertThat(urls(response)).containsExactly(QR_CONTEXT, QR_CONTEXT, INTENDED_USE);
+        assertThat(response.at("/extension/2/valueCodeableConcept/coding/0/code").asString()).isEqualTo("withpa");
+        assertThat(answered.findings()).noneMatch(finding -> finding.kind() == FindingKind.REQUEST_INCOMPLETE);
+        // And it is still handed on after the response step, to PAS and beyond.
+        assertThat(answered.nextStep().carry().get(NextStepView.CARRY_DOC_PURPOSE)).containsExactly("withpa");
+    }
+
+    @Test
+    void aCompleteResponseWithNoItemGoesToPasWithoutTheResponseAndTheNextStepSaysSo() {
+        // A static questionnaire whose only question is optional, answered with nothing: complete, and it holds no item.
+        String optional = "{\"resourceType\":\"Questionnaire\",\"id\":\"opt\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/opt\","
+                + "\"version\":\"1.0.0\",\"title\":\"Optional only\",\"status\":\"active\",\"subjectType\":[\"Patient\"],\"item\":[{\"linkId\":"
+                + "\"o1\",\"text\":\"Optional\",\"type\":\"string\",\"required\":false}]}";
+        RunEnvelope<DtrDetail> result = service().runResponse(DtrResponseRequest.builder().member(DtrFixtures.member("S123456789"))
+                .provider(DtrFixtures.provider()).procedureCodes(List.of(CodeInput.of("95810"))).questionnaire(optional).build(), RunOrigin.manual());
+        assertThat(result.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(JsonSafe.parse(result.detail().questionnaireResponses().get(0).json()).node().has("item")).isFalse();
+        assertThat(result.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.START_PAS);
+        assertThat(result.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+        // The headline does not claim a response that is not handed on.
+        assertThat(result.nextStep().headline()).isEqualTo("Next: submit the prior authorization request in PAS. No questionnaire response "
+                + "goes with it.");
+        assertThat(result.nextStep().reason()).isEqualTo("Every required question that is enabled has an answer. This response holds no "
+                + "item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does not "
+                + "hand PAS a response that does not conform to it, so the response is shown here and not carried.");
+    }
+
+    @Test
+    void anIntendedUseOutsideTheDocReasonValueSetIsSentAsStatedAndCountedAmongWhatTheRequestLacks() {
+        RunEnvelope<DtrDetail> fetched = fetch("P32H-DTR-LOOPERR");
+        for (String stated : List.of("foo", "http://x.example.org|y")) {
+            gateway.variable("dtrIntendedUse", stated);
+            RunEnvelope<DtrDetail> first = service().runNextQuestion(firstStep(fetched, "P32H-DTR-LOOPERR", fetched.nextStep().carry()).build(),
+                    RunOrigin.manual(), null);
+            assertThat(urls(sent(first))).contains(INTENDED_USE);
+            assertThat(first.findings()).filteredOn(finding -> finding.kind() == FindingKind.REQUEST_INCOMPLETE).singleElement()
+                    .satisfies(finding -> assertThat(finding.detail()).contains("QuestionnaireResponse.extension:intendedUse (DocReason)"));
+            assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The DTR 2.0.1 QuestionnaireResponse "
+                    + "profile (dtr-questionnaireresponse) binds the intended use to the CRD 2.0.1 value set DocReason, required: "));
+        }
+        assertThat(service().runNextQuestion(firstStep(fetched, "P32H-DTR-LOOPERR", fetched.nextStep().carry()).build(), RunOrigin.manual(), null)
+                .detail().requestNotes()).contains("The variable dtrIntendedUse names the code system http://x.example.org for the intended "
+                + "use y, so the pair was sent as written. It is not a code of the CRD 2.0.1 value set DocReason that DTR 2.0.1 binds the "
+                + "intended use to (withpa, withclaim, withorder, retain-doc, OTH, each in its own code system).");
+
+        // A variable that holds no code is read as not set, so what CRD said is used, and the gap does not claim nothing stated one.
+        gateway.variable("dtrIntendedUse", ",");
+        Map<String, List<String>> carry = new LinkedHashMap<>(fetched.nextStep().carry());
+        carry.put(NextStepView.CARRY_DOC_PURPOSE, List.of("withclaim"));
+        RunEnvelope<DtrDetail> comma = service().runNextQuestion(firstStep(fetched, "P32H-DTR-LOOPERR", carry).build(), RunOrigin.manual(), null);
+        assertThat(sent(comma).at("/extension/2/valueCodeableConcept/coding/0/code").asString()).isEqualTo("withclaim");
+        assertThat(comma.detail().requestNotes()).noneMatch(note -> note.contains("neither stated one"));
+    }
 }

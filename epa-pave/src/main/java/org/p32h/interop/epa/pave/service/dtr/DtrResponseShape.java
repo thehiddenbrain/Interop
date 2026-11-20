@@ -65,6 +65,11 @@ public record DtrResponseShape(List<ObjectNode> intendedUses, String intendedUse
         List<ObjectNode> uses = new ArrayList<>();
         String source = null;
         String stated = CaseResources.value(variables, VAR_INTENDED_USE);
+        // A value that holds no code, such as a lone comma, states nothing, so what CRD said is read instead.
+        if (stated != null && java.util.Arrays.stream(stated.split(",")).allMatch(part -> part.isBlank())) {
+            notes.add("The variable " + VAR_INTENDED_USE + " is set but holds no code, so it was read as not set.");
+            stated = null;
+        }
         if (stated != null) {
             for (String part : stated.split(",")) {
                 ObjectNode concept = stated(part.strip(), notes);
@@ -113,7 +118,17 @@ public record DtrResponseShape(List<ObjectNode> intendedUses, String intendedUse
         int bar = part.indexOf('|');
         if (bar > 0 && bar < part.length() - 1) {
             // The tester named the system, so the pair is sent as written, valid or not.
-            return concept(part.substring(0, bar).strip(), part.substring(bar + 1).strip());
+            String system = part.substring(0, bar).strip();
+            String code = part.substring(bar + 1).strip();
+            boolean bound = system.equals(DtrCodes.DOC_REASON_201.get(code));
+            String later = DtrCodes.DOC_REASON_LATER_SYSTEM.equals(system) && DtrCodes.DOC_REASON_201.containsKey(code)
+                    ? " The CRD 2.2.0 ballot puts " + code + " in that code system; CRD 2.0.1 puts it in " + DtrCodes.DOC_REASON_201.get(code) + "."
+                    : "";
+            notes.add("The variable " + VAR_INTENDED_USE + " names the code system " + system + " for the intended use " + code
+                    + ", so the pair was sent as written. " + (bound ? "It is a code of the CRD 2.0.1 value set DocReason."
+                    : "It is not a code of the CRD 2.0.1 value set DocReason that DTR 2.0.1 binds the intended use to ("
+                    + String.join(", ", DtrCodes.DOC_REASON_201.keySet()) + ", each in its own code system)." + later));
+            return concept(system, code);
         }
         String system = DtrCodes.DOC_REASON_201.get(part);
         if (system != null) {
