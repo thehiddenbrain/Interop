@@ -224,7 +224,8 @@ export function createNotifications(spec) {
     }
 
     function everything(item) {
-        const supporting = item.verdict.supporting || [];
+        // The verdict's lines can repeat how the notification was matched, which has its own heading below. Each is said once.
+        const supporting = (item.verdict.supporting || []).filter(line => !(item.correlationNotes || []).includes(line));
         const events = item.events || [];
         const findings = item.findings || [];
         const parts = [

@@ -92,12 +92,14 @@ function mount(target, application) {
     controls.update = button('Update subscription', () => subscriptionCall('update'), {class: 'button--quiet button--small'});
     controls.updatePreview = button('Show the update request', () => showPreview('update'), {class: 'button--text'});
     controls.remove = button('Delete subscription', () => subscriptionCall('delete'), {class: 'button--quiet button--small'});
+    fill(controls.subscriptionButtons, controls.read, controls.update, controls.remove, controls.updatePreview);
+    fill(controls.listButton, controls.list);
     bench.track(controls.submit, controls.preview, controls.inquire, controls.inquirePreview, controls.create, controls.createPreview,
         controls.list, controls.read, controls.update, controls.updatePreview, controls.remove);
 
     ownRequest = bench.useOwnRequest({protocol: 'PAS', sendButton: controls.submit, sendLabel: 'Send PAS request',
         modeChanged: () => { if (!bench.hasResult()) { drawEmptyState(); } }});
-    bench.useRunValues({operation: () => ({submit: 'pas-submit', inquire: 'pas-inquire', subscriptions: 'subscription-create'}[mode] || null)});
+    controls.runValues = bench.useRunValues({operation: () => ({submit: 'pas-submit', inquire: 'pas-inquire', subscriptions: 'subscription-create'}[mode] || null)});
 
     notifications = createNotifications({
         app, panel,
@@ -172,8 +174,8 @@ function showMode(id) {
     const buttons = {
         submit: [controls.submit, controls.preview],
         inquire: [controls.inquire, controls.inquirePreview],
-        subscriptions: [el('div', {class: 'pas-buttons__group'}, controls.create, controls.createPreview),
-            el('div', {class: 'pas-buttons__group'}, controls.list, controls.read, controls.update, controls.remove, controls.updatePreview)],
+        // A read, an update and a delete act on the id typed above, and sit with it. Only the create stays with the send button.
+        subscriptions: [controls.create, controls.createPreview],
         notifications: []
     }[id];
     fill(controls.buttons, buttons);
@@ -377,11 +379,28 @@ async function sendInquiry() {
 
 function buildSubscriptions() {
     controls.subscriptionId = textField({label: 'Subscription id', field: 'subscriptionId', literal: true, wide: true,
-        hint: 'For a read, an update or a delete. Filled from the latest create on this tab. A create and a list need none.'});
+        hint: 'For the read, update and delete below. Filled from the latest create on this tab. A create and a list need none.'});
+    // A value a subscription is built from is a variable of the environment. One can be given for the runs from this page
+    // through the workbench's values for one run: naming it here opens its field there.
+    controls.variableName = textField({label: 'Give a variable a value for this run', field: 'pas.variableName', literal: true, wide: true,
+        placeholder: 'such as subscriptionHeartbeatSeconds',
+        hint: 'The notes on "Show the create request" name each variable the subscription is built from.',
+        beside: button('Add its field', () => addRunValue(), {class: 'button--quiet button--small'})});
+    controls.variableName.input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.isComposing) {
+            event.preventDefault();
+            addRunValue();
+        }
+    });
+    controls.subscriptionButtons = el('div', {class: 'button-row pas-subscription-calls'});
+    controls.listButton = el('div', {class: 'button-row'});
     sections.subscriptions = el('div', {class: 'pas-section__body'},
         el('div', {class: 'field-grid'}, controls.subscriptionId.node),
+        controls.subscriptionButtons,
+        controls.listButton,
         el('p', {class: 'small'}, 'What a subscription subscribes to, how much a notification carries and how often a heartbeat is wanted are '
-            + 'values of the active environment, not fields here. "Show the create request" lists each value that will be used and where it comes from.'));
+            + 'values of the active environment, not fields here. "Show the create request" lists each value that will be used and where it comes from.'),
+        el('div', {class: 'field-grid'}, controls.variableName.node));
     sections.notifications = el('div', {class: 'pas-section__body'},
         el('p', {class: 'small'}, 'The notifications the receiver has taken in are listed on the right, newest first, and refreshed every few seconds while this tab is open.'));
 }
@@ -400,6 +419,22 @@ function subscriptionBody() {
     });
     request.configEpoch = app.epoch();
     return request;
+}
+
+/** Opens a field among the values for one run for the variable named, with what the configured request says of it. */
+async function addRunValue() {
+    const name = controls.variableName.value().replace(/^\{\{|\}\}$/g, '');
+    if (name === '') {
+        controls.variableName.input.focus();
+        return;
+    }
+    await controls.runValues.need([{field: 'variables.' + name}]);
+    controls.variableName.set('');
+    const field = bench.form.querySelector('[data-field="variables.' + CSS.escape(name) + '"]');
+    if (field) {
+        bringIntoPane(field);
+        field.querySelector('input').focus({preventScroll: true});
+    }
 }
 
 /** A read, a list and a delete carry no body, so what a body would carry goes as parameters, a value for one run as var.name. */
@@ -566,25 +601,32 @@ function drawWrites() {
         clear(controls.writes);
         return;
     }
-    const what = mode === 'submit' ? 'A PAS request' : 'Creating, updating or deleting a subscription';
-    if (access.writesAllowed === false) {
+    const refused = mode === 'submit' ? 'A PAS request sent now is refused and recorded as blocked. '
+        : 'Creating, updating or deleting a subscription now is refused and recorded as blocked; a read and a list are allowed. ';
+    // This box sits with the send button, which stays in view on a laptop screen only while the box is short. The reason
+    // in full is the production banner's, at the top of every tab, and is kept as the title here.
+    if (access.writesAllowed === false && !access.production) {
+        // Refused for a reason other than production, such as no environment being active on the live profile. No banner says it, so it is said here.
         fill(controls.writes, el('div', {class: 'pas-writes__blocked'},
-            el('p', null, el('strong', null, 'Writes are blocked here. '), what + ' sent now is refused by the production guardrail and recorded as blocked. ',
-                access.reason || ''),
-            // Where an owner has locked the installation, the reason says no unlock is possible, and the tab does not suggest one.
-            access.floorAllows === false ? el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))
-                : el('p', null, 'Writes are unlocked on the Config tab, for this session only. ',
-                    button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+            el('p', null, el('strong', null, 'Writes are refused. '), access.reason || '', ' ',
+                button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+        return;
+    }
+    if (access.writesAllowed === false) {
+        fill(controls.writes, el('div', {class: 'pas-writes__blocked', title: access.reason || ''},
+            el('p', null, el('strong', null, 'Writes are blocked. '), refused,
+                access.floorAllows === false ? 'An owner has locked this installation; the banner above says so. '
+                    : 'They are unlocked on the Config tab, for this session only. ',
+                button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
         return;
     }
     if (access.production) {
-        fill(controls.writes, el('div', {class: 'pas-writes__open'},
-            el('p', null, el('strong', null, 'Production, with writes unlocked for this session. '),
+        fill(controls.writes, el('div', {class: 'pas-writes__open', title: access.reason || ''},
+            el('p', null, el('strong', null, 'Production, writes unlocked for this session. '),
                 // On the mock profile nothing leaves this machine, so the sentence about a real request is kept for the live profile.
-                app.isMock() ? 'On the mock profile a scenario file answers and nothing leaves this machine. '
-                    : mode === 'submit' ? 'A PAS request sent now creates a real prior authorization request against a real member. '
-                        : 'A subscription created, updated or deleted now changes the real service. ',
-                access.reason || '')));
+                app.isMock() ? 'On the mock profile a scenario file answers and nothing leaves this machine.'
+                    : mode === 'submit' ? 'A PAS request sent now creates a real prior authorization request against a real member.'
+                        : 'Creating, updating or deleting a subscription now changes the real service.')));
         return;
     }
     clear(controls.writes);
@@ -607,12 +649,15 @@ function showRun(envelope) {
     if (envelope.protocol === 'SUBSCRIPTION' && envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.detail && envelope.detail.subscriptionId) {
         controls.subscriptionId.set(envelope.detail.subscriptionId);
     }
-    // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own.
+    // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own. After a
+    // submission that failed in the environment the server's step is to check the environment and then ask for the status
+    // before sending again, because the payer may have the request: the second half is offered too, as the lesser button.
     const row = bench.form.closest('.workbench').querySelector('.readout__result .nextstep__row');
-    if (step.action === 'CHECK_STATUS' && row && !row.querySelector('button') && carry.claimId && carry.claimId.length > 0) {
+    const afterFault = step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT';
+    if ((step.action === 'CHECK_STATUS' || afterFault) && row && !row.querySelector('button') && carry.claimId && carry.claimId.length > 0) {
         row.append(button('Send inquiry', () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
             codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]}),
-        {class: 'button--primary'}));
+        {class: afterFault ? 'button--quiet' : 'button--primary'}));
     }
     drawFollowing();
 }

@@ -9,7 +9,7 @@
 // A field the response did not carry is shown as not returned, never left out, and what the
 // payer wrote (a disposition, a process note) is shown as the characters it is.
 
-import {el, code, facts, table, heading} from './dom.js';
+import {el, append, code, facts, table, heading} from './dom.js';
 import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {outcome} from './marks.js';
 import {additionalFieldsTable, issuesTable} from './result.js';
@@ -47,7 +47,8 @@ function none(text) {
 
 function kindLine(kinds, kind, note) {
     const known = Object.prototype.hasOwnProperty.call(kinds, kind) ? kinds[kind] : ['Response kind ', code(String(kind)), '.'];
-    return el('p', null, known, note ? [' ', note] : null);
+    // The server's note can say the same as the kind's own sentence, as it does when no response arrived. It is said once.
+    return el('p', null, known, note && note !== known ? [' ', note] : null);
 }
 
 /** A coded value as returned: the code, what the tool knows it means, and a flag when it is not a code the tool knows. */
@@ -102,10 +103,9 @@ export function pasDetail(envelope, vocabulary) {
     }
     responses.forEach((response, index) => node.append(claimResponseBlock(response, vocabulary, responses.length > 1 ? index + 1 : 0)));
 
-    node.append(issuesPart(detail.issues || [], envelope));
-    node.append(otherResourcesPart(detail.otherResources || []));
-    node.append(bundlePart(detail));
-    node.append(requestPart(detail, envelope.operation));
+    // A part with nothing to show is null. append() leaves it out, where the node's own append would write the word null.
+    append(node, issuesPart(detail.issues || [], envelope), otherResourcesPart(detail.otherResources || []), bundlePart(detail),
+        requestPart(detail, envelope.operation));
     return node;
 }
 
@@ -425,8 +425,7 @@ export function subscriptionDetail(envelope) {
     node.append(el('section', {class: 'detail__part'}, heading(4, 'Subscriptions in the answer', subscriptions.length),
         subscriptions.length === 0 ? el('p', {class: 'quiet'}, 'The answer carried no Subscription resource.')
             : subscriptions.map(subscriptionBlock)));
-    node.append(issuesPart(detail.issues || [], envelope));
-    node.append(otherResourcesPart(detail.otherResources || []));
+    append(node, issuesPart(detail.issues || [], envelope), otherResourcesPart(detail.otherResources || []));
     if (envelope.operation !== 'SUBSCRIPTION_GET' && envelope.operation !== 'SUBSCRIPTION_DELETE') {
         node.append(el('section', {class: 'detail__part'}, heading(4, 'How this tool built the request'),
             detail.bodyBuiltByTool === false ? el('p', null, 'The body the tester supplied was sent in place of one this tool would have built.') : null,
