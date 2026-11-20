@@ -172,8 +172,10 @@ public record VendorExchange(
      * authorization number this tool reads can hold a secret of the request without the service
      * having copied it there, and then the mask is what may be shown and kept.
      *
-     * <p>Strings and property names are searched. A secret written as a JSON number is not found,
-     * as the wire view would not find one written in any form other than its characters. Two
+     * <p>Strings, numbers and property names are searched. A number is searched as it is written,
+     * which is how the wire view finds it in the text of the body, and one that repeats a secret is
+     * shown as the masked text, no longer a number. A secret in any form other than its characters
+     * is found by neither. Two
      * property names that differ only in a secret would mask to the same name: the second is kept
      * beside the first, under the name with " (again)" after it, so nothing is lost.
      *
@@ -216,6 +218,13 @@ public record VendorExchange(
         }
         if (node.isString()) {
             SentSecrets.Masked value = secrets.mask(node.stringValue());
+            if (value.places() > 0) {
+                places[0] += value.places();
+                return factory.stringNode(value.text());
+            }
+        }
+        if (node.isNumber()) {
+            SentSecrets.Masked value = secrets.mask(node.toString());
             if (value.places() > 0) {
                 places[0] += value.places();
                 return factory.stringNode(value.text());
