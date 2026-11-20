@@ -4,390 +4,356 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Read this first.** The revision that holds this file is later than `5763c41`, which the rest of
-this section describes. Three pieces of work that the text below records as started and not done
-(D-226) are merged since, and the integrator built the line with them through the shared wrapper:
-2714 tests, 2712 passed, 2 skipped as explained below, none failed.
-
-- The server task: a write refused at the moment of sending says what happened; a played timeout on
-  mock is said once; the resolve note and the refusal of an incomplete raw url agree; a lookup field
-  whose value holds masked text is marked; an empty element of an issue is shown once; the comparison
-  no longer repeats its caveat in its notes; the test of a replay on a chain view was brought into
-  line with the tool (a replay never joins a chain); a list that says it is synthetic is described
-  as that. Checked by nobody but its author.
-- The pass over the screens: every place that says whether writes are unlocked is redrawn when
-  another browser locks, and the tester is told; the note, tester reference and expectation fields
-  carry the hint that the ledger keeps the text, and a refusal marks its field; the Config tab shows
-  the address warnings and the upload warnings; the scenario tables show the notes; a masked lookup
-  field is not taken into the case. Checked by nobody but its author, and the sweep of the older
-  states was driven at 1366 by 768 only.
-- The README after the audits and their fixes. It was written before the two items above, so the few
-  sentences they reworded (a played timeout, the refusal at the moment of sending, the synthetic code
-  list, the hint beside a note) have not been checked again.
-
-- Six lines those two left for each other: a note typed with a request sent as written is checked
-  against the member identifiers of the body it is sent with; the answer of an unlock says that a
-  lock from any browser ends it, and the page shows that sentence; the server gives every error its
-  heading, so a timeout a mock scenario played is no longer headed as a fault in the environment; a
-  masked lookup field was seen to stay out of the case on the live profile against a stand-in.
-  Checked by nobody but its author. The integrator built the line with it: 2720 tests, 2718 passed,
-  2 skipped, none failed.
-
-**The last audits, on revision `9e285a1`** (the line before the six lines above), each by an agent
-that wrote none of the tool:
-
-- V1, the build auditor: a fresh clone of the branch from the remote built from clean twice (2714
-  tests, none failed, 2 skipped), started, and answered on every endpoint of section 18 as the
-  specification and the README say. Its builds went through the shared wrapper, which adds
-  `--offline`; the plain command is the integrator's last gate and has not run. Two minor findings:
-  a request body that repeats a key is accepted and the last value wins; the README's list of
-  statuses leaves out 400, 405, 406, 413 and 415.
-- V5, house style: no tracked file and no commit message breaks the style. **Two major findings
-  about the gate itself, open at this revision:** no test fails if the style task is removed from
-  the build, and its patterns let several forbidden forms through.
-- V7, completeness on screen: every field the auditor added to an answer appeared outside the wire
-  view. **Two blockers and six majors, open at this revision:** a `pa-needed` returned as null is
-  said by a finding to have been "not returned"; an issue's expression returned as null is drawn as
-  "empty"; a key repeated in one object leaves its earlier value on the wire view only; a resource
-  of another kind sent in answer to a CRD hook passes as "no determination"; the source and the
-  lists of a CRD card, the periods of a PAS answer and the headings of empty lists do not tell
-  absent, null and empty apart; a notification larger than what is kept gets no designed view.
-- The walkthrough by a business tester (automated, no click script): on every case it ran, the
-  tester could tell what was expected, what happened, whether it matched and what to do next, and
-  the authorization outcome sat apart from the test result. **Three majors, open at this revision:**
-  "no determination" gives no next step a business tester can act on; completing the questionnaire
-  response inside the tool is marked as if a scenario or the payer had answered; text left in the
-  procedure code box is sent without being shown. It is an automated walkthrough and not a sign-off.
-
-**Fixes for those audits, merged at this revision and checked by nobody but their authors.** The
-integrator built the line with them through the shared wrapper: 2767 tests, 2765 passed, 2 skipped,
-none failed.
-
-- V7: the two blockers and the majors were fixed (a value returned as null is said to be null; an
-  issue's expression and location carry their presence; the designed views of CRD, DTR and PAS say
-  not returned, null or empty in words; every value of a repeated key is listed, with a finding on
-  CRD; a resource of another kind sent in answer to a CRD hook is no longer "no determination"; a
-  notification larger than what is kept is read whole). **Left open:** the finding for a repeated
-  key is not raised on DTR and PAS, and a raw send and the lookups still list only the last value;
-  the headline for a resource of another kind still says the body "could not be read"; History, a
-  suite row and a chain say nothing of fields the tool did not interpret.
-- The walkthrough: "no determination" now tells a business tester what to do; a step done inside the
-  tool is marked as answered by nobody, in the ledger, the export, History and the colour key; text
-  left in the code box refuses the send; a request body that repeats a key is refused; the PAS
-  submission and the inquiry each have one name. **Left open:** the error panel is still headed
-  "What went wrong" over a refusal by the guardrail; the list of chains in History does not draw
-  the new mark; none of it was looked at at 1920 by 1080.
-- V5: the style rules live in one class that the build's gate and a test both run; the test fails
-  when the gate is taken out of the build; the patterns were tightened and found eight raw invisible
-  characters in test strings, now written as escapes. The gate cannot read commit messages.
-
-**The honesty audit (V6), on revision `9e5306d`.** Every test count, the examples of the README, the
-build and the fresh clone held. **Open at this revision:** the draft of the pull request description
-said "nothing stubbed" while, in the X12 275 attachment mode, the tool names the document and sends
-nothing, and its list of what is not done left out limits the README states; no document records
-that the token request authenticates the client by HTTP Basic; on mock a fault a scenario played is
-still headed as a fault in the environment; the README does not call the ledger's salt a secret,
-although with it a member ID is recovered from its token at once; tests write `config-store/` and
-`run-history/` into the checkout.
-
-**The check of each fix for the second run of V2, V3 and V4, by agents that wrote none of them, on
-revision `9e5306d`.** Each closed finding has a test the checker saw fail with the fix undone.
-
-- V3, the guardrail: eight of nine closed. **The blocker is closed in one direction and open in the
-  other at this revision:** a production environment whose own address the client cannot read is not
-  remembered as production, and a sandbox written at the plain spelling of that address then sends
-  writes there with no unlock. Also open: a value typed for a run that makes the path of a url
-  unreadable is refused with the wrong cause; an overlong encoding of a slash is not refused.
-- V2, member data: five of seven closed. **Open at this revision:** a note sent with a request of
-  the tester's own from a protocol tab is checked against nothing; a date of birth written with the
-  month's name, and the member ID in fullwidth digits or without its letter, are not recognised; a
-  member ID with separators in it, supplied by a service as an identifier, is kept in clear; and the
-  fix stopped keeping the plain numbers many servers mint, so a notification on such a subscription
-  is no longer matched to its run.
-- V4, fixtures: nine of ten closed or recorded. **Open at this revision:** a sentinel NPI in a pasted
-  body is ignored, while the README says it selects; a scenario directory of a tester's own from
-  before the mappings became data loses them without a word; no test fails if the notes of the
-  scenario lists are dropped.
-
-Four tasks are fixing these now. The decisions made since D-228 are not in `DECISIONS.md` yet, and
-the README and the draft of the pull request description are behind on everything in this note.
-
-This describes revision `5763c41` on branch `epa-pave`, which is on the remote. It holds the line of
-`7dade28` (the fix wave, the two leftover tasks and the five tabs), the pass that joined the tabs
-into one tool, the README brought up to the tool as built, the two server tasks of what the reviews
-of the screens asked of the server, a second pass that made the screens read what the server then
-said, and the fixes for what the second run of three audits of section 27 found. The integrator
-built it once through the shared build wrapper: 2707 tests, 2705 passed, 2 skipped, none failed.
-The two skipped tests need a folder that cannot be written
+This describes revision `e1d37dc` on branch `epa-pave`, which is on the remote. It holds the line of
+`5763c41` (the fix wave, the leftover tasks, the five tabs joined into one tool, the server work the
+screens asked for, and the fixes for the second run of V2, V3 and V4), and, merged since: the README
+after the second audits (`docs-3`), the records of D-202 to D-228 (`records-3`), the last server task
+(`left3-server`), the last pass over the screens (`screens-fix`), six lines those two left each other
+(`seam-4`), and the fixes for what three of the last audits found: house style (`final-gate`),
+completeness on screen (`final-render`) and the walkthrough by a business tester (`final-uat`). The
+integrator built it once through the shared build wrapper: 2767 tests, 2765 passed, 2 skipped, none
+failed. The two skipped tests need a folder that cannot be written
 (`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
 `JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
-make; the same refusals are covered by tests that did run. The decisions of the fix wave are D-140
-to D-175, those of the leftover tasks and the frontend D-176 to D-201, and those of the join, the
-server work for the screens and the second audits D-202 to D-228.
+make; the same refusals are covered by tests that did run. The decisions of the fix wave are D-140 to
+D-175, those of the leftover tasks and the frontend D-176 to D-201, those of the join, the server work
+for the screens and the second audits D-202 to D-228, and those of the last server task, the last
+screens pass, the last audits, the checks of the fixes and the four tasks now running D-229 to D-252.
+
+Lines that one of the four tasks started from this revision is meant to close end with
+`[open at this revision: being fixed]`, so that each can be found and settled when they are merged.
 
 ### Gates, first
 
-- **Section 27.** The member data audit (V2), the guardrail audit (V3) and the fixture audit (V4)
-  have had their second run, on revision `0658a7c`, each by an agent that wrote none of the tool, in
-  about 29 minutes (member data, guardrail) and about 27 minutes (fixtures); what each did not
-  examine is listed below. They found three blockers and several majors; the tables below list
-  every finding. **Their fixes are merged at this revision and have been checked by nobody but the
-  agent that wrote each.** A check of each fix by an agent that did not write it is planned for the final revision and has not
-  run. **V1 (the build auditor, from a fresh clone), V5 (house style), V6 (honesty) and V7
-  (completeness on screen) have not run at all.** The house style rules of V5 are enforced by the
-  build on every file, which is not the same as the audit.
-- **"Prove it before handover."** Part 1, the walkthrough by a business tester, has not run. The two
-  proofs of part 2 (no authorization required told apart from no determination; the answers
-  completed in DTR inside the outgoing PAS request) were seen on the real tabs, on mock, by the
-  second pass over the screens on revision `0658a7c`, by browser scripts, at 1366 by 768 and 1920 by
-  1080, and are quoted in its report and in D-208. They were not looked at again on this revision.
-  `P32H-NO-AUTH` and `P32H-EMPTY` were not looked at in a suite or a chain on screen.
-- **No fresh-clone build of this revision.** Spine 5 has not run as a step: the branch is pushed, but
-  the two clean builds with plain `./gradlew`, the fresh-clone build and the pull request have not
-  been done. Every build reported here went through the shared wrapper, which builds offline.
+- **Section 27: every audit has run at least once, and the walkthrough has run.** Each was done by an
+  agent that wrote none of the tool. Which revision each examined, and what was merged after it:
+  - *V2 (member data), V3 (guardrail), V4 (fixtures), second run:* on `0658a7c`. Their fixes were
+    merged at `5763c41`. **Each fix was then checked**, on `9e5306d`, by an agent that wrote neither
+    the tool nor that fix, which took each fix out again and saw its tests fail (D-245). The checks
+    found several findings open one step away and some new ones; four tasks are fixing them now and
+    are not merged (D-246 to D-249). Merged after the checks: the three fixes for the last audits.
+  - *V1 (the build from a fresh clone), V5 (house style), V7 (completeness on screen) and the
+    walkthrough by a business tester:* on `9e285a1`. Merged after them: the six lines (`seam-4`) and
+    the three fixes for the last audits. V5 ran only the style task, no clean build. V7 and the
+    walkthrough built only the jar.
+  - *V6 (honesty):* on `9e5306d`. Merged after it: the three fixes for the last audits.
+- **The fixes for V5, V7 and the walkthrough have been checked by nobody but their authors.** Nor has
+  any agent checked the outcome of the four tasks now running, which is not on this revision.
+- **The builds.** V1 built `9e285a1` from a fresh clone of the remote twice through the shared wrapper
+  (2714 tests, none failed, 2 skipped) and a third time with the build cache off, started it with
+  `./run.sh` and answered every endpoint of section 18. V6 built `9e5306d` from clean and from a fresh
+  clone, through the same wrapper (2720 tests, none failed). This revision has been built by the
+  integrator alone, through the wrapper. The wrapper adds `--offline`; every JVM on the build machine
+  runs with a machine-wide option that disables two base64 intrinsics; and on this machine a build
+  from a fresh clone takes its compiled classes from the shared build cache unless the cache is
+  switched off (V6's F-JAVAOPTS and F-CACHE-FRESH).
+- **The integrator's last gate has not run**: the plain `./gradlew clean build` twice, the build from a
+  fresh clone, the start and `GET /api/mode`, with no other agent at work. Spine 5's pull request has
+  not been opened.
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
-- **Nothing has been observed against the vendor's service.** Every live check any agent reported
-  used a stand-in on a loopback port. Which version of the guides the vendor's sandbox follows is not
-  known; the tool is held to 2.0.1 (D-136). Four questions put to the operator have no answer
-  (D-227).
+- **Nothing has been observed against the vendor's service.** Every live check any agent reported used
+  a stand-in on a loopback port. Which version of the guides the vendor's sandbox follows is not known;
+  the tool is held to 2.0.1 (D-136). Four questions put to the operator have no answer (D-227, D-252).
+- **"Prove it before handover."** Part 1, the walkthrough by a business tester, ran on `9e285a1`. It was
+  automated (browser scripts driven by an agent reading only the screen), on mock with one CRD run on
+  live against a stand-in, and is not a sign-off. On every case it ran a tester could tell what was
+  expected, what happened, whether it matched and what to do next, except for "no determination"; its
+  three majors are fixed and not checked (below). The two proofs of part 2 were seen on the real tabs,
+  on mock, by the second pass over the screens on `0658a7c` (D-208), and again by the walkthrough on
+  `9e285a1`: `P32H-NO-AUTH` and `P32H-EMPTY` apart on screen, in the ledger, in History and in the
+  export, on mock and on live; the answers completed in DTR in the PAS preview and in the wire view.
+  Neither was looked at on this revision, on which the next step of `P32H-EMPTY` (D-241) and the mark
+  of the DTR response step (D-240) changed. `P32H-NO-AUTH` and `P32H-EMPTY` were seen as suite rows by
+  V7, and not in a chain on screen.
 
 ### Not done, not verified, or known to be wrong
 
-**Started from this revision and not on it.** Three pieces of work began from `5763c41` at the
-moment these records were written: a server task, a pass over the screens and an update of the
-README and of the pull request draft. D-226 lists, line by line, what the integrator decided for
-each. None of it is done here, and every item below that D-226 covers is still open.
+**Started from this revision and not on it.** Five pieces of work began from `e1d37dc` at the moment
+these records were written: four tasks that fix what the checks of the second audits' fixes and the
+honesty audit found (the ledger, the guardrail, the fixtures, and what the last two screen fixes left
+each other; D-246 to D-249), and the last pass over the README and the pull request draft (D-250).
+None of it is done here.
 
-**Left open by the second audits and their fixes.**
-- *Guardrail.* After another browser presses Lock, the Config tab of a session that was unlocked goes
-  on saying writes are unlocked and that a submission sent now is real, until it is reloaded, while
-  the banner beside it says locked (F-SCREEN). The server refuses the write. The unlock panel does
-  not say that Lock ends every session's unlock (m2). A write refused at the send because writes
-  were locked again is worded by the shared error handler as a change of configuration, not with
-  the gateway's sentence (D-214). No screen shows `addressWarnings`; only the upload answer carries
-  those sentences. IPv6 destinations were not proven against a listener (no IPv6 loopback here). No
-  real nginx or Tomcat in front of a service was tried: the risk behind M-ENC and m3 rests on how
-  such servers are documented to behave. A replay that reaches the gateway against production on
-  live was driven by neither the audit nor the fix. A FHIR search with an encoded character in its
-  query was checked in a test only. For B1, M-ENC, m3, m1, F5, F6 and F7 the fix's tests were not
-  run against the code before the fix; only T1 and GAP1 were shown to fail without it. A process
-  killed outright leaves the embedded server's working folder behind. The sample collection's upload
-  now warns that it carries saved examples.
-- *Member data in the ledger.* A note, a tester reference or an expectation that holds a name, a date
-  of birth or an address the request does not carry is written as typed: member data must not be
-  typed into them, and no run form says so before a refusal (the History note field does). Short
-  values are not looked for, and a member whose name is also a common word makes the run refuse a
-  note holding that word. Older ledger lines that hold a name or a date in a note are shown and
-  exported as written. A one-word surname in a code or an id is kept (`sub-Zzlastname` was written as
-  it came on the fix's live run). The refused tester reference and expectation were seen through the
-  API only, and the refused note on the CRD tab at 1366 by 768 only; DTR, PAS and History were not
-  looked at in a browser for these refusals. PAS inquiry and subscription read, update and delete
-  were not run on live by hand. The configuration store keeps uploads exactly as uploaded and can
-  hold member data an uploaded file contains (D-213): the upload warns by the names of variables and
-  saved examples, and nothing is stripped.
-- *Fixtures.* An `expect` block whose outcome contradicts its own scenario file, with the same HTTP
-  status, is not detected and its outcome is still advertised. The scenario lists carry `notes` and
-  the PAS sentinels of CRD, and no screen shows them. Two sentences of `CrdConformanceChecker` and
-  the label of a code list finding on screen call any list that says it is synthetic the
-  placeholder "that ships with the tool" or "the bundled placeholder", untrue of the shipped sample
-  and of a tester's own marked list. A chain suite with the DTR sentinels was driven by a test and not
-  by hand. Only the CRD tab with `P32H-DTR-ADAPT` into DTR was looked at on screen.
-- *What the second member data audit did not examine.* DTR on live (its stand-in had no DTR
-  endpoints, so the package, the next question and the response were not run there); PAS inquiry and
-  subscription read, update and delete on live (judged by reading the code); a raw send on live and
-  the Config tab's "send as written" path; a log file appender, heap or thread dumps and swap; file
-  modes and the temporary folder on Windows. It did not read the `postman` package,
-  `ConfigStoreGateway` or the CRD and PAS request builders line by line, only the changes since
-  `7dade28` in the files that touch member data.
-- *What the second guardrail audit did not examine.* A replay that reaches the gateway against
-  production (its replays were refused earlier for want of a recorded member); a chain whose PAS step
-  runs on production (checked in the code only); a real nginx, Tomcat or HAPI server in front of a
-  service; the race between preparing and sending, by a timed run (read in the code only); a
-  production address taken from an operating system variable; proxy settings and redirects (the
-  client is built never to follow a redirect, read in the code; neither was run); the PAS form's own
-  send button (writes from the page were sent with a fetch from the tab, and the CRD, DTR and History
-  tabs were not driven in a browser); the findings F2, F6 to F9 and F11 to F15 of the first
-  guardrail fix's verification, not repeated; the whole test suite under each of its mutations (only
-  the packages concerned were run); Windows.
-- *What the second fixture audit did not examine.* The rest of the DTR loop (the branch change of
-  `dtr-02`, the HTTP 500 on step 2 of `dtr-14`, the two questionnaires of `dtr-13`, the prepopulated
-  answers of `dtr-03`); each scenario file's `basis`, its claim about which guide text it follows,
-  not checked against the guides; the History, chain, suite and notification screens and the DTR loop
-  on screen (it looked at the CRD tab for 14 scenarios, 5 DTR and 7 PAS, at one size); VF-01 and VF-02
-  of the first fixture verification, not run again; lookup fixtures loaded from a damaged directory of
-  the tester's own (a test of two files claiming one identifier exists since D-204).
+**The ledger and member data.**
+- A note, tester reference or expectation sent with a request of the tester's own from the CRD, DTR or
+  PAS tab is checked against nothing, because the page sends no member with such a run; a note naming
+  the member the body is about is written to the ledger and the export in clear, beside a line with no
+  member token (N1 of the member data check). A request sent as written is checked against its body
+  (D-231). [open at this revision: being fixed]
+- A date of birth written with the month's name ("July 23, 1961", "23 Jul 1961"), and the member ID in
+  fullwidth digits or without its letter, are not recognised in a note, a suite row or a note added
+  later (N3). [open at this revision: being fixed]
+- An identifier a service supplies that is a member ID with its digits split by a separator
+  (`S123-456-789`, `S12345-6789`) is written in clear on the subscription line and the notification
+  line (N2). [open at this revision: being fixed]
+- A plain number a server mints (`1052344`) as a subscription id or a ClaimResponse id is written as
+  `(not recorded, N characters)`, so a notification on it is no longer matched to its run, and the
+  screen says the id "reads like a member identifier or a date" (N4, broken by the second audit's fix).
+  [open at this revision: being fixed]
+- A member whose first or last name is an ordinary word (two-letter surnames such as "An" included) gets
+  every honest note holding that word refused (N6). [open at this revision: being fixed]
+- One part of a hyphenated surname, and the city with the postal code of the request's address, are
+  accepted in a note and written in clear (N5). [open at this revision: being fixed]
+- A procedure code of seven digits or more (an ICD-10-PCS shape, an NDC) is written as `(not a code, N
+  characters)` and its run cannot be replayed (N7). [open at this revision: being fixed]
+- The results file of a suite repeats the expectation of a row refused for holding the member ID (N8).
+  [open at this revision: being fixed]
+- After the tool deletes the subscription it created, an unmatched notification's next step still
+  speaks of "the subscription this tool created", and a notification on the deleted subscription is
+  matched as live (N-DELETED-SUB of the fixture check). [open at this revision: being fixed]
+- The receiver's refusal of an unknown run id, "The run must be a run id this tool returned.", says
+  nothing of what to do (V5). [open at this revision: being fixed]
+- Known limits that stand: a name, a date of birth or an address the request does not carry is written
+  as typed, so member data must not be typed into a note (D-217); older lines that hold a name or a
+  date are shown and exported as written; a one-word surname in a code or an id is kept (D-218); a
+  raw send looks for identifiers only, not names, dates of birth or a `P32H-` sentinel, and a raw write
+  the guardrail refuses is checked against the body as typed, not the saved body (D-231). The
+  configuration store keeps uploads exactly as uploaded and can hold member data an uploaded file
+  contains; the upload warns by the names of variables and saved examples, and nothing is stripped
+  (D-213); the names it knows miss `mbrId`, `ssn`, `MBI`, `mrn`, Medicaid and Medicare numbers,
+  addresses and telephones (N9). [open at this revision: being fixed]
+- The installation salt sits in plain text in `config-store/`; with it a member ID is recovered from
+  its token at once (D-234). The README does not say so yet (D-250).
+- The ledger record holds no count of the fields an answer carried that the tool did not interpret, so
+  History, a suite row and a chain say nothing of them (V7's F8). Decided and given to no task (D-251).
 
-**The screens, after the two passes over them.** Both passes drove the tool in a real browser with
-scripts, on mock unless said otherwise. What neither did, or what is still wrong:
-- *Not swept, or not swept again.* One state one look (a refused form, a blocked write, a timeout, a
-  service that cannot be reached, nothing configured, a run not recorded) was not compared tab by tab;
-  the second pass made the action names agree. Production locked and unlocked with the floor allowing
-  writes, a second browser context, the live profile with an empty store, tracking switched off, a
-  ledger that cannot write, a suite from the samples and a replay of one run were driven by the first
-  pass only, at 1366 by 768, before the second pass changed many shared files. A write blocked by the
-  floor, UAT and a replay of a date range have never been driven on screen by either pass. The
-  colour key was gone through at both sizes by the second pass; `STOP` and `FAULT` were reached on
-  purpose, the tone of an unmatched notification was not.
-- *Never drawn on screen.* The answers dropped in an adaptive questionnaire (read in code, pinned by a
-  test), a CRD coverage section with no "applies to", an unmatched notification, the statement that a
-  notification named an id the ledger does not keep, `lookupEnabled` and `blockedShort` (read in code),
-  the 409 path of a mapping change, a 422 on a mapping, a DTR question of an unrecognised type, a
-  quantity, an attachment, a reference, an open choice from a value set only, a repeating text
-  question, a questionnaire of undetermined kind, a wrapped next-question step, a DTR package request
-  of the tester's own, DTR "could not be reached" on live, the UAT banner, History's view and replay of
-  a DTR run, PAS on live with an unreachable sandbox, the masking of a channel header on screen, a PAS
-  payload over the 131072-byte cut, a chain joined from the PAS tab, PAS inquiry scenarios other than
-  the pended one (the timeout and server error ones were followed by an inquiry through the API only),
-  and a PAS replay that is sent (only a refused one was seen). Whether every protocol's determination
-  grid writes "no meaning to state" was not checked. The Config tab's files were never reread against
-  the Config review's CFG-01 to CFG-22: each pass drove only the flows it names.
-- *Seen at one size only.* The echo of secrets on live (1366); production, the ledger states, the
-  suite and the replays (1366, first pass); the refused note (1366); most DTR states (1366, its own
-  pass). No screen reader was used on any tab, contrast was never measured, 200% zoom and phone width
-  were never tried by either pass (at 390 pixels, in the review before them, the History runs table
-  and the CRD elements table ran past the edge), and `prefers-reduced-motion` was checked only by
-  reading the stylesheets. Behaviour on screen has no test in the build: the static tests check the
-  files, links, imports and the server words a script reads; everything else was checked by browser
-  scripts kept outside the repository.
-- *Still wrong on screen, and decided for the next pass or the server (D-226).* A lookup answer that
-  holds a masked value fills the case field with the mask text, which a later run would send as data.
-  On mock a played timeout is said twice on every protocol tab, and on PAS the verdict says the payer
-  may have received the submission beside "Nothing was sent", with the next step "Next: check the
-  environment, then ask for the status before sending again." where no environment failed. The raw
-  resolve view says a run with a url part missing is still answered from a scenario, while the raw
-  preview and send refuse it. An
-  empty `issue.expression` shows in the issues table and again among the fields returned but not
-  interpreted. The comparison's `notes` repeats the caveat, and the page drops it by its text.
-- *Older, still true.* The body source of a raw send is served as a code only, and the page shows the
+**The guardrail.**
+- A production environment whose own address the client cannot read (a port with a plus sign, a
+  backslash in the path, a colon with nothing after it) is not remembered as production, or is
+  remembered under a host that matches nothing; a sandbox at the plain spelling of that address is
+  then accepted and sends writes there with no unlock. The check saw such submissions arrive at a
+  stand-in (N1 of the guardrail check, the open half of B1). [open at this revision: being fixed]
+- A value typed for one run that makes the path of a url unreadable (a space, a stray percent sign) is
+  refused with a false cause: the host, the port or the base address is blamed and the tester is sent
+  to upload a collection or to unlock (N2). Nothing is sent. [open at this revision: being fixed]
+- An overlong UTF-8 slash, or a look-alike slash, in a path is not refused: a read reshaped with one
+  goes to a locked production, and an environment on production's server with one in its base path
+  takes writes (N3; harmful only behind a server that decodes such bytes). [open at this revision:
+  being fixed]
+- A received notification that repeats a secret shorter than six characters shows it in clear with no
+  note, where the wire view says such a secret was not searched for (N4). [open at this revision: being
+  fixed]
+- A production environment whose port cannot be read makes every environment on its host warned that it
+  shares a server "by scheme, host and port" (N5). [open at this revision: being fixed]
+- A refusal at upload quotes an address the file does not hold (V6's F-ADDR-MISQUOTE). [open at this
+  revision: being fixed]
+- Not proven: IPv6 destinations (no IPv6 loopback here); a real nginx, Tomcat or IIS in front of a
+  service, on which M-ENC, m3 and N3 rest; a replay or a chain that reaches the gateway against
+  production on live (covered over the server by `ProductionRefusalOverTheServerTest`, D-205); a
+  production address taken from an operating system variable; proxy settings and redirects (read in
+  the code); hosts other than loopback (IDN, other DNS names, read in the code); explicit default ports
+  over the wire. A process killed outright leaves the embedded server's working folder behind (D-216).
+- Everything in D-145 and D-225 stands. Another DNS name for a production host is not recognised. A
+  production environment whose address comes from an operating system variable has no destination the
+  tool can remember.
+
+**Fixtures and the mock.**
+- A sentinel NPI (`9999999995`) in a pasted body is ignored in CRD, DTR and PAS; the result says no
+  sentinel matched, while the README says a sentinel NPI in a pasted body selects (N-RAW-NPI, the open
+  half of F-RAW). [open at this revision: being fixed]
+- A scenario directory of a tester's own copied before the sentinel mappings became data starts with no
+  warning and loses them all: a CRD failure sentinel in PAS is answered "approved", and a DTR sentinel
+  in CRD no longer reaches DTR (N-OLD-SCENARIO-DIR). [open at this revision: being fixed]
+- No test fails if the three controllers stop passing the scenario lists' notes, which is what makes a
+  file that was not read visible (N-LISTNOTES-UNTESTED). [open at this revision: being fixed]
+- With the documentation scenario `crd-04` chosen in the selector and a DTR sentinel as the member, CRD
+  names `crd-04`'s own questionnaire and DTR then says the service left one out (N-CRD04-CHOSEN). [open
+  at this revision: being fixed]
+- A `crdSentinelMemberIds` entry that is the sentinel of no CRD file is not noticed, and a run then
+  calls it "the CRD sentinel member ID" (N-CRDLIST-UNCHECKED). [open at this revision: being fixed]
+- Three scenario labels ("Onyx rejects with HTTP 400", "Onyx fails with HTTP 500") read as observations
+  of the vendor's service, while their `basis` says they are synthetic (V6's F-SCEN-LABELS). [open at
+  this revision: being fixed]
+- Two comments say the placeholder flag means the bundled list (`CodeListSelfCheck`, `CodeSearch`), and
+  the scan for an NPI outside the placeholder set does not read the Markdown files (N-STALE-JAVADOC,
+  N-NPI-DOCS). [open at this revision: being fixed]
+- On mock, a fault a scenario plays other than a timeout (an HTTP 500 or 400, an unreachable service, a
+  body that is not JSON or is empty) is headed "A fault in the environment: ..." and its action tells
+  the tester to note the time and report it, although nothing left the machine (V6's
+  F-MOCK-500-HEADING, V7's F7). [open at this revision: being fixed]
+- An `expect` block whose outcome contradicts what its own file produces, with the same HTTP status, is
+  not detected, and its outcome is still advertised (D-224, a known limit). Any new top-level key in a
+  scenario file stops the mock start until the loader knows it.
+
+**The screens.** Every pass drove the tool in a real browser with scripts, mostly on mock; no person
+has used it, and behaviour on screen has no test in the build (the static tests read the page's
+source). What is still wrong, or not seen:
+- The error panel is headed "What went wrong" over every error, a refusal by the guardrail included,
+  above the server's own heading; the label the page gives a refused form says nothing of what to do
+  (V5). [open at this revision: being fixed]
+- A resource of another kind sent in answer to a CRD hook gets the right outcome, and its headline still
+  says the body "could not be read" (V7's F6); the determination grid still says "empty" for a coverage
+  sub-extension sent with no value (F3). [open at this revision: being fixed]
+- The finding that names a repeated key and its values is raised on CRD only, not on DTR, PAS or
+  subscriptions; a raw send and the two lookups list only the last value under the old note (V7's
+  F13). [open at this revision: being fixed]
+- The list of chains in History draws a step nobody answered as a payer's answer; two buttons say only
+  "Dismiss" and "Close" (the walkthrough fix's leftovers). [open at this revision: being fixed]
+- Not seen in a browser by the fixes that made them: the chain view with a step nobody answered and "not
+  measured"; the renamed Config buttons; a step done inside the tool on live; what a mock replay says
+  of its scenario (also not checked over HTTP after the last change); the presences of lists on a PAS
+  inquiry, a subscription and the notification fold; the last fixes at 1920 by 1080 at all. [open at
+  this revision: being fixed]
+- Also not seen in a browser: the label of `CHECK_ENVIRONMENT` on a chain view and a suite row (tested
+  through the API); the colour key's sentence on a fault played on mock; the export's new
+  `answeredBy` column; the grouped wording of the History outcome filter.
+- The DTR change block (appeared, disappeared, dropped) is drawn twice, in the questionnaire pane and in
+  the result detail. On DTR and in a subscription answer the notes for a body that is not JSON were not
+  reworded, as CRD's and PAS's were.
+- *Seen at one size only.* The last screens pass swept production locked, unlocked and held by the
+  floor, UAT, live with an empty store, tracking off, a ledger that cannot write, a suite and a replay
+  of one run and of a date range at 1366 by 768 only; its address warnings in the environment list,
+  the six lines, the three last fixes, the refused notes and most DTR states were seen at 1366 only.
+  No screen reader was used on any tab, contrast was never measured, 200% zoom and phone width were
+  never tried (at 390 pixels, in an early review, the History runs table and the CRD elements table ran
+  past the edge), and `prefers-reduced-motion` was checked only by reading the stylesheets.
+- *Never drawn on screen.* `lookupEnabled` and `blockedShort` (read in code), the 409 path of a mapping
+  change, a 422 on a mapping, a DTR question of an unrecognised type, a quantity, an attachment, a
+  reference, an open choice from a value set only, a repeating text question, a questionnaire of
+  undetermined kind, a wrapped next-question step, a DTR package request of the tester's own, DTR
+  "could not be reached" on live, History's view and replay of a DTR run, PAS on live with an
+  unreachable sandbox, the masking of a channel header, a PAS payload over the 131072-byte cut, a chain
+  joined from the PAS tab, a PAS replay that is sent, and the PAS "Show the request" preview on live.
+  Whether every protocol's determination grid writes "no meaning to state" was not checked. The Config
+  tab's files were never reread against the Config review's CFG-01 to CFG-22.
+- *Older, still true.* The body source of a raw send is served as a code only and the page shows the
   server's sentence; nothing has been decided about it. A tester reference or a note typed on one tab
-  is not carried to the next (each tab has its own fields). The PAS detail and the notifications
-  list are not given the page's masking stopgap and rely on the server. When a pasted request and the case disagree, only a member ID gets a
-  button; two dates of service that disagree are listed with no button. The vendor's sample on the
-  CRD tab passes through the browser, and the tool's own hook instance is always one difference. The
-  slow-response flag was seen only on mock with a lowered threshold. A run-value field for a builder
-  variable such as `subscriptionHeartbeatSeconds` says where the request uses it was not reported,
-  because `/api/config/resolve` does not describe builder variables. A DTR quantity's unit is free
-  text and an answer the response holds is never put back into a control (the server gives display
-  text). Nothing shows how an inquiry's answer differs from the last one seen. The blank "Meaning"
-  cell a review saw on a subscription status row was never reproduced.
+  is not carried to the next. The PAS detail and the notifications list rely on the server's masking,
+  with no page stopgap. The member and provider detail records of a lookup still hold the mask text of
+  a masked field; the page fills the case only from the marked field list, and no build test pins it.
+  When a pasted request and the case disagree, only a member ID gets a button. The vendor's sample on
+  the CRD tab passes through the browser, and the tool's own hook instance is always one difference.
+  The slow-response flag was seen only on mock with a lowered threshold. A run-value field for a builder
+  variable says where the request uses it was not reported. A DTR quantity's unit is free text, and an
+  answer the response holds is never put back into a control. Nothing shows how an inquiry's answer
+  differs from the last one seen. A ledger that cannot write can be reached only by renaming its folder
+  after start: a folder that cannot be created stops the tool at start.
 
 **The server, by endpoint.**
-- *The server work for the screens (D-202 to D-205).* Both tasks were begun by agents a restart cut
-  off and finished by second agents from the checkpoints. Nobody ran the platform task's tests, the
-  six inherited checkpoints' or its own, against the code without the change. Of the protocol task's
-  24 mutations two were caught only by tests added afterwards, and were not run again. No agent but
-  their authors has checked either task, apart from what the second audits read.
-- *Refusals of a replay or a suite row on production.* Proven together by
+- *The server work for the screens (D-202 to D-205).* Nobody ran the platform task's tests against the
+  code without the change; two of the protocol task's mutations were caught only by tests added
+  afterwards and were not run again. No agent but their authors has checked either task, apart from
+  what the second audits and the checks read.
+- *Refusals on production.* A refused replay and a refused suite row are proven together by
   `ProductionRefusalOverTheServerTest` over the running server, and a refused PAS replay was seen on
-  screen by the first pass. A refused suite row was not driven by hand on a merged line.
-  `ChainServiceTest` pins what a chain view says for a blocked replay, a state the tool cannot reach,
-  because a replay never joins a chain (D-208); bringing it into line is decided and not done.
-- *Configuration.* A 404 for a removed environment does not name it (decided, D-205). A placeholder in
-  a collection body is not counted by "can this operation be sent" (decided, D-205).
-- *CRD.* `POST /api/crd/compare` cannot take a collection request by name, and ignores `configEpoch`.
-- *DTR.* A failure of the tool inside the response step, which sends nothing, answers 500 and writes no
-  ledger line (from the first DTR report, not checked again). The intended use code system in the PAS
-  bundle was not checked against DTR 2.0.1. Replay of a DTR run, and a PAS replay that is sent, were
-  never driven through the running tool.
+  screen; a refused suite row, and a blocked suite row of a protocol chain against production, were not
+  driven by hand.
+- *Configuration.* A 404 for a removed environment does not name it, and a placeholder in a collection
+  body is not counted by "can this operation be sent" (both decided, D-205).
+- *CRD.* `POST /api/crd/compare` cannot take a collection request by name, ignores `configEpoch`, and was
+  last checked through the API only.
+- *DTR.* A failure of the tool inside the response step answers 500 and writes no ledger line (from the
+  first DTR report, not checked again). The intended use code system in the PAS bundle was not checked
+  against DTR 2.0.1. Replay of a DTR run, and a PAS replay that is sent, were never driven through the
+  running tool.
 - *Older items still true.* A run with the tester's own body records no member, NPI or line of
-  business, and nothing on its ledger line tells two such runs apart (CASE-05). A CRD or PAS step of a
-  chain handed only the procedure codes its line already holds is still marked as not replayable alone
-  (F7). A second suite started while one runs is answered 409 with kind `VALIDATION`. A well-formed
-  chain id the tool never issued is accepted. `SuiteCases` refuses a hook with "The hook must be
-  order-sign or order-select." rather than the CRD service's sentence. "Existing authorization" is
-  still in `RedactionTest`, and "already satisfied" in the description of the member fixture
-  `p32h-pa-sat.json`. A lookup fixture file that repeats a key is read. After the ledger folder was
-  restored, the server kept saying it cannot write until the next write succeeded; nobody has looked
-  into why. A lookup identifier with an encoded slash in the path form still ends as a bare 400 (the
-  query form works, D-189).
-- *The README.* It was brought up to the tool at the join (D-209), before the server tasks for the
-  screens, the second pass and the audit fixes were merged. Sentences those made untrue include
-  "Show the request before sending" (now "Show the request"), the presentation of the sample code
-  list and its self-check (D-223), and anything saying that `P32H-PAS-TIMEOUT` or `P32H-PAS-ERR500`
-  has no inquiry answer or that a secret written as a JSON number is not masked. It does not yet
-  carry the sentences of D-213 and D-217, the refusal of encoded separators, what Lock does, or how a
-  notification is masked. Its list of sentences that quote the screen word for word has not been
-  checked again. The README's own checks did not run `run.sh` from a checkout without a jar (its
-  `./gradlew bootJar` branch never ran), did not check that `run.sh` refuses a Java older than 21,
-  did not check an `{{env:PAVE_...}}` reference at send time, and ran every Endpoints example on port
-  8091, not on the documented 8057. Its screen sentences were checked at 1366 by 768 only, and those
-  about the production banner, the ledger's fault states, the suite chips, the chain view, the replay
-  result and "Load this case into the form" were taken from the join's report, not seen by the
-  README's author.
-- *The pull request draft.* Its attribution footer, required for pull request descriptions, holds a
-  non-ASCII character and names the generating tool, which conflicts with the house style and the
-  rule against naming a tool as an author (D-209). Undecided.
+  business, and nothing on its line tells two such runs apart (CASE-05). A CRD or PAS step of a chain
+  handed only the procedure codes its line already holds is still marked not replayable alone (F7). A
+  second suite started while one runs is answered 409 with kind `VALIDATION`. A well-formed chain id
+  the tool never issued is accepted. `SuiteCases` refuses a hook with "The hook must be order-sign or
+  order-select." rather than the CRD service's sentence. "Existing authorization" is still in
+  `RedactionTest`, and "already satisfied" in the description of the member fixture `p32h-pa-sat.json`.
+  A lookup fixture file that repeats a key is read. After the ledger folder was restored, the server
+  kept saying it cannot write until the next write succeeded. A lookup identifier with an encoded slash
+  in the path form ends as a bare 400 (the query form works, D-189).
+- *The tests write into the checkout.* A build leaves `config-store/` (with an `installation-salt`) and
+  `run-history/` in the project directory, because tests that start the whole application use the
+  default folders; `.gitignore` keeps both out of version control (V6's F-BUILD-WRITES-TREE). [open at
+  this revision: being fixed]
+
+**The README and the pull request draft.** The README describes `5763c41` (D-232). It is behind on
+everything merged since: the 409 at the send, the hint on the note fields, the address warnings and
+scenario notes on screen, the played timeout, the raw resolve note, the masked lookup field, the code
+list label, the renamed buttons and next steps, the error headings, and the last audits and their
+fixes; it does not say that the token request uses HTTP Basic (D-233) or that the salt is a secret
+(D-234), and its list of statuses leaves out 400, 405, 406, 413 and 415 (V1's F-02). The pull request
+draft, outside the repository, says the tool was built "with nothing stubbed" (V6's blocker
+F-PR-LIMITS), and its list of decisions stops at D-201. The last pass over both is started and not
+merged (D-250). The draft's attribution footer holds a non-ASCII character and names the generating
+tool, which conflicts with the house style and the rule against naming a tool as an author; which wins
+is undecided (D-209).
 
 **Limits each part reports that are still true.**
-- CRD: US Core 3.1.1 PractitionerRole was not checked (the package is not here; it may require both a
-  practitioner and an organization, and the tool sends one or the other). `Organization.active` is
-  never sent (D-141).
-- PAS: no claim update and no `$submit-attachment` (D-161); a resubmission reuses the claim id
-  (D-133). US Core 3.1.1, HRex, the subscriptions backport 1.1.0 and the X12 code lists were not
-  available; the 2.0.1 examples were not compiled; the request was checked against hand-written 2.0.1
-  rules that do not test slices or invariants. Mock X12 reason and category codes are placeholders.
-  The guide's PAS Task route to CDex is not modelled by any scenario (MOCK-03).
-- DTR: SDC 3.0.0, US Core 3.1.1, FHIR R4 core and the 2.0.1 narrative pages are not here, so only the
-  invariants dtrx-1 and dtrb-1 are evaluated and the next-question address is an assumption. An
-  answer's author carries no role. `$expand` and `$log-questionnaire-errors` are not implemented. The
-  rules DTR-07 names were tested only with made-up questionnaires, never with a real one.
+- Level 1 is described with its limits (D-235): in the X12 275 attachment mode the tool names the
+  document and sends nothing; no `$submit-attachment` and no claim update (D-161), a resubmission reuses
+  the claim id (D-133); no `$expand`, no `$log-questionnaire-errors`, no CQL; DTR is the operations
+  behind a SMART launch, not the launch; no sign-in.
+- The token request authenticates the client by HTTP Basic; a vendor that wants the form body or a
+  signed assertion answers 401 (D-233). No token server was tried.
+- CRD: US Core 3.1.1 PractitionerRole was not checked. `Organization.active` is never sent (D-141).
+- PAS: US Core 3.1.1, HRex, the subscriptions backport 1.1.0 and the X12 code lists were not available;
+  the 2.0.1 examples were not compiled; the request was checked against hand-written 2.0.1 rules that
+  do not test slices or invariants. Mock X12 reason and category codes are placeholders. The PAS Task
+  route to CDex is not modelled (MOCK-03).
+- DTR: SDC 3.0.0, US Core 3.1.1, FHIR R4 core and the 2.0.1 narrative pages are not here, so only dtrx-1
+  and dtrb-1 are evaluated and the next-question address is an assumption. An answer's author carries
+  no role. The rules DTR-07 names were tested only with made-up questionnaires.
 - The chain: a DTR package that goes straight on to PAS is driven by no test and no mock scenario.
-- The guardrail: everything in D-145 and D-225. Another DNS name for a production host is not
-  recognised. A production environment whose address comes from an operating system variable has no
-  destination the tool can remember. A lock that lands between preparing and sending a write is
-  tested over the server for one submission (D-214) and at the gateway.
-- Credentials: one typed into a path segment or a host of a collection is shown as written; a secret
-  in the path of a call back address with no variable is shown. The collection file keeps the value on
-  disk.
-- The HTTP edge: only Linux, curl, raw sockets and headless Chromium were used; Windows, Firefox and
-  Safari were not tried. `OPTIONS *` carries none of the tool's headers (D-150). A cross-site request
-  that carries neither `Sec-Fetch-Site` nor `Origin` is let through (D-148). Several uploads of 30MB
-  held in memory at once were never tried.
-- The ledger: the live profile was checked in unit tests and on the fixes' live runs against stand-ins.
-  Folders and day files made before the first fix keep their old modes. Flush and sync are checked by
-  reading the code. Two instances on one ledger directory are not coordinated. A note written after
-  the clock was set back across midnight is on disk and not applied.
-- Fixtures: any new top-level key in a scenario file stops the mock start until the loader knows it.
+- Credentials: one typed into a path segment or a host of a collection is shown as written; a secret in
+  the path of a call back address with no variable is shown. The collection file keeps the value on
+  disk. Secrets sit in plain text in `config-store/`.
+- The HTTP edge: only Linux, curl, raw sockets and headless Chromium were used. `OPTIONS *` carries none
+  of the tool's headers (D-150). A cross-site request that carries neither `Sec-Fetch-Site` nor `Origin`
+  is let through (D-148). Several uploads of 30MB held in memory at once were never tried.
+- The ledger: folders and day files made before the first fix keep their old modes. Flush and sync are
+  checked by reading the code. Two instances on one ledger directory are not coordinated. A note
+  written after the clock was set back across midnight is on disk and not applied.
 - Suites: whether a code assertion's value is in its value set is not checked before sending. The test
   ledger does not apply case lines as the real one does.
-- The code list: no real P32H export was available, so its header row, flag spellings, date format,
-  time zone, vendor names, encoding and columns per line of business are unknown. A real export whose
-  notes column happened to hold the marker "Not from a P32H export." would be taken as synthetic. The
-  first-row message still shows cells of letters alone.
+- The code list: no real P32H export was available, so its header row, flag spellings, date format, time
+  zone, vendor names, encoding and columns per line of business are unknown. A real export whose notes
+  column held the marker "Not from a P32H export." would be taken as synthetic.
 - Lookups: neither has met the real member API or provider directory; both response mappings are
   assumptions (section 26). A name returned in one piece cannot prefill first and last name.
 - Notifications: the receiver does not authenticate its caller and has never been called over a socket
-  by a real service; with the default bind address no vendor can reach it, and `GET /api/mode` says
-  so. Two notifications at the same moment are not tested.
+  by a real service; with the default bind address no vendor can reach it, and `GET /api/mode` says so.
 - Postman: no real vendor export was available; every collection the tests use is hand-written.
-  Concurrency in the store is reasoned about, not tested.
-- The request comparison: no real vendor request was available (D-227). A placeholder whose value
-  exists only in a collection's variables is reported as having no value. Codes in NutritionOrder,
+- The request comparison: no real vendor request was available (D-227). Codes in NutritionOrder,
   VisionPrescription, CommunicationRequest and Appointment are not read.
-- The wire view and every masking that follows its rule: a secret sent back re-encoded (percent,
-  base64, another case) or shorter than six characters is not found.
-- Documentation: STS, a mirror that needs credentials and a token server were not tested. A plain
-  `./gradlew build` can skip the sample tests after a sample is edited; `clean build` runs them.
+- The wire view carries member data. It and every masking that follows its rule miss a secret sent back
+  re-encoded (percent, base64, another case) or shorter than six characters.
+- The style gate reads files only, not commit messages, the pull request description, names of people
+  or comments that restate the code (D-244); its own failure path was seen by hand only.
+- Documentation: STS (no minimum version is claimed), a mirror that needs credentials and a token server
+  were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
+  build` runs them.
 
-**Checked only by unit tests or at the gateway, never in the running tool.** A chain interrupted
-part way writing its case line, and the write note of a suite on a production target; a failure of
-the tool inside a step; the replay paths for a refused claim id and an authorization number in
-several groups; the split of TLS failures into reached and not reached; a secret sent back as a JSON
-number; the notification next step for a subscription id the ledger does not keep (seen on the jar
-by the fix, not on screen). Not checked at all: whether a chain's DTR step can produce each fault
-outcome a suite file may expect of it.
+**Checked only by unit tests, by reading the source, or at the gateway, never in the running tool.** A
+chain interrupted part way writing its case line, and the write note of a suite on a production
+target; a failure of the tool inside a step; the replay paths for a refused claim id and an
+authorization number in several groups; the split of TLS failures into reached and not reached; a step
+done inside the tool on the live profile marked as answered by nobody (`RunRecordTest`); the refusal of
+text left in the code box (`CaseCodesFrontendTest` reads the source; the behaviour was seen in a
+browser); the style gate's planted violations (`HouseStyleTest`). Not checked at all: whether a chain's
+DTR step can produce each fault outcome a suite file may expect of it.
 
-**Seen on the running application, against a stand-in, and pinned by a test.** A secret in the call
-back address that the service echoes in its Subscription is masked in every view of the answer
-(`SubscriptionServiceTest`). A notification repeating a secret variable, the token, the client
-secret and a call back credential holds none of them in the list of notifications, the ledger or the
-log (`SecretsSentBackOverTheServerTest`, D-215). A note holding the member ID is refused on the CRD
-tab and marks its field, seen once at 1366 by 768; `LedgerPhiTest` pins the refusal, not the mark
-(D-217).
-
-**On mock, pinned by a test over the running application.** Every DTR sentinel taken from CRD into
-DTR, and the same as suite rows of the protocol chain (`DtrSentinelJourneyTest`, D-222); seen on
-screen for `P32H-DTR-ADAPT` only, and no chain suite was driven by hand.
+**What the audits and checks did not examine**, as each reports it.
+- *V1:* the plain `./gradlew` without `--offline` and the machine's memory cap; `run.cmd` and
+  `gradlew.bat`; `run.sh` building the jar itself; a run with no network at all; the tabs beyond the
+  first screen; the guardrail with a production environment; the ledger on disk line by line.
+- *V5:* no clean build and no running application; the screens judged from source; 50 of 4,769 comment
+  blocks; the pull request description.
+- *V6:* `DECISIONS.md` in full (it read the operator table and D-208 to D-228); the finding tables of
+  `PROGRESS.md` row by row; the journey in a browser; History, chains, suites, the Config panels and the
+  colour key on screen; V7's blockers and the walkthrough's majors (not reproduced); replay, the export,
+  notes on History, suites against production and the ledger's fault states.
+- *V7:* a chain driven by hand on the screens; the live profile beyond one CRD run; a ledger that cannot
+  record; PAS inquiry, DTR conditions and CRD suggestions for absent, null and empty.
+- *The walkthrough:* the chain box and the History chains view; DTR and PAS on live; the adaptive
+  questionnaire, PAS inquiry, subscriptions and notifications on screen; timeouts on DTR and PAS;
+  production and the guardrail; layout below 1366 wide.
+- *The member data check:* DTR on live end to end; PAS inquiry and subscription read, update and delete
+  on live; DTR and PAS in a browser (the own-body finding was confirmed on CRD and read from the shared
+  page code); Windows; the full suite on the unchanged tree.
+- *The guardrail check:* IPv6 over the wire; hosts other than loopback; explicit default ports; a real
+  front server; a replay or a chain against production; the full suite.
+- *The fixture check:* the DTR loop with a required question left empty; `crd-04` chosen by hand in a
+  browser; a step-level `expect` mismatch; damaged lookup fixtures; History, suite and chain screens;
+  other window sizes; the full suite.
+- *The second run of V2, V3 and V4* (on `0658a7c`): as recorded before, among them DTR on live, a log
+  file appender, heap dumps and swap, Windows file modes, the `postman` package line by line, the race
+  between preparing and sending by a timed run, a real front server, the rest of the DTR loop, and each
+  scenario file's `basis` against the guides.
 
 ### What the audits found and what was done
 
