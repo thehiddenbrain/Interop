@@ -84,7 +84,7 @@ class CrdOtherResourceTest {
         assertThat(Expectations.assess("NO_DETERMINATION", reading.outcome(), reading.asked(), reading.answers(), CrdOutcome.values(),
                 CrdCodes.EXPECTATION_ELEMENTS).result()).isEqualTo(TestResult.FAIL);
         assertThat(CrdVerdicts.verdict(reading, exchange).headline()).isEqualTo("The service answered with a FHIR OperationOutcome, "
-                + "not a CDS Hooks response (HTTP 200). Its issues are listed in the response detail.");
+                + "not a CDS Hooks response (HTTP 200).");
         // It is not called an answer that carried no coverage information: it was not an answer of that kind.
         List<org.p32h.interop.epa.pave.model.Finding> findings = new CrdConformanceChecker(new org.p32h.interop.epa.pave.testsupport.FakeCodeList(),
                 org.p32h.interop.epa.pave.config.EpaProperties.of(java.util.Map.of("mode", "mock"))).check(reading, exchange, null, null);

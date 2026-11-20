@@ -514,8 +514,8 @@ public final class CrdVerdicts {
             return "The service answered with no body" + status(exchange) + ".";
         }
         if (kind == CrdResponseKind.OPERATION_OUTCOME) {
-            return "The service answered with a FHIR OperationOutcome, not a CDS Hooks response" + status(exchange)
-                    + ". Its issues are listed in the response detail.";
+            // Kept short: a headline over 120 characters is announced by the outcome's label instead.
+            return "The service answered with a FHIR OperationOutcome, not a CDS Hooks response" + status(exchange) + ".";
         }
         if (kind != CrdResponseKind.OTHER_JSON) {
             return "The service answered with a body that could not be read" + status(exchange) + ".";
