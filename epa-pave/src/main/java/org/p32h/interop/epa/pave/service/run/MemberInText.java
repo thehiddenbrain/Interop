@@ -303,9 +303,8 @@ public final class MemberInText {
 
     /**
      * True when a text holds a date written in one of the usual ways: 1961-07-23, 19610723,
-     * 07/23/1961, 7/23/61, 23.07.1961, and with the month's name: July 23, 1961, 23 Jul 1961,
-     * 23-July-61, 23Jul1961, Jul 23rd 1961. These are the forms the ledger record's own rule for
-     * an identifier or a date knows.
+     * 07231961, 23071961, 07/23/1961, 7/23/61, 23.07.1961, and with the month's name: July 23,
+     * 1961, 23 Jul 1961, 23-July-61, 23Jul1961, Jul 23rd 1961, Jul. 23rd, 1961, 23 July '61.
      */
     private static boolean holdsDate(String text, String isoDate) {
         LocalDate date = Texts.present(isoDate) ? IsoDates.parse(isoDate) : null;
@@ -318,6 +317,9 @@ public final class MemberInText {
         List<String> days = List.of(String.format(Locale.ROOT, "%02d", date.getDayOfMonth()), Integer.toString(date.getDayOfMonth()));
         Set<String> forms = new LinkedHashSet<>();
         forms.add(year + months.get(0) + days.get(0));
+        // The compact forms with the month or the day first, as some forms and systems write it.
+        forms.add(months.get(0) + days.get(0) + year);
+        forms.add(days.get(0) + months.get(0) + year);
         for (String separator : List.of("-", "/", ".", " ")) {
             for (String month : months) {
                 for (String day : days) {
@@ -340,12 +342,14 @@ public final class MemberInText {
     private static final String MONTH = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?"
             + "|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
     private static final String ORDINAL = "(?:st|nd|rd|th)?";
-    /** Day, month name, year: 23 Jul 1961, 23-July-61, 23Jul1961, 23rd of July 1961. */
+    /** A two-digit year may follow an apostrophe, straight or curly: 23 July '61. */
+    private static final String YEAR = "['\\u2019]?(\\d{2}|\\d{4})(?!\\d)";
+    /** Day, month name, year: 23 Jul 1961, 23-July-61, 23Jul1961, 23rd of July 1961, 23 July '61. */
     private static final Pattern DAY_MONTH_YEAR = Pattern.compile("(?<![\\p{L}\\p{N}])(\\d{1,2})" + ORDINAL + "[-/. ]?(?:of )?" + MONTH
-            + "[-/. ,]{0,2}(\\d{2}|\\d{4})(?!\\d)", Pattern.CASE_INSENSITIVE);
-    /** Month name, day, year: July 23, 1961, Jul 23 1961, Jul-23-61, July 23rd, 1961. */
-    private static final Pattern MONTH_DAY_YEAR = Pattern.compile("(?<![\\p{L}\\p{N}])" + MONTH + "[-/. ]?(\\d{1,2})" + ORDINAL
-            + "[-/. ,]{1,2}(\\d{2}|\\d{4})(?!\\d)", Pattern.CASE_INSENSITIVE);
+            + "[-/. ,]{0,2}" + YEAR, Pattern.CASE_INSENSITIVE);
+    /** Month name, day, year: July 23, 1961, Jul 23 1961, Jul-23-61, July 23rd, 1961, Jul. 23rd, 1961. */
+    private static final Pattern MONTH_DAY_YEAR = Pattern.compile("(?<![\\p{L}\\p{N}])" + MONTH + "[-/. ,]{0,2}(\\d{1,2})" + ORDINAL
+            + "[-/. ,]{1,2}" + YEAR, Pattern.CASE_INSENSITIVE);
 
     private static boolean holdsNamedMonthDate(String text, LocalDate date) {
         Matcher dayFirst = DAY_MONTH_YEAR.matcher(text);

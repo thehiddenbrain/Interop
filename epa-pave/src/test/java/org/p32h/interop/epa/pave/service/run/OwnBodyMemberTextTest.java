@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.service.dtr.DtrNextQuestionRequest;
 import org.p32h.interop.epa.pave.service.dtr.DtrPackageRequest;
 import org.p32h.interop.epa.pave.service.pas.PasInquireRequest;
 import org.p32h.interop.epa.pave.service.pas.PasSubmitRequest;
+import org.p32h.interop.epa.pave.testsupport.FakeGateway;
 
 /**
  * A run that sends a body of the tester's own. The screen sends no member with it, so its note,
@@ -87,5 +88,50 @@ class OwnBodyMemberTextTest {
         assertThat(both).extracting(FieldError::field).containsExactly("note", "testerRef");
         assertThat(both.get(0).message()).startsWith("The note holds this run's member ID.");
         assertThat(both.get(1).message()).startsWith("The tester reference holds a member ID the request body carries.");
+    }
+
+    /** A body loaded from a collection, naming its member through placeholders. */
+    private static final String PLACEHOLDER_BODY = "{\"hook\":\"order-sign\",\"hookInstance\":\"x\",\"context\":{\"patientId\":"
+            + "\"{{memberId}}\",\"userId\":\"PractitionerRole/1\",\"draftOrders\":{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":"
+            + "{\"resourceType\":\"Coverage\",\"subscriberId\":\"{{subscriber}}\"}}]}}}";
+
+    @Test
+    void aBodyThatNamesTheMemberThroughAPlaceholderIsCheckedAsItWillBeSentWithRunValuesAndTheActiveEnvironment() {
+        // Found by the last check of the ledger fixes (NF2): the body was read as typed, so a
+        // {{memberId}} placeholder named nobody and the note went into the ledger in clear.
+        OwnBodyPlaceholders filling = new OwnBodyPlaceholders(new FakeGateway().variable("subscriber", "SUBZZ-9988-776"));
+        try {
+            Map<String, String> refused = errors(CrdRunRequest.builder().rawBody(PLACEHOLDER_BODY).variables(Map.of("memberId", "S123456789"))
+                    .note("placeholder S123456789").testerRef("sub SUBZZ9988776").build());
+
+            assertThat(refused).containsOnlyKeys("note", "testerRef");
+            assertThat(refused.get("note")).isEqualTo("The note holds a member ID the request body carries. The ledger keeps it as "
+                    + "written and may not hold member data, so leave it out. Nothing was sent.");
+            assertThat(refused.get("testerRef")).contains("a subscriber ID the request body carries");
+            assertThat(String.join(" ", refused.values())).doesNotContain("S123456789").doesNotContain("9988");
+            // The same body with an honest note is not refused.
+            assertThat(errors(CrdRunRequest.builder().rawBody(PLACEHOLDER_BODY).variables(Map.of("memberId", "S123456789"))
+                    .note("ticket 4471").build())).isEmpty();
+        } finally {
+            filling.close();
+        }
+    }
+
+    @Test
+    void aPlaceholderWithNoValueChangesNothingAndTheBodyIsReadAsTyped() {
+        OwnBodyPlaceholders filling = new OwnBodyPlaceholders(new FakeGateway());
+        try {
+            // {{subscriber}} has no value: the call is refused for it where it is prepared, and here
+            // the body is read as typed, as it was before.
+            assertThat(errors(CrdRunRequest.builder().rawBody(PLACEHOLDER_BODY).variables(Map.of("memberId", "S123456789"))
+                    .note("placeholder S123456789").build())).isEmpty();
+            assertThat(errors(CrdRunRequest.builder().rawBody(PLACEHOLDER_BODY.replace("{{subscriber}}", "SUBZZ-9988-776"))
+                    .note("sub SUBZZ9988776").build())).containsOnlyKeys("note");
+        } finally {
+            filling.close();
+        }
+        // With the filling handed back, nothing is resolved and nothing throws.
+        assertThat(errors(CrdRunRequest.builder().rawBody(PLACEHOLDER_BODY).variables(Map.of("memberId", "S123456789"))
+                .note("placeholder S123456789").build())).isEmpty();
     }
 }

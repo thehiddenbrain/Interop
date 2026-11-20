@@ -161,8 +161,11 @@ class LedgerLineSafetyTest {
                 "doc-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 10 characters)",
                 "doc-purpose=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 12 characters)",
                 "info-needed=(" + RunRecord.READS_LIKE_AN_IDENTIFIER + ", 13 characters)", "covered=covered", "pa-needed=no-auth");
+        // A claim id that holds the member ID is kept for the ledger to write as a token, so that a
+        // notification about the run can be matched (the last check of the ledger fixes, NF1).
+        // LedgerMemberTextTest shows the line holds only the token.
         assertThat(record.correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, "(not recorded, 56 characters)")
-                .containsEntry(RunRecord.CORR_CLAIM_ID, "(not recorded, 18 characters)");
+                .containsEntry(RunRecord.CORR_CLAIM_ID, "claim-S12345678_01");
         // The statements settle: a copy and a read give the same record.
         assertThat(record.toBuilder().build()).isEqualTo(record);
         // A path or a urn that spells a name and a date of birth, with no member ID to compare with.

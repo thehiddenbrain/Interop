@@ -501,8 +501,13 @@ public class SuiteService implements AutoCloseable {
                 : earlier.caseResult() != null ? earlier.caseResult() : earlier.result();
         Boolean changed = earlier == null ? null : !Objects.equals(earlier.outcome(), code) ? Boolean.TRUE
                 : entry.chain && earlierResult == null ? null : !Objects.equals(earlierResult, result);
+        // A service that refused the expectation for member data it found once the member was looked
+        // up, a date of birth or a name, says so in the reason. The results then repeat that refusal
+        // and not the expectation.
+        String refusal = status == CaseStatus.INVALID ? SuiteCases.expectationRefusal(outcome.reason()) : null;
+        String shownExpected = refusal != null ? refusal : entry.expected;
         return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
-                rowLine(outcome, result, entry, sent, configurationMoved), entry.expected, code, outcomes.label(protocol, code), tone, result,
+                rowLine(outcome, result, entry, sent, configurationMoved), shownExpected, code, outcomes.label(protocol, code), tone, result,
                 elapsed, slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),
                 last == null ? null : last.httpStatus(), List.copyOf(findings), last == null ? null : last.nextAction(),
                 outcome.reason(), outcome.notes(), outcome.notRecorded(),

@@ -126,11 +126,10 @@ public class JsonlRunLedger implements RunLedger {
         this.saltFile = configuredSalt != null ? configuredSalt
                 : (store == null ? Path.of("") : store).resolve(LedgerTokens.DEFAULT_FILE_NAME).toAbsolutePath().normalize();
         Objects.requireNonNull(codeList, "codeList");
+        // A code the list holds is kept as written whatever its shape. The list is asked when a line
+        // is written, and never when one is read: it can change, and a line says what it said.
         this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens,
-                line -> lineAsListed(codeList, line));
-        // A code the list holds is kept as written whatever its shape. Every record checks its codes
-        // as it is built, before the ledger sees it, so the record is told which codes those are.
-        RunRecord.codesOnTheList(code -> !codeList.rowsFor(code, null, null).isEmpty());
+                line -> lineAsListed(codeList, line), code -> !codeList.rowsFor(code, null, null).isEmpty());
 
         // Checked whether or not tracking is on. It costs nothing, and a salt beside the lines it
         // protects would let anyone who copies the folder test member IDs against them.

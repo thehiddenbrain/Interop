@@ -472,6 +472,32 @@ class LedgerPhiTest {
     }
 
     @Test
+    void aBodyOfTheTestersOwnThatNamesTheMemberThroughAPlaceholderHasItsNoteCheckedAgainstTheFilledBody() {
+        // Found by the last check of the ledger fixes (NF2): the body was read before its
+        // placeholders were filled, so a note holding the member ID was written in clear.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        CrdService service = service(mock, ledger);
+        String body = "{\"hook\":\"order-sign\",\"hookInstance\":\"x\",\"context\":{\"patientId\":\"{{memberId}}\"}}";
+        org.p32h.interop.epa.pave.service.run.OwnBodyPlaceholders filling =
+                new org.p32h.interop.epa.pave.service.run.OwnBodyPlaceholders(FakeGateway.unconfigured());
+        try {
+            org.p32h.interop.epa.pave.service.error.ValidationException refused = org.assertj.core.api.Assertions.catchThrowableOfType(
+                    org.p32h.interop.epa.pave.service.error.ValidationException.class,
+                    () -> service.run(CrdRunRequest.builder().rawBody(body).variables(java.util.Map.of("memberId", MEMBER_ID))
+                            .note("placeholder " + MEMBER_ID).build(), RunOrigin.manual(), null));
+
+            assertThat(refused).isNotNull();
+            assertThat(refused.fieldErrors()).singleElement().satisfies(error -> {
+                assertThat(error.field()).isEqualTo("note");
+                assertThat(error.message()).contains("a member ID the request body carries").doesNotContain(MEMBER_ID);
+            });
+            assertThat(Files.exists(dayFile(home, TODAY))).isFalse();
+        } finally {
+            filling.close();
+        }
+    }
+
+    @Test
     void theRunsOwnMemberIdTypedAsAProcedureCodeIsNotOnTheLineInTheCodesOrAsTheSubjectOfACoverageCode() {
         // Found by the second member data audit (F3).
         JsonlRunLedger ledger = ledger(home, CLOCK);

@@ -25,7 +25,7 @@ const CORRELATION = {
     questionnaire: 'Questionnaire'
 };
 const RUN_KEYS = new Set(['correlatedRunId', 'subscriptionRunId']);
-const TOKEN_NOTE = 'Kept as a token, not as the identifier the service gave: the ledger cannot tell this identifier from somebody\'s '
+const TOKEN_NOTE = 'Kept as a token, not as the identifier itself: the ledger cannot tell this identifier from somebody\'s '
     + 'data. A notification that carries the identifier is still matched by it.';
 
 // The tabs a protocol's case can be loaded into.

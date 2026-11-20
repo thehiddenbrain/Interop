@@ -60,6 +60,7 @@ final class TrackingPolicy {
     private final boolean recordNpi;
     private final Supplier<LedgerTokens> tokens;
     private final UnaryOperator<String> knownLine;
+    private final java.util.function.Predicate<String> listedCode;
 
     /**
      * @param recordMemberId   {@code tracking.record-member-id}
@@ -68,14 +69,17 @@ final class TrackingPolicy {
      * @param knownLine        for a line of business the tool knows (one the code list names, directly
      *                         or through {@code codelist.line-of-business-aliases}) the spelling to
      *                         write, and null for any other text
+     * @param listedCode       true for a procedure code the loaded code list holds, asked only when a
+     *                         line is written ({@link RunRecord#withCodesJudgedAtWriting})
      */
     TrackingPolicy(boolean recordMemberId, boolean placeholdersOnly, boolean recordNpi, Supplier<LedgerTokens> tokens,
-                   UnaryOperator<String> knownLine) {
+                   UnaryOperator<String> knownLine, java.util.function.Predicate<String> listedCode) {
         this.recordMemberId = recordMemberId;
         this.placeholdersOnly = placeholdersOnly;
         this.recordNpi = recordNpi;
         this.tokens = tokens;
         this.knownLine = knownLine;
+        this.listedCode = listedCode;
     }
 
     /** True when an ID in its no-space form is one the tool provides, never one a person holds. */
@@ -120,7 +124,7 @@ final class TrackingPolicy {
             }
             out.correlation(correlation);
         }
-        return settled(withSuppliedIds(out.build(), inTheClear));
+        return settled(withSuppliedIds(out.build(), inTheClear).withCodesJudgedAtWriting(listedCode));
     }
 
     /**

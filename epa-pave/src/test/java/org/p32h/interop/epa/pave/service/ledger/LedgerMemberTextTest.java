@@ -148,6 +148,30 @@ class LedgerMemberTextTest {
     }
 
     @Test
+    void anIdentifierAServiceSuppliesThatHoldsTheRunsOwnMemberIdIsATokenAndStillMatched() {
+        // Found by the last check of the ledger fixes (NF1): such an id was written as "not
+        // recorded", so a notification about the submission matched nothing.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        Map<String, String> correlation = new LinkedHashMap<>();
+        correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789-19610723");
+        correlation.put(RunRecord.CORR_CLAIM_ID, "S123-456-789");
+        ledger.record(draft("run-1", CLOCK).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).correlation(correlation).build());
+
+        JsonNode kept = onlyLine().get("correlation");
+        assertThat(text(kept, "claimResponseId")).isEqualTo(ledger.tokenFor("S123456789-19610723"));
+        assertThat(text(kept, "claimId")).isEqualTo(ledger.tokenFor("S123-456-789"));
+        assertThat(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder().correlation(RunRecord.CORR_CLAIM_RESPONSE_ID,
+                "S123456789-19610723").build())).extracting(RunRecord::runId).containsExactly("run-1");
+
+        // Where member IDs are recorded, the id is in clear beside the member ID it holds.
+        JsonlRunLedger recording = recordingIds(home.resolve("recording"), CLOCK);
+        recording.record(draft("run-2", CLOCK).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).correlation(correlation).build());
+        RunRecord read = recording.find("run-2").orElseThrow();
+        assertThat(read.memberId()).isEqualTo(MEMBER_ID);
+        assertThat(read.correlation()).containsEntry(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789-19610723");
+    }
+
+    @Test
     void theIdentifiersThisToolMintsAUuidAndAnOidAreKeptInClear() {
         JsonlRunLedger ledger = ledger(home, CLOCK);
         Map<String, String> correlation = new LinkedHashMap<>();
@@ -242,20 +266,47 @@ class LedgerMemberTextTest {
     void aLongDigitCodeTheCodeListHoldsIsKeptAsWrittenAndOneItDoesNotHoldIsNot() {
         // Found by the independent check of the member data fixes (N7): an ICD-10-PCS shape and an
         // NDC became "not a code". The list decides; for a code it does not hold, the rule stands.
-        try {
-            JsonlRunLedger ledger = new JsonlRunLedger(LedgerFixtures.tracking(home, Map.of()), LedgerFixtures.configStore(home),
-                    org.p32h.interop.epa.pave.config.EpaProperties.defaults(), CLOCK, new org.p32h.interop.epa.pave.testsupport.FakeCodeList()
-                    .row("0016070", org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null)
-                    .row(MEMBER_ID, org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null));
-            ledger.record(draft("run-1", CLOCK).procedureCodes(List.of("0016070", "00002751001", "95810", MEMBER_ID))
-                    .coverageCodes(List.of("0016070: covered=covered", "00002751001: (no answer)")).build());
+        JsonlRunLedger ledger = withCodeList(new org.p32h.interop.epa.pave.testsupport.FakeCodeList()
+                .row("0016070", org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null)
+                .row(MEMBER_ID, org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null));
+        ledger.record(draft("run-1", CLOCK).procedureCodes(List.of("0016070", "00002751001", "95810", MEMBER_ID))
+                .coverageCodes(List.of("0016070: covered=covered", "00002751001: (no answer)")).build());
 
-            RunRecord read = ledger.find("run-1").orElseThrow();
-            assertThat(read.procedureCodes()).containsExactly("0016070", "(not a code, 11 characters)", "95810", "(not a code, 10 characters)");
-            assertThat(read.coverageCodes()).containsExactly("0016070: covered=covered", "(not a code, 11 characters): (no answer)");
-        } finally {
-            RunRecord.codesOnTheList(null);
-        }
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.procedureCodes()).containsExactly("0016070", "(not a code, 11 characters)", "95810", "(not a code, 10 characters)");
+        assertThat(read.coverageCodes()).containsExactly("0016070: covered=covered", "(not a code, 11 characters): (no answer)");
+    }
+
+    private JsonlRunLedger withCodeList(org.p32h.interop.epa.pave.testsupport.FakeCodeList codeList) {
+        return new JsonlRunLedger(LedgerFixtures.tracking(home, Map.of()), LedgerFixtures.configStore(home),
+                org.p32h.interop.epa.pave.config.EpaProperties.defaults(), CLOCK, codeList);
+    }
+
+    @Test
+    void aLineWrittenWithACodeTheListHeldReadsAsItWasWrittenOnceTheListNoLongerHoldsIt() throws java.io.IOException {
+        // Found by the last check of the ledger fixes (NF3): the line was judged again, by the list
+        // loaded when it was read, and the code turned into "not a code" on screen and in the export.
+        JsonlRunLedger before = withCodeList(new org.p32h.interop.epa.pave.testsupport.FakeCodeList()
+                .row("0016070", org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null)
+                .row("00002751001", org.p32h.interop.epa.pave.model.AuthRequirement.REQUIRED, null, null));
+        before.record(draft("run-1", CLOCK).procedureCodes(List.of("0016070", "00002751001", "95810", "1234567"))
+                .coverageCodes(List.of("0016070: covered=covered", "00002751001, 95810: (no answer)")).build());
+
+        JsonlRunLedger after = withCodeList(new org.p32h.interop.epa.pave.testsupport.FakeCodeList());
+        RunRecord read = after.find("run-1").orElseThrow();
+        assertThat(read.procedureCodes()).containsExactly("0016070", "00002751001", "95810", "(not a code, 7 characters)");
+        assertThat(read.coverageCodes()).containsExactly("0016070: covered=covered", "00002751001, 95810: (no answer)");
+        String exported = new String(RunCsv.bytes(after.query(org.p32h.interop.epa.pave.model.RunQuery.all())),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(exported).contains("0016070").contains("00002751001");
+
+        // The run's own member ID is still looked for when a line is read: a line that holds it in
+        // clear beside a code, as no version of the ledger writes, does not show it as a code.
+        JsonlRunLedger recording = recordingIds(home.resolve("recording"), CLOCK);
+        recording.record(draft("run-2", CLOCK).procedureCodes(List.of("95810")).build());
+        java.nio.file.Path file = dayFile(home.resolve("recording"), TODAY);
+        java.nio.file.Files.writeString(file, java.nio.file.Files.readString(file).replace("\"95810\"", "\"" + MEMBER_ID + "\""));
+        assertThat(recording.find("run-2").orElseThrow().procedureCodes()).containsExactly("(not a code, 10 characters)");
     }
 
     @Test

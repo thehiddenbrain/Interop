@@ -30,6 +30,18 @@ class MemberInTextFormsTest {
     }
 
     @Test
+    void threeMoreOrdinarySpellingsOfTheDateOfBirthAreFound() {
+        // Found by the last check of the ledger fixes (NF5).
+        for (String note : List.of("born Jul. 23rd, 1961", "born 07231961", "born 23 July '61", "born 23 July " + (char) 0x2019 + "61", "born 23071961",
+                "born Jul. 23, 61", "born 23rd Jul. '61")) {
+            assertThat(kinds(note)).as(note).containsExactly("the member's date of birth");
+        }
+        for (String note : List.of("born Jul. 24th, 1961", "ticket 07231962", "seen 23 July '62", "ref 1207231961")) {
+            assertThat(kinds(note)).as(note).isEmpty();
+        }
+    }
+
+    @Test
     void anotherDateWithTheSameMonthsNameOrTheSameDayIsNotTakenForIt() {
         for (String note : List.of("seen July 24, 1961", "seen 23 Jun 1961", "seen 23 Jul 1962", "July 23, 2026 retest", "sent 23 Jul",
                 "ticket 123 Jul 1961")) {
