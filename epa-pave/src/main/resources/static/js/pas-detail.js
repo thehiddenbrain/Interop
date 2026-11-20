@@ -328,7 +328,8 @@ function itemsPart(items, lists) {
         items.map(item => el('div', {class: 'detail__item'},
             el('p', {class: 'detail__item-head'},
                 el('span', {class: 'sub-heading'}, 'Item ', shown(item.itemSequence, {as: 'literal'}),
-                    item.subject ? [' for ', code(item.subject)] : null),
+                    // An item tied to no code is the subject "item n" of itself, which would read "Item 1 for item 1".
+                    item.subject && item.procedureCode ? [' for ', code(item.subject)] : null),
                 el('span', {class: 'small quiet'}, 'at ', code(item.foundAt))),
             item.procedureCode ? null : el('p', {class: 'small quiet'}, 'This item could not be tied to a requested procedure code.'),
             (item.reviewActions || []).length > 0

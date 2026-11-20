@@ -136,6 +136,10 @@ function entryDetail(entry, vocabulary) {
             // What the service said this time and what to do next, in the server's words for the new run.
             // A refusal is worded once: when the reason above is the verdict's own headline, it is not set out twice.
             entry.verdict && entry.verdict.headline !== entry.reason ? el('p', {class: 'history-replay__verdict'}, toneMark(entry.verdict.tone), ' ', el('strong', null, entry.verdict.headline)) : null,
+            // The lines under the headline say who answered: on mock, which scenario, and that a
+            // replay is answered by the scenario the original run recorded, so the same answer is no news.
+            entry.verdict && Array.isArray(entry.verdict.supporting) && entry.verdict.supporting.length > 0 && entry.verdict.headline !== entry.reason
+                ? el('ul', {class: 'note-list small'}, entry.verdict.supporting.map(line => el('li', null, line))) : null,
             entry.nextStep && entry.nextStep.headline ? el('p', null, el('span', {class: 'quiet'}, 'Next step: '), entry.nextStep.headline,
                 entry.nextStep.reason ? el('span', {class: 'small quiet'}, ' ' + entry.nextStep.reason) : null) : null,
             el('dl', {class: 'facts facts--ruled'},
