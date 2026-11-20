@@ -188,6 +188,9 @@ public final class SuiteCases {
         // read, because a problem with a term quotes the term, and such a cell is most likely
         // something pasted in that can name a member.
         String readable = expected != null && expected.length() > RunRecord.LONGEST_EXPECTED ? null : expected;
+        // Where the expectation's terms are reported from, so that they can be taken out again if
+        // the expectation turns out to hold member data: a problem with a term quotes the term.
+        int termsFrom = problems.size();
         if (readable != null && target.chain()) {
             problems.addAll(ChainExpectation.parse(readable, outcomes).problems());
         } else if (readable != null && target.operation() != null) {
@@ -212,6 +215,7 @@ public final class SuiteCases {
         // place, so the results file a tester downloads does not carry what the ledger may not.
         String shownExpected = text.containsKey("expected") && expected != null && expected.length() > RunRecord.LONGEST_EXPECTED
                 ? text.get("expected") : expected;
+        int termsTo = problems.size() - text.size();
         if (rowMember != null) {
             Map<String, String> member = MemberInText.problems(text.containsKey("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)),
                     text.containsKey("testerRef") ? null : Texts.trimToNull(cells.get(Column.TESTER_REF)),
@@ -220,6 +224,8 @@ public final class SuiteCases {
             member.values().forEach(problems::add);
             if (member.containsKey("expected")) {
                 shownExpected = member.get("expected");
+                // The refusal says what is wrong with the expectation, and nothing else quotes it.
+                problems.subList(termsFrom, termsTo).clear();
             }
         }
         Map<String, String> correlation = new LinkedHashMap<>();
@@ -262,13 +268,31 @@ public final class SuiteCases {
         // The service's own check, made once the member is looked up, can refuse the expectation for
         // a name or a date of birth, and says so in the words MemberInText gives it.
         for (String problem : problems) {
-            if (problem.startsWith("The expectation holds ") && problem.contains("may not hold member data")) {
-                shownExpected = problem;
+            String refusal = expectationRefusal(problem);
+            if (refusal != null && expectationRefusal(shownExpected) == null) {
+                shownExpected = refusal;
             }
         }
         return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), shownExpected,
                 problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null);
     }
+
+    /**
+     * The refusal of an expectation for member data, wherever it stands in a problem or a reason,
+     * or null when there is none. A service names the field before it ("expected: "), a row check
+     * does not, and either may be one of several problems joined into one reason. The refusal
+     * names the kind of value it found and never the value.
+     */
+    public static String expectationRefusal(String text) {
+        if (text == null) {
+            return null;
+        }
+        java.util.regex.Matcher refusal = EXPECTATION_REFUSAL.matcher(text);
+        return refusal.find() ? refusal.group() : null;
+    }
+
+    private static final java.util.regex.Pattern EXPECTATION_REFUSAL = java.util.regex.Pattern.compile(
+            "The expectation holds [^.]{1,200}\\. The ledger keeps it as written and may not hold member data, so leave (?:it|them) out\\.");
 
     /** True when an expectation is well formed for at least one protocol a row can run. */
     private static boolean readsForAnyProtocol(String expected, OutcomeCatalogue outcomes) {

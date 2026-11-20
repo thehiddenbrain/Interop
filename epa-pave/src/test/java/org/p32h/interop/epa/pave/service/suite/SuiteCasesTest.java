@@ -416,6 +416,28 @@ class SuiteCasesTest {
     }
 
     @Test
+    void aMalformedExpectationThatHoldsTheMemberIdIsRefusedForThatAloneAndNothingQuotesIt() {
+        // Found by the last check of the ledger fixes (NF4): the term's own problem quoted it, member ID included.
+        SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"
+                + "TC-1,crd,S1234567801,,,S1234567801 covered\n"
+                + "TC-2,crd,S1234567801,,,s-1234-567801 covered=covered\n"
+                + "TC-3,crd,S1234567801,,,covered covered\n");
+        List<SuiteRow> rows = definition.rows();
+        for (SuiteRow row : rows.subList(0, 2)) {
+            assertThat(row.problems()).singleElement().asString().startsWith("The expectation holds this run's member ID.");
+            assertThat(row.expected()).startsWith("The expectation holds this run's member ID.");
+            assertThat(String.join(" ", row.problems())).doesNotContain("1234").doesNotContain("covered");
+        }
+        // An expectation that names no member keeps the problem with its terms.
+        assertThat(rows.get(2).problems()).isNotEmpty().noneMatch(problem -> problem.startsWith("The expectation holds"));
+        assertThat(SuiteCases.expectationRefusal("note: The note holds this run's member ID. The ledger keeps it as written and may not "
+                + "hold member data, so leave it out. expected: The expectation holds the member's date of birth and last name. The ledger "
+                + "keeps it as written and may not hold member data, so leave them out. Nothing was sent.")).isEqualTo("The expectation holds "
+                + "the member's date of birth and last name. The ledger keeps it as written and may not hold member data, so leave them out.");
+        assertThat(SuiteCases.expectationRefusal("procedureCodes: Choose at least one procedure code.")).isNull();
+    }
+
+    @Test
     void aRowWhoseNoteHoldsItsMemberIdInAnotherFormIsRefused() {
         // Found by the independent check of the member data fixes (N3): fullwidth digits and the digits alone.
         SuiteDefinition definition = csv("caseId,protocol,memberId,note,testerRef,expected\n"

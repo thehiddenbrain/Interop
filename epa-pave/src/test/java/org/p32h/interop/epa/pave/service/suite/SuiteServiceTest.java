@@ -208,6 +208,23 @@ class SuiteServiceTest {
     }
 
     @Test
+    void anExpectationTheServiceRefusesForTheDateOfBirthOrANameIsNotRepeatedInTheResults() {
+        // Found by the last check of the ledger fixes (NF4): the service refuses such an expectation
+        // once the member is looked up, and the results and their file repeated it as written.
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "1970-01-31: covered=covered"),
+                row("TC-2", "P32H-NO-AUTH", SuiteTestBed.SURNAME + ": covered=covered"), row("TC-3", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")),
+                null, null, null);
+        SuiteCaseResult birth = run.results().get(0);
+        assertThat(birth.status()).isEqualTo(CaseStatus.INVALID);
+        assertThat(birth.expected()).isEqualTo("The expectation holds the member's date of birth. The ledger keeps it as written and may "
+                + "not hold member data, so leave it out.");
+        assertThat(run.results().get(1).expected()).startsWith("The expectation holds the member's last name.");
+        assertThat(run.results().get(2).expected()).isEqualTo("NO_AUTH_REQUIRED");
+        String file = SuiteResultsCsv.of(run);
+        assertThat(file).doesNotContain("1970-01-31").doesNotContain(SuiteTestBed.SURNAME);
+    }
+
+    @Test
     void aWriteTheGuardrailRefusesIsCountedAsBlockedAndNeverAsFailed() {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);
         bed.gateway.failing(new ProdWriteBlockedException(EpaOperation.PAS_SUBMIT, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
