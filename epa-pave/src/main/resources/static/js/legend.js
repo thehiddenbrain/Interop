@@ -43,7 +43,7 @@ export function openLegend(dialog) {
                     row(el('span', {class: 'swatch swatch--cream'}), [
                         'Cream has three meanings, each about the test data and none about the service doing wrong:',
                         el('ul', {class: 'legend__meanings'},
-                            el('li', null, 'a field of the case typed by hand, which a lookup would not give back;'),
+                            el('li', null, 'a field of the case typed by hand, or taken from a pasted request, which a lookup would not give back;'),
                             el('li', null, 'a DTR answer the payer pre-populated and a person then changed (an information-origin override);'),
                             el('li', null, 'as the square of an outcome or a verdict strip, the service does not know the member or the provider.'))]),
                     row(el('span', {class: 'swatch swatch--nothing'}),

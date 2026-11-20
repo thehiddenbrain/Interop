@@ -134,7 +134,8 @@ function entryDetail(entry, vocabulary) {
         node.append(el('div', {class: 'history-replay__new'},
             el('p', {class: 'sub-heading'}, 'The run this replay made'),
             // What the service said this time and what to do next, in the server's words for the new run.
-            entry.verdict ? el('p', {class: 'history-replay__verdict'}, toneMark(entry.verdict.tone), ' ', el('strong', null, entry.verdict.headline)) : null,
+            // A refusal is worded once: when the reason above is the verdict's own headline, it is not set out twice.
+            entry.verdict && entry.verdict.headline !== entry.reason ? el('p', {class: 'history-replay__verdict'}, toneMark(entry.verdict.tone), ' ', el('strong', null, entry.verdict.headline)) : null,
             entry.nextStep && entry.nextStep.headline ? el('p', null, el('span', {class: 'quiet'}, 'Next step: '), entry.nextStep.headline,
                 entry.nextStep.reason ? el('span', {class: 'small quiet'}, ' ' + entry.nextStep.reason) : null) : null,
             el('dl', {class: 'facts facts--ruled'},
