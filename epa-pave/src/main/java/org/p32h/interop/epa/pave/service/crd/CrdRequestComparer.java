@@ -270,7 +270,11 @@ public final class CrdRequestComparer {
             return null;
         }
 
-        /** Records one value that was read from the pasted request and used. */
+        /**
+         * Marked as from the pasted request so the screen can say where each value came from, and so
+         * that only a date of birth or an NPI read from the pasted request is held to its format (see
+         * fromRequest).
+         */
         private void read(String field, String label, Found value) {
             sources.add(new CaseValue(field, label, CaseValue.Source.YOUR_REQUEST, value.path(), value.pointer(), Shown.of(value.value()), value.note()));
         }

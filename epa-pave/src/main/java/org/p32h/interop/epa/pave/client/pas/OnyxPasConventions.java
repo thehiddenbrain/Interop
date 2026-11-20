@@ -32,10 +32,6 @@ import tools.jackson.databind.JsonNode;
  */
 public final class OnyxPasConventions {
 
-    // ---------------------------------------------------------------------------------------------
-    // The response to a submission or an inquiry
-    // ---------------------------------------------------------------------------------------------
-
     /** The extension that carries a review action: the payer's coded decision. */
     public static final String REVIEW_ACTION = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewAction";
     /** The part of a review action that holds the decision code, as later versions of the guide name it. */
@@ -82,10 +78,6 @@ public final class OnyxPasConventions {
     private static final List<String> PROVIDER_WORDS = List.of("practitioner", "provider", "requester", "requestor", "performer",
             "careteam", "npi");
     private static final List<String> AUTHORIZATION_WORDS = List.of("claim", "preauth", "authorization");
-
-    // ---------------------------------------------------------------------------------------------
-    // The request for a submission or an inquiry
-    // ---------------------------------------------------------------------------------------------
 
     /** FHIR operations exchange FHIR JSON, not plain JSON. */
     public static final String FHIR_JSON = "application/fhir+json";
@@ -156,10 +148,6 @@ public final class OnyxPasConventions {
         return "questionnaire-response-" + position;
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Subscriptions
-    // ---------------------------------------------------------------------------------------------
-
     private static final String BACKPORT = "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/";
     public static final String SUBSCRIPTION_PROFILE = BACKPORT + "backport-subscription";
     public static final String FILTER_CRITERIA = BACKPORT + "backport-filter-criteria";
@@ -215,10 +203,6 @@ public final class OnyxPasConventions {
      * came from. The request notes say it was a default.
      */
     public static final String DEFAULT_SUBSCRIPTION_REASON = "Prior authorization status notifications for a PAVE test run";
-
-    // ---------------------------------------------------------------------------------------------
-    // Notifications
-    // ---------------------------------------------------------------------------------------------
 
     /** The R4 form of a subscription status: a Parameters resource. Later FHIR versions use a SubscriptionStatus resource. */
     public static final String STATUS_PROFILE_FRAGMENT = "backport-subscription-status";
