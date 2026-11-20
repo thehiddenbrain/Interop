@@ -689,19 +689,27 @@ export function issuesTable(issues) {
         [shown(issue.detailsText), issue.detailsCodes && issue.detailsCodes.length > 0
             ? el('div', {class: 'small'}, shownList(issue.detailsCodes, {as: 'literal'})) : null],
         shown(issue.diagnostics),
-        issueList(issue.expression, issue.expressionPresent),
-        issueList(issue.location, issue.locationPresent)
+        issueList(issue.expression, issue.expressionPresence, issue.expressionPresent),
+        issueList(issue.location, issue.locationPresence, issue.locationPresent)
     ]), {class: 'issues'});
 }
 
 /**
- * An expression or a location of an issue. The list alone is empty both when the issue did not
- * hold the element and when it held it empty, so the server sends whether it was held beside it.
- * An answer that does not say is shown as a list, as before.
+ * An expression or a location of an issue. The list alone is empty when the issue did not hold
+ * the element, when it held null and when it held an empty array, so the server sends what the
+ * element was beside it and the cell says that in words. A value that is not a list cannot be
+ * drawn as one, and the cell says where it is shown instead. The flag is read only from an answer
+ * that carries no presence.
  */
-function issueList(values, present) {
+function issueList(values, presence, present) {
     if (Array.isArray(values) && values.length > 0) {
         return shownList(values, {as: 'literal'});
+    }
+    if (presence === 'VALUE') {
+        return el('span', {class: 'small'}, 'not a list: shown among the fields returned but not interpreted');
+    }
+    if (presence) {
+        return presenceMark(presence);
     }
     if (present === false) {
         return presenceMark('ABSENT');

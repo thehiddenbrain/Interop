@@ -169,6 +169,22 @@ public final class CrdConformanceChecker {
         return unnamed;
     }
 
+    /**
+     * What came back for pa-needed, worded from its presence. A null and an empty string are
+     * answers the service sent, and are never described as an answer it did not send.
+     */
+    static String asReturned(CodedValue paNeeded) {
+        if (paNeeded == null) {
+            return "pa-needed was not returned";
+        }
+        return switch (paNeeded.presence()) {
+            case ABSENT -> "pa-needed was not returned";
+            case NULL -> "pa-needed was returned as null";
+            case EMPTY -> "pa-needed was returned empty";
+            case VALUE -> "pa-needed=" + paNeeded.code();
+        };
+    }
+
     private void compareWithCodeList(List<Finding> findings, String code, CoverageInformationView view, List<ProcedureCode> rows) {
         List<String> rowLines = lines(rows);
         String line = rowLines.isEmpty() ? " (rows that state no line of business)" : " (rows for " + String.join(", ", rowLines) + ")";
@@ -189,8 +205,7 @@ public final class CrdConformanceChecker {
                     + ", so the list has no single position to compare.");
         } else if (serviceRequires == null) {
             notCompared(findings, code, "The service's answer for " + code + " does not say whether prior authorization is needed ("
-                    + (view.paNeeded().code() == null ? "pa-needed was not returned" : "pa-needed=" + view.paNeeded().code())
-                    + "), so there is nothing to compare with the code list.");
+                    + asReturned(view.paNeeded()) + "), so there is nothing to compare with the code list.");
         } else {
             boolean listRequires = stated.contains(AuthRequirement.REQUIRED);
             if (listRequires != serviceRequires) {
