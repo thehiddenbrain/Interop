@@ -650,14 +650,13 @@ function showRun(envelope) {
         controls.subscriptionId.set(envelope.detail.subscriptionId);
     }
     // The shared next step offers a button for the steps every tab knows. Asking for the status is this tab's own. After a
-    // submission that failed in the environment the server's step is to check the environment and then ask for the status
-    // before sending again, because the payer may have the request: the second half is offered too, as the lesser button.
+    // fault the server's step is to check the environment; whether to ask for the status or send again it says in words, and
+    // the Inquire call is already filled from this submission, so no button is offered here for it.
     const row = bench.form.closest('.workbench').querySelector('.readout__result .nextstep__row');
-    const afterFault = step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT';
-    if ((step.action === 'CHECK_STATUS' || afterFault) && row && !row.querySelector('button') && carry.claimId && carry.claimId.length > 0) {
+    if (step.action === 'CHECK_STATUS' && row && !row.querySelector('button') && carry.claimId && carry.claimId.length > 0) {
         row.append(button('Send inquiry', () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
             codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]}),
-        {class: afterFault ? 'button--quiet' : 'button--primary'}));
+        {class: 'button--primary'}));
     }
     drawFollowing();
 }
