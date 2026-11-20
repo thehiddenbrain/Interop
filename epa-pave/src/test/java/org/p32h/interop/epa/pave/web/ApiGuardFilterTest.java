@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -236,6 +237,40 @@ class ApiGuardFilterTest {
         assertThat(ApiGuardFilter.entryHost("QA-Laptop.example:8062")).isEqualTo("qa-laptop.example");
         assertThat(ApiGuardFilter.entryHost("fd00::5")).isEqualTo("fd00::5");
         assertThat(ApiGuardFilter.entryHost("[fd00::5]")).isEqualTo("fd00::5");
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void theOperatorIsToldOfAPortOnlyWhenAnEntryNamesOne(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
+        // The fully qualified spelling names no port: it is the name, accepted without a word.
+        app = AppProperties.of(Map.of("allowed-hosts", "QA-Laptop.example., qa-other.example.:8062"));
+        assertThat(passes("GET", "/api/mode", "Host", "qa-laptop.example:8057")).isTrue();
+        assertThat(passes("GET", "/api/mode", "Host", "qa-other.example:8057")).isTrue();
+        assertThat(output.getAll()).doesNotContain("The entry QA-Laptop.example.")
+                .contains("The entry qa-other.example.:8062 under app.allowed-hosts names a port. A host name is matched whatever port it "
+                        + "is used with, so the port is ignored and qa-other.example is used.");
+        assertThat(ApiGuardFilter.entryHost("localhost.")).isEqualTo("localhost");
+        assertThat(ApiGuardFilter.entryNamesPort("localhost.")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("fd00::5")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("[fd00::5]")).isFalse();
+        assertThat(ApiGuardFilter.entryNamesPort("[fd00::5]:8062")).isTrue();
+        assertThat(ApiGuardFilter.entryNamesPort("qa-laptop.example:8062")).isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
+    void anEntryThatIsNotAHostNameStopsTheStartAndIsNamed(org.springframework.boot.test.system.CapturedOutput output) {
+        // Read as a host, http://qa-other.example was the host "http": a name nobody meant let in,
+        // the name meant still refused, and a start-up line saying a port had been ignored.
+        for (String entry : new String[] {"http://qa-other.example", "https://qa-other.example:8062", "qa-other.example/pave",
+                "user@qa-other.example", "qa-other.example:", "qa-other.example:http", "[fd00::5", "[fd00::5]x", ":8062", "."}) {
+            app = AppProperties.of(Map.of("allowed-hosts", entry));
+            assertThatThrownBy(() -> new ApiGuardFilter(app, environment, TestMvc.mapper())).as(entry)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("The entry " + entry + " under app.allowed-hosts is not a host name, so the tool did not start. Write the "
+                            + "name alone, such as qa-laptop.example, with no scheme such as http://, no path and no user name.");
+        }
+        assertThat(output.getAll()).doesNotContain("names a port");
     }
 
     @Test

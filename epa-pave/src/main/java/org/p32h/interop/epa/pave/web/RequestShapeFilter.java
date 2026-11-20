@@ -14,6 +14,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
@@ -45,7 +47,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       one limit on what a request may carry, for an upload and for a JSON body alike. The
  *       largest body a tester sends is their own PAS bundle with a document inline, which an
  *       upload's limit also fits. A body that states its length is refused before it is read; a
- *       body sent in chunks is counted as it is read and refused when it passes the limit.</li>
+ *       body sent in chunks is counted as it is read and refused when it passes the limit. A
+ *       negative value means no limit, as it does to the framework, which documents -1 for that.</li>
  * </ul>
  */
 @Component
@@ -53,7 +56,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RequestShapeFilter extends OncePerRequestFilter {
 
     static final String MAX_REQUEST_SIZE = "spring.servlet.multipart.max-request-size";
+    static final String MAX_FILE_SIZE = "spring.servlet.multipart.max-file-size";
+    static final String FILE_SIZE_THRESHOLD = "spring.servlet.multipart.file-size-threshold";
 
+    private static final Logger log = LoggerFactory.getLogger(RequestShapeFilter.class);
+
+    /** The most a body may carry, or a negative number when there is no limit. */
     private final long maxBody;
     private final String maxBodyText;
 
@@ -61,6 +69,30 @@ public class RequestShapeFilter extends OncePerRequestFilter {
         String limit = Texts.orElse(Texts.trimToNull(environment.getProperty(MAX_REQUEST_SIZE)), "30MB");
         this.maxBody = DataSize.parse(limit).toBytes();
         this.maxBodyText = limit;
+        warnWhenUploadsCanReachTheDisk(environment);
+    }
+
+    /**
+     * An upload is held in memory up to {@code file-size-threshold} and written to the temporary
+     * folder beyond it, where a hard kill in the middle of one leaves it. The server holds every
+     * uploaded file to {@code max-file-size}, so nothing reaches the disk while that is at or below the threshold.
+     * When the operator lifts it past, the operator is told once at start-up.
+     */
+    private static void warnWhenUploadsCanReachTheDisk(Environment environment) {
+        // The framework's own defaults, which apply when the setting is absent.
+        String fileLimit = Texts.orElse(Texts.trimToNull(environment.getProperty(MAX_FILE_SIZE)), "1MB");
+        String threshold = Texts.orElse(Texts.trimToNull(environment.getProperty(FILE_SIZE_THRESHOLD)), "0B");
+        long fileBytes = DataSize.parse(fileLimit).toBytes();
+        if (fileBytes < 0 || fileBytes > DataSize.parse(threshold).toBytes()) {
+            // Both values are the operator's own settings, not member data.
+            log.warn("{} is {} and {} is {}, so an uploaded file larger than {} is written to the temporary folder while it is read, "
+                    + "and a hard kill in the middle of that upload leaves it there. To keep every upload in memory, set {} no higher "
+                    + "than {}.", MAX_FILE_SIZE, fileLimit, FILE_SIZE_THRESHOLD, threshold, threshold, MAX_FILE_SIZE, FILE_SIZE_THRESHOLD);
+        }
+    }
+
+    private boolean limited() {
+        return maxBody >= 0;
     }
 
     @Override
@@ -83,6 +115,10 @@ public class RequestShapeFilter extends OncePerRequestFilter {
             EdgeAnswers.write(response, HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE, ErrorKind.VALIDATION,
                     "The request states a content type that is a wildcard, so this tool cannot tell what it sends.",
                     "Send application/json, or multipart form data for an upload.", null);
+            return;
+        }
+        if (!limited()) {
+            chain.doFilter(request, response);
             return;
         }
         if (request.getContentLengthLong() > maxBody) {

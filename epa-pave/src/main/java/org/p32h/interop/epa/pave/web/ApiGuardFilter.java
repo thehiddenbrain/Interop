@@ -112,7 +112,7 @@ public class ApiGuardFilter extends OncePerRequestFilter {
                 continue;
             }
             String host = entryHost(entry);
-            if (!host.equals(bare(entry))) {
+            if (entryNamesPort(entry)) {
                 // The entry is the operator's own setting, a machine name and not member data.
                 log.warn("The entry {} under app.allowed-hosts names a port. A host name is matched whatever port it is used with, "
                         + "so the port is ignored and {} is used.", entry, host);
@@ -122,15 +122,63 @@ public class ApiGuardFilter extends OncePerRequestFilter {
         this.anyHost = any;
     }
 
-    /** An entry of {@code app.allowed-hosts}, read as a host name: a port written with it is dropped. */
+    /**
+     * An entry of {@code app.allowed-hosts}, read as a host name: lower case, a port written with it
+     * dropped, and the dot that ends a fully qualified name dropped, as on a Host header. An entry
+     * that is not a host name at all, such as one written as a url, is refused with a sentence that
+     * names it: read as a host it would let in a name nobody meant and still refuse the one meant.
+     */
     static String entryHost(String entry) {
         String value = entry.strip();
-        // A bare IPv6 address has several colons and no port; a name with a port has exactly one colon.
-        if (value.startsWith("[") || value.indexOf(':') == value.lastIndexOf(':')) {
-            String host = hostOf(value);
-            return host == null ? bare(value) : host;
+        if (value.isEmpty() || value.chars().anyMatch(c -> c == '/' || c == '@' || c == '?' || c == '#' || Character.isWhitespace(c))) {
+            throw notAHostName(entry);
         }
-        return bare(value);
+        String host;
+        if (value.startsWith("[")) {
+            int end = value.indexOf(']');
+            if (end < 0 || !portOrNothing(value.substring(end + 1))) {
+                throw notAHostName(entry);
+            }
+            host = value.substring(1, end);
+        } else if (value.indexOf(':') >= 0 && value.indexOf(':') == value.lastIndexOf(':')) {
+            int colon = value.indexOf(':');
+            if (colon == 0 || !portOrNothing(value.substring(colon))) {
+                throw notAHostName(entry);
+            }
+            host = value.substring(0, colon);
+        } else {
+            // No colon, or several: a bare IPv6 address has several colons and no port.
+            host = value;
+        }
+        host = host.toLowerCase(Locale.ROOT);
+        host = host.endsWith(".") && host.length() > 1 ? host.substring(0, host.length() - 1) : host;
+        if (host.isEmpty() || host.equals(".")) {
+            throw notAHostName(entry);
+        }
+        return host;
+    }
+
+    /** True when an entry of {@code app.allowed-hosts} carries a port, which {@link #entryHost} drops. */
+    static boolean entryNamesPort(String entry) {
+        String value = entry.strip();
+        if (value.startsWith("[")) {
+            int end = value.indexOf(']');
+            return end >= 0 && value.length() > end + 1;
+        }
+        return value.indexOf(':') >= 0 && value.indexOf(':') == value.lastIndexOf(':');
+    }
+
+    /** A colon followed by the digits of a port, or nothing at all. */
+    private static boolean portOrNothing(String rest) {
+        return rest.isEmpty() || (rest.length() > 1 && rest.length() <= 6 && rest.charAt(0) == ':'
+                && rest.substring(1).chars().allMatch(c -> c >= '0' && c <= '9'));
+    }
+
+    private static IllegalStateException notAHostName(String entry) {
+        // The entry is the operator's own setting, a machine name and not member data.
+        return new IllegalStateException("The entry " + entry.strip() + " under app.allowed-hosts is not a host name, so the tool "
+                + "did not start. Write the name alone, such as qa-laptop.example, with no scheme such as http://, no path and no "
+                + "user name.");
     }
 
     @Override

@@ -9,6 +9,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockFilterChain;
@@ -19,7 +22,8 @@ import tools.jackson.databind.JsonNode;
 /** A badly formed request is refused before anything handles it, with a 4xx that repeats nothing of it. */
 class RequestShapeFilterTest {
 
-    private final MockEnvironment environment = new MockEnvironment().withProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "1KB");
+    private final MockEnvironment environment = new MockEnvironment().withProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "1KB")
+            .withProperty(RequestShapeFilter.MAX_FILE_SIZE, "1KB").withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "1KB");
 
     private record Result(MockHttpServletResponse response, boolean passedOn) {
 
@@ -163,5 +167,66 @@ class RequestShapeFilterTest {
                             + "application.yml.\",\"fieldErrors\":[],\"issues\":[]}"
                     : "");
         }
+    }
+
+    @Test
+    void aNegativeLimitIsNoLimitAsTheFrameworkDocumentsIt() throws Exception {
+        // With -1 every body was refused as larger than "-1 in all", a GET stating a length of 0 included.
+        environment.setProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "-1");
+        HttpServlet reader = new HttpServlet() {
+            @Override
+            protected void service(HttpServletRequest req, HttpServletResponse res) throws IOException {
+                req.getInputStream().readAllBytes();
+                res.setStatus(200);
+            }
+        };
+        MockHttpServletRequest change = new MockHttpServletRequest("POST", "/api/config/writes");
+        change.setContentType("application/json");
+        change.setContent("{\"action\":\"lock\"}".getBytes(StandardCharsets.UTF_8));
+        Result passed = send(change, reader);
+        assertThat(passed.passedOn()).isTrue();
+        assertThat(passed.response().getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest emptyRead = new MockHttpServletRequest("GET", "/api/mode");
+        emptyRead.setContent(new byte[0]);
+        assertThat(emptyRead.getContentLengthLong()).isZero();
+        assertThat(send(emptyRead, null).passedOn()).isTrue();
+
+        MockHttpServletRequest chunked = new MockHttpServletRequest("POST", "/api/config/writes") {
+            @Override
+            public long getContentLengthLong() {
+                return -1;
+            }
+        };
+        chunked.setContent(new byte[64 * 1024]);
+        assertThat(send(chunked, reader).response().getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest large = new MockHttpServletRequest("POST", "/api/crd") {
+            @Override
+            public long getContentLengthLong() {
+                return 100L * 1024 * 1024 * 1024;
+            }
+        };
+        assertThat(send(large, null).passedOn()).isTrue();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void theOperatorIsToldWhenAnUploadCanReachTheTemporaryFolder(CapturedOutput output) {
+        new RequestShapeFilter(new MockEnvironment().withProperty(RequestShapeFilter.MAX_FILE_SIZE, "25MB")
+                .withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "30MB"));
+        new RequestShapeFilter(new MockEnvironment().withProperty(RequestShapeFilter.MAX_FILE_SIZE, "30MB")
+                .withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "30MB"));
+        assertThat(output.getAll()).doesNotContain("temporary folder");
+
+        new RequestShapeFilter(new MockEnvironment().withProperty(RequestShapeFilter.MAX_FILE_SIZE, "-1")
+                .withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "30MB"));
+        assertThat(output.getAll()).contains("spring.servlet.multipart.max-file-size is -1 and spring.servlet.multipart.file-size-threshold "
+                + "is 30MB, so an uploaded file larger than 30MB is written to the temporary folder while it is read, and a hard kill in the "
+                + "middle of that upload leaves it there. To keep every upload in memory, set spring.servlet.multipart.max-file-size no "
+                + "higher than spring.servlet.multipart.file-size-threshold.");
+        new RequestShapeFilter(new MockEnvironment().withProperty(RequestShapeFilter.MAX_FILE_SIZE, "40MB")
+                .withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "30MB"));
+        assertThat(output.getAll()).contains("spring.servlet.multipart.max-file-size is 40MB and");
     }
 }

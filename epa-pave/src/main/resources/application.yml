@@ -11,10 +11,13 @@ spring:
       max-file-size: 25MB
       # Also the limit on any request body, JSON included: a tester's own PAS bundle with a document
       # inline is the largest body sent, and is refused with 413 above this (RequestShapeFilter).
+      # -1 means no limit, to the framework and to that filter alike.
       max-request-size: 30MB
       # Nothing a tester uploads is written to disk outside the configuration store. A part is held
-      # in memory up to this size, and no part can be larger than the request, so none is ever
-      # written to the temporary folder, where a hard kill in the middle of an upload would leave it.
+      # in memory up to this size, and the server holds every uploaded file to max-file-size, which
+      # is below it, so none is written to the temporary folder, where a hard kill in the middle of
+      # an upload would leave it. Raising max-file-size above this undoes that, and the start-up log
+      # then says so.
       file-size-threshold: 30MB
       # An upload is read only by a handler that takes one. Otherwise a multipart request to any
       # address is read in full before the framework finds there is nothing there to take it.

@@ -2,13 +2,17 @@ package org.p32h.interop.epa.pave.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.SessionTrackingMode;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.web.RawHttp.Answer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -35,6 +39,9 @@ class SessionOverTheServerTest {
 
     @LocalServerPort
     int port;
+
+    @Autowired
+    ServletContext servletContext;
 
     private Answer post(String address, String contentType, byte[] body, String... headers) throws IOException {
         String[] all = new String[headers.length + 3];
@@ -79,5 +86,14 @@ class SessionOverTheServerTest {
         Answer locked = post("/api/config/writes", "application/json", "{\"action\":\"lock\"}".getBytes(StandardCharsets.UTF_8),
                 "Cookie: PAVESESSION=" + session);
         assertThat(locked.json().get("writesAllowed").asBoolean()).isFalse();
+    }
+
+    @Test
+    void theServerItselfTracksTheSessionByTheCookieAlone() {
+        // The 400 for a session id in the address above comes from the edge's refusal of any
+        // semicolon, which would still answer it if the server tracked sessions by address too.
+        // This is what the server itself was configured with, behind that refusal: without
+        // server.servlet.session.tracking-modes it also reads the id from the address.
+        assertThat(servletContext.getEffectiveSessionTrackingModes()).isEqualTo(Set.of(SessionTrackingMode.COOKIE));
     }
 }
