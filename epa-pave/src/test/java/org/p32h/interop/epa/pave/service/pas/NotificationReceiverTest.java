@@ -153,6 +153,50 @@ class NotificationReceiverTest {
         assertThat(named.verdict().outcomeCode()).isNotEqualTo("UNMATCHED_NOTIFICATION");
     }
 
+    @Test
+    void afterThisToolDeletesItsSubscriptionTheNextStepNoLongerSpeaksOfItAndANotificationOnItSaysItWasDeleted() {
+        // N-DELETED-SUB, found by the check of the fixture fixes: a deleted subscription was treated as live.
+        String created = createSubscription().runId();
+        String deleted = subscriptions.run(EpaOperation.SUBSCRIPTION_DELETE, SubscriptionRequest.builder()
+                .subscriptionId("subscription-placeholder-0001").build(), RunOrigin.manual(), null).runId();
+        assertThat(ledger.last().outcome()).isEqualTo("DELETED");
+
+        NotificationView unmatched = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
+        assertThat(unmatched.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then "
+                + "choose Deliver a sample notification again.");
+
+        NotificationView onDeleted = receiver.receive(NotificationReceiver.Inbound.of(NotificationJson.bundle(
+                NotificationJson.status("subscription-placeholder-0001", "heartbeat"))));
+        assertThat(onDeleted.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(onDeleted.verdict().headline()).isEqualTo("A notification arrived on a subscription this tool created and then deleted.");
+        assertThat(onDeleted.correlationNotes()).contains("The subscription it names was created by the run " + created + " and deleted by "
+                + "this tool in the run " + deleted + ", so a notification on it was not expected.");
+        assertThat(onDeleted.nextStep().headline()).isEqualTo("Next: report to the people who look after the service that it still sends "
+                + "notifications on a subscription this tool deleted. The run that deleted it is named above.");
+        assertThat(onDeleted.nextStep().headline()).doesNotContain("still there");
+        assertThat(onDeleted.findings()).extracting(org.p32h.interop.epa.pave.model.Finding::title).contains("This notification is on a subscription this tool deleted");
+
+        // A subscription created after the delete is live again.
+        String again = createSubscription().runId();
+        NotificationView live = receiver.receive(NotificationReceiver.Inbound.of(NotificationJson.bundle(
+                NotificationJson.status("subscription-placeholder-0001", "heartbeat"))));
+        assertThat(live.subscriptionRunId()).isEqualTo(again);
+        assertThat(live.verdict().outcomeCode()).isEqualTo("HEARTBEAT_RECEIVED");
+    }
+
+    @Test
+    void aSampleForSomethingThatIsNotARunIdSaysWhereToCopyARunIdFrom() {
+        // The house style audit: the refusal said what must be true and not what to do.
+        org.p32h.interop.epa.pave.service.error.ValidationException refused = org.assertj.core.api.Assertions.catchThrowableOfType(
+                org.p32h.interop.epa.pave.service.error.ValidationException.class,
+                () -> receiver.deliverSample(new NotificationSampleRequest(null, "claim-1", null)));
+        assertThat(refused.fieldErrors()).singleElement().satisfies(error -> {
+            assertThat(error.field()).isEqualTo("runId");
+            assertThat(error.message()).isEqualTo("This is not a run id. Copy the run id of a PAS submission, which starts with run-, from its "
+                    + "result on the PAS tab or from the Runs list in History, and paste it into About the submission (run id).");
+        });
+    }
+
     // ---- a credential of the address to call back ----
 
     /** The fake gateway, with the secrets the configuration would give the services. */
