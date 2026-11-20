@@ -69,4 +69,43 @@ class CrdOtherResourceTest {
         assertThat(CrdVerdicts.verdict(mapper.read(garbled), garbled).headline())
                 .isEqualTo("The service answered with a body that could not be read (HTTP 200).");
     }
+    private static final String OUTCOME_ERRORS = "{\"resourceType\":\"OperationOutcome\",\"issue\":["
+            + "{\"severity\":\"error\",\"code\":\"invalid\",\"diagnostics\":\"zz bad order\"},"
+            + "{\"severity\":\"information\",\"code\":\"informational\"}]}";
+
+    @Test
+    void anOperationOutcomeWithASuccessStatusIsNotNoDeterminationAndItsIssuesStayIssues() {
+        var exchange = TestExchanges.crd(200, OUTCOME_ERRORS);
+        CrdReading reading = mapper.read(exchange);
+        assertThat(reading.detail().responseKind()).isEqualTo(CrdResponseKind.OPERATION_OUTCOME);
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
+        assertThat(reading.detail().issues()).extracting(issue -> issue.code().orNull())
+                .containsExactly("invalid", "informational");
+        assertThat(Expectations.assess("NO_DETERMINATION", reading.outcome(), reading.asked(), reading.answers(), CrdOutcome.values(),
+                CrdCodes.EXPECTATION_ELEMENTS).result()).isEqualTo(TestResult.FAIL);
+        assertThat(CrdVerdicts.verdict(reading, exchange).headline()).isEqualTo("The service answered with a FHIR OperationOutcome, "
+                + "not a CDS Hooks response (HTTP 200).");
+        // It is not called an answer that carried no coverage information: it was not an answer of that kind.
+        List<org.p32h.interop.epa.pave.model.Finding> findings = new CrdConformanceChecker(new org.p32h.interop.epa.pave.testsupport.FakeCodeList(),
+                org.p32h.interop.epa.pave.config.EpaProperties.of(java.util.Map.of("mode", "mock"))).check(reading, exchange, null, null);
+        assertThat(findings).extracting(org.p32h.interop.epa.pave.model.Finding::title).doesNotContain("No coverage information in the response");
+        // With an error status it is the refusal it always was.
+        assertThat(mapper.read(TestExchanges.crd(400, OUTCOME_ERRORS)).outcome()).isEqualTo(CrdOutcome.REJECTED);
+    }
+
+    @Test
+    void theNextStepForAReadableAnswerOfTheWrongKindIsToReportItNotToCheckTheEnvironment() {
+        for (String body : List.of(PATIENT, OUTCOME_ERRORS)) {
+            var exchange = TestExchanges.crd(200, body);
+            var next = CrdVerdicts.nextStep(mapper.read(exchange), exchange, "run-1");
+            assertThat(next.action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.REPORT_NO_DETERMINATION);
+            assertThat(next.headline()).isEqualTo("Next: record run run-1 as \"no determination returned\" and report it to the people "
+                    + "who look after the service.");
+            assertThat(next.reason()).startsWith("The service was reached and answered, but not with a CDS Hooks response");
+        }
+        // A body that could not be read is still a finding about the environment.
+        var garbled = TestExchanges.crd(200, "{\"cards\": [");
+        assertThat(CrdVerdicts.nextStep(mapper.read(garbled), garbled, "run-1").action())
+                .isEqualTo(org.p32h.interop.epa.pave.model.NextAction.CHECK_ENVIRONMENT);
+    }
 }

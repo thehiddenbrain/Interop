@@ -42,10 +42,14 @@ public final class OperationOutcomes {
             // returned but not interpreted. Anything else that is not a list stays there.
             consumeIfEmptyList(issue.child("expression"));
             consumeIfEmptyList(issue.child("location"));
+            // Details sent as {} are shown as "empty" by the issue, as an empty list is above.
+            if (details.isObject() && details.raw().isEmpty()) {
+                details.consume();
+            }
             issues.add(new IssueView(issue.shown("severity"), issue.shown("code"), issue.shown("diagnostics"),
                     details.exists() ? details.shown("text") : Shown.absent(), detailsCodes, expression, location,
                     issue.child("expression").exists(), issue.child("location").exists(),
-                    issue.child("expression").presence(), issue.child("location").presence()));
+                    issue.child("expression").presence(), issue.child("location").presence(), details.presence()));
         }
         return issues;
     }

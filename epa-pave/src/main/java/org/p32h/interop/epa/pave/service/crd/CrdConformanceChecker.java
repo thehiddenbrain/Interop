@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
+import org.p32h.interop.epa.pave.model.crd.CrdResponseKind;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -94,7 +95,9 @@ public final class CrdConformanceChecker {
         // others are said here so the contradiction is on screen and not in the wire view alone.
         findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
 
-        if (exchange.ok() && coverage.isEmpty()) {
+        // Only a CDS Hooks response can leave coverage information out. A body of another kind has
+        // its own outcome, and this finding would call it an answer that said nothing.
+        if (exchange.ok() && coverage.isEmpty() && reading.detail().responseKind() == CrdResponseKind.CDS_HOOKS) {
             // CRD 2.0.1 makes the extension optional on every order profile and ships no response
             // model, so its absence is information. The outcome stays "no determination returned".
             findings.add(new Finding(FindingKind.NOT_STATED,

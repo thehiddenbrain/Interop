@@ -586,7 +586,10 @@ public record RunRecord(
         if (named.matches()) {
             // The element name is the tool's own. What followed it was not a code, so only its length is kept.
             String subject = named.group(1) == null ? "" : subject(named.group(1), sought) + ": ";
-            String value = statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3)) ? named.group(3)
+            // "(null)", "(empty)" and "(no value)" are the reading's own statements of how a code was
+            // sent with nothing in it, kept as "(no answer)" is: their length would say a value came.
+            String value = statement("not a code", named.group(3)) || statement(READS_LIKE_AN_IDENTIFIER, named.group(3))
+                    || java.util.Set.of("(null)", "(empty)", "(no value)").contains(named.group(3)) ? named.group(3)
                     : notKept("not a code", named.group(3));
             return subject + named.group(2) + "=" + value;
         }

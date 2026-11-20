@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.pas.SentClaim;
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.FhirViews;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.TrackedJson;
@@ -44,13 +45,15 @@ public final class NotificationReader {
         private Shown eventsSince = Shown.absent();
         private final List<NotificationEventView> events = new ArrayList<>();
         private final List<Shown> errors = new ArrayList<>();
+        // Null in the R4 form, where errors are parameters and there is no list to be null or empty.
+        private Presence errorsPresence;
         private final List<String> focusReferences = new ArrayList<>();
         private final List<String> contextReferences = new ArrayList<>();
 
         private NotificationReading.Status view() {
             return new NotificationReading.Status(PasCodes.coded(PasCodes.NOTIFICATION_TYPE, type),
                     PasCodes.coded(PasCodes.SUBSCRIPTION_STATUS, status), subscription,
-                    OnyxPasConventions.idAfter(subscriptionReference, "Subscription"), topic, eventsSince, events, errors);
+                    OnyxPasConventions.idAfter(subscriptionReference, "Subscription"), topic, eventsSince, events, errors, errorsPresence);
         }
     }
 
@@ -204,6 +207,12 @@ public final class NotificationReader {
         return new NotificationEventView(number, timestamp, focus, context);
     }
 
+    private static void consumeIfEmptyList(TrackedJson.Node node) {
+        if (node.isArray() && node.elements().isEmpty()) {
+            node.consume();
+        }
+    }
+
     /** The later form: a SubscriptionStatus resource with its values as elements of its own. */
     private static StatusRead statusResource(TrackedJson.Node resource) {
         StatusRead read = new StatusRead();
@@ -224,12 +233,16 @@ public final class NotificationReader {
                 addReference(read.contextReferences, referenceOf(further.raw()));
                 context.add(FhirViews.reference(further));
             }
+            // The event says "empty" for [], so it is not listed again among the returned fields.
+            consumeIfEmptyList(event.child("additionalContext"));
             read.events.add(new NotificationEventView(event.shown("eventNumber"), event.shown("timestamp"),
-                    FhirViews.reference(event.child("focus")), context));
+                    FhirViews.reference(event.child("focus")), context, event.child("additionalContext").presence()));
         }
         for (TrackedJson.Node error : resource.children("error")) {
             read.errors.add(FhirViews.concept(error));
         }
+        read.errorsPresence = resource.child("error").presence();
+        consumeIfEmptyList(resource.child("error"));
         return read;
     }
 

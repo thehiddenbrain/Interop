@@ -54,6 +54,28 @@ class OperationOutcomesTest {
     }
 
     @Test
+    void theDetailsOfAnIssueSayWhetherTheyWereNotReturnedNullEmptyOrAValue() {
+        TrackedJson tracked = TrackedJson.of(JsonSafe.parse("{\"resourceType\": \"OperationOutcome\", \"issue\": ["
+                + "{\"severity\": \"error\", \"code\": \"invalid\", \"details\": null},"
+                + "{\"severity\": \"error\", \"code\": \"required\", \"details\": {}},"
+                + "{\"severity\": \"error\", \"code\": \"invalid\"},"
+                + "{\"severity\": \"error\", \"code\": \"invalid\", \"details\": {\"text\": \"Bad order\"}}]}").node());
+        tracked.root().text("resourceType");
+        List<IssueView> read = OperationOutcomes.issues(tracked.root());
+        assertThat(read).extracting(IssueView::detailsPresence)
+                .containsExactly(Presence.NULL, Presence.EMPTY, Presence.ABSENT, Presence.VALUE);
+        tools.jackson.databind.JsonNode json = JsonSafe.mapper().valueToTree(read.get(0));
+        assertThat(json.get("detailsPresence").asString()).isEqualTo("NULL");
+        // The issue says "empty" for {}, so it is not listed again; null stays among the returned fields as before.
+        assertThat(tracked.unconsumed()).extracting(AdditionalField::path).containsExactly("issue[0].details");
+        // An issue the tool builds holds details exactly when it has a text or a coding.
+        assertThat(new IssueView(Shown.of("error"), Shown.of("invalid"), Shown.absent(), Shown.absent(), List.of(), List.of(), List.of())
+                .detailsPresence()).isEqualTo(Presence.ABSENT);
+        assertThat(new IssueView(Shown.of("error"), Shown.of("invalid"), Shown.absent(), Shown.of("Bad order"), List.of(), List.of(),
+                List.of()).detailsPresence()).isEqualTo(Presence.VALUE);
+    }
+
+    @Test
     void anIssueTheToolBuildsHoldsAListExactlyWhenItHasEntries() {
         IssueView built = new IssueView(Shown.of("error"), Shown.of("invalid"), Shown.absent(), Shown.absent(), List.of(),
                 List.of(Shown.of("Claim.item[0]")), List.of());

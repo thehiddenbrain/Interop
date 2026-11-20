@@ -98,7 +98,9 @@ public record CrdReading(CrdDetail detail, CrdOutcome outcome, List<String> requ
             String prefix = named ? (view.procedureCodes().isEmpty() ? view.foundAt() : String.join(", ", view.procedureCodes())) + ": " : "";
             codes(view).forEach((name, values) -> {
                 if (!CrdCodes.SATISFIED_PA_ID.equals(name) && !CrdCodes.DELEGATED_VENDOR.equals(name)) {
-                    values.forEach(value -> out.add(prefix + name + "=" + value));
+                    // A returned code spelt as one of the statements below would read as that statement.
+                    values.forEach(value -> out.add(prefix + name + "=" + (NOTHING_IN_IT.contains(value)
+                            ? "(not a code, " + value.length() + " characters)" : value)));
                 }
             });
             // A code sent with nothing in it is written as what it was, as an unanswered order is,
@@ -110,6 +112,9 @@ public record CrdReading(CrdDetail detail, CrdOutcome outcome, List<String> requ
         unanswered.forEach(label -> out.add(label + ": (no answer)"));
         return out;
     }
+
+    /** How a code sent with nothing in it is written; the ledger keeps each of these as written. */
+    private static final java.util.Set<String> NOTHING_IN_IT = java.util.Set.of("(null)", "(empty)", "(no value)");
 
     private static void sentEmpty(List<String> out, String prefix, String element, CodedValue value, CoverageInformationView view) {
         if (value == null || (value.presence() != Presence.NULL && value.presence() != Presence.EMPTY)) {

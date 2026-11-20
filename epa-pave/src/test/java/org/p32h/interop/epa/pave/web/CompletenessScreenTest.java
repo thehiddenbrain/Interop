@@ -33,6 +33,10 @@ class CompletenessScreenTest {
     private static final List<Read> READS = List.of(
             new Read("result.js", "issue.expressionPresence", IssueView.class, "expressionPresence"),
             new Read("result.js", "issue.locationPresence", IssueView.class, "locationPresence"),
+            new Read("result.js", "issue.detailsPresence", IssueView.class, "detailsPresence"),
+            new Read("pas-notifications.js", "item.errorsPresence", org.p32h.interop.epa.pave.model.pas.NotificationView.class, "errorsPresence"),
+            new Read("pas-notifications.js", "event.additionalContextPresence", org.p32h.interop.epa.pave.model.pas.NotificationEventView.class,
+                    "additionalContextPresence"),
             new Read("crd-detail.js", "card.source", CardView.class, "source"),
             new Read("crd-detail.js", "card.lists", CardView.class, "lists"),
             new Read("crd-detail.js", "suggestion.lists", SuggestionView.class, "lists"),

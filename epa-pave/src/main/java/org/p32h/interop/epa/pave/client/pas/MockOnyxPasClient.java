@@ -134,6 +134,13 @@ public class MockOnyxPasClient implements OnyxPasClient {
         if (exchange.json() == null || !exchange.json().isContainer()) {
             return exchange;
         }
+        if (exchange.responseBody() != null && JsonSafe.parse(exchange.responseBody()).repeatedKeys()) {
+            // Writing the body out again from its tree would keep only the last value of each
+            // repeated key, so the scenario could not play the case it was written for, and the
+            // wire view would not be the scenario's text. It is played as written instead.
+            return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + ". The scenario's body repeats a key, so it is "
+                    + "played exactly as written: it does not name the claim that was sent, and its answer is not repeated for further items");
+        }
         JsonNode copy = exchange.json().deepCopy();
         boolean named = replace(copy, CLAIM_ID_TOKEN, Texts.orElse(sent.claimId(), UNIDENTIFIED_CLAIM));
         boolean repeated = repeatTheOneItem(copy, sent);

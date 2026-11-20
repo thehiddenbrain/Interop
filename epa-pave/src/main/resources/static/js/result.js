@@ -709,12 +709,25 @@ export function issuesTable(issues) {
     return table(['Severity', 'Code', 'Details', 'Diagnostics', 'Expression', 'Location'], issues.map(issue => [
         shown(issue.severity, {as: 'literal'}),
         shown(issue.code, {as: 'literal'}),
-        [shown(issue.detailsText), issue.detailsCodes && issue.detailsCodes.length > 0
-            ? el('div', {class: 'small'}, shownList(issue.detailsCodes, {as: 'literal'})) : null],
+        issueDetails(issue),
         shown(issue.diagnostics),
         issueList(issue.expression, issue.expressionPresence, issue.expressionPresent),
         issueList(issue.location, issue.locationPresence, issue.locationPresent)
     ]), {class: 'issues'});
+}
+
+/**
+ * The details of an issue. Its text and codings alone are not returned all three times when the
+ * details were not returned, null or {}, so the server sends what the details element was and the
+ * cell says that in words. An answer that carries no presence is drawn from the text and codings.
+ */
+function issueDetails(issue) {
+    const presence = issue.detailsPresence;
+    if (presence && presence !== 'VALUE') {
+        return presenceMark(presence);
+    }
+    return [shown(issue.detailsText), issue.detailsCodes && issue.detailsCodes.length > 0
+        ? el('div', {class: 'small'}, shownList(issue.detailsCodes, {as: 'literal'})) : null];
 }
 
 /**
@@ -725,6 +738,10 @@ export function issuesTable(issues) {
  * that carries no presence.
  */
 function issueList(values, presence, present) {
+    if (Array.isArray(values) && values.length === 1 && values[0] && values[0].presence && values[0].presence !== 'VALUE') {
+        // [null] is a list holding a null, and must not read as the element sent as null.
+        return el('span', null, 'a list of one entry: ', shown(values[0], {as: 'literal'}));
+    }
     if (Array.isArray(values) && values.length > 0) {
         return shownList(values, {as: 'literal'});
     }

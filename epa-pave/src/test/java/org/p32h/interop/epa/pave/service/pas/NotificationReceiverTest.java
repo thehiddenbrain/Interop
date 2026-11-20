@@ -708,6 +708,16 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aBodyLongerThanTheReceiverHoldsThatIsNotJsonSaysItsTextAfterTheCutIsShownNowhere() {
+        byte[] body = ("not json " + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500)).getBytes(StandardCharsets.UTF_8);
+        NotificationView view = receiver.receive(NotificationReceiver.Inbound.read(new ByteArrayInputStream(body)));
+        assertThat(view.truncated()).isTrue();
+        assertThat(view.payloadNotes()).contains("The body was " + body.length + " bytes long and is not JSON. Only its first "
+                + NotificationReceiver.MAX_KEPT_BYTES + " bytes are held and shown below. The text after them is not shown anywhere.");
+        assertThat(view.payloadNotes()).noneMatch(note -> note.contains("everything above comes from all of it"));
+    }
+
+    @Test
     void aBodyLongerThanTheReceiverHoldsIsCutAndTheRecordSaysSo() {
         String start = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"padding\":\"";
         byte[] body = (start + "a".repeat(NotificationReceiver.MAX_KEPT_BYTES + 500) + "\"}").getBytes(StandardCharsets.UTF_8);
@@ -1180,5 +1190,20 @@ class NotificationReceiverTest {
     private void assertSampleInvalid(NotificationSampleRequest request, String field) {
         assertThatThrownBy(() -> receiver.deliverSample(request)).as("expected a validation error on " + field)
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field).containsExactly(field));
+    }
+
+    @Test
+    void aKeyTheNotificationViewReadsThatIsSentTwiceRaisesAFindingWithEveryValue() {
+        String body = bundle(status(SUBSCRIPTION, "heartbeat")).replaceFirst("\"type\":\"history\"", "\"type\":\"batch\",\"type\":\"history\"");
+        NotificationView view = receive(body);
+        assertThat(view.findings()).filteredOn(f -> f.title().equals("type is sent 2 times in one object")).singleElement()
+                .satisfies(f -> {
+                    assertThat(f.kind()).isEqualTo(FindingKind.GUIDE_RULE_BROKEN);
+                    assertThat(f.detail()).contains("first \"batch\", then \"history\"");
+                });
+        assertThat(view.errorsPresence()).isEqualTo(org.p32h.interop.epa.pave.model.Presence.ABSENT);
+        // Without the repeat there is no such finding.
+        assertThat(receive(bundle(status(SUBSCRIPTION, "heartbeat"))).findings()).extracting(Finding::title)
+                .noneMatch(title -> title.contains("times in one object"));
     }
 }

@@ -561,7 +561,8 @@ class CrdResponseMapperTest {
             assertThat(reading.detail().issues().get(1).diagnostics()).isEqualTo(Shown.absent());
             assertThat(paths(reading)).containsExactly("id", "issue[0].vendorHint");
         }
-        assertThat(mapper.read(TestExchanges.crd(200, outcome)).outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
+        // With a success status it is still not a CDS Hooks response that named no determination.
+        assertThat(mapper.read(TestExchanges.crd(200, outcome)).outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(mapper.read(TestExchanges.crd(400, outcome)).outcome()).isEqualTo(CrdOutcome.REJECTED);
         assertThat(mapper.read(TestExchanges.crd(500, outcome)).outcome()).isEqualTo(CrdOutcome.SERVICE_ERROR);
     }
