@@ -49,8 +49,9 @@ configuration is needed.
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
   [Who can reach this tool](#who-can-reach-this-tool).
-- **PAVE is not fit to be run as a shared or production service as delivered.** The operator
-  intends that one day (D-270); what must exist first, none of it built, is listed under
+- **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
+  said the tool will be productionized one day, which is read here as running it that way (D-270);
+  what must exist first, none of it built, is listed under
   [Before PAVE is run as a shared or production service](#before-pave-is-run-as-a-shared-or-production-service).
 - Before PAVE can reach a real service, real values must be filled in: the vendor's Postman
   environment and collection (uploaded on the Config tab), and, where used, `lookup.member.url`,
@@ -784,11 +785,11 @@ vendor can reach.
 
 ### Before PAVE is run as a shared or production service
 
-The operator said that PAVE will be run as a real service one day (D-270). Whether that means one
-copy shared by a team, use against the vendor's production service, or both was not said, and both
-are taken as possible. As delivered it is built for one tester on one machine, and what follows would have to
-exist first. **None of it is built.** Each line says what the tool does today and what would have
-to exist in its place.
+The operator said that this tool will be productionized one day (D-270). That is read here as
+running it as a real service. Whether it means one copy shared by a team, use against the vendor's
+production service, or both was not said, and both are taken as possible. As delivered it is built
+for one tester on one machine, and what follows would have to exist first. **None of it is
+built.** Each line says what the tool does today and what would have to exist in its place.
 
 - **No sign-in and no roles.** `build.gradle` has no security dependency and the code has no notion
   of a user, so anyone who can reach the port can do everything: look up members, submit, read the
@@ -802,10 +803,11 @@ to exist in its place.
   `config-store/installation-salt`, see `tracking.salt-file`), with which a member ID is recovered
   from its ledger token. A client secret or a lookup header set in `application.yml`
   (`onyx.auth.client-secret`, `lookup.member.headers`, `lookup.provider.headers`) is in plain text
-  there, or on the command line when given there. On Linux and macOS these files can be
-  read by the account that runs the tool only; on Windows they take the access list of their
-  folder. Secrets kept apart from the tool's files, with access to them controlled, would have to
-  exist.
+  there, or on the command line when given there. On Linux and macOS the files the tool writes
+  itself (the configuration store, the salt and the ledger) can be read by the account that runs
+  the tool only; on Windows they take the access list of their folder. The tool does nothing to
+  protect `application.yml` or the command line. Secrets kept apart from the tool's files, with
+  access to them controlled, would have to exist.
 - **Member data on screen, in uploads and in the ledger.** On live, the wire view, the lookup
   results and the request preview show member data to whoever is looking, and so do the received
   notifications (`GET /api/pas/notifications`), which can carry a ClaimResponse. An uploaded file
@@ -813,9 +815,10 @@ to exist in its place.
   address included (D-217); the run history and its export (`GET /api/runs/export.csv`) can be read
   by anyone who can reach the tool. Who may see a member's data would have to be decided and enforced.
 - **No record of who did what.** A ledger line has no place for a user, and the tester reference is
-  free text that anyone can type. An upload, a deletion, an activation and a production unlock name
-  no person either: the unlock is logged with the environment's name only. A record of who did
-  what would have to exist.
+  free text that anyone can type. Anyone can also change the note and the tester reference of any
+  run afterwards (`POST /api/runs/{runId}/note`; the latest wins). An upload, a deletion, an
+  activation and a production unlock name no person either: the unlock is logged with the
+  environment's name only. A record of who did what would have to exist.
 - **The notification receiver does not check its caller.** `POST /api/pas/notifications` answers
   200 to anyone, and is exempt from the host check. It holds what arrived in memory only: at most
   200 notifications, each cut at 131,072 bytes, the oldest let go when one more arrives, and none
@@ -824,13 +827,15 @@ to exist in its place.
 - **One configuration and one unlock rule for everyone.** The active environment is one for the
   whole copy: activating or uploading changes it for every person using it. The production unlock
   is held per browser session in server memory and needs only the active environment's name typed
-  exactly, a name the masthead of every tab shows. While `config-store.allow-prod-writes` is `false`, its
-  default, nobody can unlock. Once it is `true`, anyone who can reach the tool can unlock
-  production writes for their own session, and anyone's change to the configuration, or anyone
-  locking again, ends the unlock of every session. Production writes allowed only to named people
-  would have to exist.
+  exactly, a name the masthead of every tab shows. While `config-store.allow-prod-writes` is
+  `false`, its default, nobody can unlock. Once it is `true`, anyone who can reach the tool can
+  unlock production writes for their own session, and anyone's change to the configuration, or
+  anyone locking again, ends the unlock of every session. Only one suite runs at a time for the
+  whole copy: while one person's suite runs, anyone else's is refused. Production writes allowed
+  only to named people would have to exist.
 - **One copy on one machine.** The configuration store (`config-store/`) and the ledger
-  (`run-history/`) are files in the folder the tool starts in. Nothing guards two copies that use
+  (`run-history/`) are files in the folder the tool starts in, by default (`config-store.directory`,
+  `tracking.directory`). Nothing guards two copies that use
   the same folders: the ledger takes no lock on its files beyond what appending a line gives, and
   each copy reads the configuration store when it starts and then keeps it in memory, so neither
   sees what the other changed, and the last to write the store's state file wins. A copy that
@@ -842,13 +847,14 @@ to exist in its place.
   `run.sh`, `run.cmd` and the jar. What it has for checking itself is `GET /api/runs/health`
   (whether the ledger can write), `GET /api/mode` and `GET /api/procedure-codes/self-check`; there
   is no general health endpoint. The ledger has no setting for backup or for how long runs are
-  kept: a file is added for each day on which something is recorded, and none is ever removed. Packaging, monitoring, backup and a rule
-  for how long runs are kept would have to exist.
+  kept: a file is added for each day on which something is recorded, and none is ever removed.
+  Packaging, monitoring, backup and a rule for how long runs are kept would have to exist.
 - **Requests go wherever an upload says.** The tool sends a request to whatever address an uploaded
   environment or collection names, from the network of the machine it runs on and with the stored
   credentials; a request sent as it is in the collection (`/api/raw`) too. Nothing limits the host:
-  the address checks only warn about addresses the HTTP client reads differently and about a
-  sandbox on the same server as production. On a shared copy, anyone who can reach it could point
+  the address checks warn about, and for some refuse, addresses the HTTP client reads differently
+  or whose path holds encoded separators, and warn about a sandbox on the same server as
+  production, but none of them limits which host is reached. On a shared copy, anyone who can reach it could point
   it at an address inside that network and read the answer in the wire view. A limit on where the
   tool may send would have to exist.
 - **Any caller can make it hold large bodies in memory.** A request body of up to 30 MB is accepted

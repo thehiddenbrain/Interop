@@ -4873,3 +4873,13 @@ was said.
   the section: nothing limits where the tool sends a request, and any caller can make it hold large
   bodies in memory. Each was checked in the code before it was written; the commit that records this
   changes the three documents only, and no code.
+- **After a second check, of the corrected text**, by another agent that had not seen the first. It
+  found one sentence that promised more than the tool does: the files the tool writes itself (the
+  configuration store, the salt and the ledger) are readable by the account that runs it only, on Linux
+  and macOS, and `application.yml` and the command line are not protected by the tool at all. It also
+  found summary lines that stated the reading above as the operator's own words, two sentences that
+  said less than the code (the address checks refuse some addresses as well as warning; the two folders
+  are where the tool starts only by default), and two facts missing: anyone can change the note and the
+  tester reference of any run afterwards, and only one suite runs at a time for the whole copy. The
+  integrator corrected each in the README and in `PROGRESS.md`. Nobody has checked those last
+  corrections.
