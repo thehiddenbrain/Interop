@@ -238,6 +238,29 @@ class DestinationGuardrailTest {
     }
 
     // ------------------------------------------------------------------------------------------
+    // G7: the confirmation "not production" covers the environment's own addresses only
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    void theConfirmationThatAnEnvironmentIsNotProductionDoesNotCoverAUrlFromApplicationYml() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).onyx("pas.url", "https://api.prod.payer.example.invalid/fhir").build();
+            // Confirmed as not production at upload, with no collection: the submit goes to the application.yml url.
+            fixture.store.uploadEnvironment("team.json", ("{\"name\": \"Team Sandbox\", \"values\": [{\"key\": \"baseUrl\", \"value\": "
+                    + "\"https://api.preprod.payer.example.invalid/fhir\"}]}").getBytes(StandardCharsets.UTF_8), EnvironmentKind.SANDBOX, true);
+            fixture.store.activate("Team Sandbox");
+            assertThat(fixture.store.snapshot().active().acknowledgedNotProd()).isTrue();
+            ProdWriteBlockedException refusal = blocked(fixture, submit());
+            assertThat(refusal.getMessage()).as(profile).isEqualTo("PAS submit is blocked: the url it would go to contains \"prod\", and the "
+                    + "confirmation that \"Team Sandbox\" is not production covers that environment's own addresses only, while part of "
+                    + "this url came from application.yml. This tool cannot tell whether that url is production.");
+            // A read to the same address is not held to this.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE)).url().value()).as(profile)
+                    .isEqualTo("https://api.prod.payer.example.invalid/fhir/Claim/$inquire");
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
     // G6: production stays production after its environment is deleted
     // ------------------------------------------------------------------------------------------
 
