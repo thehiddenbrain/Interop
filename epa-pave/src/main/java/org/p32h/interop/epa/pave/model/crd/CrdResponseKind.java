@@ -6,7 +6,10 @@ public enum CrdResponseKind {
     CDS_HOOKS,
     /** A FHIR OperationOutcome. */
     OPERATION_OUTCOME,
-    /** JSON that is neither of the above, such as an array. Shown in full as additional fields. */
+    /**
+     * JSON that is neither of the above, such as an array, or a FHIR resource of another type.
+     * Shown in full as additional fields, and never read as an answer that said nothing.
+     */
     OTHER_JSON,
     /** A body that could not be parsed as JSON. The raw bytes are in the wire view. */
     NOT_JSON,

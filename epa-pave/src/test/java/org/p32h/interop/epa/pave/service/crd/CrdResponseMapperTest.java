@@ -597,7 +597,8 @@ class CrdResponseMapperTest {
     void jsonThatIsNotAnObjectIsListedInFullAndInterpretsNothing() {
         CrdReading reading = read("[{\"summary\":\"array at the root\"}]");
         assertThat(reading.detail().responseKind()).isEqualTo(CrdResponseKind.OTHER_JSON);
-        assertThat(reading.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
+        // Not a CDS Hooks response, so not one that answered and said nothing.
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(paths(reading)).containsExactly("[0].summary");
     }
 

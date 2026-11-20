@@ -114,6 +114,11 @@ public final class CrdResponseMapper {
                 kind = CrdResponseKind.OPERATION_OUTCOME;
                 root.text("resourceType");
                 issues = OperationOutcomes.issues(root);
+            } else if (root.isObject() && JsonSafe.presentText(json, "resourceType") != null) {
+                // A CDS Hooks response is not a FHIR resource. A body that says of itself that it is
+                // one, of any type but OperationOutcome, is not an answer with no cards in it.
+                kind = CrdResponseKind.OTHER_JSON;
+                note = "The body says it is a " + JsonSafe.presentText(json, "resourceType") + " resource.";
             } else if (root.isObject()) {
                 kind = CrdResponseKind.CDS_HOOKS;
                 TrackedJson.Node cardsNode = root.child("cards");
@@ -138,7 +143,7 @@ public final class CrdResponseMapper {
                 }
             } else {
                 kind = CrdResponseKind.OTHER_JSON;
-                note = "The body is JSON but is not an object, so none of it could be interpreted. All of it is listed below.";
+                note = json.isArray() ? "The body is a JSON array, not an object." : "The body is a single JSON value, not an object.";
             }
             additional.addAll(tracked.unconsumed());
         }
@@ -196,7 +201,13 @@ public final class CrdResponseMapper {
         }
         CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
                 List.of(), true, CrdConformanceChecker.SCOPE);
-        return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes, unanswered.size()), requested, unanswered,
+        CrdOutcome overall = CrdOutcomeRules.overall(exchange, outcomes, unanswered.size());
+        // JSON that is not a CDS Hooks response answered nothing, and must never pass as a service
+        // that answered and said nothing: that is NO_DETERMINATION, and a test expecting it would pass.
+        if (kind == CrdResponseKind.OTHER_JSON && overall == CrdOutcome.NO_DETERMINATION) {
+            overall = CrdOutcome.MALFORMED_RESPONSE;
+        }
+        return new CrdReading(detail, overall, requested, unanswered,
                 vendors.isEmpty() ? null : String.join("; ", vendors), additional);
     }
 
