@@ -607,6 +607,7 @@ vendor can reach.
 
 No endpoint url, variable or credential is built into PAVE. It reads the Postman files the vendor
 ships. `application.yml` holds behaviour and storage locations; it needs no edits in normal use.
+Everything below can be done on the Config tab; the `curl` lines show the same through the API.
 
 Two sample files show the expected shape, with placeholder hosts ending in `.example.invalid`:
 
@@ -631,8 +632,11 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   you add `-F acknowledgeNotProd=true`, because mislabelling production is the one mistake the
   guardrail cannot recover from. Observed answer: 422, "This environment looks like production and
   was declared as sandbox. It was not stored."
-- Uploading never activates. Activating switches every tab at runtime, with no restart, and drops
-  any production unlock.
+- An environment that is not declared production may not use an address a production
+  environment uses (D-143): its upload is refused, naming the production environment. Declaring
+  it `prod` is the way through.
+- Uploading never activates. Activating switches every tab at runtime, with no restart and no
+  reload, and drops any production unlock.
 - A disabled variable is listed and ignored, as Postman ignores it.
 - Several environments can be held at once. The path takes the environment's name, url-encoded, or
   its id from the upload answer. The id is derived from the name, so the sample's id is always
@@ -655,13 +659,17 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   says why (for example "The name contains "submit", and the url has a $submit segment."). Correct
   a wrong one with `PUT /api/config/collections/{id}/mapping`; the correction is kept across a
   restart. An unmapped request is listed and can be sent with `POST /api/raw`.
-- **`POST /api/raw` does not send the body saved in the collection.** It sends the request's
-  method, url and headers, with placeholders resolved, and a body only when you supply one as
-  `rawBody`. To send the saved body, read it from
-  `GET /api/config/collections/{id}/requests/{requestId}` (the `body` field), edit it if you like,
-  and pass it as `rawBody`. Without `rawBody`, a POST such as `Claim/$submit` goes out with no
-  body, and `POST /api/raw/preview` says so ("No body will be sent, because none was supplied.").
-  Observed with the sample's `submit Happy Path`.
+- **Sending a request as it is written** (Config tab, `Send a request as written`, or
+  `POST /api/raw`) sends the request's method, url and headers with placeholders resolved, and a
+  body: the one supplied for this run as `rawBody`, or else the one saved with the collection
+  request, or none when it has none (D-184). The answer says which, in `bodySource` and a note:
+  "The body is the one saved with the collection request, with its placeholders filled in,
+  because none was supplied for this run." (observed with the sample's `submit Happy Path`). A url
+  part in single braces, such as `{claimId}`, takes its value from `urlValues`; without one the
+  request is refused with 422 and nothing is sent, on mock and on live, and so is a url part of
+  `.` or `..`. The vendor's access token goes with it only to a scheme, host and port the
+  configuration names for a vendor operation. PAVE does not interpret the answer: it shows
+  everything that came back and records the run.
 - **Pre-request scripts are never run.** A request that has one is flagged, and every run that
   uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_RUN`, because a value Postman would have
   computed was not computed here. Observed with the sample's `order-sign Happy Path`.
@@ -670,24 +678,52 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 
 A `{{placeholder}}` is resolved from, in order: a value typed for this run, the active environment,
 the variables of the collection the request came from, then `onyx.variables` in
-`application.yml`. A defined but blank variable counts as not set. When a placeholder cannot be
-resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names the
-variable and the active environment, for example "PAS inquire cannot be sent: the placeholder
-{{baseUrl}} has no value, and the active environment is "Blank Url Sandbox". Nothing was sent."
-(observed on live). `POST /api/config/resolve` shows what a request would become without sending
-it.
+`application.yml`. A defined but blank variable counts as not set. Each value shown on screen says
+where it came from ("Typed for this run", "The active environment", "The collection",
+"application.yml", "An operating system variable", "No value anywhere"). When a placeholder cannot
+be resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names
+the variable and the active environment. `POST /api/config/resolve` (the Config tab's address
+table, "How it resolves") shows what a request would become without sending it, and marks each
+unresolved variable `UNRESOLVED`.
 
-**On mock the url of a CRD, DTR or PAS run is not resolved at all**, because nothing is sent: the
-scenario answers whatever the environment holds. Observed: with `baseUrl` defined but blank, a PAS
-submit, a CRD run and a DTR package request on mock each answered 200 with no finding about the url.
-So on mock, an incomplete environment is found only by asking: `POST /api/config/resolve` marks each
-unresolved variable `UNRESOLVED` with the reason. `POST /api/raw` is the exception: on mock it
-does refuse an unresolved placeholder with 422.
+**On mock the url of a CRD, DTR or PAS run is not resolved**, because nothing is sent: the scenario
+answers whatever the environment holds. Observed: with `baseUrl` defined but blank, a CRD run on
+mock answered 200 with no finding about the url, while `POST /api/config/resolve` marked
+`baseUrl` unresolved. So on mock, an incomplete environment is found only by asking, on the Config
+tab or with `POST /api/config/resolve`. A request sent as it is written is the exception: on mock
+too it refuses an unresolved placeholder or url part with 422.
 
 `{{$guid}}`, `{{$randomUUID}}`, `{{$timestamp}}` and `{{$isoTimestamp}}` are generated. Any other
 dynamic variable, such as `{{$randomInt}}`, is not computed: a request that needs one is refused
 with 422 naming it, and nothing is sent, unless you type a value for it for that run (in
 `variables`, for example `"variables":{"$randomInt":"5"}`). Observed with `POST /api/raw` on mock.
+
+### Variables that fill a request
+
+PAVE never invents a value nobody supplied (D-141). These variables, set in the environment or
+typed for one run, supply what the 2.0.1 guides ask for; without them the request goes out without
+the element and the result's `REQUEST_INCOMPLETE` finding names it and the variable.
+
+| Protocol | Variable | What it supplies |
+| --- | --- | --- |
+| CRD, DTR | `memberIdSystem` | The identifier system of the member ID (the guides require a system on every identifier). PAS reads it too |
+| CRD, DTR | `patientMrn`, `patientMrnSystem` | The member's medical record number and its system, sent as the Patient identifier typed MR. Never filled from the member ID |
+| CRD, DTR, PAS | `payerIdentifier`, `payerIdentifierSystem`, `payerName` | The payer: `Coverage.payor`, and the insurer of a PAS claim |
+| CRD, DTR | `hcpcsSystem` | The system HCPCS codes are sent with on orders. Unset: the CRD 2.0.1 address |
+| CRD, PAS | `fhirServer` | The hook request's `fhirServer`; on PAS the base of full urls |
+| CRD | `crdOrderSignServiceId`, `crdOrderSelectServiceId` | The CDS service ids, read by the operation addresses |
+| DTR | `dtrIntendedUse` | The intended use stated on a QuestionnaireResponse (`withpa`, `withclaim`, `withorder`, `retain-doc`, `OTH`, or `system\|code`). Unset: what CRD handed on, or nothing |
+| DTR | `dtrCoverageExtension` | `qr-context` (2.0.1, the default) or `qr-coverage` (the 2.2.0 ballot form) |
+| PAS | `pasServiceType`, `pasRequestType` | The X12 service type and request type of every item (`Claim.item.category` is required) |
+| PAS | `pasHcpcsSystem` | Overrides the HCPCS system on a claim |
+| PAS | `coverageRelationship` | The member's relationship to the subscriber; `self` names the member as the subscriber |
+| PAS | `pasRequestorType`, `pasRequestingOrgIdentifier`, `pasRequestingOrgIdentifierSystem` | The requesting organization, and the subscription's filter by it |
+| PAS | `claimIdentifierSystem`, `claimType`, `claimPriority`, `attachmentControlNumberSystem` | Parts of the claim |
+| PAS | `subscriptionTopic`, `subscriptionFilter`, `subscriptionStatus`, `subscriptionReason`, `subscriptionChannelType`, `subscriptionPayloadContent`, `subscriptionHeartbeatSeconds`, `subscriptionEnd` | Parts of a subscription. A filter is built only from what was supplied |
+
+Member lookup fields fill the rest when a lookup found them (name, gender, date of birth, coverage
+status and period, plan, subscriber ID), and the provider lookup fills the Practitioner or the
+Organization.
 
 ### Secrets
 
@@ -697,19 +733,24 @@ verbatim in `config-store/`. So:
 - **The upload warns**, naming the variable and the stored file, when a secret variable holds
   literal text.
 - **Secret variables are masked** in every answer that shows configuration: the answer says the
-  secret is set, not what it is. Observed: a variable `apiKey` holding literal text did not appear
-  in the upload answer or in `GET /api/config/effective`. A variable is secret when Postman typed
-  it `secret` or when its name reads as a credential.
-  Redaction is by name, never by matching a value. On the wire view, credential headers
-  (`Authorization`, `Cookie`, API key headers) show at most their scheme.
-- **What masking does not catch.** Because masking goes by the variable's name, a key written
-  inside a url, or held by a variable with an ordinary name, is shown as written, in the upload
-  answer, in `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view.
-  Observed: an environment whose `baseUrl` was
-  `https://sandbox.onyx.example.invalid/fhir?api_key=LITERALURLKEY999` showed that key in all
-  three answers, while a variable named `apiKey` in the same file was masked. Keep every key in a
-  variable of its own whose name reads as a credential (`apiKey`, `clientSecret`, `token`), typed
-  `secret`, and refer to it from the url or the header.
+  secret is set, not what it is (`[secret apiKey]`). A variable is secret when Postman typed it
+  `secret` or when its name reads as a credential. Redaction is by name, never by matching a
+  value.
+- **A credential typed into a collection** (a header, a query value or a body field whose name
+  reads as a credential) is named at upload and masked wherever the collection is shown (D-147).
+  The collection file on disk keeps the value.
+- **What masking does not catch.** Because masking goes by name, a key written inside a url, or
+  held by a variable with an ordinary name, is shown as written, in the upload answer, in
+  `GET /api/config/effective`, in `POST /api/config/resolve` and in the wire view. Observed: an
+  environment whose `baseUrl` was `https://sandbox.onyx.example.invalid/fhir?api_key=LITERALURLKEY999`
+  showed that key in the upload answer, and so did a variable named `plainThing`, while a
+  variable named `apiKey` in the same file was masked. A credential typed into a path segment or
+  a host of a collection is shown as written too. Keep every key in a variable of its own whose
+  name reads as a credential (`apiKey`, `clientSecret`, `token`), typed `secret`, and refer to it
+  from the url or the header.
+- **The call back address.** In `onyx.subscription.callback-url`, a query parameter whose name
+  reads as a credential, or a secret variable, is masked in the Subscription shown and sent as
+  written; a secret written into its path with no variable is not masked.
 - **Keep the secret out of the file.** Give the variable the value `{{env:PAVE_NAME}}` in Postman,
   export, and set the operating system variable `PAVE_NAME` where PAVE runs. The sample does this:
 
@@ -724,69 +765,84 @@ verbatim in `config-store/`. So:
 
   Only names that start with `PAVE_` are read, so an uploaded file cannot read other variables of
   the PAVE process. A value read this way is always treated as secret. Uploading the sample gives
-  no warning (observed). Reading the variable at send time was tested in the build, not against a
-  real token server.
+  no warning. Reading the variable at send time was tested in the build, not against a real token
+  server.
 - Scalar settings in `application.yml` can also come from the environment through Spring's usual
   mapping, for example `ONYX_AUTH_CLIENT_SECRET` for `onyx.auth.client-secret`.
 - `config-store/` and `run-history/` are listed in `.gitignore`. Never commit `config-store/`: it
-  holds what you uploaded, credentials included.
+  holds what you uploaded, credentials included. PAVE warns at start when either lies inside a git
+  working tree.
 
 **Access tokens.** OAuth2 client credentials are requested when `onyx.auth.enabled` is true. The
 four `onyx.auth` values are resolved like any placeholder, so they can point at the environment's
 variables, for example `--onyx.auth.enabled=true --onyx.auth.token-url={{tokenUrl}}
---onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}`. This is how the
-code reads them; it was not run against a token server. A Postman authentication helper in a
+--onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}`. The token goes only
+to a scheme, host and port the configuration in force names for a vendor operation without any
+value typed for the run; a call pointed anywhere else goes without it, and the wire view says so
+(D-143, rule 7). This was not run against a token server. A Postman authentication helper in a
 collection is reported and not applied.
 
 ### Environment kinds
 
-| Kind | Banner on screen (not checked) | Writes |
+| Kind | Banner on every tab | Writes |
 | --- | --- | --- |
 | `sandbox` | none | allowed |
-| `uat` | yes | allowed |
-| `prod` | yes, persistent | blocked unless unlocked, and never when the floor forbids it |
+| `uat` | purple outline | allowed |
+| `prod` | solid purple, saying whether writes are locked | blocked unless unlocked, and never when the floor forbids it |
 
 Every ledger line records the kind of the environment it ran under.
 
 ### The production guardrail
 
 A PAS submit against production creates a real prior authorization request against a real member.
-On a `prod` environment:
+**What decides is where a request goes, not only which environment is active** (D-143):
 
+- PAVE remembers the addresses (scheme, host, port and base path) of every environment declared
+  `prod`, also after it is removed and across a restart. A write to one of those addresses is a
+  write to production whatever environment is active and wherever the url came from.
 - **Reads go through**: inquiry, subscription read and list, discovery, the lookups. Observed for
   the inquiry.
-- **Writes are blocked**: PAS submit and subscription create, update and delete. A blocked write
-  answers 403 with a full result saying nothing was sent, and is recorded in the ledger as
-  `BLOCKED`.
+- **Writes are blocked**: PAS submit and subscription create, update and delete, and a request sent
+  as it is written whose method can change something. A blocked write answers 403 with a full
+  result that begins "Nothing was sent.", and is recorded in the ledger as `BLOCKED`. Observed.
 - **The floor.** `config-store.allow-prod-writes` is `false` by default, and while it is false no
   unlock is possible from any screen. Only whoever owns the installation can change it, with a
   restart. Observed: "Production writes cannot be unlocked: an owner has locked this installation
-  against them. Nothing was sent."
+  against them."
 - **The unlock.** With the floor set to `true`, a tester unlocks writes for their own browser
-  session by typing the active environment's name exactly:
+  session on the Config tab by typing the active environment's name exactly, or:
 
   ```
   curl -s -c pave-cookies -b pave-cookies -X POST -H 'Content-Type: application/json' -d '{"action":"unlock","environment":"Exact Environment Name"}' localhost:8057/api/config/writes
   ```
 
-  This was checked with an environment of another name, uploaded as `prod`, with the floor set to
-  `true` on the command line (`--config-store.allow-prod-writes=true`). A wrong name, even in other
-  capitals, answers 422. The unlock lives in server memory, in that session only. It is never
-  written anywhere, so it does not survive a restart (by design; a restart with an unlock held was
-  not tried). Another browser or another tester stays locked (observed). Any change
-  to the configuration, including switching environment, drops it (observed). `{"action":"lock"}`
-  locks again.
-- A replay or a suite never carries an unlock, so a write in a replay or a suite against production
-  is reported as blocked. A deliberate production write is made one at a time.
-- Two further routes were closed during the build (D-125): a write whose url contains "prod" is
-  refused under an environment not declared production unless the uploader confirmed it is not;
-  and a request named like a read that would change something is judged as a write. "Reads as
-  production" means the text `prod` anywhere in the url and nothing cleverer.
+  Checked with an environment uploaded as `prod` and the floor set on the command line
+  (`--config-store.allow-prod-writes=true`): the name in other capitals answered 422; the exact
+  name unlocked, and a submit in that session was sent, while the same submit from another session
+  was blocked ("this call carries no production unlock"). The unlock lives in server memory, in
+  that session only, and is never written anywhere, so it does not survive a restart. Any change
+  to the configuration, including an upload or switching environment, drops it (observed).
+  `{"action":"lock"}` locks again. An unlock is for the environment it names: a write to another
+  production environment's address is refused.
+- **A replay or a suite never carries an unlock**, so a write in a replay or a suite against
+  production is reported as blocked, and its next step says to send that write on its own from its
+  tab (`SEND_ON_ITS_OWN`), not to unlock (D-183). Observed for a replayed PAS submission.
+- **A value typed for one run may not move a write** to another scheme, host, port or base path.
+- **The "not production" acknowledgement** (`acknowledgeNotProd`) covers that environment's own
+  addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
+  cleverer.
 
-**Not yet audited.** The independent guardrail audit (V3 in the specification) was running when
-this README was written and had not reported. The behaviour above was observed on mock, where the
-guardrail is designed to behave as it does on live (D-021). Live was not tried with a production
-environment.
+What the guardrail does not see (D-145): another DNS name for a production host; a production
+address that comes from an operating system variable, once another environment is active; a
+production address built from a secret, after its environment is removed and the tool restarted.
+No endpoint clears the remembered production addresses: with the tool stopped, edit
+`productionDestinations` in `config-store/store.json`, or remove the store folder.
+
+**Audited once, before the fixes.** The independent guardrail audit (V3) got writes through to
+production four ways on the revision before the fix wave. Each was fixed and the fix attacked by a
+second agent (`PROGRESS.md`). V3 has not run again on this revision. The behaviour above was
+observed on mock, where the guardrail behaves as on live (D-021); on live it was checked by the
+fix's authors against stand-in servers on this machine, not for this README.
 
 ## The test run ledger
 
