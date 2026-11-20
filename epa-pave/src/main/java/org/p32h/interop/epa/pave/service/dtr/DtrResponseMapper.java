@@ -442,9 +442,12 @@ public final class DtrResponseMapper {
         List<QuestionRef> disappeared = before.entrySet().stream().filter(e -> !after.containsKey(e.getKey())).map(Map.Entry::getValue).toList();
         Map<String, List<JsonNode>> kept = QuestionnaireJson.answers(returnedResponse);
         List<QuestionRef> dropped = new ArrayList<>();
-        for (String linkId : QuestionnaireJson.answers(sent).keySet()) {
+        for (Map.Entry<String, List<JsonNode>> answered : QuestionnaireJson.answers(sent).entrySet()) {
+            String linkId = answered.getKey();
             if (!kept.containsKey(linkId)) {
-                dropped.add(before.containsKey(linkId) ? before.get(linkId) : new QuestionRef(linkId, null));
+                // The answer that went missing, as the screen shows an answer, so a tester sees what was lost and not only where.
+                dropped.add((before.containsKey(linkId) ? before.get(linkId) : new QuestionRef(linkId, null))
+                        .withValues(answered.getValue().stream().map(QuestionnaireJson::answerDisplay).filter(java.util.Objects::nonNull).toList()));
             }
         }
         List<String> parts = new ArrayList<>();

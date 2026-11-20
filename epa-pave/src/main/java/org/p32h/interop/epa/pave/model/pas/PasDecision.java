@@ -33,13 +33,23 @@ import java.util.List;
  * @param authorizedFrom the start of the period the item's authorization is valid for, from the item's
  *                      itemPreAuthPeriod extension, where PAS 2.0.1 puts it. Null when not stated
  * @param authorizedTo  the end of that period. Null when not stated
+ * @param sourceLabel   where the decision was stated, in words, taken from {@code source}. Null only when the source is null
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
                           DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
-                          List<String> authorizationNumbers, String authorizedFrom, String authorizedTo) {
+                          List<String> authorizationNumbers, String authorizedFrom, String authorizedTo, String sourceLabel) {
+
+    /** A decision with the words for its source taken from the source. */
+    public PasDecision(String subject, String procedureCode, Integer sequence, String foundAt, List<CodedValue> reviewActions,
+                       DecisionSource source, PasOutcome outcome, List<String> reasonCodes, List<String> errorCodes,
+                       List<String> authorizationNumbers, String authorizedFrom, String authorizedTo) {
+        this(subject, procedureCode, sequence, foundAt, reviewActions, source, outcome, reasonCodes, errorCodes, authorizationNumbers,
+                authorizedFrom, authorizedTo, null);
+    }
 
     public PasDecision {
+        sourceLabel = source == null ? null : source.label();
         reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);
         reasonCodes = reasonCodes == null ? List.of() : List.copyOf(reasonCodes);
         errorCodes = errorCodes == null ? List.of() : List.copyOf(errorCodes);

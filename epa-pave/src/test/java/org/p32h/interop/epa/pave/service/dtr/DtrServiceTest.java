@@ -1453,6 +1453,7 @@ class DtrServiceTest {
         assertThat(fourth.detail().form().changes().disappeared()).containsExactly(
                 new QuestionRef("mri-2-weeks", "How many weeks of conservative therapy were completed?"));
         assertThat(fourth.detail().form().changes().answersDropped()).extracting(QuestionRef::linkId).containsExactly("mri-2-weeks");
+        assertThat(fourth.detail().form().changes().answersDropped()).extracting(QuestionRef::values).containsExactly(List.of("8"));
         String summary = "Since the previous step: 1 question appeared: mri-2-red-flag \"Is a red-flag symptom documented?\". 1 question "
                 + "disappeared: mri-2-weeks \"How many weeks of conservative therapy were completed?\". The answer that was sent to "
                 + "mri-2-weeks \"How many weeks of conservative therapy were completed?\" is not in the response.";
@@ -1948,6 +1949,11 @@ class DtrServiceTest {
         // The condition on the third question is reported as true, because the answer that arrived enables it.
         assertThat(fetched.detail().questionnaires().get(0).items().get(2).enableWhen().get(0).state())
                 .isEqualTo(org.p32h.interop.epa.pave.model.dtr.ConditionState.TRUE);
+        // The words for the state and for the kind come with the codes, so a screen keeps no copy of them.
+        assertThat(fetched.detail().questionnaires().get(0).items().get(2).enableWhen().get(0).stateLabel()).isEqualTo("The condition holds");
+        assertThat(fetched.detail().questionnaires().get(0).kindLabel()).isEqualTo(fetched.detail().questionnaires().get(0).kind().label());
+        assertThat(fetched.nextStep().carryLabels()).containsOnlyKeys(fetched.nextStep().carry().keySet().toArray(String[]::new))
+                .doesNotContainValue(null);
 
         // The response starts from the one the package arrived with, and the tester adds the one answer that is open.
         RunEnvelope<DtrDetail> result = service().runResponse(responding(fetched, "P32H-DTR-PREPOP", DtrAnswerInput.of("gen-4", "no"))
