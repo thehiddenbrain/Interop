@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.model.CodeListSelfCheck;
 import org.p32h.interop.epa.pave.model.FindingKindOption;
 import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.IssueView;
@@ -80,7 +81,14 @@ class StaticServerWordsTest {
             new Read("workbench.js", "scenario.sentinelMemberIds", ScenarioSummary.class, "sentinelMemberIds"),
             new Read("workbench.js", "scenario.sentinelNpis", ScenarioSummary.class, "sentinelNpis"),
             new Read("workbench.js", "scenario.crdSentinelMemberIds", ScenarioSummary.class, "crdSentinelMemberIds"),
-            new Read("config-raw.js", "sent.urlValues", RawRunRequest.class, "urlValues"));
+            new Read("config-raw.js", "sent.urlValues", RawRunRequest.class, "urlValues"),
+            new Read("config-environments.js", "environment.addressWarnings", ConfigViews.EnvironmentView.class, "addressWarnings"),
+            new Read("config-environments.js", "answer.body.addressWarnings", ConfigViews.Activated.class, "addressWarnings"),
+            new Read("config-inforce.js", "active.addressWarnings", ConfigViews.EnvironmentView.class, "addressWarnings"),
+            new Read("workbench.js", "scenario.notes", ScenarioSummary.class, "notes"),
+            new Read("workbench.js", "list.notes", ScenarioList.class, "notes"),
+            new Read("app.js", "answer.body.source", CodeListSelfCheck.class, "source"),
+            new Read("app.js", "answer.body.placeholder", CodeListSelfCheck.class, "placeholder"));
 
     /** A copy the page kept of the server's words, which the server now serves: the script and the pattern that finds it. */
     private record Copy(String script, String pattern, String why) {
@@ -99,7 +107,9 @@ class StaticServerWordsTest {
             new Copy("*", "\\bheldBefore\\b", "a dropped answer carries its values (QuestionRef.values)"),
             new Copy("dtr-questionnaire.js", "On this tab that is", "the next step names the button by its action's label"),
             new Copy("*", "'Complete the response'|'Send answers and get the next question'",
-                    "the DTR step buttons are named by the labels of SUBMIT_RESPONSE and ANSWER_NEXT_QUESTION"));
+                    "the DTR step buttons are named by the labels of SUBMIT_RESPONSE and ANSWER_NEXT_QUESTION"),
+            new Copy("*", "the bundled placeholder, not a P32H list",
+                    "a list that says it is synthetic can be the sample or a tester's own: the label says placeholder and the self-check's source"));
 
     @Test
     void everyFieldAScriptReadsInPlaceOfItsOwnWordsIsOnTheRecordTheServerSends() throws IOException {

@@ -269,7 +269,9 @@ function group(spec) {
         },
         answered(answer) {
             if (answer && answer.status === 'FOUND' && answer[spec.record]) {
-                fillFrom(answer[spec.record]);
+                // A field the server marks as masked holds something this tool masked, such as a secret the
+                // service sent back. Its mask is not member data and is never put into the case.
+                fillFrom(answer[spec.record], new Set((answer.fields || []).filter(field => field.masked === true).map(field => field.name)));
             } else {
                 release();
             }
@@ -347,6 +349,13 @@ function group(spec) {
     // Cream marks a detail typed or changed by hand, and the words beneath it say which, so the
     // mark does not rest on colour alone. The identifier is what a lookup starts from, so it is never marked.
     function mark(control) {
+        if (control.masked && control.value() === '') {
+            control.node.classList.remove('field--byhand', 'field--fromlookup');
+            control.origin.textContent = 'masked, not taken';
+            control.input.title = 'The lookup returned a value holding something this tool masked, so it is not put into the case. '
+                + 'Show what the lookup returned to read it with its mask.';
+            return;
+        }
         const source = sourceOf(control);
         const replaced = control.given !== null && control.given !== '';
         control.node.classList.toggle('field--byhand', source === 'hand');
@@ -367,10 +376,11 @@ function group(spec) {
     }
 
     /** Fills the details from the record a lookup found. A detail the tester edited while the answer was on its way keeps what they typed. */
-    function fillFrom(record) {
+    function fillFrom(record, masked) {
         for (const control of details()) {
             const returned = record[control.spec.name];
-            const text = returned === undefined || returned === null ? '' : String(returned).trim();
+            control.masked = masked.has(control.spec.name);
+            const text = control.masked || returned === undefined || returned === null ? '' : String(returned).trim();
             if (!control.touched) {
                 control.set(text);
             }
@@ -390,6 +400,7 @@ function group(spec) {
             if (sourceOf(control) === 'lookup') {
                 control.set('');
             }
+            control.masked = false;
             control.given = null;
             control.touched = false;
             mark(control);

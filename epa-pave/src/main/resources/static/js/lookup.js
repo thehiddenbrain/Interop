@@ -220,10 +220,15 @@ export function createLookup(spec) {
     /** What the answer carried, in a line, with the button that shows all of it. */
     function returnedLine(answer) {
         const fields = (answer.fields || []).length;
+        const masked = (answer.fields || []).filter(field => field.masked === true).length;
         const additional = (answer.additionalFields || []).length;
         const counts = [];
         if (fields > 0) {
             counts.push(fields + (fields === 1 ? ' field read' : ' fields read'));
+        }
+        if (masked > 0) {
+            // A field the server marks as masked holds something this tool masked, and is never put into the case.
+            counts.push(masked + ' masked and not taken into the case');
         }
         if (additional > 0) {
             counts.push(additional + ' returned but not interpreted');
@@ -322,7 +327,9 @@ export function createLookup(spec) {
 function fieldsTable(fields) {
     return table([{text: 'Field', class: 'col-25'}, 'Value returned', {text: 'Read from', class: 'col-30'}], fields.map(field => [
         field.label || code(String(field.name)),
-        fieldValue(field.value),
+        // A masked value is shown with its mask and the server's note, never as data: the case does not take it.
+        field.masked === true ? [fieldValue(field.value), ' ', el('span', {class: 'flag'}, 'masked'),
+            field.note ? el('div', {class: 'small'}, field.note) : null] : fieldValue(field.value),
         field.sourceField ? code(field.sourceField) : el('span', {class: 'quiet small'}, 'no spelling of it in the answer')
     ]), {class: 'lookup-fields'});
 }
