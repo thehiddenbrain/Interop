@@ -476,3 +476,8 @@
     overflow-wrap: break-word;
     word-break: normal;
 }
+
+/* The server's sentence that some values in the two texts are masked: read with the texts, plainly. */
+.crd-docs__masked {
+    margin: 0 0 var(--gap-2);
+}

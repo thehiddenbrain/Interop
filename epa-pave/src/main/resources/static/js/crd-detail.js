@@ -37,9 +37,11 @@ export function crdDetail(envelope, vocabulary) {
     const detail = envelope.detail;
     const node = el('div', {class: 'detail'});
 
-    const kind = Object.prototype.hasOwnProperty.call(RESPONSE_KINDS, detail.responseKind)
-        ? RESPONSE_KINDS[detail.responseKind] : ['Response kind ', code(String(detail.responseKind)), '.'];
-    node.append(el('p', null, kind, detail.responseNote ? [' ', detail.responseNote] : null));
+    // The server words some kinds itself. Where its sentence is the one this page has for the
+    // kind, it is said once.
+    const known = Object.prototype.hasOwnProperty.call(RESPONSE_KINDS, detail.responseKind) ? RESPONSE_KINDS[detail.responseKind] : null;
+    const note = detail.responseNote && detail.responseNote !== known ? detail.responseNote : null;
+    node.append(el('p', null, known || ['Response kind ', code(String(detail.responseKind)), '.'], note ? [' ', note] : null));
 
     const issues = detail.issues || [];
     if (issues.length > 0) {
@@ -115,7 +117,10 @@ function coverageBlock(item, vocabulary) {
         el('p', {class: 'detail__item-head'},
             el('span', {class: 'sub-heading'}, 'Answer for ', code(item.subject || 'the request')),
             item.outcome ? outcome(known ? known.label : item.outcome, known ? known.tone : null) : null),
-        el('p', {class: 'small quiet'}, 'Found at ', code(item.foundAt), '. Applies to ', shown(item.appliesTo, {as: 'literal'}), '. ',
+        el('p', {class: 'small quiet'}, 'Found at ', code(item.foundAt), '. ',
+            // A sentence about what the answer applies to is said only when the response says it.
+            hasValue(item.appliesTo) ? ['Applies to ', shown(item.appliesTo, {as: 'literal'}), '. ']
+                : ['The response does not say what it applies to (', shown(item.appliesTo), '). '],
             (item.procedureCodes || []).length > 0
                 ? ['The answer for the requested ', item.procedureCodes.length === 1 ? 'code ' : 'codes ',
                     item.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)]), '.']

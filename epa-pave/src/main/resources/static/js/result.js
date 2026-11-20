@@ -17,7 +17,7 @@
 
 import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
-import {toneClass, stamp, slowFlag, mockMark, findingGroup} from './marks.js';
+import {toneClass, stamp, slowFlag, mockMark} from './marks.js';
 import {runLink} from './history-common.js';
 // lookup.js imports this file as well. The cycle is harmless: idForms is only called while a
 // result is drawn, long after both modules have loaded.
@@ -290,15 +290,14 @@ function findingsSection(findings) {
 
 /**
  * One finding, in the server's words. What it is about (the request this tool sent, the response
- * held to the guide, and so on) is said above its title, so that a request that went out
- * incomplete never reads as a fault of the service. A kind this page does not group is drawn
- * the same plain way with no such line, and its name is given as sent: it is never dropped and
- * never drawn as a fault.
+ * held to the guide, and so on) is the server's heading for the finding's group, said above its
+ * title, so that a request that went out incomplete never reads as a fault of the service. A
+ * finding that comes with no group is drawn the same plain way with no such line: it is never
+ * dropped and never drawn as a fault.
  */
 function finding(item) {
-    const group = findingGroup(item.kind);
-    const node = el('div', {class: 'finding' + (group ? ' finding--' + group.id : '')},
-        group ? el('p', {class: 'finding__about'}, group.heading) : null,
+    const node = el('div', {class: 'finding' + (item.group ? ' finding--' + token(item.group) : '')},
+        item.groupLabel ? el('p', {class: 'finding__about'}, item.groupLabel) : null,
         el('p', {class: 'finding__title'}, item.title),
         item.detail ? el('p', null, item.detail) : null);
     // A position taken from the bundled placeholder list is not P32H's position, and says so on its own label.
@@ -686,7 +685,25 @@ export function issuesTable(issues) {
         [shown(issue.detailsText), issue.detailsCodes && issue.detailsCodes.length > 0
             ? el('div', {class: 'small'}, shownList(issue.detailsCodes, {as: 'literal'})) : null],
         shown(issue.diagnostics),
-        shownList(issue.expression, {as: 'literal'}),
-        shownList(issue.location, {as: 'literal'})
+        issueList(issue.expression, issue.expressionPresent),
+        issueList(issue.location, issue.locationPresent)
     ]), {class: 'issues'});
+}
+
+/**
+ * An expression or a location of an issue. The list alone is empty both when the issue did not
+ * hold the element and when it held it empty, so the server sends whether it was held beside it.
+ * An answer that does not say is shown as a list, as before.
+ */
+function issueList(values, present) {
+    if (Array.isArray(values) && values.length > 0) {
+        return shownList(values, {as: 'literal'});
+    }
+    if (present === false) {
+        return presenceMark('ABSENT');
+    }
+    if (present === true) {
+        return presenceMark('EMPTY');
+    }
+    return shownList(values, {as: 'literal'});
 }
