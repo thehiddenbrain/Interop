@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.CodelistProperties;
@@ -37,6 +38,9 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.SentSecrets;
+import org.p32h.interop.epa.pave.model.Secrets;
+import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
@@ -1147,6 +1151,23 @@ class CrdServiceTest {
         });
         assertThat(fromService.additionalFields()).extracting(f -> f.path()).containsExactly("services[0].usageRequirements", "vendorField");
         assertThat(fromService.note()).isNull();
+    }
+
+    @Test
+    void discoveryShowsTheMaskWhereTheServiceRepeatsASecretOfTheRequest() {
+        String token = "placeholder-access-token-ABCDEF";
+        String url = "https://example.org/p32h-placeholder/cds-services";
+        String body = "{\"services\":[{\"hook\":\"order-sign\",\"id\":\"crd-" + token + "\",\"title\":\"T\",\"description\":\"D\","
+                + "\"prefetch\":{\"patient\":\"Patient/{{context.patientId}}\"},\"x-" + token + "\":\"echo " + token + "\"}]}";
+        VendorExchange echoed = Exchanges.fromResponse(new WireRequest("GET", url, url, List.of(), null, true, null,
+                SentSecrets.builder().accessToken(token).build()), 200, List.of(), body, 5L, true);
+        CrdDiscovery discovery = service(stub(echoed), "mock", Map.of()).discover();
+
+        assertThat(discovery.services()).singleElement().satisfies(service ->
+                assertThat(service.id().value()).isEqualTo("crd-" + Secrets.mask("access token")));
+        assertThat(JsonSafe.mapper().writeValueAsString(discovery.services())).doesNotContain(token);
+        assertThat(JsonSafe.mapper().writeValueAsString(discovery.additionalFields())).doesNotContain(token);
+        assertThat(discovery.additionalFields()).anySatisfy(field -> assertThat(field.path()).contains("x-" + Secrets.mask("access token")));
     }
 
     private static OnyxCrdClient stub(VendorExchange exchange) {

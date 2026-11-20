@@ -5,6 +5,8 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.dtr.DtrCode;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.Shown;
+import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.dtr.PackageBundleView;
 import org.p32h.interop.epa.pave.model.dtr.DtrDetail;
 import org.p32h.interop.epa.pave.model.dtr.DtrOutcome;
 import org.p32h.interop.epa.pave.model.dtr.DtrResponseKind;
@@ -18,7 +20,8 @@ import java.util.List;
 
 /**
  * What on a DTR result a person needs to look at, apart from the outcome: a coded value outside
- * the value set FHIR binds its element to.
+ * the value set FHIR binds its element to, a shape of a later version, and a package bundle that
+ * breaks the DTR 2.0.1 invariant dtrb-1.
  *
  * <p>Such a code is already shown where it sits, as "Unrecognised code: X". It is raised here as
  * well because each one changes what this tool can do with the questionnaire: an item type it does
@@ -60,7 +63,39 @@ final class DtrFindings {
                             + "allow none, as the answer that no questionnaire needs to be completed. This answer follows that later form.",
                     "DTR 2.0.1", null, "The service returned a Parameters resource with no Bundle in it."));
         }
+        dtrb1(findings, detail);
         return findings;
+    }
+
+    /**
+     * A package bundle whose first entry is not a Questionnaire breaks the DTR 2.0.1 invariant
+     * dtrb-1, which DTR-QPackageBundle and the PackageBundle of dtr-qpackage-output-parameters both
+     * state. It is a rule of the guide, not a missing element, so it is raised as one, and history
+     * can be searched for it. Only a bundle the package is made of is judged: a bundle carried
+     * inside one is not a package bundle.
+     */
+    private static void dtrb1(List<Finding> findings, DtrDetail detail) {
+        List<String> starts = detail.questionnaires().stream().map(QuestionnaireView::foundAt).toList();
+        for (PackageBundleView bundle : detail.bundles()) {
+            String at = bundle.foundAt();
+            boolean inside = detail.bundles().stream().map(PackageBundleView::foundAt)
+                    .anyMatch(other -> !java.util.Objects.equals(other, at) && Texts.orElse(at, "").startsWith(within(other)));
+            if (inside || starts.contains(within(at) + "entry[0].resource")) {
+                continue;
+            }
+            String where = within(at).isEmpty() ? "the Bundle the response is" : at;
+            findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN, "A package bundle does not start with its questionnaire (dtrb-1)",
+                    "DTR 2.0.1 requires the first resource of a package bundle to be a Questionnaire (invariant dtrb-1, on DTR-QPackageBundle "
+                            + "and on the PackageBundle of dtr-qpackage-output-parameters). " + (bundle.entryCount() == 0
+                            ? "This bundle holds no entry." : "The first entry of this bundle is not a Questionnaire.")
+                            + " What the bundle holds is shown as it came.",
+                    where, null, null));
+        }
+    }
+
+    /** What the place of anything inside the bundle at this place starts with. The response itself is written "(root)". */
+    private static String within(String bundleAt) {
+        return !Texts.present(bundleAt) || "(root)".equals(bundleAt) ? "" : bundleAt + ".";
     }
 
     /** The two QuestionnaireResponse shapes the 2.2.0 ballot defines and 2.0.1 does not. */

@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.client.dtr.MockOnyxDtrClient;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrClient;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
@@ -38,9 +39,11 @@ import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.model.dtr.AnswerView;
 import org.p32h.interop.epa.pave.model.dtr.DtrDetail;
@@ -383,6 +386,11 @@ class DtrServiceTest {
         assertThat(List.of(emptyRecord.httpStatus(), askedNothingRecord.httpStatus())).containsOnly(200);
         assertThat(emptyRecord.nextAction()).isEqualTo("REVIEW");
         assertThat(askedNothingRecord.nextAction()).isEqualTo("START_PAS");
+        // The empty package bundle breaks dtrb-1, which is raised as a broken rule of the guide and kept on the line by its kind.
+        assertThat(empty.findings()).filteredOn(finding -> finding.kind() == FindingKind.GUIDE_RULE_BROKEN).singleElement()
+                .satisfies(finding -> assertThat(finding.title()).contains("dtrb-1"));
+        assertThat(emptyRecord.findings()).contains("GUIDE_RULE_BROKEN");
+        assertThat(askedNothingRecord.findings()).doesNotContain("GUIDE_RULE_BROKEN");
     }
 
     @Test
@@ -2143,5 +2151,47 @@ class DtrServiceTest {
         assertThat(again.verdict().outcomeCode()).isEqualTo("SERVICE_ERROR");
         assertThat(again.runId()).isNotEqualTo(failed.runId());
         assertThat(ledger.records()).hasSize(4);
+    }
+
+    // ---- what reaches the ledger line and the next step when a service repeats a secret ----
+
+    @Test
+    void aSecretTheServiceRepeatsInTheQuestionnaireAResponseNamesNeverReachesTheLedgerLineOrTheNextStep() {
+        // The name of the questionnaire being completed is read from the response and written to the ledger line. A service that
+        // echoes the bearer token into the address it names must not put the token there: the line never holds a secret.
+        String token = "placeholder-access-token-ABCDEF";
+        String url = "https://example.org/p32h-placeholder/fhir/QuestionnaireResponse/$next-question";
+        String body = "{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"https://example.org/p32h-placeholder/Questionnaire/"
+                + token + "\",\"status\":\"in-progress\"}";
+        VendorExchange echoed = Exchanges.fromResponse(new WireRequest("POST", url, url, List.of(), "{}", true, null,
+                SentSecrets.builder().accessToken(token).build()), 200, List.of(), body, 5L, true);
+        RunEnvelope<DtrDetail> step = service(stub(echoed.withSignals(org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions.signals(echoed))),
+                "mock", Map.of()).runNextQuestion(DtrNextQuestionRequest.builder().member(DtrFixtures.member("S123456789"))
+                .questionnaire(stubQuestionnaire("")).carry(Map.of(NextStepView.CARRY_RUN_ID, List.of(EARLIER_RUN))).build(),
+                RunOrigin.manual(), null);
+
+        RunRecord record = ledger.only();
+        assertThat(record.correlation()).containsEntry(RunRecord.CORR_RUN_ID, EARLIER_RUN).containsKey(RunRecord.CORR_QUESTIONNAIRE);
+        assertThat(record.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).doesNotContain(token);
+        assertThat(JsonSafe.mapper().writeValueAsString(record)).doesNotContain(token);
+        // The next step hands on the name it read, masked as well.
+        assertThat(step.nextStep().carry().toString()).doesNotContain(token);
+    }
+
+    @Test
+    void aPackageRequestOfTheTestersOwnStillSaysThatCrdNamedAPartlyCompletedResponseAndThatItIsNotFetched() {
+        String reference = "https://example.org/p32h-placeholder/fhir/QuestionnaireResponse/draft-1";
+        String body = "{\"resourceType\":\"Parameters\",\"parameter\":[{\"name\":\"coverage\",\"resource\":{\"resourceType\":"
+                + "\"Coverage\",\"identifier\":[{\"value\":\"P32H-DOC-DTR\"}]}}]}";
+        RunEnvelope<DtrDetail> result = service().runPackage(DtrPackageRequest.builder().rawBody(body)
+                .carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, List.of(reference))).build(), RunOrigin.manual(), null);
+
+        assertThat(result.detail().bodyBuiltByTool()).isFalse();
+        assertThat(result.detail().requestNotes()).contains(DtrRequestBuilder.namedDraftNote(
+                Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, List.of(reference))));
+        assertThat(result.detail().requestNotes()).filteredOn(note -> note.startsWith("CRD named a partly completed questionnaire response"))
+                .singleElement().satisfies(note -> assertThat(note).contains(reference).contains("This tool does not fetch it"));
+        // The reference is an address and can hold an identifier: it is shown on the result and never written to the line.
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain("draft-1");
     }
 }

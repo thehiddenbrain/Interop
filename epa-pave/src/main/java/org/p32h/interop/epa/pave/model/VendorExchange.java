@@ -246,8 +246,9 @@ public record VendorExchange(
      * it is not. The byte count stays the count of what was received.
      *
      * <p>Only what is shown is masked. {@link #responseBody()}, {@link #json()} and
-     * {@link #responseHeaders()} stay as they were received, because a mapper has to read what the
-     * service really said.
+     * {@link #responseHeaders()} stay as they were received: the wire view masks from them, and
+     * every protocol mapper and lookup reads the parsed body through
+     * {@link #withReturnedSecretsMasked()}, so what it copies into a view is masked as well.
      */
     public WireResponse wireResponse() {
         SentSecrets secrets = sentSecrets();
