@@ -86,7 +86,8 @@ class RawServiceTest {
         assertThat(result.protocol()).isEqualTo(Protocol.RAW);
         assertThat(result.operation()).isEqualTo(EpaOperation.UNMAPPED);
         assertThat(result.verdict().outcomeCode()).isEqualTo("ANSWERED");
-        assertThat(result.verdict().headline()).isEqualTo("The service answered (HTTP 200).");
+        // On mock no service was asked, so the headline says who answered.
+        assertThat(result.verdict().headline()).isEqualTo("A mock scenario, standing in for the service, answered (HTTP 200).");
         assertThat(result.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         // The mock says which canned answer this was, and the tool says it does not interpret it.
         assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario raw-01-not-modelled answered");

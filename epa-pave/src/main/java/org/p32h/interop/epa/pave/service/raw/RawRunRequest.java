@@ -21,7 +21,10 @@ import org.p32h.interop.epa.pave.service.run.RunRequest;
  *                  saved with the collection request, or none when it has none
  * @param urlValues values for the single-brace {@code {name}} parts of the request's url, as
  *                  {@code /api/config/resolve} takes them. Each is percent-encoded into its place,
- *                  so a value can never change the shape of the url
+ *                  so a slash, a question mark or an address in a value stays inside its one
+ *                  segment. A value of {@code .} or {@code ..} is the one thing encoding leaves as
+ *                  it is, and it would move the request to another path, so it is refused for
+ *                  every method; for a write the guardrail refuses such a move as well
  */
 public record RawRunRequest(
         RequestRef request,

@@ -198,16 +198,11 @@ class RawSavedBodyTest {
                         assertThat(e.fieldErrors()).extracting(org.p32h.interop.epa.pave.model.FieldError::field).containsExactly("urlValues.id");
                     });
             assertThat(ledger.records()).as(profile).hasSize(before);
-            // On mock the preview says so and still shows the target. On live the gateway refuses to
-            // prepare a url that is not complete, for a preview as for a send, with the same answer.
-            if (live) {
-                assertThatThrownBy(() -> service.preview(request(ref, null), null)).isInstanceOfSatisfying(ValidationException.class,
-                        e -> assertThat(e.fieldErrors()).extracting(org.p32h.interop.epa.pave.model.FieldError::field)
-                                .containsExactly("urlValues.id"));
-            } else {
-                assertThat(service.preview(request(ref, null), null).notes()).contains("The url still has a part with no value: "
-                        + "{id}. Give it under urlValues: sending is refused until then.");
-            }
+            // The live gateway cannot prepare a url that is not complete, for a preview or for a send, so the preview is refused
+            // with the same answer on both profiles.
+            assertThatThrownBy(() -> service.preview(request(ref, null), null)).as(profile).isInstanceOfSatisfying(ValidationException.class,
+                    e -> assertThat(e.fieldErrors()).extracting(org.p32h.interop.epa.pave.model.FieldError::field)
+                            .containsExactly("urlValues.id"));
 
             // A value that would change the shape of the url is percent-encoded into its one place.
             RunEnvelope<RawDetail> filled = service.run(request(ref, null).withUrlValues(Map.of("id", "P32H-ONE/../x?y")), RunOrigin.manual(),
@@ -227,13 +222,16 @@ class RawSavedBodyTest {
         RequestRef ref = fixture.ref(0, "vendor thing");
         RawService service = service(fixture, true, capturing());
 
-        // A value of ".." would take the write out of the path the configuration wrote before it, exactly as a value
-        // typed for the run would, so the write is refused before anything is sent.
-        RunEnvelope<RawDetail> climbing = service.run(request(ref, null).withUrlValues(Map.of("tenant", "..")), RunOrigin.manual(), null);
-        assertThat(RunSupport.isBlocked(climbing)).isTrue();
-        assertThat(climbing.verdict().headline()).contains("the value typed for this run for the url part {tenant} would change where "
-                + "it goes");
+        // A value of "." or ".." is the one value encoding leaves as it is, and it would take the request out of the path the
+        // configuration wrote before it. It is refused as a form error before the gateway is asked (which refuses it for a
+        // write as well, UrlPartGuardrailTest), and nothing is sent or recorded.
+        for (String dots : List.of(".", "..")) {
+            assertThatThrownBy(() -> service.run(request(ref, null).withUrlValues(Map.of("tenant", dots)), RunOrigin.manual(), null))
+                    .as(dots).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                            .extracting(org.p32h.interop.epa.pave.model.FieldError::field).containsExactly("urlValues.tenant"));
+        }
         assertThat(sentCall.get()).isNull();
+        assertThat(ledger.records()).isEmpty();
         // A value that stays inside its segment goes.
         service.run(request(ref, null).withUrlValues(Map.of("tenant", "T-1")), RunOrigin.manual(), null);
         assertThat(sentCall.get().url().value()).isEqualTo(BASE + "/T-1/Thing");
@@ -255,10 +253,70 @@ class RawSavedBodyTest {
                 new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000001"), null);
         assertThat(replayed.nextStep().action()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
         assertThat(replayed.verdict().headline()).contains("a replay never carries the production unlock");
-        assertThat(replayed.nextStep().headline()).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
-                + "production, send it on its own from the Config tab, as a collection request sent as written, with writes unlocked "
-                + "there, or switch to an environment that is not production.");
+        assertThat(replayed.error().action()).isEqualTo("Nothing was sent, and unlocking does not change this. To send this write to "
+                + "production, send it on its own from the Config tab, with writes unlocked there, or switch to an environment that is "
+                + "not production.");
+        assertThat(replayed.nextStep().headline()).isEqualTo(NextAction.SEND_ON_ITS_OWN.label());
         assertThat(sentCall.get()).isNull();
+    }
+
+    @Test
+    void aDotSegmentAsAUrlPartIsRefusedForARead() {
+        ConfigFixture fixture = ConfigFixture.on(directory.resolve("live")).live().build();
+        fixture.activeEnvironmentOf("Onyx Sandbox", EnvironmentKind.SANDBOX, "baseUrl", BASE);
+        fixture.collectionOf("Vendor", ConfigFixture.items(ConfigFixture.item("read a claim", "GET", "{{baseUrl}}/Claim/{claimId}")));
+        RawService service = service(fixture, true, capturing());
+        assertThatThrownBy(() -> service.run(request(fixture.ref(0, "read a claim"), null).withUrlValues(Map.of("claimId", "..")),
+                RunOrigin.manual(), null)).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                .extracting(org.p32h.interop.epa.pave.model.FieldError::message).containsExactly("A part of the url cannot be \".\" or "
+                        + "\"..\": it would move the request to another path. Give the value the part is waiting for."));
+        assertThat(sentCall.get()).isNull();
+        // Dots inside a value are part of it, and go encoded into the one segment.
+        service.run(request(fixture.ref(0, "read a claim"), null).withUrlValues(Map.of("claimId", "c..1")), RunOrigin.manual(), null);
+        assertThat(sentCall.get().url().value()).isEqualTo(BASE + "/Claim/c..1");
+    }
+
+    @Test
+    void aUrlWithAPlaceholderNoLayerFillsBesideAPartIsRefusedNamingEachWhereItIsGivenOnBothProfiles() {
+        for (boolean live : List.of(true, false)) {
+            String profile = live ? "live" : "mock";
+            int before = ledger.records().size();
+            ConfigFixture fixture = fixture(live, "{{baseUrl}}/{{undefinedSeg}}/Claim/{claimId}", null);
+            RequestRef ref = fixture.ref(0, "vendor thing");
+            RawRequestClient client = live ? capturing() : new MockRawRequestClient(new ScenarioRepository(APP), new MockExchanges(APP));
+            RawService service = service(fixture, live, client);
+
+            for (java.util.function.Supplier<Object> attempt : List.<java.util.function.Supplier<Object>>of(
+                    () -> service.run(request(ref, null), RunOrigin.manual(), null),
+                    () -> service.preview(request(ref, null), null))) {
+                assertThatThrownBy(attempt::get).as(profile).isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e.getMessage()).isEqualTo("The request cannot be sent: the url still has no value for {claimId}, "
+                            + "{{undefinedSeg}}. Nothing was sent.");
+                    assertThat(e.fieldErrors()).extracting(org.p32h.interop.epa.pave.model.FieldError::field)
+                            .containsExactly("urlValues.claimId", "variables.undefinedSeg");
+                    // The part is named where a raw send gives it, never as an identifier the call is for.
+                    assertThat(e.fieldErrors().get(0).message()).isEqualTo("No value for {claimId}. Give the value this part of the url "
+                            + "is waiting for.");
+                });
+            }
+            // With the part given, the placeholder is still missing: still refused, on mock as on live, and nothing recorded.
+            assertThatThrownBy(() -> service.run(request(ref, null).withUrlValues(Map.of("claimId", "c1")), RunOrigin.manual(), null))
+                    .as(profile).isInstanceOfSatisfying(UnresolvedVariablesException.class,
+                            e -> assertThat(e.variables()).containsExactly("undefinedSeg"));
+            assertThat(ledger.records()).as(profile).hasSize(before);
+            assertThat(sentCall.get()).as(profile).isNull();
+        }
+    }
+
+    @Test
+    void onTheMockProfileTheHeadlineSaysAScenarioAnswered() {
+        ConfigFixture fixture = fixture(false, "{{baseUrl}}/Thing", null);
+        RunEnvelope<RawDetail> result = service(fixture, false, new MockRawRequestClient(new ScenarioRepository(APP), new MockExchanges(APP)))
+                .run(request(fixture.ref(0, "vendor thing"), null), RunOrigin.manual(), null);
+        assertThat(result.verdict().headline()).isEqualTo("A mock scenario, standing in for the service, answered (HTTP 200).");
+        ConfigFixture liveFixture = fixture(true, "{{baseUrl}}/Thing", null);
+        assertThat(service(liveFixture, true, capturing()).run(request(liveFixture.ref(0, "vendor thing"), null), RunOrigin.manual(), null)
+                .verdict().headline()).isEqualTo("The service answered (HTTP 200).");
     }
 
     @Test

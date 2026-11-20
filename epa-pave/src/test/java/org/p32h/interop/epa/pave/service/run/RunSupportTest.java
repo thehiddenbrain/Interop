@@ -108,14 +108,29 @@ class RunSupportTest {
         assertThat(manual.nextStep().action()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
         assertThat(ledger.records()).extracting(RunRecord::nextAction)
                 .containsExactly("SEND_ON_ITS_OWN", "SEND_ON_ITS_OWN", "UNLOCK_OR_SWITCH");
-        // The gateway's own action is the headline, because it names the tab the write belongs to.
-        assertThat(replay.nextStep().headline()).isEqualTo("Unlock writes on the Config tab, or switch environment.");
+        // The refusal here was worded for a screen and opens with the unlock. A replay or a suite row cannot use it, so its
+        // headline is the words of its own action, beside which it sits; a screen keeps the gateway's step.
+        assertThat(replay.nextStep().headline()).isEqualTo(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock");
+        assertThat(suite.nextStep().headline()).isEqualTo(NextAction.SEND_ON_ITS_OWN.label());
+        assertThat(manual.nextStep().headline()).isEqualTo("Unlock writes on the Config tab, or switch environment.");
+        // The verdict says why unlocking does not help, once, when the refusal does not say it already.
+        assertThat(replay.verdict().supporting()).containsExactly("This run is a replay, and a replay never carries the production "
+                + "unlock, so unlocking writes on the Config tab does not let it through.");
+        assertThat(suite.verdict().supporting()).containsExactly("This run is a suite row, and a suite row never carries the production "
+                + "unlock, so unlocking writes on the Config tab does not let it through.");
+        assertThat(manual.verdict().supporting()).isEmpty();
+        ProdWriteBlockedException toldTheOrigin = new ProdWriteBlockedException(EpaOperation.SUBSCRIPTION_CREATE,
+                new EnvironmentRef("Onyx Production", EnvironmentKind.PROD), "Subscription create is blocked: \"Onyx Production\" is a "
+                + "production environment, and a replay never carries the production unlock, so its writes to production are always "
+                + "blocked.", "Nothing was sent, and unlocking does not change this.", null, "POST", null);
+        assertThat(support.blocked(EpaOperation.SUBSCRIPTION_CREATE, toldTheOrigin, request(), new RunOrigin(null, null, RUN))
+                .verdict().supporting()).isEmpty();
 
-        // A refusal with no action of its own falls back to the words of the action, which never say to unlock here.
+        // A refusal with no action of its own: the same words.
         ProdWriteBlockedException bare = new ProdWriteBlockedException(EpaOperation.SUBSCRIPTION_CREATE,
                 new EnvironmentRef("Onyx Production", EnvironmentKind.PROD), "Writes are blocked.", null, null, "POST", null);
         assertThat(support.blocked(EpaOperation.SUBSCRIPTION_CREATE, bare, request(), new RunOrigin(null, null, RUN)).nextStep().headline())
-                .isEqualTo(NextAction.SEND_ON_ITS_OWN.label()).doesNotStartWith("Unlock");
+                .isEqualTo(NextAction.SEND_ON_ITS_OWN.label());
     }
 
     @Test

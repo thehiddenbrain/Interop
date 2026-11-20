@@ -339,6 +339,31 @@ class ChainServiceTest {
     }
 
     @Test
+    void aBlockedReplayOrSuiteLineKeepsItsOwnActionAndABlockedLineWithNoneIsToldToUnlock() {
+        String chainId = RunStamps.newChainId();
+        RunRecord replayed = RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:01:00.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("BLOCKED").errorType(RunRecord.ERROR_BLOCKED)
+                .result(TestResult.UNVERIFIED).chainId(chainId).nextAction(NextAction.SEND_ON_ITS_OWN).memberId("P32H-PA-REQ").build();
+        ledger.record(replayed);
+        ChainView view = chains().view(chainId);
+        ChainStage pas = stage(view, Protocol.PAS);
+        // Unlocking cannot help a replay or a suite row, so the chain view does not tell it to.
+        assertThat(pas.latest().nextAction()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
+        assertThat(view.nextAction()).isEqualTo(NextAction.SEND_ON_ITS_OWN);
+        assertThat(pas.state()).isEqualTo(ChainStageState.NEEDS_ATTENTION);
+        assertThat(pas.stateLine()).endsWith(NextAction.SEND_ON_ITS_OWN.label());
+        assertThat(view.headline()).contains("Next: send this write on its own from its tab");
+
+        String other = RunStamps.newChainId();
+        ledger.record(RunRecord.builder().runId(RunStamps.newRunId()).timestamp("2026-03-10T10:02:00.000-05:00").protocol(Protocol.PAS)
+                .operation(EpaOperation.PAS_SUBMIT).target("onyx").profile("mock").outcome("BLOCKED").errorType(RunRecord.ERROR_BLOCKED)
+                .result(TestResult.UNVERIFIED).chainId(other).memberId("P32H-PA-REQ").build());
+        ChainView unnamed = chains().view(other);
+        assertThat(stage(unnamed, Protocol.PAS).latest().nextAction()).isEqualTo(NextAction.UNLOCK_OR_SWITCH);
+        assertThat(stage(unnamed, Protocol.PAS).stateLine()).endsWith(NextAction.UNLOCK_OR_SWITCH.label());
+    }
+
+    @Test
     void onlyAStepThatUsedWhatAnEarlierStepHandedOnIsSaidToBeUnreplayable() {
         // A chain started at PAS: its submission followed nothing, and a replay sends it again as it does any run.
         String startedAtPas = RunStamps.newChainId();

@@ -282,16 +282,44 @@ public class RunSupport {
                 .operation(operation)
                 .environment(refusal.environment())
                 .profile(epa.mode())
-                .verdict(VerdictView.of(RunOutcome.BLOCKED, "Nothing was sent. " + refusal.getMessage(), List.of()))
+                .verdict(VerdictView.of(RunOutcome.BLOCKED, "Nothing was sent. " + refusal.getMessage(), noUnlockLine(origin, refusal)))
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.BLOCKED,
                         "Nothing was sent, so there is nothing to compare with what was expected."))
-                .nextStep(NextStepView.of(action, Texts.orElse(refusal.action(), action == NextAction.SEND_ON_ITS_OWN ? action.label()
-                        : "Unlock writes for this session, or switch to an environment that is not production."), refusal.getMessage()))
+                .nextStep(NextStepView.of(action, headline(action, refusal), refusal.getMessage()))
                 .wire(new WireView(attempted, null, memberId.typed().isEmpty() ? null : memberId))
                 .error(ErrorView.of(ErrorKind.BLOCKED, refusal.getMessage() + " Nothing was sent.", refusal.action()))
                 .ledger(receipt)
                 .build();
     }
+
+    /**
+     * The headline of a blocked run's next step. For a replay or a suite row it is the words of
+     * its own action: whatever the refusal says, the gateway may not have been told where the call
+     * came from, and then its step opens with the unlock a screen needs, which this run can never use.
+     */
+    private static String headline(NextAction action, ProdWriteBlockedException refusal) {
+        if (action == NextAction.SEND_ON_ITS_OWN) {
+            return action.label();
+        }
+        return Texts.orElse(refusal.action(), "Unlock writes for this session, or switch to an environment that is not production.");
+    }
+
+    /**
+     * For a replay or a suite row whose refusal does not already say so, the one line that does: it
+     * never carries the production unlock. The gateway says it itself when it was told the origin,
+     * and saying it twice would read as two reasons.
+     */
+    private static List<String> noUnlockLine(RunOrigin origin, ProdWriteBlockedException refusal) {
+        if (!carriesNoUnlock(origin) || Texts.orElse(refusal.getMessage(), "").contains(NEVER_CARRIES)) {
+            return List.of();
+        }
+        String carrier = Texts.present(origin.replayOfRunId()) ? "a replay" : "a suite row";
+        return List.of("This run is " + carrier + ", and " + carrier + " " + NEVER_CARRIES + ", so unlocking writes on the Config "
+                + "tab does not let it through.");
+    }
+
+    /** The words in which the gateway says a replay or a suite has no unlock, so the line above is not said twice. */
+    private static final String NEVER_CARRIES = "never carries the production unlock";
 
     /**
      * True for a run that came from a replay or a suite. Neither ever carries the production unlock,

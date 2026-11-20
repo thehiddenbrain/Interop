@@ -87,10 +87,7 @@ public class RawService {
         }
         // On live the gateway refuses such a url itself. On mock nothing is sent, but a run of a
         // url that was never complete would record an answer to a request nobody could send.
-        List<String> missing = missingUrlParts(call);
-        if (!missing.isEmpty()) {
-            throw unfilled(missing);
-        }
+        refuseIfIncomplete(call);
         Body body = body(request, call);
 
         // An unresolved placeholder in the body, supplied or saved, is refused here on both
@@ -143,6 +140,9 @@ public class RawService {
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(EpaOperation.UNMAPPED, refusal, null);
         }
+        // Refused as the send is, so that the preview answers the same on both profiles: on live the
+        // gateway cannot prepare a url that is not complete, for a preview or for a send.
+        refuseIfIncomplete(call);
         Body chosen = body(request, call);
         String body = null;
         List<String> notes = new ArrayList<>();
@@ -155,11 +155,6 @@ public class RawService {
                 notes.add("The body still contains placeholders with no value: " + String.join(", ", chosen.text().unresolved())
                         + ". Sending is refused until each has one.");
             }
-        }
-        List<String> missing = missingUrlParts(call);
-        if (!missing.isEmpty()) {
-            notes.add("The url still has " + (missing.size() == 1 ? "a part" : "parts") + " with no value: " + written(missing)
-                    + ". Give " + (missing.size() == 1 ? "it" : "each") + " under urlValues: sending is refused until then.");
         }
         return RequestPreview.of(EpaOperation.UNMAPPED, call, body, notes, null).withBodySource(chosen.source());
     }
@@ -196,44 +191,57 @@ public class RawService {
     }
 
     /**
-     * Prepares the call. A url whose only missing values are single-brace parts is refused as a
-     * form error that names each part under urlValues, where a caller supplies it: the gateway's own
-     * refusal names it among the variables, where a raw send cannot supply it.
+     * Prepares the call. A url with a single-brace part still waiting for a value is refused as a
+     * form error that names each such part under urlValues, where a raw send supplies it, and each
+     * placeholder missing beside it under variables: the gateway's own refusal names them all among
+     * the variables, where a raw send cannot supply a url part.
      */
     private PreparedCall prepare(CallIntent intent) {
         try {
             return gateway.prepare(intent);
         } catch (UnresolvedVariablesException e) {
-            if (!e.urlTokens().isEmpty() && e.urlTokens().containsAll(e.variables())) {
-                throw unfilled(e.variables());
-            }
-            throw e;
+            throw forARawSend(e);
         }
     }
 
     /**
-     * The single-brace parts of the url that are still waiting for a value. A part written
-     * {@code {name}} or {@code :name} is not a placeholder an environment can define: only the
-     * caller can fill it, through urlValues.
+     * Refuses a url that is not complete. The live gateway does this itself; on mock it hands the
+     * call back with what it could not fill, and the same refusal is made here, so both profiles
+     * answer one request alike and no run is recorded for a url nobody could send.
      */
-    private static List<String> missingUrlParts(PreparedCall call) {
+    private static void refuseIfIncomplete(PreparedCall call) {
         ResolvedUrl url = call.url();
-        if (url == null || url.template() == null) {
-            return List.of();
+        if (url == null || url.template() == null || url.unresolved().isEmpty()) {
+            return;
         }
-        return url.unresolved().stream().filter(name -> !url.template().contains("{{" + name + "}}")).toList();
+        // A part written {name} or :name is not a placeholder an environment can define: only the
+        // caller can fill it, through urlValues.
+        List<String> tokens = url.unresolved().stream().filter(name -> !url.template().contains("{{" + name + "}}")).toList();
+        throw forARawSend(new UnresolvedVariablesException(EpaOperation.UNMAPPED, url.unresolved(),
+                call.environment() == null ? null : call.environment().name(), url.template(), Map.of(), tokens));
     }
 
-    private static ValidationException unfilled(List<String> parts) {
-        List<FieldError> fields = parts.stream()
-                .map(part -> new FieldError("urlValues." + part, "No value for {" + part + "}. Give the value this part of the url "
-                        + "is waiting for.")).toList();
-        return new ValidationException("The request cannot be sent: the url still has " + (parts.size() == 1 ? "a part" : "parts")
-                + " with no value, " + written(parts) + ". Nothing was sent.", fields);
-    }
-
-    private static String written(List<String> parts) {
-        return String.join(", ", parts.stream().map(part -> "{" + part + "}").toList());
+    /** The gateway's refusal as it stands when no url part is missing, and otherwise one form error naming every value by where it is given. */
+    private static RuntimeException forARawSend(UnresolvedVariablesException e) {
+        if (e.urlTokens().isEmpty()) {
+            return e;
+        }
+        List<String> parts = e.variables().stream().filter(e.urlTokens()::contains).toList();
+        List<String> placeholders = e.variables().stream().filter(name -> !e.urlTokens().contains(name)).toList();
+        List<FieldError> fields = new ArrayList<>();
+        for (String part : parts) {
+            fields.add(new FieldError("urlValues." + part, "No value for {" + part + "}. Give the value this part of the url is waiting for."));
+        }
+        for (String placeholder : placeholders) {
+            fields.add(new FieldError("variables." + placeholder, "No value for {{" + placeholder + "}}"
+                    + (e.reasons().containsKey(placeholder) ? ": " + e.reasons().get(placeholder)
+                    : ". Type one here, or add it to the environment on the Config tab.")));
+        }
+        List<String> named = new ArrayList<>(parts.stream().map(part -> "{" + part + "}").toList());
+        named.addAll(placeholders.stream().map(placeholder -> "{{" + placeholder + "}}").toList());
+        String missing = placeholders.isEmpty() ? (parts.size() == 1 ? "a part" : "parts") + " with no value, " : "no value for ";
+        return new ValidationException("The request cannot be sent: the url still has " + missing + String.join(", ", named)
+                + ". Nothing was sent.", fields);
     }
 
     private record Interpreted(RawOutcome outcome, RawDetail detail, VerdictView verdict, ExpectationView expectation,
@@ -285,7 +293,7 @@ public class RawService {
                 + "the answer: everything that came back is listed below."
                 : "This request was sent as written. The tool does not interpret its answer: everything that came back is listed below.");
         String status = exchange.httpStatus() == null ? "" : " (HTTP " + exchange.httpStatus() + ")";
-        VerdictView verdict = VerdictView.of(outcome, outcome.label() + status + ".", supporting);
+        VerdictView verdict = VerdictView.of(outcome, headline(outcome) + status + ".", supporting);
 
         Map<String, List<String>> facts = exchange.httpStatus() == null ? Map.of()
                 : Map.of(ELEMENT_HTTP_STATUS, List.of(String.valueOf(exchange.httpStatus())));
@@ -305,6 +313,18 @@ public class RawService {
         RawDetail detail = new RawDetail(call.requestName(), kind, issues, List.of(bodySentence(bodySource)), bodySource);
         return new Interpreted(outcome, detail, verdict, expectation, nextStep, findings, additional, error, timing);
     }
+
+    /**
+     * The headline of what came back. On the mock profile no service was asked, so the headline
+     * says who answered instead, as the line below it does.
+     */
+    private String headline(RawOutcome outcome) {
+        String label = outcome.label();
+        return epa.mock() && label.startsWith(THE_SERVICE)
+                ? "A mock scenario, standing in for the service," + label.substring(THE_SERVICE.length()) : label;
+    }
+
+    private static final String THE_SERVICE = "The service";
 
     /**
      * The next step when no usable answer came back. A read is sent again. A request that may
@@ -359,11 +379,16 @@ public class RawService {
     }
 
     private void validate(RawRunRequest request) {
-        new RunInputs(support.clock()).common(request)
+        RunInputs inputs = new RunInputs(support.clock()).common(request)
                 .require(request.request() != null && org.p32h.interop.epa.pave.model.Texts.present(request.request().collectionId())
                                 && org.p32h.interop.epa.pave.model.Texts.present(request.request().requestId()), "request",
                         "Choose the collection request to send.")
-                .expectation(request.expected(), RawOutcome.values(), EXPECTATION_ELEMENTS)
-                .throwIfInvalid();
+                .expectation(request.expected(), RawOutcome.values(), EXPECTATION_ELEMENTS);
+        // A dot segment is the one value encoding leaves as it is, and it would move the request
+        // to another path: a read would go elsewhere with the access token on it.
+        new java.util.TreeMap<>(request.urlValues()).forEach((name, value) -> inputs.require(!".".equals(value) && !"..".equals(value),
+                "urlValues." + name, "A part of the url cannot be \".\" or \"..\": it would move the request to another path. Give the "
+                        + "value the part is waiting for."));
+        inputs.throwIfInvalid();
     }
 }

@@ -154,14 +154,6 @@ public final class InMemoryLedger implements RunLedger {
         }
         LocalDate day = record.timestamp() == null || record.timestamp().length() < 10 ? null
                 : LocalDate.parse(record.timestamp().substring(0, 10));
-        if (query.zone() != null && record.timestamp() != null) {
-            // As the real ledger: with a zone, the day of the run's instant on that clock.
-            try {
-                day = java.time.Instant.parse(record.timestamp().strip()).atZone(query.zone()).toLocalDate();
-            } catch (java.time.DateTimeException e) {
-                // Not an instant: the day it names, as without a zone.
-            }
-        }
         if (query.from() != null && (day == null || day.isBefore(query.from()))) {
             return false;
         }
@@ -185,9 +177,6 @@ public final class InMemoryLedger implements RunLedger {
             return false;
         }
         if (query.suiteRunId() != null && !query.suiteRunId().equals(record.suiteRunId())) {
-            return false;
-        }
-        if (query.testerRef() != null && !query.testerRef().equals(record.testerRef())) {
             return false;
         }
         if (query.correlationKey() != null) {

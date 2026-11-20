@@ -1227,11 +1227,15 @@ public class ConfigStoreGateway implements OperationGateway {
                 + "a sandbox or uat environment.");
     }
 
-    /** Where a person sends this call by itself: the tab of its protocol, or Config for a collection request sent as written. */
+    /**
+     * Where a person sends this call by itself: the tab of its protocol, or Config, where a
+     * collection request is sent as written. A noun phrase and nothing more, because each refusal
+     * goes on after it ("of the browser session where ...", ", with writes unlocked there").
+     */
     private static String tab(CallIntent intent) {
         Protocol protocol = intent.operation() == null ? null : intent.operation().protocol();
         if (protocol == null || protocol == Protocol.RAW) {
-            return "the Config tab, as a collection request sent as written";
+            return "the Config tab";
         }
         return "the " + (protocol == Protocol.SUBSCRIPTION ? Protocol.PAS : protocol).name() + " tab";
     }
