@@ -213,7 +213,7 @@ function chainsView() {
                     when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
                     chain.procedureCodes && chain.procedureCodes.length > 0
                         ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
-                latest ? el('div', {class: 'small'}, outcome(latest.outcomeLabel || latest.outcome || '', latest.tone)) : null);
+                latest ? el('div', {class: 'small'}, outcome(latest.outcomeLabel || latest.outcome || '', latest.tone, latest.answeredBy)) : null);
         })));
         context.announce(chains.length === 1 ? 'One chain listed.' : chains.length + ' chains listed.');
         markOpen();

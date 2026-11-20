@@ -80,7 +80,10 @@ export function renderResult(envelope, options) {
         if (typeof error.action === 'string' && error.action === step.headline) {
             said.action = 'The next step above says what to do.';
         }
-        root.append(section(heading(3, 'What went wrong'), errorPanel(said)));
+        // The server heads every error with what it is (a refusal by the guardrail is not something
+        // that went wrong), so the section is headed by that and the panel does not say it twice.
+        root.append(section(heading(3, error.heading ? error.heading : ['Error kind ', code(error.kind || 'none')]),
+            errorPanel(said, {headed: true})));
     }
     return root;
 }
@@ -667,13 +670,22 @@ const ERROR_FORMS = {
     INTERNAL: 'fault'
 };
 
-/** The error panel, for the error of a run and for an error answered in place of a result. */
-export function errorPanel(error) {
+/**
+ * The error panel, for the error of a run and for an error answered in place of a result.
+ * options.headed: the section around the panel is already headed by error.heading, so the panel
+ * gives only the HTTP status on that line.
+ */
+export function errorPanel(error, options) {
     const form = error.kind && Object.prototype.hasOwnProperty.call(ERROR_FORMS, error.kind) ? ERROR_FORMS[error.kind] : 'plain';
     const panel = el('div', {class: 'error-panel error-panel--' + form + ' error-panel--' + token(error.kind || 'none')});
-    if (error.kind) {
+    const status = typeof error.httpStatus === 'number' ? el('strong', null, String(error.httpStatus)) : null;
+    if (options && options.headed) {
+        if (status) {
+            panel.append(el('p', {class: 'error-panel__kind'}, 'HTTP ', status));
+        }
+    } else if (error.kind) {
         panel.append(el('p', {class: 'error-panel__kind'}, error.heading ? error.heading : ['Error kind ', code(error.kind)],
-            typeof error.httpStatus === 'number' ? [', HTTP ', el('strong', null, String(error.httpStatus))] : null));
+            status ? [', HTTP ', status] : null));
     }
     panel.append(el('p', {class: 'error-panel__title'}, error.title));
     if (error.action) {

@@ -122,7 +122,9 @@ class StaticServerWordsTest {
             new Copy("config-writes.js", "Locking ends the unlock|locks writes for every browser session at once",
                     "what a lock does to every session's unlock is said by the server, in WriteAccess.reason"),
             new Copy("*", "\\bERROR_KINDS\\b|A fault in the environment:",
-                    "an error's heading is ErrorView.heading, which says a timeout a mock scenario played is not a fault in the environment"));
+                    "an error's heading is ErrorView.heading, which says a timeout a mock scenario played is not a fault in the environment"),
+            new Copy("*", "What went wrong",
+                    "a run's error section is headed by ErrorView.heading: a refusal by the guardrail is not something that went wrong"));
 
     @Test
     void everyFieldAScriptReadsInPlaceOfItsOwnWordsIsOnTheRecordTheServerSends() throws IOException {

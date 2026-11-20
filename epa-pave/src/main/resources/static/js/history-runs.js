@@ -303,7 +303,7 @@ export function createRunsList(app, context) {
         const mock = mode.mode === 'mock';
         const plural = (number, one, many) => count(number) + ' ' + (number === 1 ? one : many);
         const send = button('Replay these runs', () => runReplay(dates, send), {class: 'button--primary'});
-        const cancel = button('Cancel', () => { confirming = null; clear(replayBox); opener.focus(); });
+        const cancel = button('Do not replay them', () => { confirming = null; clear(replayBox); opener.focus(); });
         fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay these dates'}},
             el('p', null, el('strong', null, 'The ledger holds ' + plural(inDates.length, 'run', 'runs') + ' in these UTC days'),
                 FILTERS.some(([name]) => name !== 'from' && name !== 'to' && lastQuery.get(name))
