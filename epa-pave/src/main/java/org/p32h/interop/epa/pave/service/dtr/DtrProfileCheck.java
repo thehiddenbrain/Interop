@@ -90,8 +90,9 @@ final class DtrProfileCheck {
                     + "stated one. This tool does not assume one."));
         }
         if (!response.has("subject")) {
-            gaps.add(new Gap("QuestionnaireResponse.subject", QR_PROFILE + " requires a subject. It names the member by the Patient of "
-                    + "the case, and the request names no member."));
+            gaps.add(new Gap("QuestionnaireResponse.subject", QR_PROFILE + " requires a subject. " + (builtHere
+                    ? "It names the member by the Patient of the case, and the request names no member."
+                    : "The response this step started from names none, and the request names no member to name.")));
         }
         if (QuestionnaireJson.responseItems(response).isEmpty()) {
             gaps.add(new Gap("QuestionnaireResponse.item", QR_PROFILE + " requires at least one item, and this response has none"
@@ -228,10 +229,10 @@ final class DtrProfileCheck {
         return new Finding(FindingKind.REQUEST_INCOMPLETE,
                 (sent ? "The request left out " : "The response left out ") + count(gaps.size(), "element") + " DTR 2.0.1 requires",
                 (sent ? "This tool sent the request without " : "This tool put the response together without ") + what
-                        + ", because nothing supplied " + (gaps.size() == 1 ? "it" : "them") + "." + (sent ? "" : " PAS sends the response as it is.")
+                        + "." + (sent ? "" : " PAS sends the response as it is.")
                         + " A refusal by the service that names " + (gaps.size() == 1 ? "it" : "one of them")
                         + " is about what was sent, not a fault of the service. The notes " + (sent ? "beside the request" : "with the response")
-                        + " say what would supply each.",
+                        + " say why each was left out and what would supply it.",
                 "DTR 2.0.1", null, null);
     }
 

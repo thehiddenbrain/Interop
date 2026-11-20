@@ -212,7 +212,7 @@ class DtrRequestBuilderTest {
                 .anySatisfy(note -> assertThat(note).isEqualTo("The questionnaire was copied into the QuestionnaireResponse and shaped to "
                         + "the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): its url was taken off, because the profile "
                         + "allows none; derivedFrom was set to https://example.org/p32h-placeholder/Questionnaire/no-id."));
-        // What the response cannot carry because nothing supplied it is listed as gaps, each naming DTR 2.0.1.
+        // What the response leaves out that DTR 2.0.1 requires is listed as gaps, each naming the profile.
         assertThat(first.gaps()).extracting(DtrProfileCheck.Gap::element).containsExactly("QuestionnaireResponse.extension:context",
                 "QuestionnaireResponse.extension:intendedUse", "QuestionnaireResponse.item", "Questionnaire.title", "Questionnaire.text");
         // The member is named by the local id of the Patient resource, never by the member ID.
