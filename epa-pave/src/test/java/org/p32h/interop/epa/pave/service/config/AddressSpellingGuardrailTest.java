@@ -196,4 +196,33 @@ class AddressSpellingGuardrailTest {
             assertThat(own.url().value()).as(profile).isEqualTo("http://127.0.0.1:0018742/pa/fhir/Claim/$submit");
         }
     }
+
+    @Test
+    void anEnvironmentOnTheServerOfAProductionOneUnderAnotherBasePathIsWarnedAboutWhereverItIsListed() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).allowProdWrites().build();
+            fixture.environmentOf("Audit Live A", EnvironmentKind.PROD, "baseUrl", PROD_A);
+            ConfigStore.EnvironmentUpload quiet = fixture.store.uploadEnvironment("q.json", environment("Quiet Env",
+                    "http://127.0.0.1:18742/prod/fhir"), EnvironmentKind.UAT, true);
+            String warning = "This environment is on the same server, by scheme, host and port, as the production environment "
+                    + "\"Audit Live A\", under another base path. This tool treats it as uat because the base path differs, and sends "
+                    + "writes to it without an unlock. If that server routes this path to production, upload this environment with the "
+                    + "kind prod.";
+            assertThat(quiet.warnings()).as(profile).contains(warning);
+            assertThat(fixture.service.environments().environments()).as(profile)
+                    .filteredOn(view -> view.name().equals("Quiet Env")).singleElement()
+                    .satisfies(view -> assertThat(view.addressWarnings()).containsExactly(warning));
+            assertThat(fixture.service.activate("Quiet Env", null).addressWarnings()).as(profile).containsExactly(warning);
+            // Production itself, and an environment on another server, carry no such warning.
+            assertThat(fixture.service.environments().environments()).as(profile)
+                    .filteredOn(view -> !view.name().equals("Quiet Env")).allSatisfy(view -> assertThat(view.addressWarnings()).isEmpty());
+            // A production environment uploaded after the sandbox is named too, once it is stored.
+            ConfigFixture later = on(profile).allowProdWrites().build();
+            later.environmentOf("Early Sandbox", EnvironmentKind.SANDBOX, "baseUrl", "http://127.0.0.1:18742/sbx/fhir");
+            later.environmentOf("Audit Live A", EnvironmentKind.PROD, "baseUrl", PROD_A);
+            assertThat(later.service.environments().environments()).as(profile)
+                    .filteredOn(view -> view.name().equals("Early Sandbox")).singleElement()
+                    .satisfies(view -> assertThat(view.addressWarnings()).hasSize(1));
+        }
+    }
 }
