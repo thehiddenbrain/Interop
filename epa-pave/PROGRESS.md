@@ -409,7 +409,7 @@ source). What is still wrong, or not seen:
   in the path form ends as a bare 400 (the query form works, D-189).
 **The README and the pull request draft.** The last pass over both (D-250) brought them up to
 `e1d37dc`, checking every sentence that quotes the screen or the API on the running tool, and is merged.
-Its lines for the four closing tasks were settled on this revision from the source and the reports of
+Its lines for the four closing tasks were settled on `428eff5` from the source and the reports of
 the fixes, without starting the tool again (D-259). The draft's attribution footer holds a non-ASCII
 character and names the generating tool, which conflicts with the house style and the rule against
 naming a tool as an author; which wins is undecided (D-209). Not checked by anyone: `run.sh` refusing a
@@ -535,7 +535,7 @@ DTR step can produce each fault outcome a suite file may expect of it.
 State is one of: fixed (verified means a second agent attacked the fix and it held, or what it found
 was then fixed), fixed and not yet verified by another agent, fixed in another form, partly fixed,
 not fixed, refuted, decided otherwise, left as a known limit. "Fixed by a closing task" means one of
-the four tasks merged in this revision fixed it (D-253 to D-256) and nobody but its author has
+the four closing tasks fixed it (D-253 to D-256) and nobody but its author has
 checked that fix before the last check examined it (D-260; its verdict is in the first table).
 "Open" means it is listed above as not done.
 
@@ -708,8 +708,8 @@ clone held. 1 blocker, 5 majors, 10 minors.
 | F-TOKEN-BASIC | major | The token request uses HTTP Basic and no document says so | Recorded as a decision; the README's open items say so | Fixed by the last README pass | D-233, D-250 |
 | F-MOCK-500-HEADING | major | On mock a played 500 is headed and actioned as a fault in the environment | Every played fault headed as played, its action says nothing left the machine | Partly fixed by a closing task, seen on the jar by its author; the next step still says to check the environment (open) | D-254, D-257 |
 | F-SALT | major | The salt reverses member tokens and is not called a secret | Recorded as a decision; the README says so | Fixed by the last README pass | D-234, D-250 |
-| F-PR-ASSUMPTIONS | major | The draft's assumptions stop at D-201 and give titles only | One line per entry | Fixed by the last draft pass; carried to the last entry on `428eff5` | D-250, D-259 |
-| F-BEHIND | major | The README, `PROGRESS.md`, D-212, D-226 and the draft lag the merged work | All four brought up to `e1d37dc`, then to `428eff5` | Fixed by these records and the last README pass | D-229 to D-259 |
+| F-PR-ASSUMPTIONS | major | The draft's assumptions stop at D-201 and give titles only | One line per entry | Fixed by the last draft pass; carried to the last entry at each pass since | D-250, D-259 |
+| F-BEHIND | major | The README, `PROGRESS.md`, D-212, D-226 and the draft lag the merged work | All four brought up to `e1d37dc`, then to `428eff5`, then to `902e0d9` | Fixed by these records and the last README pass | D-229 to D-259 |
 | F-PROG-V5 | minor | `PROGRESS.md` said V5 found nothing, leaving out its seven minors | Every V5 finding is in the table above | Fixed by this pass | |
 | F-PR-MUT-SCOPE | minor | The draft overstates how the V2 fix's tests were proven | Reworded | Fixed by the last draft pass | D-250 |
 | F-PR-M3 | minor | The draft's list of fixes never run against the old code leaves out m3 | Added | Fixed by the last draft pass | D-250 |
