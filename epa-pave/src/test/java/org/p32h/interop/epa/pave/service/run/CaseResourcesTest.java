@@ -216,7 +216,7 @@ class CaseResourcesTest {
         Map<String, String> sent = new java.util.LinkedHashMap<>();
         for (String code : new String[] {"95810", "E0601", "70553", "G0299", "J1745"}) {
             // As it goes into an order and into a claim item: the coding of a CodeableConcept.
-            JsonNode coding = resources.codeableConcept(CodeInput.of(code), "Medicare", notes).get("coding").get(0);
+            JsonNode coding = resources.codeableConcept(CodeInput.of(code), "Medicare", notes, HCPCS).get("coding").get(0);
             assertThat(coding.get("code").stringValue()).isEqualTo(code);
             sent.put(code, coding.get("system").stringValue());
         }

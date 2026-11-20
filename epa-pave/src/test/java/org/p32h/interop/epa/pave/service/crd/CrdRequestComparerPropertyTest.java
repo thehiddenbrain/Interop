@@ -346,6 +346,12 @@ class CrdRequestComparerPropertyTest {
                 }
                 String described = leaf.pointer() + " " + how;
                 RequestComparison answer = compare(CrdRunRequest.builder().rawBody(pasted).build());
+                if (how == Change.CHANGED && leaf.pointer().equals("/fhirAuthorization/access_token")) {
+                    // A credential is shown as the mask of its place whatever it holds, so another value reads the same.
+                    assertThat(said(answer)).as(described + " is hidden behind the same mask").isEqualTo(before);
+                    checked++;
+                    continue;
+                }
                 assertThat(said(answer)).as(described + " leaves a trace outside the text").isNotEqualTo(before);
                 if (answer.comparable() && how.inPlace()) {
                     assertThat(marked(answer, leaf.pointer()) || readFrom(answer, leaf.pointer()) != null)

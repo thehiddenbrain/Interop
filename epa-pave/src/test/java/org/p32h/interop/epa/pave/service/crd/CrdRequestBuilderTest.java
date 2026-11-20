@@ -295,13 +295,6 @@ class CrdRequestBuilderTest {
         assertThat(entries.at("/1/resource/authoredOn").asString()).isEqualTo("2026-03-18T14:05:09Z");
         assertThat(built.notes()).containsOnlyOnce("Each order was sent with authoredOn 2026-03-18T14:05:09Z, the moment this request was "
                 + "built: CRD 2.0.1 profile-servicerequest requires authoredOn, and nobody supplies it.");
-        // The same order DTR sends through the shared builder carries it too.
-        List<String> notes = new java.util.ArrayList<>();
-        JsonNode order = new CaseResources(null, CLOCK).serviceRequest("service-request-1", CodeInput.of("E0601"),
-                MemberDetail.builder().memberId("S123456789").build(), null, notes);
-        assertThat(order.get("authoredOn").asString()).isEqualTo("2026-03-18T14:05:09Z");
-        assertThat(order.at("/code/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS_CRD_201);
-        assertThat(notes).contains(CaseResources.authoredOnNote("2026-03-18T14:05:09Z"));
     }
 
     @Test
@@ -321,9 +314,6 @@ class CrdRequestBuilderTest {
         CrdRequestBuilder.Built cptOnly = new CrdRequestBuilder(null, CLOCK).build(request().procedureCodes(List.of(CodeInput.of("95810")))
                 .build(), "h", NOTHING_SET);
         assertThat(cptOnly.notes()).noneMatch(n -> n.contains("HCPCS"));
-        // The claim path keeps its own address: PAS sets the HCPCS system of a claim item for itself.
-        assertThat(new CaseResources(null).codeableConcept(CodeInput.of("E0601"), null, new java.util.ArrayList<>())
-                .at("/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS);
     }
 
     @Test
@@ -407,6 +397,9 @@ class CrdRequestBuilderTest {
         org.p32h.interop.epa.pave.model.Finding finding = CrdService.incompleteRequest(built.incomplete());
         assertThat(finding.kind()).isEqualTo(org.p32h.interop.epa.pave.model.FindingKind.REQUEST_INCOMPLETE);
         assertThat(finding.title()).isEqualTo("The request was sent without 6 elements CRD 2.0.1 requires");
+        // With no answer, nothing is known to have arrived: the request was built without them.
+        assertThat(CrdService.incompleteRequest(built.incomplete(), false).title()).isEqualTo("The request was built without 6 elements CRD 2.0.1 "
+                + "requires");
         assertThat(finding.detail()).startsWith("Nobody supplied them, and this tool does not invent values. A service that validates "
                 + "against CRD 2.0.1 may refuse the request for this, which is then not a fault of the service. Left out: "
                 + "Patient.identifier.system (the member ID) (CRD 2.0.1 profile-patient), supplied by the variable memberIdSystem; ");

@@ -225,7 +225,7 @@ class PasScenarioFilesTest {
                             + "answer for an inquiry. Use a member ID whose scenario answers an inquiry, or choose a scenario.");
                 }));
         // A CRD sentinel that selects the PAS scenario for the same case is not that scenario's sentinel, and is not called one.
-        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-ERR500", "P32H-TIMEOUT", "P32H-BAD400")) {
+        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-BAD400")) {
             assertThatThrownBy(() -> inquire(null, crd, body)).as(crd).isInstanceOfSatisfying(ValidationException.class,
                     e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
                         assertThat(error.field()).isEqualTo("member.memberId");
@@ -358,11 +358,27 @@ class PasScenarioFilesTest {
     }
 
     @Test
+    void aCreateAndAnUpdateAreAnsweredWithTheAddressToCallBackTheRequestSentAndNeverWithTheScenariosOwn() {
+        String sent = "{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":"
+                + "\"https://pave.example.invalid/api/pas/notifications/sent-by-this-request\"}}";
+        VendorExchange created = subscriptions.create(TestPreparedCalls.unconfigured(EpaOperation.SUBSCRIPTION_CREATE),
+                ResolvedText.plain(sent), about(null, null));
+        assertThat(created.json().at("/channel/endpoint").asString()).isEqualTo("https://pave.example.invalid/api/pas/notifications/sent-by-this-request");
+        assertThat(created.scenarioNote()).endsWith("names the address to call back that the request sent");
+        VendorExchange updated = subscriptions.update(TestPreparedCalls.unconfigured(EpaOperation.SUBSCRIPTION_UPDATE),
+                ResolvedText.plain(sent), about(null, "subscription-placeholder-0001"));
+        assertThat(updated.json().at("/channel/endpoint").asString()).isEqualTo("https://pave.example.invalid/api/pas/notifications/sent-by-this-request");
+    }
+
+    @Test
     void aSubscriptionCallWithNoChosenScenarioIsAnsweredByTheFirstThatDefinesItsStepAndSaysSo() {
         VendorExchange created = subscriptions.create(TestPreparedCalls.unconfigured(EpaOperation.SUBSCRIPTION_CREATE),
                 ResolvedText.plain("{\"resourceType\":\"Subscription\"}"), about(null, null));
         assertThat(created.scenarioId()).isEqualTo("pas-10-subscription-lifecycle");
-        assertThat(created.scenarioNote()).isEqualTo("the default for a subscription call, because no scenario was chosen");
+        assertThat(created.scenarioNote()).isEqualTo("the default for a subscription call, because no scenario was chosen. The subscription "
+                + "it answers with names no address to call back, because the request named none");
+        // The scenario's own address is not answered for a request that named none.
+        assertThat(created.json().get("channel").has("endpoint")).isFalse();
         assertThat(created.httpStatus()).isEqualTo(201);
         assertThat(created.json().get("id").asString()).isEqualTo("subscription-placeholder-0001");
         assertThat(created.request().note()).contains("step \"subscription-create\"");

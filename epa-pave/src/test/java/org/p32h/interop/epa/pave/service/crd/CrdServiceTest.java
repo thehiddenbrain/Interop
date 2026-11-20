@@ -516,6 +516,12 @@ class CrdServiceTest {
     }
 
     @Test
+    void aTimeoutFromAServiceIsNotSaidToBeSimulated() {
+        assertThat(service(stub(TestExchanges.timeout(EpaOperation.CRD_ORDER_SIGN)), "mock", Map.of()).run(request("S123456789").build(),
+                RunOrigin.manual(), null).verdict().supporting()).noneMatch(line -> line.contains("simulated"));
+    }
+
+    @Test
     void theFourKindsOfFaultAreDistinguishedInTheErrorPanel() {
         assertThat(run("P32H-BAD400").error().kind()).isEqualTo(ErrorKind.VENDOR_REJECTED);
         assertThat(run("P32H-ERR500").error().kind()).isEqualTo(ErrorKind.VENDOR_ERROR);
@@ -523,6 +529,9 @@ class CrdServiceTest {
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.error().httpStatus()).isNull();
         assertThat(timeout.verdict().headline()).isEqualTo("The service did not answer in time.");
+        // On mock the timeout is a scenario's short delay, and the result says so beside its response time (frame review FR-16).
+        assertThat(timeout.verdict().supporting()).anySatisfy(line -> assertThat(line).contains(org.p32h.interop.epa.pave.model.VendorExchange
+                .SIMULATED_TIMEOUT));
         OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
         RunEnvelope<CrdDetail> down = service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
         assertThat(down.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);

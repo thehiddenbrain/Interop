@@ -40,6 +40,11 @@ public enum DifferenceGroup {
         return description;
     }
 
+    /** Whether a screen opens this group at first: every group but the one whose differences are there by design on every call. */
+    public boolean startsOpen() {
+        return this != EVERY_CALL;
+    }
+
     /** How a count of this group reads inside the headline, for example "2 in labels". */
     public String counted(int count) {
         return count + " " + (count == 1 ? one : several);

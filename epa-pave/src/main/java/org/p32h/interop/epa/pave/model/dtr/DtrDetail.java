@@ -14,7 +14,9 @@ import java.util.List;
  * that nothing was sent.
  *
  * @param responseKind           what kind of thing came back
- * @param responseNote           one plain sentence about it, or null when it needs none
+ * @param responseNote           one plain sentence about it. Set for every response kind: when the
+ *                               reading had nothing more particular to say, it is the kind's own
+ *                               sentence, so a screen keeps no copy of the words for the kinds
  * @param kindRule               the rule by which a questionnaire is called adaptive or static, in
  *                               plain words. Null when the result holds no questionnaire
  * @param requested              the questionnaires the request asked for by canonical url. Empty
@@ -48,6 +50,7 @@ public record DtrDetail(
         boolean sent) {
 
     public DtrDetail {
+        responseNote = responseNote == null && responseKind != null ? responseKind.note() : responseNote;
         requested = requested == null ? List.of() : List.copyOf(requested);
         notReturned = notReturned == null ? List.of() : List.copyOf(notReturned);
         bundles = bundles == null ? List.of() : List.copyOf(bundles);

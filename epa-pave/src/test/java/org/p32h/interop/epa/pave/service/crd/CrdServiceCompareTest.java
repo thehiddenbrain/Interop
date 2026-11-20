@@ -229,7 +229,8 @@ class CrdServiceCompareTest {
 
         assertThat(output.getAll()).doesNotContain("Sample-Member").doesNotContain("Form-Surname").doesNotContain("S123456789")
                 .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain(NPI).doesNotContain("Robin").doesNotContain("pat-8842")
-                .doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street");
+                .doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street")
+                .doesNotContain("placeholder-token-for-a-test-fixture");
         assertNothingWasSentOrRecorded();
     }
 }

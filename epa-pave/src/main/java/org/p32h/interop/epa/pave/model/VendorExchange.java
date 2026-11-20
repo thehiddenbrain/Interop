@@ -133,10 +133,22 @@ public record VendorExchange(
                 failureType, failureDetail, merged, scenarioId, scenarioNote, bodyNotes, reached);
     }
 
-    /** The same exchange marked with the mock scenario that produced it and how it was chosen. */
+    /** Said of a timeout a mock scenario answered, beside its response time, which is the scenario's delay and not a read timeout. */
+    public static final String SIMULATED_TIMEOUT = "On mock the timeout is simulated: the scenario reports it after its own short delay "
+            + "and does not wait for the read timeout, so the response time shown is that delay.";
+
+    /**
+     * The same exchange marked with the mock scenario that produced it and how it was chosen. A
+     * timeout a scenario answered also says it was simulated: "no response inside the read timeout"
+     * beside a response time of a few hundred milliseconds read as a contradiction.
+     */
     public VendorExchange withScenario(String id, String note) {
+        String detail = failureDetail;
+        if (failureType == OnyxFailureType.TIMEOUT && Texts.present(id) && (detail == null || !detail.contains(SIMULATED_TIMEOUT))) {
+            detail = Texts.present(detail) ? detail.strip() + " " + SIMULATED_TIMEOUT : SIMULATED_TIMEOUT;
+        }
         return new VendorExchange(request, httpStatus, responseHeaders, responseBody, responseBytes, json, parseError, elapsedMillis,
-                failureType, failureDetail, signals, id, note, bodyNotes, reached);
+                failureType, detail, signals, id, note, bodyNotes, reached);
     }
 
     /** The same exchange with the parsed body replaced, for a client that normalises a vendor shape. */
@@ -160,8 +172,10 @@ public record VendorExchange(
      * authorization number this tool reads can hold a secret of the request without the service
      * having copied it there, and then the mask is what may be shown and kept.
      *
-     * <p>Strings and property names are searched. A secret written as a JSON number is not found,
-     * as the wire view would not find one written in any form other than its characters. Two
+     * <p>Strings, numbers and property names are searched. A number is searched as it is written,
+     * which is how the wire view finds it in the text of the body, and one that repeats a secret is
+     * shown as the masked text, no longer a number. A secret in any form other than its characters
+     * is found by neither. Two
      * property names that differ only in a secret would mask to the same name: the second is kept
      * beside the first, under the name with " (again)" after it, so nothing is lost.
      *
@@ -204,6 +218,13 @@ public record VendorExchange(
         }
         if (node.isString()) {
             SentSecrets.Masked value = secrets.mask(node.stringValue());
+            if (value.places() > 0) {
+                places[0] += value.places();
+                return factory.stringNode(value.text());
+            }
+        }
+        if (node.isNumber()) {
+            SentSecrets.Masked value = secrets.mask(node.toString());
             if (value.places() > 0) {
                 places[0] += value.places();
                 return factory.stringNode(value.text());

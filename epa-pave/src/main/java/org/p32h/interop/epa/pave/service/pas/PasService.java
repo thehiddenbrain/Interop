@@ -33,6 +33,7 @@ import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunRequest;
@@ -120,9 +121,10 @@ public class PasService {
                         + "added to the body you supplied. Only what the body itself holds was sent.");
             }
         } else {
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
-                    "urn:uuid:" + UUID.randomUUID(), call::resolve);
-            body = ResolvedText.plain(built.json());
+                    "urn:uuid:" + UUID.randomUUID(), reads);
+            body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
             attachmentMode = built.attachmentMode();
@@ -170,9 +172,10 @@ public class PasService {
         } else {
             String claimId = claimId(request, false);
             Codes codes = inquiryCodes(request, claimId);
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
-                    call::resolve);
-            body = ResolvedText.plain(built.json());
+                    reads);
+            body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
             leftOut = built.leftOut();
@@ -313,9 +316,10 @@ public class PasService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown);
         }
+        CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
-                NEW_ID, call::resolve);
-        return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
+                NEW_ID, reads);
+        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
     /** What the inquiry would be, without sending it. Nothing is recorded. */
@@ -334,8 +338,9 @@ public class PasService {
         }
         String claimId = claimId(request, false);
         Codes codes = inquiryCodes(request, claimId);
-        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, call::resolve);
-        return RequestPreview.of(operation, call, built.json(), built.notes(), shown);
+        CaseResources.Reads reads = CaseResources.reading(call::resolve);
+        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads);
+        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
     private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, RunRequest request, MemberIdForms shown) {

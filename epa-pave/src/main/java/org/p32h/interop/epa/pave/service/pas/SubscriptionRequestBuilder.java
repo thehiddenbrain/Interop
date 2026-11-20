@@ -104,21 +104,21 @@ public final class SubscriptionRequestBuilder {
         subscription.put("status", chosen(variables, VAR_STATUS, OnyxPasConventions.REQUESTED,
                 "status", "which is what a client asks for and leaves the service to activate",
                 "PAS 2.0.1 has no Subscription profile; the PAS 2.2.0 ballot fixes the status to active.", notes));
-        String end = CaseResources.value(variables, VAR_END);
+        String end = stated(variables, VAR_END, "end", notes);
         if (end != null) {
             subscription.put("end", end);
         }
         subscription.put("reason", chosen(variables, VAR_REASON, OnyxPasConventions.DEFAULT_SUBSCRIPTION_REASON,
                 "reason", "which is this tool's own wording", null, notes));
 
-        String topic = CaseResources.value(variables, VAR_TOPIC);
+        String topic = stated(variables, VAR_TOPIC, "subscription topic", notes);
         if (topic == null) {
             topic = OnyxPasConventions.PAS_TOPIC;
             notes.add("The subscription topic was set to " + topic + ", the topic PAS 2.0.1 defines for a prior authorization result. "
                     + "Set the variable " + VAR_TOPIC + " to send another.");
         }
         subscription.put("criteria", topic);
-        String filter = CaseResources.value(variables, VAR_FILTER);
+        String filter = stated(variables, VAR_FILTER, "filter", notes);
         if (filter == null) {
             String organization = CaseResources.value(variables, VAR_ORG_IDENTIFIER);
             if (organization != null) {
@@ -144,6 +144,8 @@ public final class SubscriptionRequestBuilder {
         ObjectNode channel = subscription.putObject("channel");
         String heartbeat = CaseResources.value(variables, VAR_HEARTBEAT_SECONDS);
         if (heartbeat != null && heartbeat.matches("\\d{1,9}")) {
+            // Noted only once it is sent: a value that is not a number of seconds has its own note.
+            stated(variables, VAR_HEARTBEAT_SECONDS, "heartbeat period in seconds", notes);
             channel.putArray("extension").addObject().put("url", OnyxPasConventions.HEARTBEAT_PERIOD).put("valueUnsignedInt", Integer.parseInt(heartbeat));
         } else if (heartbeat != null) {
             notes.add("No heartbeat period was sent: the variable " + VAR_HEARTBEAT_SECONDS + " does not hold a whole number of seconds.");
@@ -273,6 +275,34 @@ public final class SubscriptionRequestBuilder {
     }
 
     /**
+     * The value of a variable the subscription is built from, with a note saying where it came from
+     * when it was stated (typed for this run, the active environment, the collection), as a default
+     * is noted, so a tester can tell a value they gave from one the tool chose. A secret value is
+     * named by its variable and never quoted. Null, and no note, when no layer states it.
+     */
+    private static String stated(Function<String, ResolvedText> variables, String variable, String what, List<String> notes) {
+        ResolvedText resolved = variables == null ? null : variables.apply("{{" + variable + "}}");
+        String value = resolved != null && resolved.resolved() ? Texts.trimToNull(resolved.value()) : null;
+        if (value == null) {
+            return null;
+        }
+        org.p32h.interop.epa.pave.model.VariableUse use = resolved.variables().stream().filter(one -> variable.equals(one.name())).findFirst()
+                .orElse(null);
+        String from = use == null || use.source() == null ? "" : switch (use.source()) {
+            case RUN_VALUE -> ", typed for this run";
+            case ENVIRONMENT -> ", in the active environment";
+            case COLLECTION -> ", defined on the collection";
+            case APPLICATION_YML -> ", in application.yml";
+            case OPERATING_SYSTEM -> ", read from an operating system variable";
+            case GENERATED -> ", made up by the tool for this call";
+            case UNRESOLVED -> "";
+        };
+        notes.add("The " + what + " was set to " + (use != null && use.secret() ? "the value of the secret variable " + variable : value)
+                + ", from the variable " + variable + from + ".");
+        return value;
+    }
+
+    /**
      * A value the resource cannot go without and the tester may state as a variable. When they have
      * not, the tool's own default is sent and the note says so, because a default nobody is told
      * about is a guess.
@@ -281,7 +311,7 @@ public final class SubscriptionRequestBuilder {
      */
     private static String chosen(Function<String, ResolvedText> variables, String variable, String fallback, String what, String why,
                                  String versions, List<String> notes) {
-        String stated = CaseResources.value(variables, variable);
+        String stated = stated(variables, variable, what, notes);
         if (stated != null) {
             return stated;
         }

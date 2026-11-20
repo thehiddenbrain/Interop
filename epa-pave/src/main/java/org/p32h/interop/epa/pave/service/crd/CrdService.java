@@ -129,8 +129,9 @@ public class CrdService {
                 unreadableOnMock = epa.mock();
             }
         } else {
-            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), call::resolve);
-            body = ResolvedText.plain(built.json());
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads);
+            body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
             incomplete = built.incomplete();
@@ -220,14 +221,14 @@ public class CrdService {
 
         List<Finding> findings = new ArrayList<>(conformance.check(reading, exchange,
                 request.member() == null ? null : request.member().lineOfBusiness(), IsoDates.parse(request.dateOfService())));
-        addIfPresent(findings, incompleteRequest(incomplete));
+        addIfPresent(findings, incompleteRequest(incomplete, exchange.httpStatus() != null));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
-        VerdictView verdict = CrdVerdicts.verdict(reading, exchange);
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = followedFrom(CrdVerdicts.nextStep(reading, exchange), runId);
+        VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
@@ -279,8 +280,9 @@ public class CrdService {
         } else {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
-            CrdRequestBuilder.Built built = builder.build(request, hookInstance, call::resolve);
-            body = built.json();
+            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads);
+            body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");
         }
@@ -379,12 +381,21 @@ public class CrdService {
      * is not read as a fault of the service.
      */
     static Finding incompleteRequest(List<CaseResources.Required> incomplete) {
+        return incompleteRequest(incomplete, true);
+    }
+
+    /**
+     * @param answered true when an answer arrived. With none (a timeout, a service that could not
+     *                 be reached) nothing is known to have arrived, so the request is said to have
+     *                 been built without the elements, never sent without them
+     */
+    static Finding incompleteRequest(List<CaseResources.Required> incomplete, boolean answered) {
         if (incomplete == null || incomplete.isEmpty()) {
             return null;
         }
         int count = incomplete.size();
         return new Finding(FindingKind.REQUEST_INCOMPLETE,
-                "The request was sent without " + count + (count == 1 ? " element " : " elements ") + CaseResources.CRD_VERSION
+                (answered ? "The request was sent without " : "The request was built without ") + count + (count == 1 ? " element " : " elements ") + CaseResources.CRD_VERSION
                         + " requires",
                 "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not invent values. A service that validates "
                         + "against " + CaseResources.CRD_VERSION + " may refuse the request for this, which is then not a fault of the "

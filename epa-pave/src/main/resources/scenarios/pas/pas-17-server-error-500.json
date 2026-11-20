@@ -2,7 +2,7 @@
   "id": "pas-17-server-error-500",
   "number": 17,
   "label": "The service fails with HTTP 500",
-  "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome, which PAS 2.0.1 allows in place of a bundle. The CRD sentinel P32H-ERR500 selects it too.",
+  "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome, which PAS 2.0.1 allows in place of a bundle. The CRD sentinel P32H-ERR500 selects it too. An inquiry with the same member, which its next step asks for first, finds the submission: the service received it and pended it.",
   "sentinelMemberId": "P32H-PAS-ERR500",
   "behavior": "respond",
   "httpStatus": 500,
@@ -12,7 +12,7 @@
     "errorType": "SERVER_ERROR",
     "httpStatus": 500
   },
-  "basis": "Synthetic. An OperationOutcome, which PAS 2.0.1 lets the $submit and $inquire operations return in place of a bundle (input/fsh/ClaimOperation.fsh of the guide's 2.0.1 source). Its wording and the element it names are this project's. It has not been observed from the live service.",
+  "basis": "Synthetic. The submission is answered with an OperationOutcome, which PAS 2.0.1 lets the $submit and $inquire operations return in place of a bundle (input/fsh/ClaimOperation.fsh of the guide's 2.0.1 source). Its wording and the element it names are this project's. It has not been observed from the live service. The answer to an inquiry is in the shape PAS 2.0.1 gives, with each decision in a review action on item.adjudication (the same shape as scenario 5), so that the next step of a submission answered with a server error can be followed on mock.",
   "response": {
     "resourceType": "OperationOutcome",
     "issue": [
@@ -25,5 +25,110 @@
         "diagnostics": "An unexpected condition prevented the request from being processed."
       }
     ]
+  },
+  "steps": {
+    "inquire": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "PENDED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "review-action": "A4",
+          "claim-outcome": "queued"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "pas-response-bundle",
+        "type": "collection",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+            "resource": {
+              "resourceType": "ClaimResponse",
+              "id": "claimresponse-{{claimId}}",
+              "identifier": [
+                {
+                  "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+                  "value": "{{claimId}}"
+                }
+              ],
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                    "code": "professional"
+                  }
+                ]
+              },
+              "use": "preauthorization",
+              "patient": {
+                "reference": "Patient/patient-1"
+              },
+              "created": "2026-01-15T10:00:00Z",
+              "insurer": {
+                "reference": "Organization/organization-insurer-1"
+              },
+              "requestor": {
+                "reference": "PractitionerRole/practitioner-role-1"
+              },
+              "request": {
+                "reference": "Claim/claim-1"
+              },
+              "outcome": "queued",
+              "disposition": "Pended for clinical review. The submission arrived although the service answered it with an error.",
+              "item": [
+                {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                      "valueIdentifier": {
+                        "value": "{{claimId}}-1"
+                      }
+                    }
+                  ],
+                  "itemSequence": 1,
+                  "adjudication": [
+                    {
+                      "extension": [
+                        {
+                          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewAction",
+                          "extension": [
+                            {
+                              "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewActionCode",
+                              "valueCodeableConcept": {
+                                "coding": [
+                                  {
+                                    "system": "https://codesystem.x12.org/005010/306",
+                                    "code": "A4",
+                                    "display": "Pended"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "category": {
+                        "coding": [
+                          {
+                            "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                            "code": "submitted"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
   }
 }

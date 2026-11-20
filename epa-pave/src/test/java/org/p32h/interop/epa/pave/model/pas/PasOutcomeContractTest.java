@@ -58,7 +58,7 @@ class PasOutcomeContractTest {
     @Test
     void notFoundIsAFindingAboutDataAndAFaultIsAFindingAboutTheEnvironment() {
         for (OutcomeCode notFound : List.of(PasOutcome.MEMBER_NOT_FOUND, PasOutcome.PROVIDER_NOT_FOUND,
-                PasOutcome.AUTHORIZATION_NOT_FOUND, SubscriptionOutcome.NOT_FOUND, NotificationOutcome.UNMATCHED_NOTIFICATION)) {
+                PasOutcome.AUTHORIZATION_NOT_FOUND, SubscriptionOutcome.NOT_FOUND)) {
             assertThat(notFound.tone()).as(notFound.name()).isEqualTo(Tone.DATA);
             assertThat(notFound.fault()).as(notFound.name()).isFalse();
         }
@@ -120,7 +120,9 @@ class PasOutcomeContractTest {
     void aSubscriptionNobodyHereCreatedAndALedgerThatCouldNotBeAskedAreNeverTheSameOutcome() {
         // The first is a finding about who created a subscription. The second is one about this
         // installation, and reporting it as the first would send a tester looking for another client.
-        assertThat(NotificationOutcome.UNMATCHED_NOTIFICATION.tone()).isEqualTo(Tone.DATA);
+        // Neither is about the member or the provider, which is what the tone for test data means in the colour key.
+        assertThat(NotificationOutcome.UNMATCHED_NOTIFICATION.tone()).isEqualTo(Tone.NEUTRAL);
+        assertThat(NotificationOutcome.UNMATCHED_NOTIFICATION.fault()).isFalse();
         assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.tone()).isEqualTo(Tone.FAULT);
         assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.fault()).isTrue();
         assertThat(NotificationOutcome.UNCHECKED_NOTIFICATION.label()).isNotEqualTo(NotificationOutcome.UNMATCHED_NOTIFICATION.label())

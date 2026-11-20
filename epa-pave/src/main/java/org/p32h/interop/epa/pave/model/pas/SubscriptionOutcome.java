@@ -12,10 +12,10 @@ import org.p32h.interop.epa.pave.model.Tone;
  */
 public enum SubscriptionOutcome implements OutcomeCode {
 
-    CREATED("The subscription was created", Tone.CLEAR, false),
+    CREATED("The subscription was created", Tone.NEUTRAL, false),
     READ("The subscription was returned", Tone.NEUTRAL, false),
     LISTED("The subscriptions were listed", Tone.NEUTRAL, false),
-    UPDATED("The subscription was updated", Tone.CLEAR, false),
+    UPDATED("The subscription was updated", Tone.NEUTRAL, false),
     DELETED("The subscription was deleted", Tone.CLEAR, false),
     NOT_FOUND("The service does not know this subscription", Tone.DATA, false),
     UNRECOGNISED_RESPONSE("The service answered with something this tool could not read as a subscription", Tone.NO_ANSWER, false),

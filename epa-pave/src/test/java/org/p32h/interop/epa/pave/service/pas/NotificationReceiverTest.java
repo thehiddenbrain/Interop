@@ -124,6 +124,41 @@ class NotificationReceiverTest {
         return submitted.ledger().record().correlation().get(RunRecord.CORR_CLAIM_RESPONSE_ID);
     }
 
+    @Test
+    void aSampleThatMatchesNoSubscriptionSaysToCreateOneAndDeliverTheSampleAgain() {
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        NotificationView sample = receiver.deliverSample(new NotificationSampleRequest(null, submitted.runId(), null));
+        assertThat(sample.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(sample.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then choose "
+                + "Deliver a sample notification again.");
+    }
+
+    // ---- a credential of the address to call back ----
+
+    @Test
+    void aNotificationThatRepeatsACredentialOfTheAddressToCallBackShowsItsMaskEverywhere() {
+        gateway.variable("receiverToken", "placeholder-receiver-token-777777");
+        NotificationReceiver masking = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios);
+        masking.callbackAddress(OnyxProperties.of(Map.of("subscription.callback-url",
+                "https://pave.example.invalid/api/pas/notifications/{{receiverToken}}?access_token=placeholder-literal-cb-888888&tenant=t1")));
+        String body = bundle(status(SUBSCRIPTION, "event-notification"), NotificationJson.claimResponse("cr-echo-1", null, "A1",
+                "\"disposition\":\"echo placeholder-literal-cb-888888 and placeholder-receiver-token-777777\""));
+        NotificationView view = masking.receive(NotificationReceiver.Inbound.of(body));
+
+        String shown = JsonSafe.mapper().writeValueAsString(view);
+        assertThat(shown).doesNotContain("placeholder-literal-cb-888888").doesNotContain("placeholder-receiver-token-777777")
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access_token"))
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("receiverToken"));
+        assertThat(view.payloadNotes()).contains("2 places in this payload are masked because they repeat a credential of the address this "
+                + "tool gives the service to call back. What is shown is therefore not exactly what was received.");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-cb")
+                .doesNotContain("placeholder-receiver-token");
+        // The receiver built without the address masks nothing, and says nothing about masking.
+        NotificationView plain = receiver.receive(NotificationReceiver.Inbound.of(body));
+        assertThat(plain.payload()).contains("placeholder-literal-cb-888888");
+        assertThat(plain.payloadNotes()).noneMatch(note -> note.contains("masked"));
+    }
+
     // ---- correlation ----
 
     @Test
@@ -262,7 +297,13 @@ class NotificationReceiverTest {
 
         assertThat(view.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
         assertThat(view.verdict().headline()).isEqualTo("A notification arrived that matches no subscription this tool created.");
-        assertThat(view.verdict().tone()).isEqualTo(Tone.DATA);
+        assertThat(view.verdict().tone()).isEqualTo(Tone.NEUTRAL);
+        // The remedy first, the other cause second, and the reason does not repeat what the correlation line says.
+        assertThat(view.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, so that the next "
+                + "notification can be matched to it.");
+        assertThat(view.nextStep().reason()).isEqualTo("If a subscription was made another way (by another client, before this ledger began, "
+                + "or by another installation of this tool), the list of subscriptions shows what the service holds.");
+        assertThat(view.nextStep().reason()).doesNotContain("No run in the ledger");
         assertThat(view.verdict().supporting()).contains("It is recorded and shown all the same. It is not dropped.", "Its type: Event notification.");
         assertThat(view.subscriptionRunId()).isNull();
         assertThat(view.correlatedRunId()).isNull();
@@ -274,9 +315,6 @@ class NotificationReceiverTest {
                 + "subscription with that id. Another client may have created it, or it was created before this ledger began, or by another "
                 + "installation of this tool. It is recorded and shown, never dropped.");
         assertThat(view.nextStep().action()).isEqualTo(NextAction.REVIEW);
-        assertThat(view.nextStep().headline()).isEqualTo("Next: find out who created the subscription it names. The list of subscriptions "
-                + "shows what the service holds.");
-        assertThat(view.nextStep().reason()).isEqualTo("No run in the ledger created a subscription with the id this notification names.");
 
         // It has its ledger line, with the kind it was kept beside the fact that it is unmatched.
         RunRecord record = ledger.last();

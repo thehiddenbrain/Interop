@@ -33,12 +33,15 @@ import java.util.Map;
  * quote an answer: an answer can be clinical, and the answer set has its own place on the result.
  *
  * <p>Every DTR result also says which operation it exercised and that no SMART launch was
- * involved. This tool drives the server-side operations behind a provider-facing launch, and a
- * tester must not come away believing they exercised the launch.
+ * involved ({@link #scope}). This tool drives the server-side operations behind a provider-facing
+ * launch, and a tester must not come away believing they exercised the launch. The sentence closes
+ * the notes on how the request or the response was made, not the verdict: the verdict keeps to the
+ * answer (how many questions, what is asked, what is required and unanswered), and the notes on
+ * information origin and authorship stay with the form and the findings, where an analyst reads them.
  */
 public final class DtrVerdicts {
 
-    /** Under every result of a step that was completed inside the tool. */
+    /** First under every result of a step that was completed inside the tool: where the response came from is part of the answer. */
     static final String NOTHING_SENT = "Nothing was sent to the service for this step. The response was put together inside this tool.";
 
     private static final String NOT_A_LAUNCH = " operation behind a provider-facing SMART launch, not the launch itself, which this tool "
@@ -165,16 +168,17 @@ public final class DtrVerdicts {
         if (form != null) {
             supporting.addAll(formLines(form));
         }
-        for (QuestionnaireView questionnaire : questionnaires) {
-            if (!questionnaire.notApplied().isEmpty()) {
-                int rules = questionnaire.notApplied().size();
-                supporting.add(questionnaire.subject() + ": this tool evaluates enableWhen and nothing else, and does not apply "
-                        + (rules == 1 ? "a rule" : rules + " kinds of rule") + " this questionnaire carries. "
-                        + (rules == 1 ? "It is" : "Each is") + " named with the questionnaire, with what not applying it means.");
-            }
-        }
-        supporting.add(scope(operation));
         return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
+    }
+
+    /**
+     * The name of the action a next step asks for, as the action's own label gives it, which is
+     * the name of the button on the DTR tab. A headline names the action by this and by nothing
+     * else, so one action keeps one name from the next step to the button.
+     */
+    static String button(NextAction action) {
+        String label = action.label().strip();
+        return label.endsWith(".") ? label.substring(0, label.length() - 1) : label;
     }
 
     /** One questionnaire of a package: which kind it is and why, and how much it asks. */
@@ -224,7 +228,8 @@ public final class DtrVerdicts {
         if (form.changes() != null) {
             lines.add(form.changes().summary());
         }
-        lines.addAll(form.notes());
+        // The notes (who is named as author, the information-origin marks, what the response leaves out) stay with the form in the
+        // detail and in the findings, where an analyst reads them. The strip keeps to the answer.
         return lines;
     }
 
@@ -275,7 +280,7 @@ public final class DtrVerdicts {
                     "Next: read the problems listed with this result and report them as a defect in the service.",
                     "What the service sent cannot be used as a questionnaire, so there is nothing to answer.", carry);
             case NEXT_QUESTION -> new NextStepView(NextAction.ANSWER_NEXT_QUESTION,
-                    "Next: answer what is now asked and send next-question again.",
+                    "Next: answer what is now asked, then choose " + button(NextAction.ANSWER_NEXT_QUESTION) + ".",
                     "The response is in progress and the service is waiting for an answer.", carry);
             case NO_QUESTION_RETURNED, UNRECOGNISED_STATUS -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
@@ -290,21 +295,22 @@ public final class DtrVerdicts {
                     : toPas(carry, itemless, done, itemless ? "The service completed this response without asking a question."
                     : "The response is complete without a question having been asked, so there is no documentation to collect first.");
             case RESPONSE_NOT_COMPLETE -> adaptive
-                    ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION, "Next: continue the adaptive questionnaire with next-question.",
+                    ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION, "Next: continue the adaptive questionnaire: choose " + button(NextAction.ANSWER_NEXT_QUESTION) + ".",
                     "Only the service can complete an adaptive response, and it has not reported this one as completed.", carry)
                     : notJudged(detail)
                     ? new NextStepView(NextAction.SUBMIT_RESPONSE,
-                    "Next: answer the items this tool could not judge, named with this result, and submit the response again.",
+                    "Next: answer the items this tool could not judge, named with this result, then choose " + button(NextAction.SUBMIT_RESPONSE)
+                            + ".",
                     "A rule this tool does not apply decides whether an item still needs an answer, and that item has none, so this tool "
                             + "cannot say the response is complete.", carry)
                     : new NextStepView(NextAction.REVIEW, "Next: read how this questionnaire is meant to be answered, below.",
                     "This tool cannot tell whether the questionnaire is adaptive or static, so it cannot say its response is complete.", carry);
             case REQUIRED_UNANSWERED -> adaptive
                     ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION,
-                    "Next: answer the required questions named with this result and send next-question again.",
+                    "Next: answer the required questions named with this result, then choose " + button(NextAction.ANSWER_NEXT_QUESTION) + ".",
                     "A required question that is enabled has no answer, so the response is not complete, whatever status it carries.", carry)
                     : new NextStepView(NextAction.SUBMIT_RESPONSE,
-                    "Next: answer the required questions named with this result and submit the response again.",
+                    "Next: answer the required questions named with this result, then choose " + button(NextAction.SUBMIT_RESPONSE) + ".",
                     "A required question that is enabled has no answer, so the response is not complete.", carry);
             case MEMBER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the member ID against the test data.",
                     "The service does not recognise the member. The environment answered normally.", carry);
@@ -426,15 +432,17 @@ public final class DtrVerdicts {
         boolean several = questionnaires.size() > 1;
         if (!questionnaires.isEmpty() && questionnaires.stream().allMatch(questionnaire -> questionnaire.kind() == QuestionnaireKind.ADAPTIVE)) {
             return new NextStepView(NextAction.ANSWER_NEXT_QUESTION,
-                    several ? "Next: start each adaptive questionnaire with next-question." : "Next: start the adaptive questionnaire with next-question.",
+                    (several ? "Next: start each adaptive questionnaire: choose " : "Next: start the adaptive questionnaire: choose ")
+                            + button(NextAction.ANSWER_NEXT_QUESTION) + ".",
                     "An adaptive questionnaire is asked one step at a time, so the first next-question call is sent with no answers and the "
                             + "service returns the first question.", carry);
         }
         if (!questionnaires.isEmpty() && questionnaires.stream().allMatch(questionnaire -> questionnaire.kind() == QuestionnaireKind.STATIC)) {
             return new NextStepView(NextAction.SUBMIT_RESPONSE,
-                    several ? "Next: answer each questionnaire and submit its response." : "Next: answer the questionnaire and submit the response.",
-                    "A static questionnaire carries all its items. This tool shows and hides them as the answers change, and puts the "
-                            + "response together without another call to the service.", carry);
+                    (several ? "Next: answer each questionnaire, then choose " + button(NextAction.SUBMIT_RESPONSE) + " for each."
+                            : "Next: answer the questionnaire, then choose " + button(NextAction.SUBMIT_RESPONSE) + "."),
+                    "A static questionnaire carries all its items. Which of them are enabled is worked out each time the response is "
+                            + "completed in this tool, without another call to the service.", carry);
         }
         return new NextStepView(NextAction.REVIEW, "Next: read how each questionnaire is meant to be answered, below. This tool cannot choose for you.",
                 several ? "The package holds questionnaires of different kinds, or one whose kind this tool cannot tell."

@@ -17,9 +17,12 @@ import java.util.Map;
  * @param headline the instruction in plain language
  * @param reason   why this is the next step, tied to what the response said
  * @param carry    values the next step starts from, by CARRY key
+ * @param carryLabels for every key of {@code carry}, the words a business tester reads for it, from
+ *                 {@link #CARRY_LABELS}. Null when nothing is carried
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record NextStepView(NextAction action, String headline, String reason, Map<String, List<String>> carry) {
+public record NextStepView(NextAction action, String headline, String reason, Map<String, List<String>> carry,
+                           Map<String, String> carryLabels) {
 
     /** The canonical url of each questionnaire the payer named, in the order returned. */
     public static final String CARRY_QUESTIONNAIRE = "questionnaire";
@@ -57,6 +60,25 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
     /** The id of a subscription a step created or read. */
     public static final String CARRY_SUBSCRIPTION_ID = "subscriptionId";
 
+    /**
+     * The words for each carry key, for the three protocols in one place, so that the step that
+     * hands a value on and every screen that shows it name it alike.
+     */
+    public static final Map<String, String> CARRY_LABELS = Map.ofEntries(
+            Map.entry(CARRY_QUESTIONNAIRE, "Questionnaires the payer named"),
+            Map.entry(CARRY_COVERAGE_ASSERTION_ID, "Coverage assertion id"),
+            Map.entry(CARRY_ORDER, "The order the answer applies to"),
+            Map.entry(CARRY_DTR_LINK_URL, "Address of the DTR app the payer's card links to"),
+            Map.entry(CARRY_DTR_APP_CONTEXT, "What the payer's card hands to the DTR app"),
+            Map.entry(CARRY_DELEGATED_VENDOR, "Vendor the payer delegates to"),
+            Map.entry(CARRY_PROCEDURE_CODES, "Procedure codes"),
+            Map.entry(CARRY_DOC_PURPOSE, "What CRD said the documentation is for"),
+            Map.entry(CARRY_QUESTIONNAIRE_RESPONSE_REF, "Partly completed questionnaire response CRD named"),
+            Map.entry(CARRY_QUESTIONNAIRE_RESPONSE, "Completed questionnaire responses"),
+            Map.entry(CARRY_RUN_ID, "The run this step follows from"),
+            Map.entry(CARRY_CLAIM_ID, "Claim identifier"),
+            Map.entry(CARRY_SUBSCRIPTION_ID, "Subscription id"));
+
     public NextStepView {
         if (action == null || Texts.blank(headline)) {
             throw new IllegalArgumentException("A next step needs an action and an instruction.");
@@ -70,6 +92,14 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
             });
         }
         carry = java.util.Collections.unmodifiableMap(copy);
+        Map<String, String> labels = new LinkedHashMap<>();
+        // A key with no words of its own is named by the key, never left out: every value carried is labelled.
+        copy.keySet().forEach(key -> labels.put(key, CARRY_LABELS.getOrDefault(key, key)));
+        carryLabels = labels.isEmpty() ? null : java.util.Collections.unmodifiableMap(labels);
+    }
+
+    public NextStepView(NextAction action, String headline, String reason, Map<String, List<String>> carry) {
+        this(action, headline, reason, carry, null);
     }
 
     public static NextStepView of(NextAction action, String headline, String reason) {

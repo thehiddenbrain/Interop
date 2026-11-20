@@ -118,8 +118,17 @@ class SubscriptionRequestBuilderTest {
         assertThat(subscription.at("/channel/extension/0/url").asString()).isEqualTo(OnyxPasConventions.HEARTBEAT_PERIOD);
         assertThat(subscription.at("/channel/extension/0/valueUnsignedInt").asInt()).isEqualTo(600);
         assertThat(subscription.at("/channel/_payload/extension/0/valueCode").asString()).isEqualTo("full-resource");
-        assertThat(built.notes()).containsExactly("No header was asked for on the notifications. This tool's receiver accepts a notification "
-                + "without one.");
+        // Each value that was stated is noted with where it came from, as a default is.
+        assertThat(built.notes()).containsExactly("The status was set to off, from the variable subscriptionStatus.",
+                "The end was set to 2026-12-31T00:00:00Z, from the variable subscriptionEnd.",
+                "The reason was set to Placeholder reason, from the variable subscriptionReason.",
+                "The subscription topic was set to https://example.org/p32h-placeholder/SubscriptionTopic/stated, from the variable "
+                        + "subscriptionTopic.",
+                "The filter was set to orgIdentifier=placeholder-organization, from the variable subscriptionFilter.",
+                "The heartbeat period in seconds was set to 600, from the variable subscriptionHeartbeatSeconds.",
+                "The channel type was set to websocket, from the variable subscriptionChannelType.",
+                "The payload content was set to full-resource, from the variable subscriptionPayloadContent.",
+                "No header was asked for on the notifications. This tool's receiver accepts a notification without one.");
         assertThat(built.leftOut()).isEmpty();
     }
 

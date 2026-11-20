@@ -317,7 +317,7 @@ class CrdRequestComparerTest {
         String unknown = sent(form("order-sign", 1, true).procedureCodes(List.of(new CodeInput("XYZ-1", "https://example.invalid/local-codes", null))).build());
         assertThat(compare(CrdRunRequest.builder().rawBody(unknown).build()).notes()).contains("Your request states the system of the code at "
                 + "context.draftOrders.entry[0].resource.code.coding[0].code, and the tool's request was built with that system. Left to work "
-                + "the system out for itself, from the code list or else from the format of the code, this tool writes none.");
+                + "the system out for itself, from the code list or else from the format of the code, this tool writes no system for that code.");
 
         // Where this tool writes the same system by itself there is nothing to note.
         assertThat(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json").replace(
@@ -535,10 +535,11 @@ class CrdRequestComparerTest {
         assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patient` and your request holds it under "
                 + "`patientRequest`. The tool's was built from what was read out of yours, so the two are compared with each other. "
                 + "A CDS service names the prefetch keys it asks for in its discovery response. "
-                + "GET /api/crd/discover lists the keys the service names.");
+                + "The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.");
         assertThat(at(comparison, "prefetch.practitionerRole").explanation()).isEqualTo("The tool's request has the key `practitionerRole` here "
                 + "and your request does not. It holds a PractitionerRole resource. A CDS service names the prefetch keys it asks for in its "
-                + "discovery response. GET /api/crd/discover lists the keys the service names.");
+                + "discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the "
+                + "service names.");
 
         Difference date = at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime");
         assertThat(date.toolValue().value()).isEqualTo("2026-03-20");
@@ -1017,12 +1018,73 @@ class CrdRequestComparerTest {
         assertThat(at(comparison, "fhirAuthorization").yourValue().value()).contains("[secret accessToken]");
     }
 
+    @Test
+    void aCredentialTypedIntoThePastedRequestIsShownMaskedEverywhereAsTheWireViewOfARunMasksIt() {
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build());
+        assertThat(comparison.comparable()).isTrue();
+        String whole = TestMvc.mapper().writeValueAsString(comparison);
+        assertThat(whole).doesNotContain("placeholder-token-for-a-test-fixture");
+        assertThat(comparison.yourBody()).contains("\"access_token\" : \"[secret access_token as typed]\"");
+        assertThat(at(comparison, "fhirAuthorization").yourValue().value()).contains("\"access_token\":\"[secret access_token as typed]\"");
+        assertThat(comparison.maskedNote()).isEqualTo("2 values in this comparison are masked, because the name of the element that holds "
+                + "each reads as a credential, as in the wire view of a run, while the two requests were compared on the values as typed.");
+    }
+
+    @Test
+    void aComparisonThatShowsNoCredentialHasNoMaskedNote() {
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(fixture("no-prefetch-order-select.json")).build());
+        assertThat(comparison.maskedNote()).isNull();
+        assertThat(TestMvc.mapper().valueToTree(comparison).has("maskedNote")).isFalse();
+    }
+
+    @Test
+    void aCredentialInARequestThatCannotBeComparedIsMaskedToo() {
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody("{\"access_token\": \"MadeUpTypedValue9\", ").build());
+        assertThat(comparison.comparable()).isFalse();
+        assertThat(comparison.yourBody()).doesNotContain("MadeUpTypedValue9").contains("[secret access_token as typed]");
+        assertThat(comparison.maskedNote()).startsWith("1 value in this comparison is masked, because the name of the element that holds it");
+    }
+
+    @Test
+    void theCaveatIsOnEveryComparisonComparableOrNot() {
+        RequestComparison notJson = compare(CrdRunRequest.builder().rawBody("not json at all").build());
+        RequestComparison otherHook = compare(CrdRunRequest.builder().rawBody("{\"hook\":\"patient-view\"}").build());
+        RequestComparison compared = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build());
+        assertThat(notJson.comparable()).isFalse();
+        assertThat(otherHook.comparable()).isFalse();
+        for (RequestComparison comparison : List.of(notJson, otherHook, compared)) {
+            assertThat(comparison.caveat()).isEqualTo(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+        }
+        // A comparable answer still carries it first among its notes, where the screens read it today.
+        assertThat(compared.notes().get(0)).isEqualTo(CrdRequestComparer.WHAT_IT_CANNOT_SHOW);
+    }
+
+    @Test
+    void twoDifferentCredentialsStayADifferenceShownAsTwoMasksThatTheExplanationSaysDiffer() {
+        Difference real = new Difference("fhirAuthorization.access_token", "/fhirAuthorization/access_token", "/fhirAuthorization/access_token",
+                DifferenceKind.DIFFERENT_VALUE, DifferenceKind.DIFFERENT_VALUE.label(), DifferenceGroup.BUILD, org.p32h.interop.epa.pave.model.Shown.of("MadeUpOne1"),
+                org.p32h.interop.epa.pave.model.Shown.of("MadeUpTwo2"), "string", "string", null, "The two values differ.", null);
+        ComparisonMasks masks = new ComparisonMasks();
+        Difference shown = masks.difference(real);
+        assertThat(shown.toolValue().value()).isEqualTo("[secret access_token as typed]");
+        assertThat(shown.yourValue().value()).isEqualTo("[secret access_token as typed]");
+        assertThat(shown.kind()).isEqualTo(DifferenceKind.DIFFERENT_VALUE);
+        assertThat(shown.explanation()).isEqualTo("The two values differ. Both values are masked, because the name of the element reads as a "
+                + "credential, and they differ as typed.");
+        assertThat(masks.count()).isEqualTo(2);
+        // An element whose name is no credential is shown as it is.
+        Difference plain = new Difference("hook", "/hook", "/hook", DifferenceKind.DIFFERENT_VALUE, "x", DifferenceGroup.BUILD,
+                org.p32h.interop.epa.pave.model.Shown.of("order-sign"), org.p32h.interop.epa.pave.model.Shown.of("order-select"), "string",
+                "string", null, "x", null);
+        assertThat(masks.difference(plain)).isSameAs(plain);
+    }
+
     // ---- what goes to the browser, and what is printed ----
 
     @Test
     void theAnswerLeavesOutWhatIsNotThereAndNamesItsPartsAsDocumented() {
         JsonNode comparable = TestMvc.mapper().valueToTree(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build()));
-        assertThat(comparable.propertyNames()).containsExactly("comparable", "headline", "hook", "counts", "notes", "caseSource", "notFound",
+        assertThat(comparable.propertyNames()).containsExactly("comparable", "headline", "caveat", "maskedNote", "hook", "counts", "notes", "caseSource", "notFound",
                 "differences", "toolBody", "yourBody");
         assertThat(comparable.get("comparable").asBoolean()).isTrue();
         JsonNode label = comparable.at("/differences/15");
@@ -1046,16 +1108,22 @@ class CrdRequestComparerTest {
         // The element nobody described has no description, and the property is left out, not sent as null.
         assertThat(comparable.at("/differences/33").has("what")).isFalse();
         // The sample types no identifier as a member number, so the member ID is read from the subscriber id, and the answer says so.
-        assertThat(comparable.at("/caseSource/1").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "value",
-                "note");
+        assertThat(comparable.at("/caseSource/1").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "sourceLabel",
+                "value", "note");
         assertThat(comparable.at("/caseSource/1/note").asString()).startsWith("Read from Coverage.subscriberId");
-        assertThat(comparable.at("/caseSource/2").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "value");
+        assertThat(comparable.at("/caseSource/2").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "sourceLabel",
+                "value");
+        assertThat(comparable.at("/caseSource/1/sourceLabel").asString()).isEqualTo("Your request");
         assertThat(comparable.at("/caseSource/1/source").asString()).isEqualTo("YOUR_REQUEST");
-        assertThat(comparable.at("/counts/0").propertyNames()).containsExactlyInAnyOrder("count", "description", "group", "label");
+        assertThat(comparable.at("/counts/0").propertyNames()).containsExactlyInAnyOrder("count", "description", "group", "label", "startsOpen");
+        // Every group opens at first but the one that differs by design on every call.
+        for (JsonNode count : comparable.get("counts")) {
+            assertThat(count.get("startsOpen").asBoolean()).as(count.get("group").asString()).isEqualTo(!"EVERY_CALL".equals(count.get("group").asString()));
+        }
         assertThat(comparable.at("/notFound/0").propertyNames()).containsExactlyInAnyOrder("candidates", "field", "label", "note");
 
         JsonNode not = TestMvc.mapper().valueToTree(compare(CrdRunRequest.builder().rawBody("not json").build()));
-        assertThat(not.propertyNames()).containsExactly("comparable", "whyNot", "headline", "counts", "notes", "caseSource", "notFound", "differences",
+        assertThat(not.propertyNames()).containsExactly("comparable", "whyNot", "headline", "caveat", "counts", "notes", "caseSource", "notFound", "differences",
                 "yourBody");
         assertThat(not.get("comparable").asBoolean()).isFalse();
     }

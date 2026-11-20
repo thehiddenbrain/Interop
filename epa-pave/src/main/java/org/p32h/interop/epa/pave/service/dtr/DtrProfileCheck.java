@@ -271,13 +271,22 @@ final class DtrProfileCheck {
 
     /** The one finding a request or a response with gaps carries, or null when there are none. */
     static Finding finding(List<Gap> gaps, boolean sent) {
+        return finding(gaps, sent, true);
+    }
+
+    /**
+     * @param answered for a request, true when an answer arrived. With none, nothing is known to
+     *                 have arrived, so the request is said to have been built without the elements
+     */
+    static Finding finding(List<Gap> gaps, boolean sent, boolean answered) {
         if (gaps.isEmpty()) {
             return null;
         }
         String what = String.join(", ", gaps.stream().map(Gap::element).toList());
         return new Finding(FindingKind.REQUEST_INCOMPLETE,
                 (sent ? "The request left out " : "The response left out ") + count(gaps.size(), "element") + " DTR 2.0.1 requires",
-                (sent ? "This tool sent the request without " : "This tool put the response together without ") + what
+                (sent ? (answered ? "This tool sent the request without " : "This tool built the request without ")
+                        : "This tool put the response together without ") + what
                         + "." + (sent ? "" : " PAS sends the response as it is.")
                         + " A refusal by the service that names " + (gaps.size() == 1 ? "it" : "one of them")
                         + " is about what was sent, not a fault of the service. The notes " + (sent ? "beside the request" : "with the response")

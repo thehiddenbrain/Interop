@@ -446,7 +446,8 @@ class PasVerdictsTest {
         // A scenario that models a read timeout: on live the request would have gone out.
         VendorExchange mockTimeout = Exchanges.timeout(notSent, 5L).withScenario("pas-16-timeout", "chosen in the scenario selector");
         assertThat(PasVerdicts.verdict(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT).supporting()).containsExactly(
-                "Mock scenario pas-16-timeout answered: chosen in the scenario selector.", "No response arrived inside the read timeout.",
+                "Mock scenario pas-16-timeout answered: chosen in the scenario selector.", "No response arrived inside the read timeout. "
+                        + VendorExchange.SIMULATED_TIMEOUT,
                 MAY_HAVE_ACTED);
         assertThat(PasVerdicts.nextStep(mapper.read(mockTimeout), mockTimeout, EpaOperation.PAS_SUBMIT, RUN).headline()).isEqualTo(ASK_FIRST);
         // A scenario that models a refused connection: nothing would have been delivered.

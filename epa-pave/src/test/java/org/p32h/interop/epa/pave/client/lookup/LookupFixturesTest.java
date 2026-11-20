@@ -25,6 +25,22 @@ class LookupFixturesTest {
     }
 
     @Test
+    void twoFilesThatClaimOneIdentifierStopTheApplicationNamingBoth(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)
+            throws java.io.IOException {
+        java.nio.file.Path members = java.nio.file.Files.createDirectories(directory.resolve("members"));
+        java.nio.file.Files.writeString(members.resolve("a-first.json"), "{\"memberId\":\"P32H-TWICE\",\"httpStatus\":204}");
+        java.nio.file.Files.writeString(members.resolve("b-second.json"), "{\"memberId\":\"P32H-TWICE\",\"httpStatus\":204}");
+        assertThatThrownBy(() -> new LookupFixtures("file:" + members + "/*.json", NONE)).isInstanceOf(IllegalStateException.class)
+                .hasMessage("Lookup fixture b-second.json: its memberId is already used by a-first.json. One identifier returns one record.");
+
+        java.nio.file.Path providers = java.nio.file.Files.createDirectories(directory.resolve("providers"));
+        java.nio.file.Files.writeString(providers.resolve("a-first.json"), "{\"npi\":\"1234567893\",\"httpStatus\":204}");
+        java.nio.file.Files.writeString(providers.resolve("b-second.json"), "{\"npi\":\"1234567893\",\"httpStatus\":204}");
+        assertThatThrownBy(() -> new LookupFixtures(NONE, "file:" + providers + "/*.json")).isInstanceOf(IllegalStateException.class)
+                .hasMessage("Lookup fixture b-second.json: its npi is already used by a-first.json. One identifier returns one record.");
+    }
+
+    @Test
     void aFileHoldsAnIdentifierAndWhatAnApiWouldAnswerForIt() {
         LookupFixtures.Fixture respond = member("{\"memberId\":\"P32H-TEST\",\"description\":\"A test.\",\"httpStatus\":200,"
                 + "\"response\":{\"memberId\":\"P32H-TEST\"}}");

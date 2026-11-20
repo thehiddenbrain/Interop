@@ -3,6 +3,8 @@ package org.p32h.interop.epa.pave.service.pas;
 import org.p32h.interop.epa.pave.model.Texts;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * What the request builder says about the request it built: one plain sentence for each thing
@@ -52,6 +54,30 @@ final class PasNotes {
             out.add(summary(leftOut));
         }
         out.addAll(notes);
+        return List.copyOf(out);
+    }
+
+    /** A note in the past tense of a request that was sent, and what it becomes for a request that was only shown. */
+    private static final List<Map.Entry<Pattern, String>> PREVIEW_TENSE = List.of(
+            Map.entry(Pattern.compile("\\b(?:was|were) not sent\\b"), "would not be sent"),
+            Map.entry(Pattern.compile("\\b(?:was|were) sent\\b"), "would be sent"),
+            Map.entry(Pattern.compile("\\bgoes out\\b"), "would go out"),
+            Map.entry(Pattern.compile("\\bwent out\\b"), "would go out"));
+
+    /**
+     * The notes of a request as a preview shows them. A preview sends nothing, so a note that says
+     * something "was sent" is untrue of it; the same note says what "would be sent". Only a run
+     * that was sent keeps the past tense.
+     */
+    static List<String> asPreview(List<String> notes) {
+        List<String> out = new ArrayList<>();
+        for (String note : notes) {
+            String text = note;
+            for (Map.Entry<Pattern, String> tense : PREVIEW_TENSE) {
+                text = tense.getKey().matcher(text).replaceAll(tense.getValue());
+            }
+            out.add(text);
+        }
         return List.copyOf(out);
     }
 

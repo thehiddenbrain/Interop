@@ -137,14 +137,18 @@ public final class CrdRequestComparer {
             }
         }
 
+        // Compared on the values as typed; only what is shown of a credential is masked.
+        ComparisonMasks masks = new ComparisonMasks();
         RequestComparison.Builder answer = RequestComparison.builder()
+                .caveat(WHAT_IT_CANNOT_SHOW)
                 .hook(tool == null ? null : built.request.hook())
-                .toolBody(toolBody)
-                .yourBody(yours == null ? yourText : JsonSafe.pretty(yours))
+                .toolBody(masks.body(toolBody))
+                .yourBody(masks.body(yours == null ? yourText : JsonSafe.pretty(yours)))
                 .caseSource(built.sources)
                 .notFound(built.notFound);
         if (whyNot != null) {
-            return answer.comparable(false).whyNot(whyNot).headline("The two requests were not compared field by field.").notes(notes).build();
+            return answer.comparable(false).whyNot(whyNot).headline("The two requests were not compared field by field.").notes(notes)
+                    .maskedNote(masks.note()).build();
         }
 
         JsonComparer.Result result = new JsonComparer(CrdRequestGlossary.RULES, glossary).compare(tool, yours, builtFrom(tool, built, reading));
@@ -168,8 +172,9 @@ public final class CrdRequestComparer {
         for (DifferenceGroup group : DifferenceGroup.values()) {
             counts.add(GroupCount.of(group, counted.getOrDefault(group, 0)));
         }
-        return answer.comparable(true).headline(headline(result.differences().size(), counted)).differences(result.differences())
-                .counts(counts).notes(all).build();
+        List<Difference> differences = result.differences().stream().map(masks::difference).toList();
+        return answer.comparable(true).headline(headline(result.differences().size(), counted)).differences(differences)
+                .counts(counts).notes(all).maskedNote(masks.note()).build();
     }
 
     // ---- the pasted text ----
@@ -502,7 +507,7 @@ public final class CrdRequestComparer {
             if (stated != null && !stated.equals(chosen)) {
                 notes.add("Your request states the system of the code at " + orders.get(i).code().path() + ", and the tool's request was built "
                         + "with that system. Left to work the system out for itself, from the code list or else from the format of the code, "
-                        + "this tool writes " + (chosen == null ? "none" : chosen) + ".");
+                        + (chosen == null ? "this tool writes no system for that code." : "this tool writes " + chosen + "."));
             }
         }
     }

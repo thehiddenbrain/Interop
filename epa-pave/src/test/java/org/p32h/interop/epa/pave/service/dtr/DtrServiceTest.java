@@ -217,13 +217,18 @@ class DtrServiceTest {
         assertThat(result.detail().questionnaires().get(0).kind()).isEqualTo(QuestionnaireKind.STATIC);
         assertThat(result.detail().kindRule()).startsWith("A questionnaire is adaptive when");
         // Nobody may take this for a SMART launch.
-        assertThat(result.verdict().supporting()).last().isEqualTo(SCOPE_PACKAGE);
+        assertThat(result.detail().requestNotes()).last().isEqualTo(SCOPE_PACKAGE);
+        // Said once, among the notes, so the verdict keeps to the answer.
+        assertThat(result.verdict().supporting()).doesNotContain(SCOPE_PACKAGE);
         // What did I expect, and did it match.
         assertThat(result.expectation().expected()).isEqualTo("PACKAGE_LOADED; questionnaire-kind=static");
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         // What do I do next.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.SUBMIT_RESPONSE);
-        assertThat(result.nextStep().headline()).isEqualTo("Next: answer the questionnaire and submit the response.");
+        // The action is named by its own label, which is the name of the button on the DTR tab.
+        assertThat(result.nextStep().headline()).isEqualTo("Next: answer the questionnaire, then choose " + DtrVerdicts.button(NextAction.SUBMIT_RESPONSE) + ".");
+        assertThat(result.nextStep().reason()).isEqualTo("A static questionnaire carries all its items. Which of them are enabled is worked out "
+                + "each time the response is completed in this tool, without another call to the service.");
         // And it is recorded, under the same run id the screen shows.
         assertThat(result.ledger().recorded()).isTrue();
         assertThat(ledger.only().runId()).isEqualTo(result.runId());
@@ -291,12 +296,14 @@ class DtrServiceTest {
         assertThat(fetch("P32H-DTR-LOOPERR").verdict().supporting()).anySatisfy(line -> assertThat(line)
                 .endsWith("It holds no questions of its own: the service asks them one step at a time."));
         assertThat(adaptive.nextStep().action()).isEqualTo(NextAction.ANSWER_NEXT_QUESTION);
-        assertThat(adaptive.nextStep().headline()).isEqualTo("Next: start the adaptive questionnaire with next-question.");
+        assertThat(adaptive.nextStep().headline()).isEqualTo("Next: start the adaptive questionnaire: choose "
+                + DtrVerdicts.button(NextAction.ANSWER_NEXT_QUESTION) + ".");
 
         RunEnvelope<DtrDetail> two = fetch("P32H-DTR-TWO");
         assertThat(two.verdict().headline()).isEqualTo("The questionnaire package was loaded with 2 questionnaires.");
         assertThat(two.nextStep().action()).isEqualTo(NextAction.SUBMIT_RESPONSE);
-        assertThat(two.nextStep().headline()).isEqualTo("Next: answer each questionnaire and submit its response.");
+        assertThat(two.nextStep().headline()).isEqualTo("Next: answer each questionnaire, then choose " + DtrVerdicts.button(NextAction.SUBMIT_RESPONSE)
+                + " for each.");
         // Nothing is reduced to the first: both are listed, named, and carried on.
         assertThat(two.detail().questionnaires()).hasSize(2);
         assertThat(two.determination()).extracting(DeterminationRow::subject).containsOnly("Cardiology criteria (placeholder)",
@@ -342,7 +349,7 @@ class DtrServiceTest {
         assertThat(empty.nextStep().reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer "
                 + "that no documentation is needed, so it cannot say what should happen next.");
         assertThat(askedNothing.verdict().headline()).isEqualTo("The response is complete and no question was asked.");
-        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.CLEAR);
+        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.ACTION);
 
         // The grid of the empty package still lists what would have answered, as not returned.
         assertThat(empty.determination()).extracting(DeterminationRow::label, DeterminationRow::presence)
@@ -1000,7 +1007,7 @@ class DtrServiceTest {
         assertThat(result.wire().request().note()).contains("found in the request body");
         assertThat(result.detail().bodyBuiltByTool()).isFalse();
         assertThat(result.detail().requestNotes()).containsExactly("The questionnaires and the coverage assertion id on the form were not "
-                + "added to the body you supplied. Only what the body itself holds was sent.");
+                + "added to the body you supplied. Only what the body itself holds was sent.", SCOPE_PACKAGE);
         // What the body asked for is what the response is checked against, so the missing questionnaire is not lost.
         assertThat(result.detail().requested()).hasSize(2);
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_INCOMPLETE");
@@ -1018,8 +1025,8 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> result = service().runPackage(DtrPackageRequest.builder().rawBody("{\"resourceType\": \"Parameters\",").build(),
                 RunOrigin.manual(), null);
         assertThat(result.wire().request().body()).isEqualTo("{\"resourceType\": \"Parameters\",");
-        assertThat(result.detail().requestNotes()).singleElement().satisfies(note ->
-                assertThat(note).contains("not valid JSON").contains("sent exactly as written"));
+        assertThat(result.detail().requestNotes()).hasSize(2).last().isEqualTo(SCOPE_PACKAGE);
+        assertThat(result.detail().requestNotes().get(0)).contains("not valid JSON").contains("sent exactly as written");
         assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_BODY);
 
         assertThatThrownBy(() -> service().runPackage(DtrPackageRequest.builder()
@@ -1094,7 +1101,8 @@ class DtrServiceTest {
         // The same three facts are in the words under the verdict, so the screen shows them at every step.
         assertThat(step.verdict().supporting()).contains("Question count so far: " + questions + ". Answered: " + answered
                 + ". Completion status: " + status + ".");
-        assertThat(step.verdict().supporting()).last().isEqualTo(SCOPE_NEXT);
+        assertThat(step.detail().requestNotes()).last().isEqualTo(SCOPE_NEXT);
+        assertThat(step.verdict().supporting()).doesNotContain(SCOPE_NEXT);
     }
 
     @Test
@@ -1126,7 +1134,7 @@ class DtrServiceTest {
         assertStep(fourth, "RESPONSE_COMPLETED", 3, 3, "completed", List.of(), Map.of("mri-1-therapy", List.of("No (no)"),
                 "mri-2-red-flag", List.of("true"), "mri-3-red-flag-detail", List.of("Placeholder description of the symptom")));
         assertThat(fourth.verdict().headline()).isEqualTo("The questionnaire response is complete.");
-        assertThat(fourth.verdict().tone()).isEqualTo(Tone.CLEAR);
+        assertThat(fourth.verdict().tone()).isEqualTo(Tone.ACTION);
         assertThat(fourth.detail().form().complete()).isTrue();
         assertThat(fourth.expectation().result()).isEqualTo(TestResult.PASS);
 
@@ -1445,6 +1453,7 @@ class DtrServiceTest {
         assertThat(fourth.detail().form().changes().disappeared()).containsExactly(
                 new QuestionRef("mri-2-weeks", "How many weeks of conservative therapy were completed?"));
         assertThat(fourth.detail().form().changes().answersDropped()).extracting(QuestionRef::linkId).containsExactly("mri-2-weeks");
+        assertThat(fourth.detail().form().changes().answersDropped()).extracting(QuestionRef::values).containsExactly(List.of("8"));
         String summary = "Since the previous step: 1 question appeared: mri-2-red-flag \"Is a red-flag symptom documented?\". 1 question "
                 + "disappeared: mri-2-weeks \"How many weeks of conservative therapy were completed?\". The answer that was sent to "
                 + "mri-2-weeks \"How many weeks of conservative therapy were completed?\" is not in the response.";
@@ -1696,7 +1705,7 @@ class DtrServiceTest {
         assertThat(result.wire().request().body()).isEqualTo(body);
         assertThat(result.detail().bodyBuiltByTool()).isFalse();
         assertThat(result.detail().requestNotes()).containsExactly("The questionnaire, the response so far and the answers on the form were "
-                + "not added to the body you supplied. Only what the body itself holds was sent.");
+                + "not added to the body you supplied. Only what the body itself holds was sent.", SCOPE_NEXT);
         // The mock answered the answer in the body, not the one left on the form.
         assertThat(linkIds(result.detail().form().asked())).containsExactly("mri-2-weeks");
         assertThat(linkIds(result.detail().form().changes().appeared())).containsExactly("mri-2-weeks");
@@ -1770,8 +1779,8 @@ class DtrServiceTest {
         assertThat(JsonSafe.parse(result.detail().questionnaireResponses().get(0).json()).node().get("status").asString()).isEqualTo("in-progress");
         assertThat(result.expectation().result()).isEqualTo(TestResult.FAIL);
         assertThat(result.nextStep().action()).isEqualTo(NextAction.SUBMIT_RESPONSE);
-        assertThat(result.nextStep().headline()).isEqualTo("Next: answer the required questions named with this result and submit the "
-                + "response again.");
+        assertThat(result.nextStep().headline()).isEqualTo("Next: answer the required questions named with this result, then choose "
+                + DtrVerdicts.button(NextAction.SUBMIT_RESPONSE) + ".");
         assertThat(result.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
 
         // Nothing was sent, and the result says so in plain words in more than one place.
@@ -1779,7 +1788,8 @@ class DtrServiceTest {
         assertThat(gateway.intents()).hasSize(preparedBefore);
         assertThat(result.verdict().supporting().get(0)).isEqualTo("Nothing was sent to the service for this step. The response was put "
                 + "together inside this tool.");
-        assertThat(result.verdict().supporting()).last().isEqualTo(SCOPE_LOCAL);
+        assertThat(result.detail().requestNotes()).containsExactly(SCOPE_LOCAL);
+        assertThat(result.verdict().supporting()).doesNotContain(SCOPE_LOCAL);
         assertThat(result.detail().sent()).isFalse();
         assertThat(result.detail().responseKind()).isEqualTo(DtrResponseKind.NOT_SENT);
         assertThat(result.detail().responseNote()).isEqualTo("Nothing was sent to the service for this step.");
@@ -1863,8 +1873,10 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> disabled = service().runResponse(responding(fetched, "P32H-DTR-REQUIRED", DtrAnswerInput.of("pac-1", "false"),
                 DtrAnswerInput.of("pac-2", "bathing"), DtrAnswerInput.of("pac-3", "false")).build(), RunOrigin.manual());
         assertThat(disabled.verdict().outcomeCode()).isEqualTo("RESPONSE_COMPLETED");
-        assertThat(disabled.verdict().supporting()).contains("The answer given to pac-2 was left out of the response, because the answers "
+        assertThat(disabled.detail().form().notes()).contains("The answer given to pac-2 was left out of the response, because the answers "
                 + "given disable that question.");
+        // Said once, with the form: the verdict keeps to the answer (DTR review R18).
+        assertThat(disabled.verdict().supporting()).doesNotContainAnyElementsOf(disabled.detail().form().notes());
         assertThat(disabled.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE).get(0)).doesNotContain("bathing");
         // Every enableWhen condition is reported with whether it evaluated true.
         assertThat(disabled.detail().questionnaires().get(0).items().get(0).items().get(1).enableWhen()).singleElement().satisfies(condition -> {
@@ -1889,7 +1901,7 @@ class DtrServiceTest {
         assertThat(completed.nextStep().reason()).startsWith("The service reported the response as completed");
         // It is the response the service returned, unchanged, and the result says so.
         assertThat(completed.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE)).containsExactly(completedByTheService);
-        assertThat(completed.verdict().supporting()).contains("This is the response the service last returned. This tool did not change it.");
+        assertThat(completed.detail().form().notes()).contains("This is the response the service last returned. This tool did not change it.");
         assertThat(ledger.last().operation()).isEqualTo(EpaOperation.DTR_RESPONSE);
         assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_QUESTIONNAIRE, MRI);
 
@@ -1918,7 +1930,7 @@ class DtrServiceTest {
                 + "\"status\":\"active\"}";
         RunEnvelope<DtrDetail> result = service().runResponse(DtrResponseRequest.builder().questionnaire(unmarked).build(), RunOrigin.manual());
         assertThat(result.verdict().outcomeCode()).isEqualTo("RESPONSE_NOT_COMPLETE");
-        assertThat(result.verdict().supporting()).contains("This tool cannot tell whether this questionnaire is adaptive or static, so it "
+        assertThat(result.detail().form().notes()).contains("This tool cannot tell whether this questionnaire is adaptive or static, so it "
                 + "does not call its response complete.");
         assertThat(result.nextStep().action()).isEqualTo(NextAction.REVIEW);
         assertThat(result.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
@@ -1939,6 +1951,11 @@ class DtrServiceTest {
         // The condition on the third question is reported as true, because the answer that arrived enables it.
         assertThat(fetched.detail().questionnaires().get(0).items().get(2).enableWhen().get(0).state())
                 .isEqualTo(org.p32h.interop.epa.pave.model.dtr.ConditionState.TRUE);
+        // The words for the state and for the kind come with the codes, so a screen keeps no copy of them.
+        assertThat(fetched.detail().questionnaires().get(0).items().get(2).enableWhen().get(0).stateLabel()).isEqualTo("The condition holds");
+        assertThat(fetched.detail().questionnaires().get(0).kindLabel()).isEqualTo(fetched.detail().questionnaires().get(0).kind().label());
+        assertThat(fetched.nextStep().carryLabels()).containsOnlyKeys(fetched.nextStep().carry().keySet().toArray(String[]::new))
+                .doesNotContainValue(null);
 
         // The response starts from the one the package arrived with, and the tester adds the one answer that is open.
         RunEnvelope<DtrDetail> result = service().runResponse(responding(fetched, "P32H-DTR-PREPOP", DtrAnswerInput.of("gen-4", "no"))

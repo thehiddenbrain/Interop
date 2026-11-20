@@ -31,6 +31,7 @@ import java.util.List;
  *                      adaptive questionnaire it is what the first next-question step sends
  * @param json          the resource exactly as returned, as compact JSON. The next step posts it back,
  *                      because the tool keeps no session between steps
+ * @param kindLabel     the words for {@code kind}, taken from the kind. Null only when the kind is null
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record QuestionnaireView(
@@ -63,9 +64,23 @@ public record QuestionnaireView(
         List<String> notApplied,
         String answersBasis,
         String arrivedWith,
-        String json) {
+        String json,
+        String kindLabel) {
+
+    /** A questionnaire with the words for its kind taken from the kind. */
+    public QuestionnaireView(int position, String foundAt, String subject, Shown id, Shown url, Shown version, String canonical, Shown name,
+                             Shown title, DtrCode status, Shown date, Shown publisher, Shown description, Shown narrative,
+                             Shown narrativeStatus, List<Shown> subjectType, List<Shown> profiles, List<Shown> derivedFrom,
+                             QuestionnaireKind kind, String kindBasis, int questionCount, int requiredCount, List<ItemView> items,
+                             List<ExtensionView> extensions, List<PackageResourceView> contained, List<String> problems,
+                             List<String> notApplied, String answersBasis, String arrivedWith, String json) {
+        this(position, foundAt, subject, id, url, version, canonical, name, title, status, date, publisher, description, narrative,
+                narrativeStatus, subjectType, profiles, derivedFrom, kind, kindBasis, questionCount, requiredCount, items, extensions,
+                contained, problems, notApplied, answersBasis, arrivedWith, json, null);
+    }
 
     public QuestionnaireView {
+        kindLabel = kind == null ? null : kind.label();
         subjectType = subjectType == null ? List.of() : List.copyOf(subjectType);
         profiles = profiles == null ? List.of() : List.copyOf(profiles);
         derivedFrom = derivedFrom == null ? List.of() : List.copyOf(derivedFrom);

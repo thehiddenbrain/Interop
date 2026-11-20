@@ -23,7 +23,7 @@ public enum NotificationOutcome implements OutcomeCode {
     HEARTBEAT_RECEIVED("A heartbeat arrived for a subscription this tool created", Tone.NEUTRAL, false),
     STATUS_RECEIVED("A status report arrived for a subscription this tool created", Tone.NEUTRAL, false),
     UNRECOGNISED_TYPE("A notification arrived whose type this tool does not recognise", Tone.NO_ANSWER, false),
-    UNMATCHED_NOTIFICATION("A notification arrived that matches no subscription this tool created", Tone.DATA, false),
+    UNMATCHED_NOTIFICATION("A notification arrived that matches no subscription this tool created", Tone.NEUTRAL, false),
     UNCHECKED_NOTIFICATION("A notification arrived and the ledger could not be asked which subscription it belongs to", Tone.FAULT, true),
     UNREADABLE_NOTIFICATION("Something arrived at the receiver that is not a subscription notification", Tone.FAULT, true);
 

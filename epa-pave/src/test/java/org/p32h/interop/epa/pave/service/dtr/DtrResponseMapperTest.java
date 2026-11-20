@@ -681,7 +681,8 @@ class DtrResponseMapperTest {
         assertThat(reading.outcome()).isEqualTo(DtrOutcome.NEXT_QUESTION);
         assertThat(reading.detail().form().changes().appeared()).containsExactly(new QuestionRef("q3", "Third"));
         assertThat(reading.detail().form().changes().disappeared()).containsExactly(new QuestionRef("q2", "Second"));
-        assertThat(reading.detail().form().changes().answersDropped()).containsExactly(new QuestionRef("q2", "Second"));
+        // The answer that was dropped is carried with the question, as it is shown, so the tester sees what was lost.
+        assertThat(reading.detail().form().changes().answersDropped()).containsExactly(new QuestionRef("q2", "Second", null, List.of("given")));
         assertThat(reading.detail().form().asked()).extracting(QuestionRef::linkId).containsExactly("q3");
         assertThat(reading.detail().form().requiredUnanswered()).extracting(QuestionRef::linkId).containsExactly("q3");
         // The summary names questions. It never quotes an answer.

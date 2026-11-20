@@ -77,7 +77,8 @@ class DtrVerdictsTest {
                     assertThat(verdict.outcomeCode()).as(what).isEqualTo(outcome.name());
                     assertThat(verdict.tone()).as(what).isEqualTo(outcome.tone());
                     // The sentence about what was exercised closes every result.
-                    assertThat(verdict.supporting()).as(what).last().isEqualTo(DtrVerdicts.scope(operation));
+                    // The sentence about what was exercised is said once, among the notes, and not in the verdict.
+                    assertThat(verdict.supporting()).as(what).doesNotContain(DtrVerdicts.scope(operation));
                     assertThat(verdict.supporting()).as(what).doesNotHaveDuplicates().allSatisfy(line -> assertThat(line).doesNotContain("null"));
                     NextStepView next = DtrVerdicts.nextStep(operation, as(shape, outcome), exchange, handoff());
                     assertThat(next.action()).as(what).isNotNull();
@@ -139,7 +140,7 @@ class DtrVerdictsTest {
         assertThat(DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, packageOf(adaptiveOne), null, handoff).action())
                 .isEqualTo(NextAction.ANSWER_NEXT_QUESTION);
         assertThat(DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, packageOf(adaptiveOne, adaptiveOne), null, handoff).headline())
-                .isEqualTo("Next: start each adaptive questionnaire with next-question.");
+                .isEqualTo("Next: start each adaptive questionnaire: choose " + DtrVerdicts.button(NextAction.ANSWER_NEXT_QUESTION) + ".");
         // One of each, or one this tool cannot tell: the tester chooses, and is told why.
         NextStepView mixed = DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, packageOf(staticOne, adaptiveOne), null, handoff);
         assertThat(mixed.action()).isEqualTo(NextAction.REVIEW);

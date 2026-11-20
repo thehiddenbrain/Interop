@@ -52,6 +52,19 @@ class ReturnedSecretsInTheViewTest {
     }
 
     @Test
+    void aSecretTheServiceSendsBackAsAJsonNumberIsMaskedToo() {
+        String digits = "4417290366512";
+        SentSecrets secrets = SentSecrets.builder().variable("accountPin", digits).build();
+        VendorExchange exchange = Exchanges.fromResponse(new WireRequest("POST", URL, URL, List.of(), "{}", true, null, secrets), 200, List.of(),
+                bundle(claimResponse("\"outcome\":\"complete\"", "\"accountNumberEcho\":" + digits, items(decided(1, "A1")))), 5L, true);
+        PasReading reading = new PasResponseMapper().read(exchange, sent("E0601"));
+        String shown = JsonSafe.mapper().writeValueAsString(reading.detail()) + JsonSafe.mapper().writeValueAsString(reading.additionalFields());
+        // The wire view finds it in the text of the body; the designed view and the additional fields find it as well.
+        assertThat(shown).doesNotContain(digits).contains(org.p32h.interop.epa.pave.model.Secrets.mask("accountPin"));
+        assertThat(reading.outcome()).isEqualTo(org.p32h.interop.epa.pave.model.pas.PasOutcome.APPROVED);
+    }
+
+    @Test
     void aBodyThatRepeatsNoSecretIsReadAsItCame() {
         VendorExchange exchange = answered(bundle(claimResponse("\"outcome\":\"complete\"", "\"disposition\":\"approved\"",
                 items(decided(1, "A1")))));
