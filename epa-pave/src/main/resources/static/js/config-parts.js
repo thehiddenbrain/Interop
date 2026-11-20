@@ -34,6 +34,20 @@ export function sentences(list, extraClass) {
     return el('ul', {class: 'note-list' + (extraClass ? ' ' + extraClass : '')}, list.map(text => el('li', null, text)));
 }
 
+/**
+ * The tool's warnings about the addresses of one environment (addressWarnings of the list and of
+ * a switch), with a lead that says what they are about, in the style of every warning of the tool.
+ */
+export function addressWarnings(name, list) {
+    if (!list || list.length === 0) {
+        return null;
+    }
+    return el('div', {class: 'config-warnings config-address-warnings'},
+        el('p', {class: 'sub-heading'}, list.length === 1 ? 'The tool warns about an address of "' + name + '"'
+            : 'The tool has ' + list.length + ' warnings about the addresses of "' + name + '"'),
+        sentences(list));
+}
+
 /** A placeholder the way it is written in a url, a header or a body. */
 export function placeholder(name) {
     return code('{{' + name + '}}');

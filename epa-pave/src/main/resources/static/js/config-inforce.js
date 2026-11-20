@@ -7,7 +7,7 @@
 // to upload first.
 
 import {el, fill, clear, button, code, facts, heading, whenText} from './dom.js';
-import {environmentName, sentences, none, flag, placeholder, requestMarks} from './config-parts.js';
+import {environmentName, sentences, none, flag, placeholder, requestMarks, addressWarnings} from './config-parts.js';
 import {createWritesPanel} from './config-writes.js';
 import {createTryPanel} from './config-try.js';
 
@@ -60,7 +60,14 @@ export function createInForceView(context) {
                     : none('not stated')],
                 ['Uploaded files are kept in', code(effective.storeDirectory)]
             ], 'facts--ruled config-facts'),
-            problems(effective.problems || []));
+            problems(effective.problems || []),
+            activeAddressWarnings(stored));
+    }
+
+    /** What the tool warns about the addresses of the active environment, as the list of environments carries it. */
+    function activeAddressWarnings(stored) {
+        const active = ((stored.environments || {}).environments || []).find(environment => environment.active);
+        return active ? addressWarnings(active.name, active.addressWarnings) : null;
     }
 
     function profile(mode) {
