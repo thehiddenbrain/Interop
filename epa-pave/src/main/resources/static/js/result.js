@@ -113,7 +113,7 @@ function verdictStrip(envelope) {
     // A headline is one sentence, set large. A refusal can word its reason into a paragraph, which
     // at that size fills the screen and hides the test result beside it, so a long one is set smaller.
     const length = String(verdict.headline || '').length;
-    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 110 ? ' verdict__headline--long' : '';
+    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 80 ? ' verdict__headline--long' : '';
     strip.append(el('h2', {class: 'verdict__headline' + size}, verdict.headline));
     const supporting = verdict.supporting || [];
     if (supporting.length > 0) {
@@ -346,11 +346,24 @@ function determinationSection(rows) {
     return section(heading(3, 'Determination'), el('table', {class: 'grid determination'}, head, el('tbody', null, body)));
 }
 
+/**
+ * A code or a value as literal text that a narrow cell breaks only where the value itself is
+ * joined (after a slash, a bar or a space), never inside a date or a code: a date range keeps each
+ * of its dates whole. The text is unchanged, so what is copied is the value as returned.
+ */
+function atJoints(value) {
+    const node = el('code', {class: 'literal'});
+    for (const part of String(value).split(/(?<=[/| ])/)) {
+        node.append(el('span', {class: 'nobreak'}, part), el('wbr'));
+    }
+    return node;
+}
+
 function determinationRow(row) {
     const returned = row.presence === 'VALUE' && row.code !== undefined;
     const cells = [el('td', null, row.label)];
     if (returned) {
-        cells.push(el('td', null, code(row.code)));
+        cells.push(el('td', null, atJoints(row.code)));
         // A row can hold an identifier, such as an authorization number, which has no meaning to state.
         cells.push(el('td', null, row.display || el('span', {class: 'quiet small'}, 'no meaning to state'),
             row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null));

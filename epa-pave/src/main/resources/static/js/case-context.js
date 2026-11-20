@@ -66,11 +66,11 @@ export function createCaseContext() {
 
     const member = group({
         prefix: 'member', fields: MEMBER_FIELDS, changed, panelChanged,
-        subject: 'member', identifier: 'member ID', address: '/api/members/', record: 'member', refusedAs: 'memberId'
+        subject: 'member', identifier: 'member ID', address: '/api/members?memberId=', record: 'member', refusedAs: 'memberId'
     });
     const provider = group({
         prefix: 'provider', fields: PROVIDER_FIELDS, changed, panelChanged,
-        subject: 'provider', identifier: 'NPI', address: '/api/providers/', record: 'provider', refusedAs: 'npi'
+        subject: 'provider', identifier: 'NPI', address: '/api/providers?npi=', record: 'provider', refusedAs: 'npi'
     });
     codes = createCodePicker({lineOfBusiness: () => member.get('lineOfBusiness'), changed});
     codes.checkList();
@@ -165,6 +165,29 @@ export function createCaseContext() {
         /** Replaces the procedure codes, as when a step hands on the codes it was about. */
         setCodes(list) {
             codes.replace(list);
+        },
+
+        /**
+         * Puts a detail of the case in its field with where it came from, as when a comparison puts
+         * on the form a value it read out of a pasted request. field is the name the request gives it
+         * ("member.firstName"); origin "pasted" marks it as from the pasted request rather than typed
+         * by hand. The ledger notes it as an override either way: a lookup would not give it back.
+         */
+        setDetail(field, value, origin) {
+            const [prefix, name] = String(field).split('.');
+            const owner = prefix === 'member' ? member : prefix === 'provider' ? provider : null;
+            if (owner) {
+                owner.setDetail(name, value, origin);
+                changed();
+            }
+        },
+
+        /** A line said under the lookup of the member or the provider, or null to take it away. */
+        lookupNote(subject, text) {
+            const owner = subject === 'member' ? member : subject === 'provider' ? provider : null;
+            if (owner) {
+                owner.lookup.note(text);
+            }
         },
 
         /** Calls back whenever anything in the case changes. */
@@ -280,8 +303,13 @@ function group(spec) {
         // What the lookup on screen gave for this detail, as text. Null while no lookup answer is in force.
         control.given = null;
         control.touched = false;
+        // The value put here from a pasted request, while the field still holds it, or null.
+        control.pasted = null;
         control.input.addEventListener('input', () => {
             control.touched = true;
+            if (control.pasted !== null && control.value() !== control.pasted) {
+                control.pasted = null;
+            }
             mark(control);
             spec.changed();
         });
@@ -306,14 +334,17 @@ function group(spec) {
         const replaced = control.given !== null && control.given !== '';
         control.node.classList.toggle('field--byhand', source === 'hand');
         control.node.classList.toggle('field--fromlookup', source === 'lookup');
+        const pasted = source === 'hand' && control.pasted !== null && control.value() === control.pasted;
         control.origin.textContent = source === 'lookup' ? 'from lookup'
             : source !== 'hand' ? ''
-                : !replaced ? 'by hand'
-                    : control.value() === '' ? 'cleared, not sent' : 'changed by hand';
+                : pasted ? 'from the pasted request'
+                    : !replaced ? 'by hand'
+                        : control.value() === '' ? 'cleared, not sent' : 'changed by hand';
         // The pane is narrow and a value can be longer than its input, so the title holds it whole.
         const whole = control.value() === '' ? '' : control.value() + '\n';
         control.input.title = source === 'lookup' ? control.value()
             : source !== 'hand' ? ''
+            : pasted ? whole + 'Taken from the pasted request. A lookup would not give this value back, and the ledger notes that the run used it.'
                 : replaced ? whole + 'Changed by hand. The lookup returned another value, and the ledger notes that the run used this one.'
                     : whole + 'Typed by hand. A lookup would not give this value back, and the ledger notes that.';
     }
@@ -369,6 +400,18 @@ function group(spec) {
             if (identifier.value() !== '') {
                 lookup.lookUp(false);
             }
+        },
+
+        /** Puts a value in one detail with where it came from: origin "pasted" for a value read out of a pasted request. */
+        setDetail(name, value, origin) {
+            const control = controls.get(name);
+            if (!control || control.spec.identifier) {
+                return;
+            }
+            control.set(value);
+            control.touched = true;
+            control.pasted = origin === 'pasted' ? control.value() : null;
+            mark(control);
         },
 
         /** Only what is on screen and not blank. A blank field is left out, never sent as an empty string. */
