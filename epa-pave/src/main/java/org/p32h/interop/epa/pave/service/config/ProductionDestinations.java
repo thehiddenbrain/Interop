@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,9 +18,12 @@ import org.p32h.interop.epa.pave.postman.VariableLayer;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
 
 /**
- * The destinations an environment's own values point at: the scheme, host, port and base path of
- * every variable in force whose value, resolved against that environment alone, reads as a url and
- * forms the url of a request.
+ * The destinations an environment's values point at: the scheme, host, port and base path of
+ * every variable in force whose value reads as a url and forms the url of a request, resolved
+ * through the layers the gateway resolves through when it sends: the environment, then the
+ * variables of a collection, then application.yml ({@code onyx.variables}). A url-forming name
+ * the environment does not define is read from those layers too, because that is where the
+ * environment's requests then go.
  *
  * <p>A variable whose name says it is the address of something a request is never sent to as a
  * call, such as the callback the vendor notifies or the endpoint an access token is fetched from,
@@ -29,8 +33,9 @@ import org.p32h.interop.epa.pave.postman.VariableResolver;
  *
  * <p>For a production environment these are the addresses a write must be unlocked for. For any
  * other environment they are compared with those, so that production cannot be uploaded again
- * under a sandbox's kind. Nothing from outside the environment is used: not the operating system,
- * whose values are secrets, and not a value typed for a run.
+ * under a sandbox's kind. Neither the operating system, whose values are read only at the moment
+ * of sending, nor a value typed for a run is used: a production address that depends on either is
+ * one this tool cannot know, and is refused, see {@link #problems}.
  *
  * <p>A secret of the environment never becomes part of an address that is shown or kept. Where a
  * secret sits in the path, the address ends before the segment that holds it, which is broader
@@ -40,7 +45,7 @@ import org.p32h.interop.epa.pave.postman.VariableResolver;
  */
 final class ProductionDestinations {
 
-    /** Resolves nested placeholders within one environment. It reads no operating system variable and generates nothing. */
+    /** Resolves nested placeholders through the layers it is given. It reads no operating system variable and generates nothing. */
     private static final VariableResolver WITHIN = new VariableResolver(name -> null, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), () -> "");
 
     private ProductionDestinations() {
@@ -55,8 +60,37 @@ final class ProductionDestinations {
             "audience", "aud", "authority", "realm", "scope", "scopes", "docs", "doc", "documentation", "portal", "homepage", "website",
             "help", "support", "logo", "terms", "privacy");
 
+    /** Words that say a variable holds an address, for a value that cannot be resolved to show it. */
+    private static final Set<String> ADDRESS_WORDS = Set.of("url", "uri", "urls", "host", "hostname", "endpoint", "base", "server");
+
     /** Stands in for the text of a secret, so that where a secret starts in a value is known exactly. */
     private static final char SECRET_MARK = '\u0001';
+
+    /**
+     * Where values come from after the environment's own, in the order the gateway asks them.
+     *
+     * @param urlForming the names of variables that a collection request puts where its url names
+     *                   its scheme, host and port. Such a variable is a destination whatever its name says
+     * @param after      each list of layers asked after the environment: application.yml alone, and
+     *                   each collection's variables followed by application.yml
+     */
+    record Context(Set<String> urlForming, List<List<VariableLayer>> after) {
+
+        Context {
+            urlForming = urlForming == null ? Set.of() : Set.copyOf(urlForming);
+            after = after == null || after.isEmpty() ? List.of(List.of()) : List.copyOf(after);
+        }
+
+        static Context of(List<StoredCollection> collections, Map<String, String> applicationYml) {
+            VariableLayer yml = VariableLayer.applicationYml(applicationYml);
+            List<List<VariableLayer>> after = new ArrayList<>();
+            after.add(List.of(yml));
+            for (StoredCollection collection : collections) {
+                after.add(List.of(VariableLayer.collection(collection.name(), collection.content().inForce()), yml));
+            }
+            return new Context(ProductionDestinations.urlForming(collections), after);
+        }
+    }
 
     /**
      * One destination of an environment.
@@ -66,12 +100,15 @@ final class ProductionDestinations {
      *                    the destination may be used for judging and is never shown or kept
      * @param variable    the name of the variable it was read from
      * @param written     the value of that variable as the file writes it, for quoting, or null
-     *                    when the variable is a secret. See {@link UrlNormal#asWritten}
+     *                    when the variable is a secret or the environment does not define it. See
+     *                    {@link UrlNormal#asWritten}
+     * @param own         false when the environment does not define the variable and it was read
+     *                    from a collection or application.yml, which every environment shares
      */
-    record Found(UrlNormal.Destination destination, boolean secret, String variable, String written) {
+    record Found(UrlNormal.Destination destination, boolean secret, String variable, String written, boolean own) {
 
         Found(UrlNormal.Destination destination, boolean secret) {
-            this(destination, secret, null, null);
+            this(destination, secret, null, null, true);
         }
 
         /** Prints the variable name only: the destination can be one built from a secret. */
@@ -81,12 +118,45 @@ final class ProductionDestinations {
         }
     }
 
+    /** Why the address a production environment would send to is not known exactly. */
+    enum Unknown {
+        /** It has a scheme and a host, and the HTTP client would not read it as this tool does. */
+        UNREADABLE,
+        /** It has no value in any layer. */
+        NO_VALUE,
+        /** Part of it is read from the operating system, which happens only at the moment of sending. */
+        AT_SENDING
+    }
+
     /**
-     * @param urlForming the names of variables that a collection request puts where its url names
-     *                   its scheme, host and port. Such a variable is a destination whatever its name says
+     * An address of a production environment that is not known exactly.
+     *
+     * @param variable the variable that holds it
+     * @param why      what is not known about it
+     * @param own      true when the environment defines the variable, false when it comes from a
+     *                 collection or application.yml
+     * @param written  the value as the environment writes it, or null when the variable is a secret
+     *                 or the environment does not define it
+     * @param resolved the address as it resolved through the other layers, when that is not what
+     *                 the environment writes and no secret is part of it, or null
+     * @param from     the layer the value was found in when the environment does not define it, or null
+     * @param secret   true when the variable or a part of its value is a secret, so no value is quoted
      */
-    static List<Found> of(PostmanEnvironment environment, Set<String> urlForming) {
-        return read(environment, urlForming, false);
+    record Problem(String variable, Unknown why, boolean own, String written, String resolved, String from, boolean secret) {
+
+        /** Prints the variable name only. */
+        @Override
+        public String toString() {
+            return "Problem[" + variable + ", " + why + "]";
+        }
+    }
+
+    /** What reading one environment found. */
+    private record Scan(List<Found> found, List<Problem> problems) {
+    }
+
+    static List<Found> of(PostmanEnvironment environment, Context context) {
+        return scan(environment, context, false).found();
     }
 
     /**
@@ -96,98 +166,181 @@ final class ProductionDestinations {
      * and every path on it. This tool cannot know which port and path the client would make of
      * it, and a destination that cannot be read is never "not production".
      */
-    static List<Found> production(PostmanEnvironment environment, Set<String> urlForming) {
-        return read(environment, urlForming, true);
+    static List<Found> production(PostmanEnvironment environment, Context context) {
+        return scan(environment, context, true).found();
     }
 
-    private static List<Found> read(PostmanEnvironment environment, Set<String> urlForming, boolean production) {
+    /**
+     * Every address of the environment that is not known exactly, for refusing it as production:
+     * one the client cannot read, a variable that reads as an address and has no value, and one
+     * built from an operating system variable. Empty when every address is known.
+     */
+    static List<Problem> problems(PostmanEnvironment environment, Context context) {
+        return scan(environment, context, true).problems();
+    }
+
+    private static Scan scan(PostmanEnvironment environment, Context context, boolean production) {
         Set<Found> found = new LinkedHashSet<>();
+        Map<String, Problem> problems = new LinkedHashMap<>();
+        if (environment == null) {
+            return new Scan(List.of(), List.of());
+        }
+        Map<String, PostmanVariable> inForce = environment.inForce();
+        VariableLayer own = VariableLayer.environment(environment.name(), inForce);
+        Set<String> noValue = new LinkedHashSet<>();
+        Set<String> valued = new LinkedHashSet<>();
+        for (List<VariableLayer> after : context.after()) {
+            List<VariableLayer> layers = new ArrayList<>();
+            layers.add(own);
+            layers.addAll(after);
+            for (PostmanVariable variable : inForce.values()) {
+                if (!variable.hasValue() || (notACall(variable.key()) && !context.urlForming().contains(variable.key()))) {
+                    continue;
+                }
+                Resolution resolved = WITHIN.resolve(variable.value(), layers);
+                read(variable.key(), variable.secret(), variable.secret() ? null : variable.value(), true, null, resolved, context,
+                        production, found, problems, noValue, valued);
+            }
+            // A url-forming name a production environment leaves to the other layers sends its
+            // requests wherever those layers say. Another environment is judged by its own
+            // addresses: a write of it that goes there is refused when it is sent.
+            for (String name : production ? context.urlForming() : Set.<String>of()) {
+                PostmanVariable defined = inForce.get(name);
+                if (defined != null && defined.hasValue()) {
+                    continue;
+                }
+                Resolution resolved = WITHIN.resolve("{{" + name + "}}", layers);
+                read(name, false, null, false, layerOf(name, after), resolved, context, production, found, problems, noValue, valued);
+            }
+        }
+        // No value is said only of a variable that had none under every collection.
+        noValue.removeAll(valued);
+        List<Problem> all = new ArrayList<>();
+        for (Problem problem : problems.values()) {
+            if (problem.why() != Unknown.NO_VALUE || noValue.contains(problem.variable())) {
+                all.add(problem);
+            }
+        }
+        return new Scan(new ArrayList<>(found), all);
+    }
+
+    /** Reads one resolved variable into what was found and what is not known. */
+    private static void read(String name, boolean secretVariable, String written, boolean own, String from, Resolution resolved,
+                             Context context, boolean production, Set<Found> found, Map<String, Problem> problems,
+                             Set<String> noValue, Set<String> valued) {
+        boolean holdsSecret = secretVariable || resolved.pieces().stream().anyMatch(piece -> piece.kind() == Resolution.Kind.SECRET);
+        String value = resolved.send();
+        if (value == null) {
+            boolean atSending = resolved.unresolved().stream().anyMatch(each -> each.startsWith(VariableResolver.OS_REFERENCE));
+            if (!addressLike(name, resolved, context)) {
+                return;
+            }
+            if (atSending) {
+                problems.putIfAbsent(name, new Problem(name, Unknown.AT_SENDING, own, written, null, from, holdsSecret));
+            } else if (own) {
+                noValue.add(name);
+                problems.putIfAbsent(name, new Problem(name, Unknown.NO_VALUE, own, written, null, from, holdsSecret));
+            }
+            return;
+        }
+        valued.add(name);
+        if (!ProductionSigns.looksLikeUrl(value)) {
+            return;
+        }
+        // A secret whose own value is an address is judged by and never shown or kept, like a
+        // host built from one.
+        UrlNormal.Destination whole = secretVariable ? UrlNormal.destination(value) : null;
+        Found destination = secretVariable ? (whole == null ? null : new Found(whole, true)) : withoutSecrets(resolved, value);
+        UrlNormal.Destination read = whole != null ? whole : UrlNormal.destination(value);
+        boolean unreadable = hasSchemeAndHost(value.strip()) && (read == null || !read.readable());
+        if (unreadable) {
+            String shown = holdsSecret || value.equals(written) ? null : value;
+            problems.putIfAbsent(name, new Problem(name, Unknown.UNREADABLE, own, written, shown, from, holdsSecret));
+        }
+        if (production && unreadable) {
+            UrlNormal.Destination host = UrlNormal.wholeHost(value);
+            // A secret anywhere in the value keeps the host out of every view and out of the store.
+            destination = host == null ? null : new Found(host, holdsSecret);
+        }
+        if (destination != null) {
+            found.add(new Found(destination.destination(), destination.secret(), name, written, own));
+        }
+    }
+
+    /**
+     * True when a value that could not be resolved is an address: a collection request builds its
+     * url on it, what could be resolved of it has a scheme, or its name says it holds one.
+     */
+    private static boolean addressLike(String name, Resolution resolved, Context context) {
+        if (context.urlForming().contains(name)) {
+            return true;
+        }
+        StringBuilder partial = new StringBuilder();
+        for (Resolution.Piece piece : resolved.pieces()) {
+            partial.append(piece.send() == null ? String.valueOf(SECRET_MARK) : piece.send());
+        }
+        if (partial.indexOf("://") >= 0) {
+            return true;
+        }
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith("url") || lower.endsWith("uri") || lower.endsWith("host") || lower.endsWith("endpoint")) {
+            return true;
+        }
+        for (String word : name.split("(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")) {
+            if (ADDRESS_WORDS.contains(word.toLowerCase(java.util.Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The label of the first of these layers that holds a value for the name, or null. */
+    private static String layerOf(String name, List<VariableLayer> layers) {
+        for (VariableLayer layer : layers) {
+            VariableLayer.Entry entry = layer.entries().get(name);
+            if (entry != null && entry.value() != null && !entry.value().isBlank()) {
+                return layer.label();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The names of the variables considered by {@link #of} whose value has a scheme and a host and
+     * yet no destination the HTTP client would read the same way. A write to such an address is
+     * refused, and the environment says so before anything is sent.
+     */
+    static List<String> unreadable(PostmanEnvironment environment, Context context) {
+        return scan(environment, context, false).problems().stream().filter(problem -> problem.why() == Unknown.UNREADABLE)
+                .map(Problem::variable).toList();
+    }
+
+    /**
+     * The names of the variables considered by {@link #of} whose address holds an encoded slash,
+     * backslash, semicolon or dot segment in its path. No request is sent to such an address.
+     */
+    static List<String> encodedSeparators(PostmanEnvironment environment, Context context) {
+        Set<String> names = new LinkedHashSet<>();
         if (environment == null) {
             return List.of();
         }
         Map<String, PostmanVariable> inForce = environment.inForce();
-        List<VariableLayer> layers = List.of(VariableLayer.environment(environment.name(), inForce));
-        for (PostmanVariable variable : inForce.values()) {
-            if (!variable.hasValue() || (notACall(variable.key()) && !urlForming.contains(variable.key()))) {
-                continue;
-            }
-            Resolution resolved = WITHIN.resolve(variable.value(), layers);
-            String value = resolved.send();
-            if (value == null || !ProductionSigns.looksLikeUrl(value)) {
-                continue;
-            }
-            String written = variable.secret() ? null : variable.value();
-            // A secret whose own value is an address is judged by and never shown or kept, like a
-            // host built from one.
-            UrlNormal.Destination whole = variable.secret() ? UrlNormal.destination(value) : null;
-            Found destination = variable.secret() ? (whole == null ? null : new Found(whole, true)) : withoutSecrets(resolved, value);
-            if (production && hasSchemeAndHost(value.strip()) && (destination == null || !destination.destination().readable())) {
-                UrlNormal.Destination host = UrlNormal.wholeHost(value);
-                // A secret anywhere in the value keeps the host out of every view and out of the store.
-                boolean secret = variable.secret() || resolved.pieces().stream().anyMatch(piece -> piece.kind() == Resolution.Kind.SECRET);
-                destination = host == null ? null : new Found(host, secret);
-            }
-            if (destination != null) {
-                found.add(new Found(destination.destination(), destination.secret(), variable.key(), written));
+        VariableLayer own = VariableLayer.environment(environment.name(), inForce);
+        for (List<VariableLayer> after : context.after()) {
+            List<VariableLayer> layers = new ArrayList<>();
+            layers.add(own);
+            layers.addAll(after);
+            for (PostmanVariable variable : inForce.values()) {
+                if (!variable.hasValue() || (notACall(variable.key()) && !context.urlForming().contains(variable.key()))) {
+                    continue;
+                }
+                String value = WITHIN.resolve(variable.value(), layers).send();
+                if (value != null && hasSchemeAndHost(value.strip()) && UrlNormal.encodedSeparator(value) != null) {
+                    names.add(variable.key());
+                }
             }
         }
-        return new ArrayList<>(found);
-    }
-
-    /**
-     * The variables considered by {@link #of} whose value, resolved against the environment alone,
-     * has a scheme and a host and yet no destination the HTTP client would read the same way.
-     */
-    static List<PostmanVariable> unreadableVariables(PostmanEnvironment environment, Set<String> urlForming) {
-        return variablesWhere(environment, urlForming, value -> {
-            UrlNormal.Destination destination = UrlNormal.destination(value);
-            return destination == null || !destination.readable();
-        });
-    }
-
-    /**
-     * The names of the variables considered by {@link #of} whose value, resolved against the
-     * environment alone, has a scheme and a host and yet no destination the HTTP client would read
-     * the same way. A write to such an address is refused, and the environment says so before
-     * anything is sent.
-     */
-    static List<String> unreadable(PostmanEnvironment environment, Set<String> urlForming) {
-        return unreadableVariables(environment, urlForming).stream().map(PostmanVariable::key).toList();
-    }
-
-    /**
-     * The names of the variables considered by {@link #of} whose address, resolved against the
-     * environment alone, holds an encoded slash, backslash, semicolon or dot segment in its path.
-     * No request is sent to such an address.
-     */
-    static List<String> encodedSeparators(PostmanEnvironment environment, Set<String> urlForming) {
-        return namesWhere(environment, urlForming, value -> UrlNormal.encodedSeparator(value) != null);
-    }
-
-    private static List<String> namesWhere(PostmanEnvironment environment, Set<String> urlForming,
-                                           java.util.function.Predicate<String> holds) {
-        return variablesWhere(environment, urlForming, holds).stream().map(PostmanVariable::key).toList();
-    }
-
-    private static List<PostmanVariable> variablesWhere(PostmanEnvironment environment, Set<String> urlForming,
-                                                        java.util.function.Predicate<String> holds) {
-        List<PostmanVariable> names = new ArrayList<>();
-        if (environment == null) {
-            return names;
-        }
-        Map<String, PostmanVariable> inForce = environment.inForce();
-        List<VariableLayer> layers = List.of(VariableLayer.environment(environment.name(), inForce));
-        for (PostmanVariable variable : inForce.values()) {
-            if (!variable.hasValue() || (notACall(variable.key()) && !urlForming.contains(variable.key()))) {
-                continue;
-            }
-            Resolution resolved = WITHIN.resolve(variable.value(), layers);
-            String value = resolved.send();
-            if (value != null && hasSchemeAndHost(value.strip()) && holds.test(value)) {
-                names.add(variable);
-            }
-        }
-        return names;
+        return new ArrayList<>(names);
     }
 
     /** True when the text starts with a scheme followed by {@code ://} and at least one character of authority. */
@@ -197,8 +350,8 @@ final class ProductionDestinations {
     }
 
     /** The destinations alone, for comparing with the addresses another environment would use. */
-    static List<UrlNormal.Destination> destinations(PostmanEnvironment environment, Set<String> urlForming) {
-        return of(environment, urlForming).stream().map(Found::destination).toList();
+    static List<UrlNormal.Destination> destinations(PostmanEnvironment environment, Context context) {
+        return of(environment, context).stream().map(Found::destination).toList();
     }
 
     /**

@@ -25,7 +25,7 @@ final class AddressChecks {
         if (environment == null) {
             return warnings;
         }
-        Set<String> urlForming = ProductionDestinations.urlForming(snapshot.collections());
+        ProductionDestinations.Context urlForming = snapshot.context();
         for (String name : ProductionDestinations.unreadable(environment.content(), urlForming)) {
             warnings.add("The variable \"" + ConfigStore.oneLine(name) + "\" holds an address whose scheme, host and port this tool "
                     + "cannot read the way the HTTP client reads them, for example a port above 65535 or a host written in a form the "

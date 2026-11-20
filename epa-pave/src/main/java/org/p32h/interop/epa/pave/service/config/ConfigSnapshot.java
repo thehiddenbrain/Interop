@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.config;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
@@ -25,27 +26,58 @@ import org.p32h.interop.epa.pave.postman.UrlNormal;
  *                     gone. The destinations of the production environments stored now are added
  *                     to it, so it is never short of them. An address of one of them that cannot
  *                     be read is there as its whole host, see {@link ProductionDestinations#production}
+ * @param applicationYml the {@code onyx.variables} of application.yml, the last layer a url is
+ *                     resolved through. The addresses of a production environment are read through
+ *                     it as well, because a write goes wherever it says
  */
 record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String activeName, List<StoredCollection> collections,
-                      List<KnownDestination> remembered) {
+                      List<KnownDestination> remembered, Map<String, String> applicationYml) {
 
     ConfigSnapshot {
         environments = environments == null ? List.of() : List.copyOf(environments);
         collections = collections == null ? List.of() : List.copyOf(collections);
+        applicationYml = applicationYml == null ? Map.of() : Map.copyOf(applicationYml);
         Set<KnownDestination> all = new LinkedHashSet<>(remembered == null ? List.of() : remembered);
-        Set<String> urlForming = ProductionDestinations.urlForming(collections);
+        ProductionDestinations.Context context = ProductionDestinations.Context.of(collections, applicationYml);
+        Map<String, List<ProductionDestinations.Found>> production = new java.util.LinkedHashMap<>();
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                for (ProductionDestinations.Found found : ProductionDestinations.production(environment.content(), urlForming)) {
-                    all.add(new KnownDestination(environment.name(), found.destination(), found.secret()));
-                }
+                production.put(environment.name(), ProductionDestinations.production(environment.content(), context));
             }
         }
+        // An address the environment leaves to a collection or application.yml is shared by every
+        // environment that does the same. It is that environment's only where no other production
+        // environment names it as its own: otherwise an unlock of one would carry a write to the
+        // other's address.
+        production.forEach((name, found) -> found.forEach(each -> {
+            boolean anothersOwn = !each.own() && production.entrySet().stream().anyMatch(other -> !other.getKey().equals(name)
+                    && other.getValue().stream().anyMatch(theirs -> theirs.own() && theirs.destination().overlaps(each.destination())));
+            if (!anothersOwn) {
+                all.add(new KnownDestination(name, each.destination(), each.secret()));
+            }
+        }));
         remembered = List.copyOf(all);
+    }
+
+    ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String activeName, List<StoredCollection> collections,
+                   List<KnownDestination> remembered) {
+        this(epoch, environments, activeName, collections, remembered, Map.of());
     }
 
     ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String activeName, List<StoredCollection> collections) {
         this(epoch, environments, activeName, collections, List.of());
+    }
+
+    /** The layers a url is resolved through after the environment, for reading the addresses of an environment. */
+    ProductionDestinations.Context context() {
+        return ProductionDestinations.Context.of(collections, applicationYml);
+    }
+
+    /** Prints counts and names, never a value of application.yml, which can be a secret. */
+    @Override
+    public String toString() {
+        return "ConfigSnapshot[epoch=" + epoch + ", environments=" + environments.size() + ", active=" + activeName + ", collections="
+                + collections.size() + ", remembered=" + remembered.size() + ", applicationYml=" + applicationYml.keySet() + "]";
     }
 
     /**

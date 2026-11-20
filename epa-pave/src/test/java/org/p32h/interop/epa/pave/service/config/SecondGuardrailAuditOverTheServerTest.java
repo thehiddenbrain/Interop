@@ -245,29 +245,33 @@ class SecondGuardrailAuditOverTheServerTest {
             assertThat(zeros.statusCode()).as(spelling).isEqualTo(422);
             assertThat(zeros.body()).contains("is an address of the production environment \\\"Audit Live A\\\"");
         }
-        // B1 through application.yml: a sandbox whose address is {{ymlZero}}, production B with leading zeros.
-        assertThat(upload("/api/config/environments", "y.json", environment("Yml Zero", "baseUrl", "{{ymlZero}}"), "kind", "sandbox")
-                .statusCode()).isEqualTo(200);
-        activate("Yml Zero");
-        HttpResponse<String> yml = json("POST", "/api/pas/submit", submit(null), null);
-        assertThat(yml.statusCode()).isEqualTo(403);
-        assertThat(yml.body()).contains("belongs to the production environment \\\"Audit Live B\\\"");
-        assertThat(json("DELETE", "/api/pas/subscriptions/s-1", null, null).statusCode()).isEqualTo(403);
+        // B1 through application.yml: a sandbox whose address is {{ymlZero}}, production B with leading zeros. Its
+        // address is read through application.yml as it would be sent, so it is refused at upload.
+        HttpResponse<String> ymlZero = upload("/api/config/environments", "y.json", environment("Yml Zero", "baseUrl", "{{ymlZero}}"),
+                "kind", "sandbox");
+        assertThat(ymlZero.statusCode()).isEqualTo(422);
+        assertThat(ymlZero.body()).contains("is an address of the production environment \\\"Audit Live B\\\"");
         // B1 through a collection literal, from a sandbox and while production A is unlocked.
         String literals = "{\"info\": {\"name\": \"Literal zeros\", \"schema\": "
                 + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": " + ConfigFixture.items(
                 ConfigFixture.item("transaction zero", "POST", PROD_B.zeros("/pb/fhir")),
+                ConfigFixture.item("submit by yml", "POST", "{{ymlZero}}/Claim/$submit"),
                 ConfigFixture.item("transaction unreadable", "POST", "http://127.0.0.1:" + (PROD_B.port() + 65536) + "/elsewhere/fhir"),
                 ConfigFixture.item("search encoded", "GET", "{{baseUrl}}/Claim?patient=Patient%2FS123456789")) + "}";
         assertThat(upload("/api/config/collections", "literals.json", literals.getBytes(StandardCharsets.UTF_8)).statusCode()).isEqualTo(200);
         activate("Audit Sandbox");
         assertThat(json("POST", "/api/raw", raw("Literal zeros", "transaction zero", null), null).statusCode()).isEqualTo(403);
+        // A write whose address application.yml gives, from a sandbox: refused, naming production B.
+        HttpResponse<String> yml = json("POST", "/api/raw", raw("Literal zeros", "submit by yml", null), null);
+        assertThat(yml.statusCode()).isEqualTo(403);
+        assertThat(yml.body()).contains("belongs to the production environment \\\"Audit Live B\\\"");
         HttpResponse<String> unreadable = json("POST", "/api/raw", raw("Literal zeros", "transaction unreadable", null), null);
         assertThat(unreadable.statusCode()).isEqualTo(403);
         assertThat(unreadable.body()).contains("could not be read the way the HTTP client reads them");
         activate("Audit Live A");
         String unlockedA = unlock("Audit Live A");
         assertThat(json("POST", "/api/raw", raw("Literal zeros", "transaction zero", null), unlockedA).statusCode()).isEqualTo(403);
+        assertThat(json("POST", "/api/raw", raw("Literal zeros", "submit by yml", null), unlockedA).statusCode()).isEqualTo(403);
         json("POST", "/api/config/writes", "{\"action\": \"lock\"}", unlockedA);
 
         // M-ENC. Production A active and locked: an encoded separator typed for one run hides a write in a read.
