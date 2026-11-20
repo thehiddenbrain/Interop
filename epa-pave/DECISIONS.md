@@ -2273,3 +2273,219 @@ From the ledger leftovers, the suites and chain verifications (F7, VS-4) and the
 - The frozen test helper `testsupport/InMemoryLedger` was given the new filters by the fix. The
   verification objected that it is frozen and that a second copy of the filters can drift; the
   finisher restored it. The `zone` and `testerRef` filters are tested on `JsonlRunLedger` only.
+
+### The frontend
+
+**D-190. The rules the interface is built to.**
+Set before the first frontend pass and binding on every part since. The specification's section 20
+is the design brief; these are the rules a maintainer has to keep.
+- Plain HTML, plain JavaScript modules and hand-written CSS, under `src/main/resources/static/`. No
+  package manager, bundler, framework or build step: a tester edits a file and refreshes. Nothing is
+  loaded from another host, no font, script or stylesheet, because the tool runs on a laptop behind a
+  corporate network.
+- The browser keeps no copy of words the server owns and derives no answer. Outcome labels and tones,
+  the elements of an expectation, operation labels, scenario lists, the verdict, the test result, the
+  next step and the findings are fetched and shown as the server words them. JavaScript never
+  computes an outcome from codes, decides pass or fail, invents a next step or evaluates a
+  questionnaire's conditions. Where the server gives a code and no words, the screen shows the code
+  and the server change is reported, not guessed (D-172).
+- Absent, null and empty are three different things on screen ("not returned", "null", "empty"),
+  each visibly different from a value and from each other. Never a blank cell.
+- One action keeps one name through the whole flow, and a button names what happens ("Send CRD
+  request", never "Submit"). An action the server names in a next step is the same words as the
+  button that takes it: where they still differ (the two DTR steps), the server's label is being
+  changed to the button's (D-200).
+- Browser storage holds which tab is open (`localStorage` key `pave.tab`) and nothing else. No
+  member data is kept anywhere in the browser: no recent members, no search history, no cached
+  lookups, not even in memory across a reload. A secret the API masks is never unmasked, and a value
+  typed into a secret field is never echoed back.
+- No markup is made from a string, anywhere: a vendor response is untrusted text.
+- The authorization outcome and the test result are two facts and never look like one. The verdict
+  strip is the one loud element; "unverified" is styled as neither pass nor fail.
+- The result view is the same on every tab, in the order `TASK_C1` gives: verdict, test result, next
+  step, ledger line (NOT recorded impossible to miss), findings, determination grid, the protocol's
+  detail, returned but not interpreted, the wire view (collapsed), the error panel.
+
+`StaticFrontendTest` enforces what a build can check: plain ASCII, no markup or code from strings,
+nothing from another host, no inline script or style, module scripts from this tool only, no
+tracking property in any stylesheet, one script (`js/api.js`) talking to the server, the storage
+rule, the page's own security policy matching the server's, and every file the page asks for
+existing. Behaviour on screen is checked only by browser scripts kept outside the repository.
+
+Known places where the first two rules are broken at the revision of D-201, each waiting on a server
+field that is decided (D-200): `js/marks.js` keeps the grouping of finding kinds (`FINDING_GROUPS`);
+`js/crd-compare.js` words the source of a case value and keeps which comparison group starts closed;
+`js/pas-detail.js` words where a decision was stated; the PAS tab words how attachments travelled and
+whether the receiver can be reached; the CRD comparison finds its caveat as the first note of a
+comparable answer. The DTR and PAS tabs each keep their own copy of `sameCase`, which the frame now
+exports (D-191).
+
+**D-191. Who owns which file of the frontend, and what a tab may ask of the frame.**
+The parts were built at the same moment by different agents, so each owned files and was forbidden
+the rest. The ownership stays the map for a maintainer.
+- The frame owns `index.html`, `js/app.js`, `js/api.js`, `js/result.js`, `js/legend.js`,
+  `js/workbench.js`, `js/marks.js`, `js/shown.js`, `js/dom.js`, `js/forms.js`, `js/handover.js`,
+  `js/case-context.js`, `css/pave.css` and `StaticFrontendTest`. While others build on them, a change
+  to a shared file only adds: no exported function, option, class name or custom property is renamed,
+  removed or changed in meaning.
+- Each protocol tab owns `js/tab-<tab>.js`, its own modules (`js/crd-*`, `js/dtr-*`, `js/pas-*`) and
+  `css/<tab>.css`. The case owns `js/lookup.js`, `js/code-picker.js`, `js/own-request.js` and
+  `js/run-values.js` with `css/case.css`; History owns `js/tab-history.js`, `js/history-*`,
+  `js/suites.js` and `js/chain.js`; Config owns `js/tab-config.js` and `js/config-*`. A tab's style
+  rules go in its own stylesheet, using the custom properties and classes of `pave.css`.
+- What a tab may ask of the frame, added by the frame pass: `createWorkbench` takes
+  `spec.operations`, which withholds the form while the server says the tab's first operation is
+  unavailable and brings it back by itself after the next configuration change; it is off unless a tab
+  passes it, and no tab passes it at the revision of D-201 (the DTR and PAS tabs read
+  `/api/config/effective` themselves and say what is missing; the CRD tab still shows a form that
+  cannot send on live with nothing configured). `bench.showResult` honours a tab's own
+  `nextStepControl`, so a tab draws the control for an action it takes itself. `bench.track` keeps a
+  set and lets a result's controls go with the result; `bench.untrack` exists. `app.operationRow`,
+  `app.operationsRead`, `app.whenConfigChanges`, `app.ledgerHealth` and `app.refreshMode({quiet})`
+  exist. `handover.js` exports `sameCase`. `additionalFieldsSection` takes the wire as a third
+  argument (D-196).
+- The shared client sends PUT and DELETE (`api.putJson`, `api.del`), so the Config tab now offers
+  changing a mapping, taking a request off an operation and removing an environment or a collection.
+  The frame pass drove those flows in a browser on mock and on a production environment, with the
+  mouse and the keyboard. The server never answers 409 to them, so that path was never seen.
+- Asked of the frame and not done: `bench.clearRefusal` (an earlier 409 refusal stays above a later
+  comparison), a way for the case to mark a detail "from the pasted request" and for the lookup strip
+  to show a line the page gives, a collapsed form of the chain bar at laptop height, and an action box
+  that scrolls with the form below about 800 pixels of height. Each part reported these; the pass that
+  joins the tabs is to take them up (D-200).
+
+**D-192. How a step hands the case to the next tab.**
+- A next step this tool can take is offered as a button that carries `nextStep.carry` unchanged, with
+  the run it came from, its protocol, the chain id and the case it was for:
+  `app.carryTo(tab, {carry, fromRunId, fromProtocol, chainId, forCase})`, read on the other side with
+  `app.carriedTo(tab)`. No tab picks keys out of the carry.
+- The receiving tab uses a hand-over only while the case on screen is the case it was for (`sameCase`
+  on member, NPI and codes). Otherwise it says the hand-over was not sent and why. What a step handed
+  on does not survive a change of member.
+- DTR posts with every step the carry of the latest DTR result; a result with no carry does not
+  replace the earlier one, because posting nothing would lose the package run and the completed
+  responses.
+- DTR withdraws "Continue in PAS", in the workspace and in the result, while any typed answer differs
+  from what was posted with the last step that worked. The review found PAS receiving the old answers
+  after a change; the button now carries only answers the service has seen.
+- On the PAS tab, a PAS result whose next step is to submit again after documentation was asked for
+  offers "Add the documentation and send again", which puts the claim id in its field and opens the
+  first attachment, in place of the shared "Continue in PAS", which would have carried the result
+  back into the tab already open and invited the resubmission the step warns against.
+- Each hand-over was checked tab by tab on bases that did not hold the other tabs: CRD to the
+  placeholder DTR tab, DTR to the placeholder PAS tab, and PAS with a DTR answer injected into the
+  browser. No hand-over between two real tabs has been seen.
+
+**D-193. The completed answers inside the outgoing PAS request.**
+The specification's proof before handover asks to see the completed QuestionnaireResponse inside the
+PAS request. The PAS tab shows the answers as read out of the request body that is to be sent or was
+sent, not out of what DTR handed on, so the screen shows what reaches the wire. The
+QuestionnaireResponse text is cut from the body character for character, not written out again. The
+section appears on a submission's preview and result only when DTR handed answers on or the body
+holds a QuestionnaireResponse, and the tab offers a way to send without them, said as what it is. It
+was proven with a DTR result passed into the browser in place of a CRD answer, because the real DTR
+tab was not on that base; on mock the request is never sent, so the section reads "in the request
+built, which was not sent". Nobody has seen it after a journey through the real tabs.
+
+**D-194. How the comparison of a pasted CRD request is presented.**
+From the CRD tab pass, its review and its finisher (D-119, D-170 for what the server does).
+- The server's headline first, then its groups in its order, "How the request is built" first and
+  open, "Every call" last and closed, each with its count. Each difference shows where it is, what the
+  element is in the server's glossary (or that the server could not say), the two values with the
+  three presences told apart, and the explanation. The two documents sit side by side with every
+  difference marked in both; choosing a difference from the list, from a document line or with
+  Previous and Next brings it into view below the pinned documents, never under them, and Previous and
+  Next walk the differences in the order they are drawn.
+- A comparison on screen that no longer matches the box, the hook or the mode says it is out of date.
+  The review found an old comparison still headed "Compared: the request in the box" after the box
+  was emptied.
+- "Fill the form from this request" never types over a value a lookup gave. It fills what is empty,
+  lists what already agrees, and puts every disagreement in a table under "The lookup and your request
+  disagree", with an explicit button to take the request's values. The review found the fill typing
+  one person's pasted details over the person the lookup returned, so the request and the ledger held
+  a mix of two people.
+- A pasted request for another hook is named by the two hooks the server's own `/hook` difference
+  gives, and nothing is said about which is right.
+- The vendor's sample is offered when the active collection's request has one: the tab reads its
+  saved body from `/api/config/resolve` and posts it back as the box, because the comparison
+  endpoint cannot take a collection request by name. The sample therefore passes through the browser.
+- Until the server changes (D-200): the caveat that the comparison cannot show which request the
+  service expects is taken from the first note of a comparable answer and is missing when the two
+  cannot be compared; a credential in the pasted request is shown as typed; a refused comparison
+  reads "send again".
+
+**D-195. What the colour key covers.**
+Every colour, mark and frame on any tab means one thing, and the key, reachable from every tab, says
+what. Added by the frame pass:
+- Entries for a production session whose writes are unlocked, for the sandbox kind, and for the
+  difference between the thin frame of a flag and the heavy frame. The heavy black frame keeps all its
+  uses (a fault, a refused field or form, a result out of date, a notice about the tool) under one
+  meaning: stop and read this before the next run.
+- Cream marks test data typed by hand that a lookup would not give back, and also a DTR answer the
+  payer pre-populated and a person then changed (an information-origin override).
+- A heavy rule down a Config row marks an operation that cannot be sent as things are configured.
+- An unknown test result is drawn in a plain thin grey frame and an unknown tone as neutral, never as
+  a fault and never dropped; an unknown finding kind or next action is drawn with the server's words.
+- The finding kinds are listed by group, `GUIDE_RULE_BROKEN` and `REQUEST_INCOMPLETE` among them; a
+  request that went out incomplete is not drawn as a fault of the service.
+- Codes in the key break only after an underscore. The review asked for that; it was already so.
+Known to be wrong at the revision of D-201, because the tone is the server's: a completed DTR
+response is drawn in the tone the key defines as "nothing further is required of the provider",
+while its next step is to submit to PAS; an unmatched notification is drawn in the tone the key
+defines as the service not knowing the member or the provider; a subscription created with no call
+back address is drawn as needing nothing further. Changing the tones is decided (D-200).
+
+**D-196. What the page does about a secret a service sends back, until the server masks it everywhere.**
+The frame review found the bearer token a stand-in echoed shown in clear under "Returned but not
+interpreted" on a CRD result and on a request sent from the collection as it is, a few lines below the
+sentence that said it was masked. The server has since masked the parsed body for CRD, DTR, PAS and
+the lookups (D-179); a request sent from the collection as it is still builds those fields from the
+body as received. As a stopgap, the result view takes each returned value from the masked wire body
+at the same path whenever the wire says something was masked, and withholds a value whose path it
+cannot find there, with a pointer to the wire view. A text search for the secret in the page then
+found nothing, on a live CRD result and on such a send. Three places draw returned values without the
+wire and are not covered by the stopgap: the lookups, CRD discovery and the CRD detail's own table of
+the rest of a resource. The server is where this is put right (D-200).
+
+**D-197. Decisions of the tabs that a maintainer would otherwise rediscover.**
+- The frame: the ledger indicator is drawn from `/api/runs/health` beside `/api/mode`, loud in words
+  when tracking is off, the ledger cannot write or a write failed, quiet when recording, and its count
+  is of a UTC day; a run's own receipt wins for that run. A failure in the past while the ledger
+  writes again shows the quiet count with "N writes failed earlier, since the tool started", without
+  the heavy frame. The environment strip is not a live region; a short status line announces only a
+  change of profile, target, environment or ledger state. A blocked result on mock does not say a
+  scenario answered. A run id in the result view opens that run in History. A returned value over 600
+  characters shows its first 300 and a fold. After a send the focus returns to the control that
+  started it. Very long refusal headlines are set smaller and are still the loudest text. The browser
+  tab title says when production writes are unlocked.
+- The DTR tab: the questions sit in the result's response detail, ahead of what the step returned.
+  Controls start empty and what the response holds is shown beside each question with whose answer it
+  is, so a value the page filled in is never mistaken for one the tester typed. What each step posts
+  follows the DTR owner's notes to the letter, because the server keeps nothing between steps. The
+  next-question shape is bare (DTR 2.0.1) by default, and a wrapped shape applies to one step only.
+  Whether an item is enabled is never worked out in the browser; an item whose state depends on
+  answers says, once answers have changed, as of which step its state is. The expectation goes with
+  the next step sent and is cleared once that step has a result. A refusal of a step is shown under
+  that step's buttons. Each step says whether it was recorded.
+- The PAS tab: no inquiry button after a submission that failed in the environment, because choosing
+  between "ask for the status first" and "safe to send again" would read outcome codes; where the
+  server's next step is to check the environment and a claim id is known, "Choose the Inquire call"
+  switches to the inquiry already filled and sends nothing. Notifications are two short lines each,
+  with the server's outcome, the decision when present and the matched run, trimmed to what the
+  receiver holds. A preview's notes are introduced by "If it were sent as it stands, the server
+  notes:", because the server words them in the past tense. The tester reference and the note show on
+  the result.
+- The CRD tab: everything of sections 11, 21 and 28.3 is drawn by the CRD detail and the shared result
+  view; the pass found nothing missing scenario by scenario.
+
+**D-198. What the reviews found that was refuted or deliberately left.**
+- Refuted: the frame review's report of codes in the key breaking mid-word (they break after an
+  underscore, as asked). The DTR review's report that a removal of a pre-populated answer is sent
+  again at the next step: it must be, because each response step starts again from the package's
+  draft, and without it the payer's value would come back; only the wording was wrong and is fixed.
+- Left as a limit: phone width below the laptop floor (the History runs table and the CRD elements
+  table run past the edge at 390 pixels); a 409 from the mapping and removal endpoints, which the
+  server never gives; a 422 on a mapping, which the screen never offers a way to cause.
+- Left for the server, decided and not done (D-200): the per-item comparison of what was asked with
+  what was returned on a PAS response is decided not to be built (D-199); everything else the reviews
+  handed to the server is in D-200.
