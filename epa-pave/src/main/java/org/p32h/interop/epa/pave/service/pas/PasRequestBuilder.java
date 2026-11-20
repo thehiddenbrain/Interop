@@ -156,7 +156,8 @@ public final class PasRequestBuilder {
                 supportingInfo.add(supporting(supportingInfo.size() + 1, reference));
                 notes.add("Attachment " + position + " (\"" + title + "\") was not put in the bundle. In the attachment mode "
                         + StartupChecks.ATTACHMENT_X12_275 + " the claim only names the document, by the attachment control number " + number
-                        + ", for an X12 275 transaction that this tool does not send. The service receives no document from this tool.");
+                        + ", for an X12 275 transaction that this tool does not send. The service receives no document from this tool. "
+                        + "In PAS 2.0.1 a 275 is produced by the intermediary from the bundle, not sent by the client beside it.");
             } else {
                 String id = OnyxPasConventions.documentReferenceId(position);
                 boolean inline = Texts.present(attachment.text());
@@ -166,6 +167,10 @@ public final class PasRequestBuilder {
                         + (inline ? ", with its content inline." : ", by its url."));
             }
             position++;
+        }
+        if (!request.attachments().isEmpty()) {
+            notes.add("Neither attachment mode is the PAS 2.0.1 way of sending documentation after the payer has asked for it: that is a "
+                    + "claim update that replaces the earlier claim, or the CDex operation $submit-attachment, and this tool builds neither.");
         }
 
         ArrayNode diagnosis = JSON.arrayNode();

@@ -34,6 +34,14 @@ import java.util.Map;
  */
 public final class PasVerdicts {
 
+    /**
+     * What PAS 2.0.1 does after the payer asks for documentation, and that this tool does not do it:
+     * specification.md, updating requests, and additionalinfo.md, $submit-attachment.
+     */
+    static final String GUIDE_ROUTE = "PAS 2.0.1 sends documentation after the payer asks for it in one of two ways: a claim update, which "
+            + "is a new claim with its own identifier that replaces this one (Claim.related, relationship replaces), or the CDex "
+            + "operation $submit-attachment. This tool builds neither.";
+
     private PasVerdicts() {
     }
 
@@ -67,6 +75,7 @@ public final class PasVerdicts {
                 long open = responses.stream().flatMap(r -> r.attachments().stream()).filter(AttachmentRefView::open).count();
                 supporting.add("The response refers to " + open + (open == 1 ? " request" : " requests") + " for documentation. What is "
                         + "asked for is shown below, in the payer's own words.");
+                supporting.add(GUIDE_ROUTE);
                 yield "The payer needs more documentation before it will decide.";
             }
             case CONTACT_PAYER -> "The payer asks to be contacted about this request.";
@@ -271,8 +280,9 @@ public final class PasVerdicts {
             case PENDED -> new NextStepView(NextAction.CHECK_STATUS, "Next: ask for the status with an inquiry, or wait for a notification.",
                     "The request is pended: the payer has not decided yet.", carry);
             case ATTACHMENT_REQUIRED -> new NextStepView(NextAction.START_PAS,
-                    "Next: submit the request again with the documentation the payer asked for.",
-                    "The payer will not decide until it has the documentation it refers to.", carry);
+                    "Next: send the documentation the payer asked for. Submitting again from this tool sends a new request with the same "
+                            + "claim identifier, which is not the PAS 2.0.1 way.",
+                    "The payer will not decide until it has the documentation it refers to. " + GUIDE_ROUTE, carry);
             case CONTACT_PAYER -> new NextStepView(NextAction.REVIEW, "Next: contact the payer about this request. Nothing more can be done "
                     + "from this tool.", "The payer answered with the review action that asks to be contacted.", carry);
             case MIXED -> reading.decisions().stream().anyMatch(d -> d.outcome() == PasOutcome.PENDED)

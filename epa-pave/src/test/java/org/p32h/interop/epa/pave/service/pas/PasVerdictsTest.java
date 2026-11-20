@@ -124,6 +124,22 @@ class PasVerdictsTest {
     }
 
     @Test
+    void anAttachmentRequiredResultSaysWhatPas201DoesNextAndThatThisToolDoesNotBuildIt() {
+        // PAS 2.0.1 specification.md (a new Claim that replaces the earlier one) and additionalinfo.md ($submit-attachment).
+        PasReading reading = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"communicationRequest\":[{\"reference\":"
+                + "\"CommunicationRequest/cr-docs-1\"}]", items(decided(1, "A4")))), sent("95810"));
+        assertThat(reading.outcome()).isEqualTo(PasOutcome.ATTACHMENT_REQUIRED);
+        assertThat(verdict(reading).supporting()).contains("PAS 2.0.1 sends documentation after the payer asks for it in one of two ways: "
+                + "a claim update, which is a new claim with its own identifier that replaces this one (Claim.related, relationship "
+                + "replaces), or the CDex operation $submit-attachment. This tool builds neither.");
+        NextStepView next = next(reading);
+        assertThat(next.action()).isEqualTo(NextAction.START_PAS);
+        assertThat(next.headline()).isEqualTo("Next: send the documentation the payer asked for. Submitting again from this tool sends a new "
+                + "request with the same claim identifier, which is not the PAS 2.0.1 way.");
+        assertThat(next.reason()).endsWith("This tool builds neither.");
+    }
+
+    @Test
     void aReviewActionOutsideThePlacePas201AllowsIsReadAndSaidToBeOutsideIt() {
         // PAS 2.0.1 ReviewAction context: Claim.item, ClaimResponse.item.adjudication. Not ClaimResponse, not ClaimResponse.item.
         PasReading onItem = read(bundle(claimResponse("\"outcome\":\"complete\"", items("{\"itemSequence\":1,\"extension\":[" + action("A1")
@@ -266,7 +282,7 @@ class PasVerdictsTest {
                 sent("95810"));
         assertThat(verdict(reading).headline()).isEqualTo("The payer needs more documentation before it will decide.");
         assertThat(verdict(reading).supporting()).containsExactly("The response refers to 1 request for documentation. What is asked for is "
-                + "shown below, in the payer's own words.");
+                + "shown below, in the payer's own words.", PasVerdicts.GUIDE_ROUTE);
         assertThat(next(reading).action()).isEqualTo(NextAction.START_PAS);
         assertThat(next(reading).carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
         // An approval that still refers to an open request says so beneath it.

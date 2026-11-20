@@ -395,7 +395,11 @@ class PasRequestBuilderTest {
         assertThat(built.attachmentMode()).isEqualTo("x12-275");
         assertThat(built.notes()).contains("Attachment 1 (\"Sleep study report\") was not put in the bundle. In the attachment mode x12-275 the "
                 + "claim only names the document, by the attachment control number " + CLAIM + "-A1, for an X12 275 transaction that this "
-                + "tool does not send. The service receives no document from this tool.");
+                + "tool does not send. The service receives no document from this tool. In PAS 2.0.1 a 275 is produced by the intermediary "
+                + "from the bundle, not sent by the client beside it.");
+        assertThat(built.notes()).contains("Neither attachment mode is the PAS 2.0.1 way of sending documentation after the payer has asked "
+                + "for it: that is a claim update that replaces the earlier claim, or the CDex operation $submit-attachment, and this tool "
+                + "builds neither.");
     }
 
     // ---- the inquiry ----
