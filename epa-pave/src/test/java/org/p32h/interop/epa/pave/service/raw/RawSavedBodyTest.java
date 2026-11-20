@@ -205,11 +205,17 @@ class RawSavedBodyTest {
                             .containsExactly("urlValues.id"));
 
             // A value that would change the shape of the url is percent-encoded into its one place.
-            RunEnvelope<RawDetail> filled = service.run(request(ref, null).withUrlValues(Map.of("id", "P32H-ONE/../x?y")), RunOrigin.manual(),
+            RunEnvelope<RawDetail> filled = service.run(request(ref, null).withUrlValues(Map.of("id", "P32H-ONE?x=y#z")), RunOrigin.manual(),
                     null);
             // The stand-in live client answers with a canned exchange, so the url it was handed is the one compared.
             String sent = live ? sentCall.get().url().value() : filled.wire().request().url();
-            assertThat(sent).as(profile).isEqualTo(BASE + "/Patient/P32H-ONE%2F..%2Fx%3Fy/Thing");
+            assertThat(sent).as(profile).isEqualTo(BASE + "/Patient/P32H-ONE%3Fx%3Dy%23z/Thing");
+            assertThat(ledger.records()).as(profile).hasSize(before + 1);
+            // One that holds a slash would leave an encoded slash in the path, which a server in front of the service may
+            // decode: it is refused, naming the url part, and nothing is sent or recorded.
+            assertThatThrownBy(() -> service.run(request(ref, null).withUrlValues(Map.of("id", "P32H-ONE/../x?y")), RunOrigin.manual(), null))
+                    .as(profile).isInstanceOf(org.p32h.interop.epa.pave.service.error.BadInputException.class)
+                    .hasMessageContaining("which came from the url part {id}");
             assertThat(ledger.records()).as(profile).hasSize(before + 1);
         }
     }
@@ -235,11 +241,12 @@ class RawSavedBodyTest {
         // A value that stays inside its segment goes.
         service.run(request(ref, null).withUrlValues(Map.of("tenant", "T-1")), RunOrigin.manual(), null);
         assertThat(sentCall.get().url().value()).isEqualTo(BASE + "/T-1/Thing");
-        // An address typed as the value stays inside its one segment: the write still goes where the configuration says.
-        RunEnvelope<RawDetail> address = service.run(request(ref, null).withUrlValues(Map.of("tenant", "https://elsewhere.invalid")),
-                RunOrigin.manual(), null);
-        assertThat(RunSupport.isBlocked(address)).isFalse();
-        assertThat(sentCall.get().url().value()).isEqualTo(BASE + "/https%3A%2F%2Felsewhere.invalid/Thing");
+        // An address typed as the value would sit in its one segment with encoded slashes, which no request carries in its path:
+        // refused, and nothing more is sent.
+        sentCall.set(null);
+        assertThatThrownBy(() -> service.run(request(ref, null).withUrlValues(Map.of("tenant", "https://elsewhere.invalid")),
+                RunOrigin.manual(), null)).isInstanceOf(org.p32h.interop.epa.pave.service.error.BadInputException.class);
+        assertThat(sentCall.get()).isNull();
 
         // On a production environment nobody unlocked, a write with a value for its url is refused like any other write.
         fixture.activeEnvironmentOf("Onyx Production", EnvironmentKind.PROD, "baseUrl", "https://onyx-prod.example.invalid/fhir");

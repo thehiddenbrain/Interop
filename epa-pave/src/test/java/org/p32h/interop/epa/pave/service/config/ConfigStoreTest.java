@@ -520,10 +520,12 @@ class ConfigStoreTest {
         ConfigStore.CollectionUpload upload = fixture.store.uploadCollection("nested.json", PostmanFiles.bytes(PostmanFiles.NESTED_COLLECTION));
 
         assertThat(upload.replaced()).isFalse();
-        assertThat(upload.warnings()).hasSize(2);
+        assertThat(upload.warnings()).hasSize(3);
         assertThat(upload.warnings().get(0)).startsWith("The variable \"collectionKey\" holds a secret in plain text, and it now sits in the file "
                 + directory.resolve(upload.collection().file()) + ".").doesNotContain("placeholder-collection-key");
         assertThat(upload.warnings().get(1)).isEqualTo("1 entry is neither a folder nor a request and is not listed.");
+        assertThat(upload.warnings().get(2)).startsWith("The request \"Level one / Level two / Level three / deep order-select\" carries a "
+                + "saved example response");
     }
 
     @Test

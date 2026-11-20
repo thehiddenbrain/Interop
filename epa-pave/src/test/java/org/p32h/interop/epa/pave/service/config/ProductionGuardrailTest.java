@@ -243,6 +243,14 @@ class ProductionGuardrailTest {
             assertThat(refusal.getMessage()).as(profile).isEqualTo("The request \"Save draft\", sent as written, is blocked: " + LOCKED
                     + " It counts as a write because a request this tool cannot map may change something when it is sent with POST.");
 
+            // m1 of the second guardrail audit: a raw send of a request that is mapped says so, and why it is still a write.
+            StoredCollection vendor = fixture.collection(org.p32h.interop.epa.pave.postman.PostmanFiles.VENDOR_COLLECTION);
+            ProdWriteBlockedException mapped = blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED)
+                    .withRequest(ref(vendor, "submit Happy Path")));
+            assertThat(mapped.getMessage()).as(profile).isEqualTo("The request \"submit Happy Path\", sent as written, is blocked: " + LOCKED
+                    + " It counts as a write because a request sent as written is judged by its method whatever it is mapped to, and this "
+                    + "one, mapped to PAS submit, would be sent with POST.").doesNotContain("cannot map");
+
             PreparedCall read = fixture.gateway.prepare(CallIntent.of(EpaOperation.UNMAPPED).withRequest(get));
             assertThat(read.method()).as(profile).isEqualTo("GET");
             assertThat(read.url().value()).as(profile).isEqualTo(PRODUCTION_FHIR + "/metadata");

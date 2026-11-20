@@ -42,8 +42,9 @@ class UrlPartGuardrailTest {
                         + "{id} would change where it goes"));
 
         assertThat(fixture.gateway.prepare(delete.withUrlValue("id", "SUB-9")).url().value()).isEqualTo(BASE + "/Subscription/SUB-9");
-        assertThat(fixture.gateway.prepare(delete.withUrlValue("id", "../Claim")).url().value())
-                .isEqualTo(BASE + "/Subscription/..%2FClaim");
+        // Encoded into its one segment, it would still hold an encoded slash, which no request carries in its path.
+        assertThatThrownBy(() -> fixture.gateway.prepare(delete.withUrlValue("id", "../Claim"))).isInstanceOf(
+                org.p32h.interop.epa.pave.service.error.BadInputException.class);
     }
 
     @Test

@@ -305,8 +305,10 @@ public class ConfigStore {
                 before.remembered()), file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
+        warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
+        warnings.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
         // The name, the kind and a count. Never a variable value.
         log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
@@ -387,6 +389,7 @@ public class ConfigStore {
         warnings.addAll(literalCredentialWarnings(parsed, file));
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
+        warnings.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
         // The name and counts only. Never a url, a header or a body.
         log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
@@ -507,6 +510,37 @@ public class ConfigStore {
                 + "installation knows as production stays production, even after its environment is deleted. If this environment is "
                 + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
                 + " service and upload it again.")));
+    }
+
+    /**
+     * A warning when an upload can hold member data: a variable whose name reads as a member,
+     * patient or subscriber identifier, a name or a birth date, or a request with a saved example
+     * response. The variables and requests are named. A value never is.
+     */
+    private List<String> memberDataWarnings(String what, List<PostmanVariable> variables, List<PostmanRequest> requests, String file) {
+        List<String> warnings = new ArrayList<>();
+        String kept = " The " + what + " is kept on disk exactly as it was uploaded, values included, in the file "
+                + directory.resolve(file) + ". An environment or a collection that holds real member data must not be uploaded: use "
+                + "placeholders such as S123456789 in its place.";
+        List<String> names = MemberDataNames.in(variables);
+        if (!names.isEmpty()) {
+            warnings.add((names.size() == 1 ? "The variable " : "The variables ") + String.join(", ", names.stream()
+                    .map(name -> "\"" + oneLine(name) + "\"").toList()) + (names.size() == 1 ? " reads" : " read")
+                    + " as member data: an identifier, a name or a birth date." + kept);
+        }
+        List<String> withExamples = new ArrayList<>();
+        for (PostmanRequest request : requests) {
+            if (!request.examples().isEmpty()) {
+                withExamples.add(request.qualifiedName());
+            }
+        }
+        if (!withExamples.isEmpty()) {
+            String first = "\"" + oneLine(withExamples.get(0)) + "\"";
+            warnings.add((withExamples.size() == 1 ? "The request " + first + " carries"
+                    : withExamples.size() + " requests, the first being " + first + ", carry") + " a saved example response, which can "
+                    + "hold the member data of whoever the example was saved for." + kept);
+        }
+        return warnings;
     }
 
     /**

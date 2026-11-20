@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.postman;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -51,8 +53,17 @@ public final class UrlNormal {
      * @param path   the path in its normal form, without a trailing slash and without the
      *               {@code ;} parameters of its segments, which name nothing a server routes on.
      *               Empty for the root
+     * @param readable true when the HTTP client reads the url the same way: it has a scheme, a
+     *               host the JDK parser accepts and a port of at most 65535. When false, the parts
+     *               are this tool's own lenient reading, used only to compare with production
+     *               addresses, and the client would refuse the url or read it otherwise
      */
-    public record Destination(String scheme, String host, int port, String path) {
+    public record Destination(String scheme, String host, int port, String path, boolean readable) {
+
+        /** A destination read the way the HTTP client reads it. */
+        public Destination(String scheme, String host, int port, String path) {
+            this(scheme, host, port, path, true);
+        }
 
         /** The destination as one text: scheme, host, port and path. Never a query or user information. */
         public String shown() {
@@ -133,15 +144,90 @@ public final class UrlNormal {
     }
 
     /**
-     * The destination an absolute url names, or null when it does not name one: no scheme, no
-     * host, or a host this tool cannot read. A value with no scheme, such as
-     * {@code api.example.org/fhir}, is read with the scheme left open.
+     * The destination an absolute url names, read exactly as the HTTP client that sends it reads
+     * it: by {@link URI}, which is what the client is given. A port written with leading zeros,
+     * an explicit default port, a scheme or host in capitals, user information before the host
+     * and an IPv6 literal are therefore what the client connects to, and nothing else.
+     *
+     * <p>When {@link URI} finds no host, or the port is above 65535, the client would refuse the
+     * url. The destination is then this tool's own lenient reading, marked as not readable, so that
+     * it can still be compared with production addresses (a comparison errs toward a match) and so
+     * that a write to it is refused. A value with no scheme, such as {@code api.example.org/fhir},
+     * is read that way too, with the scheme left open. Null when not even a host can be found.
      */
     public static Destination destination(String url) {
         if (url == null) {
             return null;
         }
         String text = of(url.strip()).text();
+        URI uri = parsed(text);
+        if (uri != null && uri.getScheme() != null && uri.getHost() != null && uri.getPort() <= MAX_PORT) {
+            String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+            String host = withoutTrailingDots(uri.getHost().toLowerCase(Locale.ROOT));
+            int port = uri.getPort() >= 0 ? uri.getPort() : defaultPort(scheme);
+            String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+            // A zone in an IPv6 literal names an interface of this machine, which the client
+            // resolves by itself. It is not compared: the address is taken as unreadable.
+            boolean readable = !host.isEmpty() && host.indexOf('%') < 0;
+            return new Destination(scheme, host, port, trimmed(path), readable);
+        }
+        return lenient(text);
+    }
+
+    /**
+     * The url as the HTTP client is given it, or null when it cannot be: it does not parse, or it
+     * has no scheme or no host, or its port is above 65535. The same parse as {@link #destination},
+     * so the address judged is the address sent to.
+     */
+    public static URI sendable(String url) {
+        if (url == null) {
+            return null;
+        }
+        URI uri = parsed(url.strip());
+        Destination destination = destination(url);
+        return uri == null || uri.getScheme() == null || uri.getHost() == null || destination == null || !destination.readable()
+                ? null : uri;
+    }
+
+    private static final int MAX_PORT = 65535;
+
+    private static URI parsed(String text) {
+        try {
+            return new URI(text);
+        } catch (URISyntaxException e) {
+            // Not a url the client can be given. The caller reads it leniently or refuses it.
+            return null;
+        }
+    }
+
+    private static int defaultPort(String scheme) {
+        return "http".equals(scheme) ? 80 : "https".equals(scheme) ? 443 : -1;
+    }
+
+    private static String withoutTrailingDots(String host) {
+        String result = host;
+        while (result.endsWith(".")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    /** The path without its query, fragment, segment parameters and trailing slashes. */
+    private static String trimmed(String rawPath) {
+        int query = indexOfAny(rawPath, "?#");
+        String path = withoutParameters(query < 0 ? rawPath : rawPath.substring(0, query));
+        while (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        return path;
+    }
+
+    /**
+     * This tool's own reading of a url the HTTP client would not accept, marked as not readable.
+     * A port with leading zeros is read as its number, and a port out of range, which the client
+     * cannot connect to, is left open so that it matches any port.
+     */
+    private static Destination lenient(String text) {
         String scheme = null;
         int at = text.indexOf("://");
         String rest = text;
@@ -160,37 +246,28 @@ public final class UrlNormal {
         }
         String host = authority;
         int port = -1;
+        boolean written = false;
         int colon = authority.lastIndexOf(':');
         if (colon >= 0 && authority.indexOf(']') < colon) {
             host = authority.substring(0, colon);
             String digits = authority.substring(colon + 1);
             if (!digits.isEmpty()) {
-                if (!digits.chars().allMatch(Character::isDigit) || digits.length() > 5) {
+                if (!digits.chars().allMatch(c -> c >= '0' && c <= '9')) {
                     return null;
                 }
-                port = Integer.parseInt(digits);
+                written = true;
+                String significant = digits.replaceFirst("^0+(?=.)", "");
+                port = significant.length() > 5 || Integer.parseInt(significant) > MAX_PORT ? -1 : Integer.parseInt(significant);
             }
         }
-        host = host.toLowerCase(Locale.ROOT);
-        while (host.endsWith(".")) {
-            host = host.substring(0, host.length() - 1);
-        }
+        host = withoutTrailingDots(host.toLowerCase(Locale.ROOT));
         if (host.isEmpty() || host.contains("{") || host.contains("%") || host.chars().anyMatch(Character::isWhitespace)) {
             return null;
         }
-        if (port < 0 && "http".equals(scheme)) {
-            port = 80;
-        } else if (port < 0 && "https".equals(scheme)) {
-            port = 443;
+        if (!written && scheme != null) {
+            port = defaultPort(scheme);
         }
-        String path = rest.substring(end);
-        int query = indexOfAny(path, "?#");
-        path = query < 0 ? path : path.substring(0, query);
-        path = withoutParameters(path);
-        while (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        return new Destination(scheme, host, port, path);
+        return new Destination(scheme, host, port, trimmed(rest.substring(end)), false);
     }
 
     /** The path with the {@code ;} parameters of each segment left out: {@code /live2;a=b/Claim} is {@code /live2/Claim}. */
@@ -213,11 +290,19 @@ public final class UrlNormal {
 
     /**
      * The form in which a host is compared: every name and address of this machine is one, and an
-     * IPv4 address written in any of the forms a resolver accepts (decimal, octal, hexadecimal, or
-     * fewer than four parts) is its dotted decimal form. Anything else is the host in lower case.
+     * IPv4 address is its dotted decimal form. A host of digits and dots is read as the JDK, and so
+     * the HTTP client, reads it: decimal parts with any leading zeros, one to four of them, so
+     * {@code 0177.0.0.1} is 177.0.0.1 and not the loopback address. A host the client would not
+     * accept, such as {@code 0x7f.1}, is read in the forms a C resolver accepts (octal and
+     * hexadecimal too), which errs toward a match. Anything else is the host in lower case.
      */
     static String hostKey(String host) {
         String lower = host.toLowerCase(Locale.ROOT);
+        long jdk = lower.matches("[0-9.]+") ? jdkIpv4(lower) : -1;
+        if (jdk >= 0) {
+            return (jdk >>> 24) == 127 || jdk == 0 ? LOOPBACK
+                    : (jdk >>> 24) + "." + ((jdk >>> 16) & 0xff) + "." + ((jdk >>> 8) & 0xff) + "." + (jdk & 0xff);
+        }
         if (lower.equals("localhost") || lower.endsWith(".localhost")) {
             return LOOPBACK;
         }
@@ -250,6 +335,41 @@ public final class UrlNormal {
     }
 
     private static final String LOOPBACK = "this machine";
+
+    /**
+     * The IPv4 address a host of digits and dots stands for as the JDK reads a literal address, or
+     * -1 when the JDK would not take it as one: at most 15 characters, one to four decimal parts,
+     * each but the last at most 255, the last filling the bytes that remain.
+     */
+    private static long jdkIpv4(String host) {
+        if (host.isEmpty() || host.length() > 15) {
+            return -1;
+        }
+        String[] parts = host.split("\\.", -1);
+        if (parts.length > 4) {
+            return -1;
+        }
+        long result = 0;
+        for (int i = 0; i < parts.length; i++) {
+            if (parts[i].isEmpty()) {
+                return -1;
+            }
+            long value = Long.parseLong(parts[i]);
+            boolean last = i == parts.length - 1;
+            if (!last && value > 0xff) {
+                return -1;
+            }
+            if (last) {
+                if (value >= (1L << (8 * (4 - i)))) {
+                    return -1;
+                }
+                result |= value;
+            } else {
+                result |= value << (8 * (3 - i));
+            }
+        }
+        return result;
+    }
 
     /** The IPv4 address a host written as numbers stands for, as inet_aton reads it, or -1 when it is not one. */
     private static long ipv4(String host) {
@@ -293,6 +413,88 @@ public final class UrlNormal {
             return -1;
         }
         return result | last;
+    }
+
+    /** How many rounds of decoding are looked through for an encoded separator: a value encoded more often than this is refused whole. */
+    private static final int DECODING_ROUNDS = 8;
+
+    /**
+     * What in the path of a url a server in front of a service could read as a separator once it
+     * decodes it, or null when there is nothing of that kind: an encoded slash ({@code %2F}), an
+     * encoded backslash ({@code %5C}), an encoded semicolon ({@code %3B}), or a segment that is a
+     * dot segment once decoded ({@code %2E%2E}). Letter case does not matter, and the path is
+     * decoded again and again, so {@code %252F} counts. Only the path is read: the query and the
+     * fragment keep whatever escapes they carry, as a FHIR search needs.
+     *
+     * @return the escape as found, in upper case, such as {@code %2F}, or the words "an encoded dot segment"
+     */
+    public static String encodedSeparator(String url) {
+        if (url == null) {
+            return null;
+        }
+        String text = url.strip();
+        int scheme = text.indexOf("://");
+        int pathStart = 0;
+        if (scheme > 0) {
+            pathStart = scheme + 3;
+            while (pathStart < text.length() && "/?#".indexOf(text.charAt(pathStart)) < 0) {
+                pathStart++;
+            }
+        }
+        int pathEnd = pathStart;
+        while (pathEnd < text.length() && text.charAt(pathEnd) != '?' && text.charAt(pathEnd) != '#') {
+            pathEnd++;
+        }
+        String path = text.substring(pathStart, pathEnd);
+        for (int round = 0; round <= DECODING_ROUNDS && path.indexOf('%') >= 0; round++) {
+            String upper = path.toUpperCase(Locale.ROOT);
+            for (String escape : List.of("%2F", "%5C", "%3B")) {
+                if (upper.contains(escape)) {
+                    return escape;
+                }
+            }
+            String decoded = decodedOnce(path);
+            // A dot segment that was written as one is left to the normal form. One that only
+            // appears once an escape is decoded is hidden from it.
+            if (dotSegments(decoded) > dotSegments(path)) {
+                return "an encoded dot segment";
+            }
+            if (decoded.equals(path)) {
+                return null;
+            }
+            if (round == DECODING_ROUNDS) {
+                return "an escape encoded more than " + DECODING_ROUNDS + " times";
+            }
+            path = decoded;
+        }
+        return null;
+    }
+
+    /** How many segments of a path are {@code .} or {@code ..}, a segment ending at a slash, a backslash or a semicolon. */
+    private static int dotSegments(String path) {
+        int count = 0;
+        for (String segment : path.split("[/\\\\;]", -1)) {
+            if (segment.equals(".") || segment.equals("..")) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Every percent-escape of the text decoded once, byte for byte. */
+    private static String decodedOnce(String text) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            int value = c == '%' ? hex(text, i + 1) : -1;
+            if (value >= 0) {
+                out.append((char) value);
+                i += 2;
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     /** The url with every percent-escape decoded where it decodes to one byte of printable ASCII. For looking for a word only. */

@@ -47,7 +47,7 @@ public final class OnyxHosts {
      */
     public static boolean admits(OperationGateway gateway, String url) {
         UrlNormal.Destination target = UrlNormal.destination(url);
-        if (target == null || target.scheme() == null) {
+        if (target == null || target.scheme() == null || !target.readable()) {
             return false;
         }
         for (UrlNormal.Destination onyx : destinations(gateway)) {

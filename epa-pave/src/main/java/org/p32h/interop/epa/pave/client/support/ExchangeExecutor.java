@@ -10,6 +10,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.WireHeader;
 import org.p32h.interop.epa.pave.model.WireRequest;
+import org.p32h.interop.epa.pave.postman.UrlNormal;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
@@ -91,17 +92,16 @@ public class ExchangeExecutor {
                     "There is no complete url to send this request to.");
         }
         Exchanges.requireSendable(call, body, gateway == null ? null : gateway.getIfAvailable());
-        URI uri;
-        try {
-            uri = URI.create(call.url().value().strip());
-        } catch (IllegalArgumentException e) {
-            throw new EndpointNotConfiguredException(call.operation(),
-                    "The url for " + call.operation().label() + " resolved to something that is not a valid url. Its template is "
-                            + call.url().template());
-        }
-        if (uri.getScheme() == null || uri.getHost() == null) {
-            throw new EndpointNotConfiguredException(call.operation(),
-                    "The url for " + call.operation().label() + " has no scheme or host. Its template is " + call.url().template());
+        // Parsed by the one function the guardrail reads destinations with, so the address judged
+        // and the address the client connects to cannot differ.
+        URI uri = UrlNormal.sendable(call.url().value());
+        if (uri == null) {
+            UrlNormal.Destination read = UrlNormal.destination(call.url().value());
+            throw new EndpointNotConfiguredException(call.operation(), read == null || read.scheme() == null
+                    ? "The url for " + call.operation().label() + " has no scheme or host the HTTP client can read. Its template is "
+                    + call.url().template()
+                    : "The address of the url for " + call.operation().label() + " could not be read as the HTTP client reads it: "
+                    + "its host or its port is not written in a form the client accepts. Its template is " + call.url().template());
         }
 
         String method = Exchanges.method(call);
@@ -140,7 +140,9 @@ public class ExchangeExecutor {
             // Only the send is inside this try. A defect in describing the response must surface as
             // a defect, not as "the service could not be reached".
             Failure failure = classify(e);
-            if (failure.unnamed()) {
+            // A lookup client logs its outcome and its HTTP status and nothing else (specification
+            // section 15), so this line is not written for a lookup, whose url is built on a member ID.
+            if (failure.unnamed() && call.operation().protocol() != org.p32h.interop.epa.pave.model.Protocol.LOOKUP) {
                 // The host and the exception types and frames only. Never the path, the query, a
                 // header or a message, which can quote the url and with it a member ID.
                 log.warn("A call to the host {} failed in a way the result does not name: {}", uri.getHost(), Faults.describe(e));

@@ -32,7 +32,7 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 @Profile("live")
-public class OnyxTokenService {
+public class OnyxTokenService implements org.p32h.interop.epa.pave.service.config.HeldAccessToken {
 
     private static final Logger log = LoggerFactory.getLogger(OnyxTokenService.class);
 
@@ -95,6 +95,9 @@ public class OnyxTokenService {
     private final Clock clock;
     private Cached cached;
 
+    /** The last token issued, cached or not: a service can repeat a token it was sent once. Never shown or logged. */
+    private String lastIssued;
+
     @org.springframework.beans.factory.annotation.Autowired
     public OnyxTokenService(OnyxProperties onyx, OperationGateway gateway, RestClient.Builder builder, Clock clock) {
         this(onyx, gateway, RestClients.withTimeouts(builder, onyx.connectTimeoutMs(), onyx.readTimeoutMs()), clock);
@@ -106,6 +109,18 @@ public class OnyxTokenService {
         this.gateway = gateway;
         this.client = client;
         this.clock = clock;
+    }
+
+    /**
+     * Adds the token held in the cache and the last one issued, whatever their age, so that a
+     * service repeating one in a notification is shown with it masked.
+     */
+    @Override
+    public synchronized void addTo(org.p32h.interop.epa.pave.model.SentSecrets.Builder secrets) {
+        if (cached != null) {
+            secrets.accessToken(cached.token());
+        }
+        secrets.accessToken(lastIssued);
     }
 
     /** The token to send, from the cache when one is still good. Never throws. */
@@ -141,6 +156,7 @@ public class OnyxTokenService {
         }
         // Without a stated lifetime the token is used for this call and not cached: guessing a
         // lifetime would mean sending an expired token at some point and reporting it as a vendor fault.
+        lastIssued = grant.accessToken();
         cached = grant.expiresInSeconds() == null || grant.expiresInSeconds() <= REFRESH_SKEW_SECONDS ? null
                 : new Cached(key, grant.accessToken(), clock.instant().plusSeconds(grant.expiresInSeconds() - REFRESH_SKEW_SECONDS));
         return new TokenResult(grant.accessToken(), null);

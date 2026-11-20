@@ -137,6 +137,13 @@ public class ConfigStoreGateway implements OperationGateway {
             throw ConfigurationChangedException.sinceTheScreenWasDrawn();
         }
         CallPlan plan = plan(snapshot, intent);
+        // Whatever the environment and the method: a server in front of a service may decode an
+        // encoded separator before it reads the path, and this tool cannot know whether it does.
+        // Asked first, so that the refusal names the value that hid something.
+        String encoded = encodedIn(plan);
+        if (encoded != null) {
+            throw encodedSeparator(plan, encoded);
+        }
         if (plan.refusal() != null) {
             throw new ProdWriteBlockedException(intent.operation(), plan.environment(), plan.refusal().reason(), plan.refusal().action(),
                     plan.url(), plan.method(), plan.target().requestName());
@@ -223,6 +230,59 @@ public class ConfigStoreGateway implements OperationGateway {
                         + "whose values point there, with its own credentials, and activate it.");
     }
 
+    /** The refusal of a call whose path holds an encoded separator. It names what supplied it, never the value. */
+    private static BadInputException encodedSeparator(CallPlan plan, String encoded) {
+        String what = encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
+        return new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds " + what + ", which "
+                + "came from " + encodedFrom(plan) + ". A server in front of the service can decode it before it reads the path, and "
+                + "then the request addresses something other than what this tool judged it to be.",
+                "Nothing was sent. Remove the encoded slash, backslash, semicolon or dot segment from that value. A value that needs "
+                        + "such a character belongs in the query, after the question mark, where it is sent as it is.");
+    }
+
+    /**
+     * The encoded separator in the path of a complete url as it would be sent, or null when there
+     * is none. The url is in its normal form, which has already decoded an escaped dot segment and
+     * judged it as the dot segment it is, so what is left is what a server could still decode.
+     */
+    private static String encodedIn(CallPlan plan) {
+        return plan.filled() == null || !plan.filled().complete() ? null : UrlNormal.encodedSeparator(plan.filled().send());
+    }
+
+    /** What put the encoded separator into the path, in words: a variable with its layer, a url part, or the url as written. */
+    private static String encodedFrom(CallPlan plan) {
+        List<String> found = new ArrayList<>();
+        Resolution resolution = plan.urlVariables();
+        if (resolution != null) {
+            Map<String, VariableSource> sources = sources(resolution);
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (piece.name() != null && piece.send() != null && UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null) {
+                    VariableSource source = sources.get(piece.name());
+                    String named = "the variable \"" + ConfigStore.oneLine(piece.name()) + "\""
+                            + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
+                    if (!found.contains(named)) {
+                        found.add(named);
+                    }
+                }
+            }
+        }
+        new TreeMap<>(plan.intent().urlValues()).forEach((name, value) -> {
+            if (Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
+                found.add("the url part {" + name + "}");
+            }
+        });
+        if (!found.isEmpty()) {
+            return String.join(" and ", found);
+        }
+        return plan.target().described() == null ? "the url as it is written" : plan.target().described();
+    }
+
+    /** The text before a question mark or a hash. A value can carry a query of its own, which is not judged. */
+    private static String withoutQuery(String text) {
+        int end = firstOf(text, "?#");
+        return end < 0 ? text : text.substring(0, end);
+    }
+
     /** The resolved text with its template as written, any credential typed into it masked. */
     private static ResolvedText shownAsWritten(ResolvedText resolved, String template) {
         return new ResolvedText(LiteralCredentials.inBody(template).shown(), resolved.display(), resolved.value(), resolved.variables(),
@@ -236,6 +296,91 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         // No collection layer: the text belongs to no request, so it belongs to no collection.
         return resolver.resolve(template, layers(store.snapshot(), runValues, null, Map.of())).text();
+    }
+
+    /** Whatever holds the access token, asked only when a notification is masked. Absent in tests that build the gateway alone. */
+    private volatile org.springframework.beans.factory.ObjectProvider<HeldAccessToken> heldToken;
+
+    @Autowired(required = false)
+    void heldAccessToken(org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held) {
+        this.heldToken = held;
+    }
+
+    @Override
+    public org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
+        ConfigSnapshot snapshot = store.snapshot();
+        org.p32h.interop.epa.pave.model.SentSecrets.Builder found = org.p32h.interop.epa.pave.model.SentSecrets.builder();
+        List<VariableLayer> layers = layers(snapshot, Map.of(), null, Map.of());
+        // Secret by the same rule the wire view masks by, which is the resolver's: typed secret in
+        // Postman, a credential by its name, or a value read from the operating system.
+        Set<String> names = new LinkedHashSet<>();
+        StoredEnvironment active = snapshot.active();
+        if (active != null) {
+            names.addAll(active.content().inForce().keySet());
+        }
+        names.addAll(onyx.variables().keySet());
+        for (String name : names) {
+            for (Resolution.Piece piece : resolver.resolve("{{" + name + "}}", layers).pieces()) {
+                if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
+                    found.variable(piece.name(), piece.send());
+                }
+            }
+        }
+        if (onyx.auth() != null && Texts.present(onyx.auth().clientSecret())) {
+            Resolution secret = resolver.resolve(onyx.auth().clientSecret(), layers);
+            if (secret.complete()) {
+                found.variable("onyx.auth.client-secret", secret.send());
+            }
+        }
+        callbackCredentials(found, layers);
+        org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held = heldToken;
+        HeldAccessToken token = held == null ? null : held.getIfAvailable();
+        if (token != null) {
+            token.addTo(found);
+        }
+        return found.build();
+    }
+
+    /**
+     * The credentials of the address the service is given to call back: each secret variable in
+     * it, and each query parameter whose name reads as a credential, as written and decoded.
+     */
+    private void callbackCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, List<VariableLayer> layers) {
+        String template = onyx.subscription() == null ? null : onyx.subscription().callbackUrl();
+        if (Texts.blank(template)) {
+            return;
+        }
+        Resolution resolved = resolver.resolve(template.strip(), layers);
+        for (Resolution.Piece piece : resolved.pieces()) {
+            if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
+                found.variable(piece.name(), piece.send());
+            }
+        }
+        if (!resolved.complete() || resolved.send() == null) {
+            return;
+        }
+        String url = resolved.send();
+        int query = url.indexOf('?');
+        if (query < 0) {
+            return;
+        }
+        int end = url.indexOf('#', query);
+        for (String parameter : url.substring(query + 1, end < 0 ? url.length() : end).split("&")) {
+            int equals = parameter.indexOf('=');
+            if (equals <= 0) {
+                continue;
+            }
+            String name = java.net.URLDecoder.decode(parameter.substring(0, equals), java.nio.charset.StandardCharsets.UTF_8);
+            if (Secrets.looksSecret(name)) {
+                String value = parameter.substring(equals + 1);
+                found.variable(name, value);
+                try {
+                    found.variable(name, java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8));
+                } catch (IllegalArgumentException e) {
+                    // An escape that does not decode: the value as written is already held.
+                }
+            }
+        }
     }
 
     @Override
@@ -867,9 +1012,16 @@ public class ConfigStoreGateway implements OperationGateway {
     private static String judgedByMethod(CallIntent intent, Target target, String method, ResolvedUrl url, UrlForms.Filled filled) {
         EpaOperation operation = intent.operation();
         if (operation.writesWith(method)) {
-            return operation == EpaOperation.UNMAPPED
+            if (operation != EpaOperation.UNMAPPED) {
+                return "it would be sent with " + method + ", which is not the method of " + operation.label() + " and can change something";
+            }
+            // A raw send of a request that is mapped is still judged by its method: the mapping
+            // says what the request is for, not what the server will do with what is sent.
+            EpaOperation mappedTo = target.source() == Source.REQUEST ? target.request().effective() : EpaOperation.UNMAPPED;
+            return mappedTo == EpaOperation.UNMAPPED
                     ? "a request this tool cannot map may change something when it is sent with " + method
-                    : "it would be sent with " + method + ", which is not the method of " + operation.label() + " and can change something";
+                    : "a request sent as written is judged by its method whatever it is mapped to, and this one, mapped to "
+                    + mappedTo.label() + ", would be sent with " + method;
         }
         String name = null;
         if (target.source() == Source.REQUEST) {
@@ -1148,6 +1300,12 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "application.yml or another environment cannot send a write to it.");
         }
 
+        // An address this tool cannot read as the HTTP client reads it is never taken as "not
+        // production": what the client would connect to is not known here.
+        if (complete && (destination == null || !destination.readable())) {
+            return unreadable(what, why, addressFrom(origin.resolution(), filled.send(), target));
+        }
+
         if (active == null) {
             // On the mock profile nothing is sent, so the out-of-the-box install can run a write
             // with nothing configured. On live there is no kind to go by, and a fallback url cannot
@@ -1196,6 +1354,58 @@ public class ConfigStoreGateway implements OperationGateway {
             return null;
         }
         return locked(snapshot, intent, active, what, why);
+    }
+
+    /** The refusal of a write whose address cannot be read. It names where the address came from and quotes none of it. */
+    static Refusal unreadable(String what, String why, String from) {
+        return new Refusal("Blocked: the address it would go to could not be read.", what + " is blocked: the scheme, host and port "
+                + "it would go to could not be read the way the HTTP client reads them, so this tool cannot tell whether that address "
+                + "is production. The address comes from " + from + "." + why, "Nothing was sent. Write the address as "
+                + "scheme://host:port/path, with the host as a name or as four decimal numbers and a port of at most 65535, then send "
+                + "it again.");
+    }
+
+    /**
+     * Where the scheme, host and port of a url came from, in words: the variables whose values
+     * form them, each with its layer, or the request or setting that wrote them literally. Names
+     * and layers only, never a value.
+     */
+    static String addressFrom(Resolution resolution, String sent, Target target) {
+        List<String> names = new ArrayList<>();
+        if (resolution != null) {
+            Map<String, VariableSource> sources = sources(resolution);
+            String text = resolution.send() == null ? sent : resolution.send();
+            int authorityEnd = authorityEnd(text == null ? "" : text);
+            int at = 0;
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (at > authorityEnd) {
+                    break;
+                }
+                if (piece.name() != null) {
+                    VariableSource source = sources.get(piece.name());
+                    String named = "the variable \"" + ConfigStore.oneLine(piece.name()) + "\""
+                            + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
+                    if (!names.contains(named)) {
+                        names.add(named);
+                    }
+                }
+                at += piece.send() == null ? 0 : piece.send().length();
+            }
+        }
+        if (!names.isEmpty()) {
+            return String.join(" and ", names);
+        }
+        return target == null || target.described() == null ? "the url as it is written" : target.described();
+    }
+
+    /** Where the scheme and the authority of a url end: the first slash, question mark or hash after {@code ://}, or the end. */
+    private static int authorityEnd(String url) {
+        int scheme = url.indexOf("://");
+        int at = scheme < 0 ? 0 : scheme + 3;
+        while (at < url.length() && "/?#".indexOf(url.charAt(at)) < 0) {
+            at++;
+        }
+        return at;
     }
 
     /**
