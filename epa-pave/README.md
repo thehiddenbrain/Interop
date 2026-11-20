@@ -24,6 +24,14 @@ configuration is needed.
 - **Secrets can sit in plain text on disk**: an uploaded Postman environment or collection is kept
   as uploaded in `config-store/`, credentials included; a mirror password goes in
   `gradle.properties`. See [Secrets](#secrets) for keeping them out of files.
+- **So can member data, if you upload it.** The store keeps an uploaded file whole, values and
+  saved example responses included. The upload warns when a variable's name reads as member data
+  or a request carries a saved example, but it cannot judge the values: never upload an
+  environment or a collection that holds a real member's data. See
+  [Member data in an uploaded file](#member-data-in-an-uploaded-file).
+- **The note, the tester reference and the expectation are kept in the ledger as typed.** PAVE
+  refuses one that holds the member ID, name, date of birth, subscriber ID or address the same
+  request carries, and cannot recognise anything else. Do not type member data into them.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -82,7 +90,7 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 2,600 tests and takes a few minutes. Correct output ends with:
+It runs about 2,700 tests and takes a few minutes. Correct output ends with:
 
 ```
 > Task :verifyParametersFlag
@@ -148,10 +156,11 @@ Correct output (the `epoch` number is the configuration epoch: it differs from o
 next and changes when the configuration changes, but two calls in a row answer the same number):
 
 ```
-{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795154872618,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."}}
+{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795165388062,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."},"bindAddress":"127.0.0.1","bindNote":"This tool listens on this machine only (127.0.0.1), so nothing on another machine, a vendor's service included, can call its notification receiver. To let a service call it, set server.address to an address that service can reach, and read the README section on the receiver first."}
 ```
 
-`"mode":"mock"` is the line to check: nothing you do now reaches a real service.
+`"mode":"mock"` is the line to check: nothing you do now reaches a real service. `bindNote` says
+who can reach the tool (see [Who can reach this tool](#who-can-reach-this-tool)).
 
 **6. Open the tool in a browser.**
 
@@ -237,9 +246,10 @@ pass.
   (`P32H-NO-AUTH`) returns `pa-needed=no-auth` and PAVE says "Prior authorization is not
   required." They are different outcomes (`NO_DETERMINATION` and `NO_AUTH_REQUIRED`), drawn in
   different colours, with different codes in the ledger.
-- **A code list finding on the bundled placeholder list is about synthetic rows.** On mock every
-  such finding says the list is the placeholder; on live PAVE does not compare with the
-  placeholder at all. See [The procedure code list](#the-procedure-code-list).
+- **A code list finding on a synthetic list is about synthetic rows.** The bundled placeholder and
+  the shipped sample list both say of themselves that they are synthetic. On mock every finding
+  that rests on such a list says so; on live PAVE does not compare with it at all. See
+  [The procedure code list](#the-procedure-code-list).
 
 ### The notification receiver will very likely not be reachable
 
