@@ -50,8 +50,9 @@ configuration is needed.
 - **PAVE has no sign-in** and listens on this machine only. See
   [Who can reach this tool](#who-can-reach-this-tool).
 - **STS has been seen on Linux only.** Two agents imported and started PAVE in Spring Tools 5.4.0 on
-  Linux, on mock, and ran some of its tests there, after the changes made for it (D-271, D-272);
-  Windows and other releases were not tried. A profile typed in the launch dialog is written into a
+  Linux and ran some of its tests there: one on `e70a873` (after the change of D-271), on mock and
+  once on live; one on `ace5914` (after the change of D-272), on mock. Windows and other releases
+  were not tried. A profile typed in the launch dialog is written into a
   tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
   said the tool will be productionized one day, which is read here as running it that way (D-270);
@@ -1996,7 +1997,12 @@ states Spring Boot 4 support. The Spring Tools FAQ says that Spring Tools 5 does
 older than 2025-12 and that Spring Tools 4 gets no more updates. Both were read on 2026-11-20 in the
 Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own; the project still
 needs the JDK 21 of step 1 of the checklist. STS found it by itself at startup (Window, Preferences,
-Java, Installed JREs) and every launch ran on it.
+Java, Installed JREs) and every launch ran on it. On the Linux machine seen, with no WebKit
+installed, STS's Tip of the Day dialog failed ("No more handles because there is no underlying browser
+available"), followed by "An SWT error has occurred ... Do you want to exit the workbench?"; the
+answer was No, and after the package `libwebkit2gtk-4.1-0` was installed the run went on. A plain
+Eclipse showed a "Chromium Additional Terms of Service" dialog at its first start; Cancel was pressed,
+with no effect on the project.
 
 **2. Clone and build once from a terminal**, as steps 2 and 3 of the
 [First run checklist](#first-run-checklist) say (`./gradlew clean build` in `epa-pave/`), so that you
@@ -2010,7 +2016,8 @@ dialog and no error. Press Finish; within about a minute the Package Explorer sh
 `epa-pave [boot]` and the workspace build is over. Only if the import fails:
 - Give Gradle the JDK 21: tick "Override workspace settings" on the Import Options page (Java home is
   greyed out until then) and set Java home, or set it under Window, Preferences, Gradle. A plain
-  Eclipse imported the project this way with the same result.
+  Eclipse 2026-09 with Java home set under Preferences, Gradle imported the project with 0 errors and
+  25 warnings; in STS neither way was tried, because the import with the defaults did not fail.
 - Red markers before Gradle has fetched the dependencies are normal. If they stay, right click the
   project and choose Gradle, Refresh Gradle Project. It was never needed.
 
@@ -2026,7 +2033,8 @@ dialog and no error. Press Finish; within about a minute the Package Explorer sh
   [WEB_ANNOTATION_NAMES]" and sit on the names the controllers give their request parameters and path
   variables. **Never apply the quick fix of "Unnecessary path variable definition"**: the IDE's
   compiler keeps no parameter names, so without those names calls such as the History list and the
-  note answer HTTP 500 (D-271), and `HandlerArgumentNamesTest` fails the build.
+  note would answer HTTP 500, as the emulation of D-271 saw before those names were added, and
+  `HandlerArgumentNamesTest` fails the build (the quick fix itself was not tried).
 
 **5. Start it.** The Boot Dashboard is the view at the bottom left: expand `local`, select `epa-pave`
 and press "Start or restart", its first button. Or right click
@@ -2044,12 +2052,18 @@ launch file without a word: there, use Run As, Java Application on `PaveApplicat
 
 **6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
 `live` typed in the Profile field of the Spring Boot tab, Apply, then Run, started the tool on live
-(`"mode":"live"`, and `[profile: live]` in the Boot Dashboard). Another port goes on the Arguments tab,
-under Program arguments, as `--server.port=8091` (not tried there). **A change made there is written
-into the tracked file `PaveApplication.launch`**: with `live` in the Profile field, `git status`
-showed it modified, one line. Do not commit it: `git restore PaveApplication.launch` in `epa-pave/`
-puts it back, and so does clearing the field. Or start from a terminal with `./run.sh live`
-(`run.cmd live`), which leaves the file alone.
+(`"mode":"live"`, and `[profile: live]` in the Boot Dashboard); this start was seen on `e70a873`,
+before the shared file existed, with the configuration STS had made, `epa-pave - PaveApplication`. On
+`ace5914` the profile was typed in `PaveApplication` and applied, but the tool was not started on it.
+Another port goes on the Arguments tab, under Program arguments, as `--server.port=8091` (not tried
+there). **A profile typed there is written into the tracked file `PaveApplication.launch`**: with
+`live` in the Profile field and Apply, `git status` showed it modified, one line; a change on the
+Arguments tab presumably lands there too (not tried). Do not commit it. Clearing the field and
+pressing Apply put the file back byte for byte; `git restore PaveApplication.launch` in `epa-pave/`
+should do the same, but it was not tried, nor what an open Run Configurations dialog does after it.
+After the field was cleared on `e70a873`, the Boot Dashboard still read `epa-pave [profile: live]`:
+that label can be stale, and `GET /api/mode` says which profile runs. Or start from a terminal with
+`./run.sh live` (`run.cmd live`), which leaves the file alone.
 
 **7. Tests from the IDE.** Run the whole suite with Gradle (`./gradlew test`, or step 3): only five
 test classes have been started from the IDE. From STS's JUnit launcher, `HandlerArgumentNamesTest`
@@ -2058,15 +2072,17 @@ passed 2 of 2, `HouseStyleTest` 8 with 2 skipped and `PaveApplicationTest` 6 wit
 `HouseStyleTest.theRealProjectListsItsDotFilesAndBreaksNoRule`,
 `HouseStyleTest.theBuildRunsThisGateAsPartOfCheck` and
 `PaveApplicationTest.theVersionOnScreenIsTheVersionThatWasBuilt`, check the Gradle build's own wiring
-and run only under Gradle. Each shows under Failure Trace a sentence that ends "This JVM was not
-started by that task (no system property org.gradle.test.worker), so the test is skipped here, not
-passed."
+and run only under Gradle. Each shows under Failure Trace a sentence that says it runs only under
+the Gradle test task and ends "started by that task (no system property org.gradle.test.worker), so
+the test is skipped here, not passed." The pane cuts off a few words of it at its edge, even with the
+view maximised.
 
 **What was seen, and by whom.** On `e70a873` one agent ran STS 5.4.0 on Linux: the import, the start
 from the Boot Dashboard (after "Choose Main Type") and with Run As, both proofs of "Prove it before
-handover" and every request it tried answering 200 on mock, the live profile, and three of five test
-classes failing; a plain Eclipse 2026-09, started with Run As, Java Application, gave the same
-import, proofs and failures. On `ace5914` another agent saw the start with
+handover" and every request it tried answering 200 on mock, a start on live through the launch
+dialog, and three of five test classes failing; a plain Eclipse 2026-09, with Java home for Gradle set
+to the JDK 21 and started with Run As, Java Application, imported with 0 errors and 25 warnings and
+gave the same proofs and failures. On `ace5914` another agent saw the start with
 no dialog, the profile written into the file and restored, and the tests as in step 7. **Not seen by
 anyone:** Windows, `run.cmd`, a real tester at a real workstation with a corporate proxy or mirror,
 the screens in a browser after a start from STS, the live profile against a service, the whole test
@@ -2143,8 +2159,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
   checklist.
-- **STS was seen on Linux with Spring Tools 5.4.0 only**, on mock: the import, the start from the
-  Boot Dashboard and Run As, the live profile through the launch dialog and five test classes
+- **STS was seen on Linux with Spring Tools 5.4.0 only**: the import, the start on mock from the
+  Boot Dashboard and Run As, the start on live through the launch dialog (on `e70a873`) and five test
+  classes
   (D-272). No other release, no minimum version and no Windows machine was tried, and the whole
   suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
   tracked file `PaveApplication.launch`; do not commit that. See
@@ -2402,8 +2419,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
   by script after the first start of each run; on `e70a873` also the History list, one run, the note, the export, the notifications, a
   subscription read, the page and one stylesheet. What each run saw is under [STS (Spring Tools for
   Eclipse)](#sts-spring-tools-for-eclipse) and in D-272. Before them, on `1b34181` and `05acbf7`, an
-  emulation of STS's compiler without STS ran the 70 `curl` examples under [Endpoints](#endpoints)
-  (D-271).
+  emulation of STS's compiler without STS started the tool, and on `05acbf7` ran the 70 `curl`
+  examples under [Endpoints](#endpoints) (D-271).
 - **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
   (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
   on that machine):
