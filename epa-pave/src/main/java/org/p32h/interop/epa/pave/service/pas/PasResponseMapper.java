@@ -79,7 +79,8 @@ public final class PasResponseMapper {
      * @param authorizedFrom the start of the item's itemPreAuthPeriod, or null
      * @param authorizedTo   the end of it, or null
      */
-    private record ItemRead(PasItemView view, Integer sequence, List<Action> actions, String authorizedFrom, String authorizedTo) {
+    private record ItemRead(PasItemView view, Integer sequence, List<String> traceNumbers, List<Action> actions, String authorizedFrom,
+                            String authorizedTo) {
     }
 
     /** Where PAS 2.0.1 does not place a review action, said beside one found there. */
@@ -113,7 +114,9 @@ public final class PasResponseMapper {
      * @param inquiry   true for the answer to an inquiry, which PAS 2.0.1 makes a bundle of zero to
      *                  many ClaimResponses, so that an empty one means that nothing matched
      */
-    public PasReading read(VendorExchange exchange, SentClaim sentClaim, boolean inquiry) {
+    public PasReading read(VendorExchange received, SentClaim sentClaim, boolean inquiry) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = ReturnedSecrets.masked(received);
         SentClaim sent = sentClaim == null ? SentClaim.unknown() : sentClaim;
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
@@ -376,7 +379,11 @@ public final class PasResponseMapper {
      * The decision for each thing that was asked about. What ties a decision to a requested item,
      * and nothing else is taken as evidence:
      * <ol>
-     *   <li>a response item whose sequence is the sequence of the requested item</li>
+     *   <li>a response item that echoes the item trace number the requested item was sent with,
+     *       which PAS 2.0.1 lets a ClaimResponse item carry and which names the item whatever its
+     *       sequence</li>
+     *   <li>a response item that echoes no trace number of a requested item, and whose sequence is
+     *       the sequence of the requested item</li>
      *   <li>a response item with no sequence, when exactly one item was requested and exactly one
      *       came back, so there is nothing else it could be about</li>
      *   <li>a review action stated for the response as a whole, which is the decision for every
@@ -395,12 +402,15 @@ public final class PasResponseMapper {
         PasItemView[] views = new PasItemView[items.size()];
         if (!sent.items().isEmpty()) {
             boolean[] tied = new boolean[items.size()];
-            for (SentClaim.Item requested : sent.items()) {
+            int[] answers = new int[items.size()];
+            for (int i = 0; i < items.size(); i++) {
+                answers[i] = requestedItemAnswered(items.get(i), sent.items(), items.size());
+            }
+            for (int r = 0; r < sent.items().size(); r++) {
+                SentClaim.Item requested = sent.items().get(r);
                 List<ItemRead> mine = new ArrayList<>();
                 for (int i = 0; i < items.size(); i++) {
-                    boolean bySequence = requested.sequence() != null && requested.sequence().equals(items.get(i).sequence());
-                    boolean onlyOne = items.get(i).sequence() == null && sent.items().size() == 1 && items.size() == 1;
-                    if (bySequence || onlyOne) {
+                    if (answers[i] == r) {
                         mine.add(items.get(i));
                         tied[i] = true;
                         views[i] = items.get(i).view().attributedTo(requested.code(), requested.label());
@@ -429,6 +439,26 @@ public final class PasResponseMapper {
         }
         itemViews.addAll(Arrays.asList(views));
         return out;
+    }
+
+    /**
+     * The position of the requested item a response item answers, or -1 for none: the one whose
+     * trace number it echoes, else the one with its sequence, else the only one when exactly one
+     * item was requested and one came back with no sequence.
+     */
+    private static int requestedItemAnswered(ItemRead item, List<SentClaim.Item> requested, int responseItems) {
+        for (int r = 0; r < requested.size(); r++) {
+            String trace = requested.get(r).traceNumber();
+            if (Texts.present(trace) && item.traceNumbers().contains(trace.strip())) {
+                return r;
+            }
+        }
+        for (int r = 0; r < requested.size(); r++) {
+            if (requested.get(r).sequence() != null && requested.get(r).sequence().equals(item.sequence())) {
+                return r;
+            }
+        }
+        return item.sequence() == null && requested.size() == 1 && responseItems == 1 ? 0 : -1;
     }
 
     private static PasDecision decision(String subject, String procedureCode, Integer sequence, List<ItemRead> mine,
@@ -527,7 +557,7 @@ public final class PasResponseMapper {
                 to = JsonSafe.presentText(JsonSafe.child(extension, "valuePeriod"), "end");
             }
         }
-        return new ItemRead(view, sequence, actions, from, to);
+        return new ItemRead(view, sequence, SentClaim.traceNumbers(item.raw()), actions, from, to);
     }
 
     /**

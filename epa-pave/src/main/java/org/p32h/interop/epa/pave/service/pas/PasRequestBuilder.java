@@ -157,7 +157,8 @@ public final class PasRequestBuilder {
                 notes.add("Attachment " + position + " (\"" + title + "\") was not put in the bundle. In the attachment mode "
                         + StartupChecks.ATTACHMENT_X12_275 + " the claim only names the document, by the attachment control number " + number
                         + ", for an X12 275 transaction that this tool does not send. The service receives no document from this tool. "
-                        + "In PAS 2.0.1 a 275 is produced by the intermediary from the bundle, not sent by the client beside it.");
+                        + "In PAS 2.0.1 a 275 is produced by the intermediary from the bundle, not sent by the client beside it."
+                        + typeAndCategoryNotSent(attachment));
             } else {
                 String id = OnyxPasConventions.documentReferenceId(position);
                 boolean inline = Texts.present(attachment.text());
@@ -188,7 +189,7 @@ public final class PasRequestBuilder {
                 request.dateOfService(), supportingInfo, diagnosis, variables, notes, items);
         List<ObjectNode> bundled = new ArrayList<>(built.resources());
         bundled.addAll(carried);
-        String json = bundle(bundleId, bundled, variables, notes);
+        String json = bundle(bundleId, "PASRequestBundle", bundled, variables, notes);
         return new Built(json, notes.notes(), new SentClaim(claimId, items), request.attachments().isEmpty() ? null : attachmentMode,
                 notes.leftOut());
     }
@@ -216,7 +217,7 @@ public final class PasRequestBuilder {
         List<SentClaim.Item> items = new ArrayList<>();
         Case built = caseResources(false, claimId, false, request.member(), request.provider(), codes, request.dateOfService(),
                 JSON.arrayNode(), JSON.arrayNode(), variables, notes, items);
-        String json = bundle(bundleId, built.resources(), variables, notes);
+        String json = bundle(bundleId, "PASInquiryRequestBundle", built.resources(), variables, notes);
         return new Built(json, notes.notes(), new SentClaim(claimId, items), null, notes.leftOut());
     }
 
@@ -252,7 +253,8 @@ public final class PasRequestBuilder {
     private Case caseResources(boolean submission, String claimId, boolean newClaim, MemberDetail member, ProviderDetail provider,
                                List<CodeInput> codes, String dateOfService, ArrayNode supportingInfo, ArrayNode diagnosis,
                                Function<String, ResolvedText> variables, PasNotes notes, List<SentClaim.Item> items) {
-        ObjectNode insurer = PasResources.insurer(variables, notes);
+        String claimProfile = submission ? "PASClaim" : "PASClaimInquiry";
+        ObjectNode insurer = PasResources.insurer(variables, claimProfile, notes);
         ObjectNode patient = resources.patient(member, variables, notes);
         ObjectNode coverage = resources.coverage(member, variables, insurer != null, notes);
         String requester = PasResources.requestorReference(provider);
@@ -304,8 +306,9 @@ public final class PasRequestBuilder {
                 ArrayNode extensions = item.putArray("extension");
                 // The trace number is this tool's own: the claim identifier and the item's sequence,
                 // so an inquiry about the same claim names each item by the same number.
+                String traceNumber = claimId + "-" + sequence;
                 extensions.addObject().put("url", OnyxPasConventions.ITEM_TRACE_NUMBER).putObject("valueIdentifier")
-                        .put("value", claimId + "-" + sequence);
+                        .put("value", traceNumber);
                 if (requestType != null) {
                     extensions.addObject().put("url", OnyxPasConventions.ITEM_REQUEST_TYPE).set("valueCodeableConcept",
                             x12(OnyxPasConventions.X12_REQUEST_TYPES, requestType));
@@ -323,11 +326,11 @@ public final class PasRequestBuilder {
                 if (serviceType != null) {
                     item.set("category", x12(OnyxPasConventions.X12_SERVICE_TYPES, serviceType));
                 }
-                item.set("productOrService", resources.codeableConcept(code, member.lineOfBusiness(), variables, notes));
+                item.set("productOrService", resources.codeableConcept(code, member.lineOfBusiness(), variables, claimProfile, notes));
                 if (Texts.present(dateOfService)) {
                     item.put("servicedDate", dateOfService.strip());
                 }
-                items.add(new SentClaim.Item(sequence, code.code().strip()));
+                items.add(new SentClaim.Item(sequence, code.code().strip(), traceNumber));
                 sequence++;
             }
             if (serviceType == null) {
@@ -402,6 +405,19 @@ public final class PasRequestBuilder {
         return info;
     }
 
+    /** What the x12-275 note adds when the attachment was given a type or a category, which only a DocumentReference carries. */
+    private static String typeAndCategoryNotSent(PasAttachment attachment) {
+        boolean type = attachment.type() != null && Texts.present(attachment.type().code());
+        boolean category = attachment.category() != null && Texts.present(attachment.category().code());
+        if (!type && !category) {
+            return "";
+        }
+        String what = type && category ? "type " + attachment.type().code().strip() + " and category " + attachment.category().code().strip()
+                : type ? "type " + attachment.type().code().strip() : "category " + attachment.category().code().strip();
+        return " The document " + what + " given with it " + (type && category ? "were" : "was") + " not sent either, because only the "
+                + "DocumentReference the bundle would carry has a place for " + (type && category ? "them" : "it") + ".";
+    }
+
     /**
      * A diagnosis code as a CodeableConcept. Its coding system is the one the tester stated, else
      * ICD-10-CM when the code has that format, which is a rule about a published code format and
@@ -418,9 +434,9 @@ public final class PasRequestBuilder {
             coding.put("system", OnyxPasConventions.ICD_10_CM);
             notes.add("The coding system for the diagnosis " + value + " was taken from its format: ICD-10-CM.");
         } else {
-            notes.add("No coding system could be worked out for the diagnosis " + value + ", so it was sent without one. PAS 2.0.1 binds "
-                    + "the diagnosis, required, to the value set X12278DiagnosisCodes, so the service may refuse it. State its system "
-                    + "with the code.");
+            notes.missing("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis " + value + ")", "No coding system could be "
+                    + "worked out for the diagnosis " + value + ", so it was sent without one. PAS 2.0.1 binds the diagnosis, required, to "
+                    + "the value set X12278DiagnosisCodes, so the service may refuse it. State its system with the code.");
         }
         coding.put("code", value);
         if (Texts.present(code.description())) {
@@ -435,7 +451,8 @@ public final class PasRequestBuilder {
      * urls a relative reference resolves to nothing, so every reference inside the bundle that
      * names an entry is rewritten to that entry's full url.
      */
-    private String bundle(String bundleId, List<ObjectNode> bundled, Function<String, ResolvedText> variables, PasNotes notes) {
+    private String bundle(String bundleId, String bundleProfile, List<ObjectNode> bundled, Function<String, ResolvedText> variables,
+                          PasNotes notes) {
         ObjectNode bundle = JSON.objectNode();
         bundle.put("resourceType", "Bundle");
         bundle.putObject("identifier").put("system", URI_SYSTEM).put("value", bundleId);
@@ -465,8 +482,12 @@ public final class PasRequestBuilder {
                     + "resources names one of those full urls.");
         }
         if (!unresolved.isEmpty()) {
+            for (String reference : unresolved) {
+                notes.missing(bundleProfile + " entry for " + reference, null);
+            }
             notes.add("These references inside the bundle name a resource the bundle does not carry: " + String.join(", ", unresolved)
-                    + ". PAS 2.0.1 asks that the bundle carry every resource the claim leads to.");
+                    + ". PAS 2.0.1 requires (SHALL) that the bundle carry every resource the claim refers to, and every resource those "
+                    + "refer to in turn.");
         }
         return JsonSafe.pretty(bundle);
     }

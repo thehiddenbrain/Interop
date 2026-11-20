@@ -212,12 +212,13 @@ final class PasResources {
      * {@code active}: this is the organization the request is addressed to for a decision, so it
      * is sent as an organization in active use.
      */
-    static ObjectNode insurer(Function<String, ResolvedText> variables, PasNotes notes) {
+    static ObjectNode insurer(Function<String, ResolvedText> variables, String claimProfile, PasNotes notes) {
         String payerId = CaseResources.value(variables, CaseResources.VAR_PAYER_ID);
         String payerName = CaseResources.value(variables, CaseResources.VAR_PAYER_NAME);
         if (payerId == null && payerName == null) {
-            notes.missing("PASClaim insurer", "No insurer organization was sent: neither " + CaseResources.VAR_PAYER_ID + " nor "
-                    + CaseResources.VAR_PAYER_NAME + " is set. PAS 2.0.1 PASClaim requires the insurer.");
+            notes.missing(claimProfile + " insurer", "No insurer organization was sent: neither " + CaseResources.VAR_PAYER_ID + " nor "
+                    + CaseResources.VAR_PAYER_NAME + " is set. PAS 2.0.1 " + claimProfile + " requires the insurer (PASClaimBase, which "
+                    + "PASClaim and PASClaimInquiry share, makes it 1..1).");
             return null;
         }
         ObjectNode organization = JSON.objectNode();
@@ -322,7 +323,13 @@ final class PasResources {
         resource.put("status", "draft");
         resource.put("intent", "order");
         // The notes about the code system were made for the item, which carries the same concept.
-        resource.set("code", codeableConcept(code, member.lineOfBusiness(), variables, new PasNotes()));
+        ObjectNode concept = codeableConcept(code, member.lineOfBusiness(), variables, "PASClaim", new PasNotes());
+        resource.set("code", concept);
+        if (!concept.path("coding").path(0).has("system")) {
+            notes.missing("PASServiceRequest code system (code " + code.code().strip() + ")", "The order ServiceRequest/"
+                    + CaseResources.serviceRequestId(position) + " carries the code " + code.code().strip() + " with no system, as its "
+                    + "item does. PAS 2.0.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
+        }
         resource.putObject("subject").put("reference", CaseResources.PATIENT_REF);
         if (Texts.present(dateOfService)) {
             resource.putObject("occurrenceTiming").putArray("event").add(dateOfService.strip());
@@ -340,7 +347,8 @@ final class PasResources {
      * Level II is written as PAS 2.0.1 names it. A system outside the value set PAS binds the
      * element to is still sent, with a note, because the tester or the code list said so.
      */
-    ObjectNode codeableConcept(CodeInput code, String lineOfBusiness, Function<String, ResolvedText> variables, PasNotes notes) {
+    ObjectNode codeableConcept(CodeInput code, String lineOfBusiness, Function<String, ResolvedText> variables, String claimProfile,
+                               PasNotes notes) {
         String hcpcs = Texts.orElse(CaseResources.value(variables, VAR_HCPCS_SYSTEM), HCPCS);
         ObjectNode concept = JSON.objectNode();
         ObjectNode coding = concept.putArray("coding").addObject();
@@ -353,8 +361,9 @@ final class PasResources {
                         + "X12278RequestedServiceType that PAS 2.0.1 binds, required, to the item's code. The service may refuse it.");
             }
         } else {
-            notes.add("The code " + value + " was sent with no system. PAS 2.0.1 binds the item's code, required, to the value set "
-                    + "X12278RequestedServiceType, so the service may refuse it.");
+            notes.missing(claimProfile + " item.productOrService system (code " + value + ")", "The code " + value + " was sent with no "
+                    + "system. PAS 2.0.1 binds the item's code, required, to the value set X12278RequestedServiceType, so the service may "
+                    + "refuse it. State its system with the code.");
         }
         coding.put("code", value);
         if (Texts.present(code.description())) {

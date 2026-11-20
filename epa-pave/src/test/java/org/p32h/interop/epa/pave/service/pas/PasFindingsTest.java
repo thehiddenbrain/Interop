@@ -71,4 +71,13 @@ class PasFindingsTest {
         assertThat(findings(bundle(claimResponse("\"outcome\":\"complete\"", items(decided(1, "A1")))), "E0601", "E0562"))
                 .extracting(Finding::kind).containsExactly(FindingKind.NOT_STATED);
     }
+
+    @Test
+    void anUnknownReviewActionCodeIsJudgedAgainstTheListPas201BindsAndSaysSo() {
+        List<Finding> found = findings(bundle(claimResponse("\"outcome\":\"complete\"", items(decided(1, "D")))), "E0601");
+
+        assertThat(found).filteredOn(finding -> finding.kind() == FindingKind.CODE_OUTSIDE_VALUE_SET).singleElement().satisfies(finding ->
+                assertThat(finding.detail()).startsWith("PAS 2.0.1 binds the review action code, required, to the X12 306 (HCR01) codes; "
+                        + "this tool knows A1, A2, A3, A4, A6, C, CT and NA."));
+    }
 }

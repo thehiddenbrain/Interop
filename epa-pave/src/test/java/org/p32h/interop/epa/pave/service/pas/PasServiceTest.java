@@ -1309,10 +1309,10 @@ class PasServiceTest {
     void aRequestSentWithoutWhatThe201ProfilesRequireSaysSoFirstAndCarriesOneFindingThatNamesEachElement() {
         RunEnvelope<PasDetail> result = submit("P32H-PAS-APPROVED");
         assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
-        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 5 elements the PAS 2.0.1 profiles require");
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 5 elements PAS 2.0.1 requires");
         Finding incomplete = result.findings().get(0);
         assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
-        assertThat(incomplete.title()).isEqualTo("The request left out 5 elements the PAS 2.0.1 profiles require");
+        assertThat(incomplete.title()).isEqualTo("The request left out 5 elements PAS 2.0.1 requires");
         assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
                 .contains("PASBeneficiary identifier.system").contains("PASCoverage status");
         assertThat(ledger.only().findings()).contains("REQUEST_INCOMPLETE");

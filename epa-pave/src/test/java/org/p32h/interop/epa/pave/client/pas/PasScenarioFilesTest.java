@@ -106,6 +106,54 @@ class PasScenarioFilesTest {
         }
     }
 
+    /** Every ClaimResponse in a scenario file, wherever it sits, and whether every body of the file is an OperationOutcome. */
+    private static void claimResponses(JsonNode node, List<JsonNode> out) {
+        if (node == null) {
+            return;
+        }
+        if (node.isObject() && "ClaimResponse".equals(JsonSafe.text(node, "resourceType"))) {
+            out.add(node);
+        }
+        if (node.isContainer()) {
+            node.forEach(child -> claimResponses(child, out));
+        }
+    }
+
+    @Test
+    void whatEachFileSaysItsBodiesHoldIsWhatTheyHold() {
+        for (Scenario scenario : scenarios.list(MockOnyxPasClient.SCENARIOS)) {
+            List<JsonNode> responses = new java.util.ArrayList<>();
+            claimResponses(scenario.raw(), responses);
+            String basis = scenario.basis();
+            if (basis.contains("each decision in a review action on item.adjudication")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty().allSatisfy(response -> {
+                    assertThat(JsonSafe.elements(response, "item")).as(scenario.id() + " has items").isNotEmpty();
+                    assertThat(JsonSafe.elements(response, "identifier")).as(scenario.id() + " echoes the claim").isNotEmpty();
+                });
+            }
+            if (basis.contains("no review action")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty();
+                assertThat(scenario.raw().toString()).as(scenario.id()).doesNotContain("extension-reviewAction");
+            }
+            if (basis.contains("ErrorResponseExample")) {
+                assertThat(responses).as(scenario.id()).isNotEmpty().allSatisfy(response -> {
+                    assertThat(JsonSafe.text(response, "outcome")).isEqualTo("error");
+                    assertThat(JsonSafe.elements(response, "error")).isNotEmpty();
+                    assertThat(response.has("item")).as(scenario.id() + " has no item").isFalse();
+                });
+            }
+            if (basis.contains("An OperationOutcome")) {
+                assertThat(responses).as(scenario.id() + " holds no ClaimResponse").isEmpty();
+                assertThat(scenario.raw().toString()).as(scenario.id()).contains("\"OperationOutcome\"");
+            }
+            // A file with a ClaimResponse says which of these shapes it holds.
+            if (!responses.isEmpty()) {
+                assertThat(basis).as(scenario.id()).containsAnyOf("each decision in a review action on item.adjudication", "no review action",
+                        "ErrorResponseExample");
+            }
+        }
+    }
+
     @Test
     void noTwoScenariosShareASentinelAndNoneLooksLikeARealMemberId() {
         Set<String> seen = new HashSet<>();
@@ -176,6 +224,16 @@ class PasScenarioFilesTest {
                     assertThat(error.message()).isEqualTo("The member ID is the sentinel of scenario pas-09-invalid-bundle, which has no "
                             + "answer for an inquiry. Use a member ID whose scenario answers an inquiry, or choose a scenario.");
                 }));
+        // A CRD sentinel that selects the PAS scenario for the same case is not that scenario's sentinel, and is not called one.
+        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-ERR500", "P32H-TIMEOUT", "P32H-BAD400")) {
+            assertThatThrownBy(() -> inquire(null, crd, body)).as(crd).isInstanceOfSatisfying(ValidationException.class,
+                    e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("member.memberId");
+                        assertThat(error.message()).startsWith("The member ID selects scenario pas-")
+                                .contains(" (it means the same case as in CRD), which has no answer for an inquiry.")
+                                .doesNotContain("is the sentinel of");
+                    }));
+        }
         // And a scenario that describes only subscription calls does not answer a submission.
         assertThatThrownBy(() -> submit("pas-10-subscription-lifecycle", null, body)).isInstanceOf(ValidationException.class);
     }

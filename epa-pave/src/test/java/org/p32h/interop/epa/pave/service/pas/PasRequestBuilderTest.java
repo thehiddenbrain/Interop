@@ -203,7 +203,8 @@ class PasRequestBuilderTest {
 
         assertThat(bundle.at("/entry/1/resource/identifier/0/value").asString()).isEqualTo("S1234567801");
         assertThat(built.json()).doesNotContain("S12345678   01");
-        assertThat(built.sent()).isEqualTo(new SentClaim(CLAIM, List.of(new SentClaim.Item(1, "95810"), new SentClaim.Item(2, "E0601"))));
+        assertThat(built.sent()).isEqualTo(new SentClaim(CLAIM, List.of(new SentClaim.Item(1, "95810", CLAIM + "-1"),
+                new SentClaim.Item(2, "E0601", CLAIM + "-2"))));
         assertThat(SentClaim.fromBody(built.json())).isEqualTo(built.sent());
     }
 
@@ -214,7 +215,7 @@ class PasRequestBuilderTest {
         PasRequestBuilder.Built built = submit(request().build(), Map.of());
         assertThat(built.leftOut()).containsExactly("PASClaim insurer", "PASBeneficiary identifier.system", "PASCoverage payor",
                 "PASClaim item.category");
-        assertThat(built.notes().get(0)).isEqualTo("This request goes out without 4 elements the PAS 2.0.1 profiles require, because nobody "
+        assertThat(built.notes().get(0)).isEqualTo("This request goes out without 4 elements PAS 2.0.1 requires, because nobody "
                 + "supplied them: PASClaim insurer; PASBeneficiary identifier.system; PASCoverage payor; PASClaim item.category. The service "
                 + "may refuse the request for that alone.");
         assertThat(claim(built).has("insurer")).isFalse();
@@ -332,6 +333,42 @@ class PasRequestBuilderTest {
     }
 
     @Test
+    void aCodeWithoutTheSystemItsRequiredBindingNeedsIsCountedAmongWhatTheRequestLeftOut() {
+        // PAS 2.0.1 PASClaimBase binds item.productOrService and diagnosis.diagnosisCodeableConcept, required; PASServiceRequest binds code.
+        PasRequestBuilder.Built built = submit(request().procedureCodes(List.of(CodeInput.of("ABC12")))
+                .diagnosisCodes(List.of(CodeInput.of("XYZ"))).build(), ALL);
+        assertThat(built.leftOut()).containsExactly("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis XYZ)",
+                "PASServiceRequest code system (code ABC12)", "PASClaim item.productOrService system (code ABC12)");
+        assertThat(built.notes().get(0)).startsWith("This request goes out without 3 elements PAS 2.0.1 requires");
+        assertThat(built.notes()).contains("The order ServiceRequest/service-request-1 carries the code ABC12 with no system, as its item "
+                + "does. PAS 2.0.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
+        assertThat(claim(built).at("/item/0/productOrService/coding/0").has("system")).isFalse();
+        // A code whose system is known is not counted.
+        assertThat(submit(request().build(), ALL).leftOut()).isEmpty();
+    }
+
+    @Test
+    void aReferenceTheBundleCannotResolveIsCountedAmongWhatTheRequestLeftOut() {
+        // The answers name Practitioner/practitioner-1, and a provider known only as an organization brings no Practitioner.
+        PasRequestBuilder.Built built = submit(request().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder "
+                + "Sleep Clinic").build()).carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(ANSWERS))).build(), ALL);
+        assertThat(PasBundles.unresolved(bundle(built))).isNotEmpty();
+        assertThat(built.leftOut()).containsExactly("PASRequestBundle entry for Practitioner/practitioner-1");
+        assertThat(built.notes().get(0)).startsWith("This request goes out without 1 element PAS 2.0.1 requires");
+        assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("These references inside the bundle name a resource the "
+                + "bundle does not carry: Practitioner/practitioner-1. PAS 2.0.1 requires (SHALL)"));
+    }
+
+    @Test
+    void anInquiryWithNoPayerNamesTheInquiryProfileItBuilds() {
+        PasRequestBuilder.Built built = builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry().build(), CLAIM, List.of(CodeInput.of("95810")),
+                "given on the form", BUNDLE, NO_VARIABLES);
+        assertThat(built.leftOut()).contains("PASClaimInquiry insurer").doesNotContain("PASClaim insurer");
+        assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("PAS 2.0.1 PASClaimInquiry requires the insurer (PASClaimBase, "
+                + "which PASClaim and PASClaimInquiry share, makes it 1..1)."));
+    }
+
+    @Test
     void answersThatCarryNoIdAreGivenOneSoTheClaimCanReferToThemAndTheNoteSaysSo() {
         String noId = ANSWERS.replace("\"id\":\"qr-sleep-1\",", "");
         PasRequestBuilder.Built built = submit(request().carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(noId))).build(), Map.of());
@@ -396,7 +433,10 @@ class PasRequestBuilderTest {
         assertThat(built.notes()).contains("Attachment 1 (\"Sleep study report\") was not put in the bundle. In the attachment mode x12-275 the "
                 + "claim only names the document, by the attachment control number " + CLAIM + "-A1, for an X12 275 transaction that this "
                 + "tool does not send. The service receives no document from this tool. In PAS 2.0.1 a 275 is produced by the intermediary "
-                + "from the bundle, not sent by the client beside it.");
+                + "from the bundle, not sent by the client beside it. The document type 11506-3 and category clinical-note given with "
+                + "it were not sent either, because only the DocumentReference the bundle would carry has a place for them.");
+        // The second attachment was given neither, so its note says nothing about them.
+        assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("Attachment 2 (").endsWith("not sent by the client beside it."));
         assertThat(built.notes()).contains("Neither attachment mode is the PAS 2.0.1 way of sending documentation after the payer has asked "
                 + "for it: that is a claim update that replaces the earlier claim, or the CDex operation $submit-attachment, and this tool "
                 + "builds neither.");
@@ -423,7 +463,7 @@ class PasRequestBuilderTest {
         // An inquiry does not require a category, so its absence is not counted.
         assertThat(built.leftOut()).doesNotContain("PASClaim item.category");
         assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("lists the procedure codes handed on from the submission as items"));
-        assertThat(built.sent().items()).containsExactly(new SentClaim.Item(1, "95810"), new SentClaim.Item(2, "E0601"));
+        assertThat(built.sent().items()).containsExactly(new SentClaim.Item(1, "95810", CLAIM + "-1"), new SentClaim.Item(2, "E0601", CLAIM + "-2"));
         assertThat(SentClaim.fromBody(built.json())).isEqualTo(built.sent());
         assertThat(PasBundles.unresolved(bundle(built))).isEmpty();
     }

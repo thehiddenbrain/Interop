@@ -68,6 +68,9 @@ public class MockOnyxPasClient implements OnyxPasClient {
             "P32H-TIMEOUT", "P32H-PAS-TIMEOUT",
             "P32H-BAD400", "P32H-PAS-BAD400");
 
+    /** How a selection through {@link #SAME_CASE_AS_CRD} says so, between the typed sentinel and the PAS one. */
+    private static final String SAME_CASE = ", which means the same case in CRD as ";
+
     private final ScenarioRepository scenarios;
     private final MockExchanges exchanges;
 
@@ -108,13 +111,18 @@ public class MockOnyxPasClient implements OnyxPasClient {
             return scenarios.select(SCENARIOS, selection, text);
         }
         ScenarioSelection chosen = scenarios.select(SCENARIOS, new MockSelection(null, same, selection.npi(), selection.hints()), text);
-        return new ScenarioSelection(chosen.scenario(), "selected by the sentinel member ID " + typed + ", which means the same case in "
-                + "CRD as " + same + " does here");
+        return new ScenarioSelection(chosen.scenario(), "selected by the sentinel member ID " + typed + SAME_CASE + same + " does here");
     }
 
     private static void refuseBySentinel(ScenarioSelection chosen, String step) {
         String how = Texts.orElse(chosen.how(), "");
         String call = STEP_INQUIRE.equals(step) ? "an inquiry" : "the step \"" + step + "\"";
+        if (how.startsWith("selected by the sentinel member ID") && how.contains(SAME_CASE)) {
+            // A CRD sentinel is not this scenario's own: it selects the scenario for the same case.
+            throw ValidationException.of("member.memberId", "The member ID selects scenario " + chosen.scenario().id()
+                    + " (it means the same case as in CRD), which has no answer for " + call + ". Use a member ID whose scenario answers "
+                    + call + ", or choose a scenario.");
+        }
         if (how.startsWith("selected by the sentinel member ID")) {
             throw ValidationException.of("member.memberId", "The member ID is the sentinel of scenario " + chosen.scenario().id()
                     + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");

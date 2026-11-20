@@ -17,7 +17,7 @@
       "error-code": "51"
     }
   },
-  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication with its authorization number and the item's itemPreAuthPeriod, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape of the PAS 2.0.1 ErrorResponseExample (input/fsh/Examples.fsh of the guide's 2.0.1 source): a ClaimResponse with outcome error, an X12 901 reject reason in error.code with the PAS error extensions, the claim identifier echoed in ClaimResponse.identifier, the request named by reference, and no item. The reject reason's meaning was not checked against X12. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "How the live service signals an unknown provider on a submission is not known. This file models an HTTP 200 ClaimResponse whose outcome is error and whose error carries the X12 reject reason code 51.",
   "response": {
     "resourceType": "Bundle",

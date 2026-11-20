@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.model.pas.ClaimResponseView;
 import org.p32h.interop.epa.pave.model.pas.PasDecision;
 import org.p32h.interop.epa.pave.model.pas.PasOutcome;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -35,7 +36,7 @@ final class PasFindings {
     static Finding requestIncomplete(List<String> leftOut) {
         int count = leftOut.size();
         return new Finding(FindingKind.REQUEST_INCOMPLETE, "The request left out " + count + (count == 1 ? " element" : " elements")
-                + " the PAS 2.0.1 profiles require", "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not "
+                + " PAS 2.0.1 requires", "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not "
                 + "invent values: " + String.join("; ", leftOut) + ". A refusal by the service may be about this and not a fault of the "
                 + "service. The request notes say what supplies each one.", String.join("; ", leftOut), null, null);
     }
@@ -53,16 +54,18 @@ final class PasFindings {
             CodedValue status = response.outcome();
             if (status.code() != null && !status.recognised()) {
                 findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET, "The ClaimResponse outcome code is not one this tool knows",
-                        "The outcome code is expected to be one of " + String.join(", ", PasCodes.codes(PasCodes.CLAIM_OUTCOME))
-                                + ". The code that came back is shown as it came and is not read as any of them.",
+                        "PAS 2.0.1 takes ClaimResponse.outcome from FHIR R4, which binds it, required, to "
+                                + listed(PasCodes.codes(PasCodes.CLAIM_OUTCOME)) + ". The code that came back is shown as it came and "
+                                + "is not read as any of them.",
                         PasCodes.CLAIM_OUTCOME, null, status.code()));
             }
             for (PasDecision decision : response.decisions()) {
                 for (CodedValue code : decision.reviewActions()) {
                     if (code.code() != null && !code.recognised()) {
                         findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET, "A review action code is not one this tool knows",
-                                "A review action code is expected to be one of " + String.join(", ", PasCodes.codes(PasCodes.REVIEW_ACTION))
-                                        + ". The code that came back is shown as it came and is not read as any of them.",
+                                "PAS 2.0.1 binds the review action code, required, to the X12 306 (HCR01) codes; this tool knows "
+                                        + listed(PasCodes.codes(PasCodes.REVIEW_ACTION)) + ". The code that came back is shown as it came "
+                                        + "and is not read as any of them.",
                                 decision.subject(), null, code.code()));
                     }
                 }
@@ -78,5 +81,14 @@ final class PasFindings {
             }
         }
         return findings;
+    }
+
+    /** Codes as a list in a sentence: "A, B and C". */
+    private static String listed(Collection<String> known) {
+        List<String> codes = List.copyOf(known);
+        if (codes.size() < 2) {
+            return String.join("", codes);
+        }
+        return String.join(", ", codes.subList(0, codes.size() - 1)) + " and " + codes.get(codes.size() - 1);
     }
 }

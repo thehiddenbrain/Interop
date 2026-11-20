@@ -16,7 +16,7 @@
       "claim-outcome": "complete"
     }
   },
-  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication with its authorization number and the item's itemPreAuthPeriod, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication, an authorization number on the review action and the item's itemPreAuthPeriod where the item is certified, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "How the live service acknowledges an attachment is not known. This file models a certified ClaimResponse that refers to a CommunicationRequest carried in the same bundle with the status completed.",
   "response": {
     "resourceType": "Bundle",

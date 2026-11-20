@@ -15,7 +15,7 @@
       "claim-outcome": "complete"
     }
   },
-  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication with its authorization number and the item's itemPreAuthPeriod, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, and an item with its item trace number and, on purpose, no review action, which PAS 2.0.1 makes optional (0..1 on item.adjudication). Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "response": {
     "resourceType": "Bundle",
     "id": "pas-response-bundle",

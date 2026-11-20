@@ -16,7 +16,7 @@
       "claim-outcome": "queued"
     }
   },
-  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication with its authorization number and the item's itemPreAuthPeriod, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication, an authorization number on the review action and the item's itemPreAuthPeriod where the item is certified, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "PAS 2.0.1 binds the CommunicationRequest category, required, to the X12 PWK01 list (755), which is not printed in the guide. The code here is a placeholder in that code system.",
   "response": {
     "resourceType": "Bundle",

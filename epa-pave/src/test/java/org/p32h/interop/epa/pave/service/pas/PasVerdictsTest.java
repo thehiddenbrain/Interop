@@ -100,7 +100,28 @@ class PasVerdictsTest {
                 items(approvedAsIn201(1, "AUTH0001", "2026-03-20", "2026-06-20"), approvedAsIn201(2, "AUTH0002", "2026-03-21", "2026-04-21")))),
                 sent("95810", "E0601"));
         assertThat(verdict(reading).supporting()).contains("95810: Authorization number: AUTH0001.", "E0601: Authorization number: AUTH0002.",
-                "E0601: Authorized from 2026-03-21 to 2026-04-21.", "Authorization number: PA-PLACEHOLDER-0009.");
+                "E0601: Authorized from 2026-03-21 to 2026-04-21.", "For the response as a whole: Authorization number: PA-PLACEHOLDER-0009.");
+    }
+
+    @Test
+    void theResponsesOwnPeriodIsLeftOutWhenEveryItemStatesItAndOtherwiseSaysItIsTheResponses() {
+        // Every item states the period ClaimResponse.preAuthPeriod states: the line with no subject adds nothing.
+        PasReading same = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-04-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15"), approvedAsIn201(2, "AUTH0001", "2026-01-15", "2026-04-15")))),
+                sent("E0601", "95810"));
+        assertThat(verdict(same).supporting()).containsExactly("This is the decision for each of: E0601, 95810.",
+                "E0601: Authorization number: AUTH0001.", "E0601: Authorized from 2026-01-15 to 2026-04-15.",
+                "95810: Authorization number: AUTH0001.", "95810: Authorized from 2026-01-15 to 2026-04-15.");
+        // The items differ from it: the response's own period is named as the response's, not read as one more item's.
+        PasReading differ = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-06-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15"), approvedAsIn201(2, "AUTH0002", "2026-02-15", "2026-06-15")))),
+                sent("E0601", "95810"));
+        assertThat(verdict(differ).supporting()).endsWith("For the response as a whole: Authorized from 2026-01-15 to 2026-06-15.")
+                .doesNotContain("Authorized from 2026-01-15 to 2026-06-15.");
+        // One item with its own period equal to the response's: stated once.
+        PasReading one = read(bundle(claimResponse("\"outcome\":\"complete\"", "\"preAuthPeriod\":{\"start\":\"2026-01-15\",\"end\":\"2026-04-15\"}",
+                items(approvedAsIn201(1, "AUTH0001", "2026-01-15", "2026-04-15")))), sent("E0601"));
+        assertThat(verdict(one).supporting()).containsOnlyOnce("Authorized from 2026-01-15 to 2026-04-15.");
     }
 
     @Test

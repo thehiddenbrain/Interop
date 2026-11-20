@@ -44,7 +44,9 @@ public final class SubscriptionResponseMapper {
      * @param operation the call that was made, which decides what a success means
      * @param askedId   the id of the subscription the call was about, or null for a create and a list
      */
-    public SubscriptionReading read(VendorExchange exchange, EpaOperation operation, String askedId) {
+    public SubscriptionReading read(VendorExchange received, EpaOperation operation, String askedId) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = ReturnedSecrets.masked(received);
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
         List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());

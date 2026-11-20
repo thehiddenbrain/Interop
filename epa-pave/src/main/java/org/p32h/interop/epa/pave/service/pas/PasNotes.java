@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
+import org.p32h.interop.epa.pave.model.Texts;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,16 +25,20 @@ final class PasNotes {
     }
 
     /**
-     * An element a PAS 2.0.1 profile requires that the request goes out without.
+     * An element PAS 2.0.1 requires that the request goes out without: one a profile requires, a
+     * code without the system its required binding needs, or a resource a reference in the bundle
+     * names, which the specification requires the bundle to carry.
      *
      * @param element what was left out, named by its profile and path, such as "PASClaim item.category"
-     * @param note    why it was left out and what would supply it
+     * @param note    why it was left out and what would supply it, or null when one note made apart says it for several
      */
     void missing(String element, String note) {
         if (!leftOut.contains(element)) {
             leftOut.add(element);
         }
-        notes.add(note);
+        if (Texts.present(note)) {
+            notes.add(note);
+        }
     }
 
     List<String> leftOut() {
@@ -54,7 +59,7 @@ final class PasNotes {
     static String summary(List<String> leftOut) {
         int count = leftOut.size();
         return "This request goes out without " + count + (count == 1 ? " element" : " elements")
-                + " the PAS 2.0.1 profiles require, because nobody supplied " + (count == 1 ? "it" : "them") + ": "
+                + " PAS 2.0.1 requires, because nobody supplied " + (count == 1 ? "it" : "them") + ": "
                 + String.join("; ", leftOut) + ". The service may refuse the request for that alone.";
     }
 }

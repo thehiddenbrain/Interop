@@ -191,13 +191,24 @@ public final class PasVerdicts {
         }
         for (ClaimResponseView response : reading.detail().claimResponses()) {
             String name = reading.detail().claimResponses().size() > 1 ? response.label() + ": " : "";
-            // ClaimResponse.preAuthRef is kept as a further source: no PAS 2.0.1 example uses it.
+            // ClaimResponse.preAuthRef and preAuthPeriod are kept as further sources: no PAS 2.0.1
+            // example uses them. Beside the items' own numbers and periods, a line with no subject
+            // would read as one more item's, so it says it is the response's; when every decision
+            // already states the same, it adds nothing and is left out.
+            List<PasDecision> own = response.decisions();
             if (response.preAuthRef().hasValue()) {
-                out.add(name + "Authorization number: " + response.preAuthRef().value() + ".");
+                String number = response.preAuthRef().value();
+                if (own.isEmpty() || !own.stream().allMatch(d -> d.authorizationNumbers().contains(number))) {
+                    boolean beside = own.stream().anyMatch(d -> !d.authorizationNumbers().isEmpty());
+                    out.add(name + (beside ? AS_A_WHOLE : "") + "Authorization number: " + number + ".");
+                }
             }
-            String whole = period(response.preAuthPeriodStart().orNull(), response.preAuthPeriodEnd().orNull());
-            if (whole != null) {
-                out.add(name + whole);
+            String from = response.preAuthPeriodStart().orNull();
+            String to = response.preAuthPeriodEnd().orNull();
+            String whole = period(from, to);
+            if (whole != null && (own.isEmpty() || !own.stream().allMatch(d -> whole.equals(period(d.authorizedFrom(), d.authorizedTo()))))) {
+                boolean beside = own.stream().anyMatch(d -> period(d.authorizedFrom(), d.authorizedTo()) != null);
+                out.add(name + (beside ? AS_A_WHOLE : "") + whole);
             }
             if (response.documentationWanted() && outcome != PasOutcome.ATTACHMENT_REQUIRED) {
                 out.add(name + "The response also refers to a request for documentation that is not shown as closed.");
@@ -209,6 +220,9 @@ public final class PasVerdicts {
         }
         return out;
     }
+
+    /** What opens a line taken from the ClaimResponse itself when the items state numbers or periods of their own. */
+    private static final String AS_A_WHOLE = "For the response as a whole: ";
 
     /** A period as a sentence, or null when neither end is stated. */
     private static String period(String from, String to) {
