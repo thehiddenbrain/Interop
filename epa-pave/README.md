@@ -850,6 +850,25 @@ verbatim in `config-store/`. So:
   holds what you uploaded, credentials included. PAVE warns at start when either lies inside a git
   working tree.
 
+### Member data in an uploaded file
+
+The configuration store keeps what you upload exactly as it was uploaded, because it is what the
+tool sends from: every variable's value, every header and body, and every saved example response.
+An export from Postman can therefore put a real member's data on disk in `config-store/`, where it
+stays until the environment or collection is removed.
+
+- **The upload warns**, naming the variables or the requests and never a value, when a variable's
+  name reads as member data or a request carries a saved example response. Observed with the
+  sample collection, which has saved examples: "4 requests, the first being "CRD / order-sign Happy
+  Path", carry a saved example response, which can hold the member data of whoever the example was
+  saved for. The collection is kept on disk exactly as it was uploaded, values included, in the
+  file .... An environment or a collection that holds real member data must not be uploaded: use
+  placeholders such as S123456789 in its place."
+- The warning goes by names only. A value under an ordinary name, or member data inside a saved
+  body, is not recognised. **Never upload an environment or a collection that holds a real
+  member's data**: replace member IDs, names and dates of birth with placeholders before export,
+  and remove saved example responses taken from real calls.
+
 **Access tokens.** OAuth2 client credentials are requested when `onyx.auth.enabled` is true. The
 four `onyx.auth` values are resolved like any placeholder, so they can point at the environment's
 variables, for example `--onyx.auth.enabled=true --onyx.auth.token-url={{tokenUrl}}
@@ -905,6 +924,29 @@ A PAS submit against production creates a real prior authorization request again
   production is reported as blocked, and its next step says to send that write on its own from its
   tab (`SEND_ON_ITS_OWN`), not to unlock (D-183). Observed for a replayed PAS submission.
 - **A value typed for one run may not move a write** to another scheme, host, port or base path.
+- **An address PAVE cannot read the way the HTTP client reads it is never taken as "not
+  production".** A write that would go to such an address (a port above 65535, a host in a form the
+  client refuses) is refused with 403, naming the variable and its layer, the request or the
+  `application.yml` setting it came from: "Blocked: the address it would go to could not be read."
+  This was checked by the fix's author on live against stand-ins; on mock a protocol run does not
+  resolve its url (see [Variables](#variables)), so there the run is answered from its scenario
+  (observed: a PAS submit with such an environment active answered as its scenario says).
+- **No request leaves with an encoded separator in its path**: an encoded slash, backslash,
+  semicolon or dot segment (`%2F`, `%5C`, `%3B`, `%2e%2e`, in any letter case and however many
+  times encoded), whatever the environment and whatever the method, because a server in front of
+  the service may decode it before it reads the path. The answer is 422, naming the variable, the
+  url part or the request, never the value. A query string is not touched. Observed on mock:
+  `crdOrderSignServiceId` typed for one run as `..%2F..%2FClaim%2F%24submit` answered "CRD
+  order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
+  the variable "crdOrderSignServiceId" (typed for this run). ..."
+- **Lock, from any browser, locks every session** (D-144). Observed on mock: session A unlocked and
+  sent a submit; session B posted `{"action":"lock"}`; A's next submit answered 403, "... production
+  writes are locked for this session. An earlier unlock no longer applies, because the
+  configuration has changed or writes were locked again since. Nothing was sent." A write A had
+  already prepared when B locked is refused when it is sent, with 409 (tested in the build over the
+  running server). On this revision the 409 reads "The configuration changed while this request was
+  being prepared. Nothing was sent.", and the Config tab of session A goes on saying that writes are
+  unlocked until it is reloaded, while the server refuses the write.
 - **The "not production" acknowledgement** (`acknowledgeNotProd`) covers that environment's own
   addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
   cleverer.
@@ -915,11 +957,14 @@ production address built from a secret, after its environment is removed and the
 No endpoint clears the remembered production addresses: with the tool stopped, edit
 `productionDestinations` in `config-store/store.json`, or remove the store folder.
 
-**Audited once, before the fixes.** The independent guardrail audit (V3) got writes through to
-production four ways on the revision before the fix wave. Each was fixed and the fix attacked by a
-second agent (`PROGRESS.md`). V3 has not run again on this revision. The behaviour above was
-observed on mock, where the guardrail behaves as on live (D-021); on live it was checked by the
-fix's authors against stand-in servers on this machine, not for this README.
+**Audited twice.** The independent guardrail audit (V3) got writes through to production four ways
+on the revision before the first fix wave; each was fixed and the fix attacked by a second agent
+(`PROGRESS.md`). V3 ran again on revision `0658a7c` and found a write to production through a port
+written with leading zeros, an encoded separator that hid a path, a raw send refused for an untrue
+reason, no test that Lock locks every session, and a secret shown in clear in a notification. Each
+is fixed on this revision (the rules above); no agent but each fix's author has checked those fixes
+yet. The behaviour above was observed on mock, where the guardrail behaves as on live (D-021),
+except where a sentence says otherwise.
 
 ## The test run ledger
 
