@@ -7,13 +7,16 @@ import java.util.Locale;
 /**
  * The one normal form in which a url is judged and sent.
  *
- * <p>Two steps, from RFC 3986: a percent-escape of an unreserved character (a letter, a digit,
- * hyphen, full stop, underscore or tilde) is decoded, since it means exactly that character, and
- * the dot segments {@code .} and {@code ..} of the path are removed. A server applies both before
- * it decides what an address means, so a url read in any other form can be judged as one thing and
- * acted on as another: {@code /Claim/$inquire/../../Claim} reads as an inquiry and is a create.
- * Every other escape is left as it was written, and the query and fragment keep their dot
- * segments, which mean nothing there.
+ * <p>Three steps. Two are from RFC 3986: a percent-escape of an unreserved character (a letter, a
+ * digit, hyphen, full stop, underscore or tilde) is decoded, since it means exactly that
+ * character, and the dot segments {@code .} and {@code ..} of the path are removed. The third is
+ * what common servers do on top of that: a run of slashes in the path is one slash (nginx with
+ * {@code merge_slashes}, Tomcat), and a segment that is a dot segment once its {@code ;}
+ * parameters are set aside is a dot segment (Tomcat reads {@code /..;/} as {@code /../}). A
+ * server applies these before it decides what an address means, so a url read in any other form
+ * can be judged as one thing and acted on as another: {@code /Claim/$inquire/../../Claim} reads
+ * as an inquiry and is a create. Every other escape is left as it was written, and the query and
+ * fragment keep their dot segments, which mean nothing there.
  *
  * <p>The text before the path is taken to be a scheme and an authority when it has {@code ://};
  * otherwise the whole text before a {@code ?} or {@code #} is a path. That lets a template such as
@@ -45,7 +48,9 @@ public final class UrlNormal {
      * @param scheme the scheme in lower case
      * @param host   the host in lower case, without a trailing dot
      * @param port   the port, or the default port of the scheme, or -1 when there is neither
-     * @param path   the path in its normal form, without a trailing slash. Empty for the root
+     * @param path   the path in its normal form, without a trailing slash and without the
+     *               {@code ;} parameters of its segments, which name nothing a server routes on.
+     *               Empty for the root
      */
     public record Destination(String scheme, String host, int port, String path) {
 
@@ -57,16 +62,28 @@ public final class UrlNormal {
 
         /**
          * True when the two name the same scheme, host and port. A scheme or a port that was not
-         * written, as in a bare host name, matches any, so a comparison errs toward a match.
+         * written, as in a bare host name, matches any, so a comparison errs toward a match. Two
+         * names of this machine, such as {@code localhost} and {@code 127.0.0.1}, are the same host,
+         * and so are two ways of writing one IP address. Another DNS name for a host is not known.
          */
         public boolean sameOrigin(Destination other) {
-            return other != null && host.equals(other.host) && (port < 0 || other.port < 0 || port == other.port)
+            return other != null && hostKey(host).equals(hostKey(other.host)) && (port < 0 || other.port < 0 || port == other.port)
                     && (scheme == null || other.scheme == null || scheme.equals(other.scheme));
         }
 
-        /** True when the other destination is this one or lies beneath it: same origin, and a path that starts with this path at a segment boundary. */
+        /**
+         * True when the other destination is this one or lies beneath it: same origin, and a path
+         * that starts with this path at a segment boundary. The paths are compared without regard
+         * to letter case: many servers route {@code /LIVE} as {@code /live}, and a comparison that
+         * decides whether an address is production errs toward a match.
+         */
         public boolean covers(Destination other) {
-            return sameOrigin(other) && (other.path.equals(path) || other.path.startsWith(path + "/") || path.isEmpty());
+            if (!sameOrigin(other)) {
+                return false;
+            }
+            String mine = path.toLowerCase(Locale.ROOT);
+            String theirs = other.path.toLowerCase(Locale.ROOT);
+            return theirs.equals(mine) || theirs.startsWith(mine + "/") || mine.isEmpty();
         }
 
         /** True when either covers the other. */
@@ -169,10 +186,113 @@ public final class UrlNormal {
         String path = rest.substring(end);
         int query = indexOfAny(path, "?#");
         path = query < 0 ? path : path.substring(0, query);
+        path = withoutParameters(path);
         while (path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
         return new Destination(scheme, host, port, path);
+    }
+
+    /** The path with the {@code ;} parameters of each segment left out: {@code /live2;a=b/Claim} is {@code /live2/Claim}. */
+    private static String withoutParameters(String path) {
+        if (path.indexOf(';') < 0) {
+            return path;
+        }
+        String[] parts = path.split("/", -1);
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = bare(parts[i]);
+        }
+        return String.join("/", parts);
+    }
+
+    /** A segment without its parameters. */
+    private static String bare(String segment) {
+        int semicolon = segment.indexOf(';');
+        return semicolon < 0 ? segment : segment.substring(0, semicolon);
+    }
+
+    /**
+     * The form in which a host is compared: every name and address of this machine is one, and an
+     * IPv4 address written in any of the forms a resolver accepts (decimal, octal, hexadecimal, or
+     * fewer than four parts) is its dotted decimal form. Anything else is the host in lower case.
+     */
+    static String hostKey(String host) {
+        String lower = host.toLowerCase(Locale.ROOT);
+        if (lower.equals("localhost") || lower.endsWith(".localhost")) {
+            return LOOPBACK;
+        }
+        if (lower.startsWith("[") && lower.endsWith("]")) {
+            String inner = lower.substring(1, lower.length() - 1);
+            int zone = inner.indexOf('%');
+            inner = zone < 0 ? inner : inner.substring(0, zone);
+            if (inner.chars().allMatch(c -> Character.digit(c, 16) >= 0 || c == ':' || c == '.')) {
+                try {
+                    java.net.InetAddress address = java.net.InetAddress.getByName(inner);
+                    if (address.isLoopbackAddress() || address.isAnyLocalAddress()) {
+                        return LOOPBACK;
+                    }
+                    return address.getHostAddress();
+                } catch (java.net.UnknownHostException e) {
+                    // Not an address this tool can read: compared as written.
+                    return lower;
+                }
+            }
+            return lower;
+        }
+        long ipv4 = ipv4(lower);
+        if (ipv4 < 0) {
+            return lower;
+        }
+        if ((ipv4 >>> 24) == 127 || ipv4 == 0) {
+            return LOOPBACK;
+        }
+        return (ipv4 >>> 24) + "." + ((ipv4 >>> 16) & 0xff) + "." + ((ipv4 >>> 8) & 0xff) + "." + (ipv4 & 0xff);
+    }
+
+    private static final String LOOPBACK = "this machine";
+
+    /** The IPv4 address a host written as numbers stands for, as inet_aton reads it, or -1 when it is not one. */
+    private static long ipv4(String host) {
+        String[] parts = host.split("\\.", -1);
+        if (parts.length > 4) {
+            return -1;
+        }
+        long[] values = new long[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            int radix = 10;
+            if (part.startsWith("0x")) {
+                radix = 16;
+                part = part.substring(2);
+            } else if (part.length() > 1 && part.startsWith("0")) {
+                radix = 8;
+                part = part.substring(1);
+            }
+            if (part.isEmpty() && radix == 16) {
+                part = "0";
+            }
+            if (part.isEmpty() || part.length() > 11) {
+                return -1;
+            }
+            try {
+                values[i] = Long.parseLong(part, radix);
+            } catch (NumberFormatException e) {
+                // Letters: a name, not an address.
+                return -1;
+            }
+        }
+        long result = 0;
+        for (int i = 0; i < values.length - 1; i++) {
+            if (values[i] > 0xff) {
+                return -1;
+            }
+            result |= values[i] << (8 * (3 - i));
+        }
+        long last = values[values.length - 1];
+        if (last >= (1L << (8 * (5 - values.length)))) {
+            return -1;
+        }
+        return result | last;
     }
 
     /** The url with every percent-escape decoded where it decodes to one byte of printable ASCII. For looking for a word only. */
@@ -224,9 +344,9 @@ public final class UrlNormal {
     }
 
     /**
-     * RFC 3986 section 5.2.4, by segments. For a path that follows an authority, a {@code ..} at
-     * the root is dropped. For a template, which has no authority, the first segment stands for
-     * the root.
+     * RFC 3986 section 5.2.4, by segments, with a segment read without its {@code ;} parameters
+     * and empty segments dropped. For a path that follows an authority, a {@code ..} at the root
+     * is dropped. For a template, which has no authority, the first segment stands for the root.
      */
     private static String removeDotSegments(String path, boolean afterAuthority, boolean[] climbed) {
         if (path.isEmpty()) {
@@ -239,8 +359,9 @@ public final class UrlNormal {
         for (int i = 0; i < parts.length; i++) {
             String part = parts[i];
             boolean last = i == parts.length - 1;
-            if (part.equals(".") || part.equals("..")) {
-                if (part.equals("..")) {
+            String bare = bare(part);
+            if (bare.equals(".") || bare.equals("..")) {
+                if (bare.equals("..")) {
                     if (kept.size() > floor) {
                         kept.remove(kept.size() - 1);
                     } else {
@@ -251,6 +372,10 @@ public final class UrlNormal {
                 if (last) {
                     kept.add("");
                 }
+                continue;
+            }
+            // A run of slashes is one slash. Only a slash at the very end stays, as written.
+            if (part.isEmpty() && !last) {
                 continue;
             }
             kept.add(part);

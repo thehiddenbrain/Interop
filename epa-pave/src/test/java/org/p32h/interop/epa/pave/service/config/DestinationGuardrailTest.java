@@ -356,6 +356,58 @@ class DestinationGuardrailTest {
     }
 
     @Test
+    void anAddressAServerTreatsAsAProductionOneIsThatProductionAddressAtUploadAndAtWrite() {
+        String[] forms = {"http://127.0.0.1:18472//live2", "http://127.0.0.1:18472/live2;x=1", "http://127.0.0.1:18472/LIVE2",
+                "http://localhost:18472/live2"};
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = threeEnvironments(on(profile).allowProdWrites());
+            // At upload, under a sandbox's kind: refused and named, confirmation or not.
+            for (String form : forms) {
+                byte[] copy = ("{\"name\": \"copy\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + form + "\"}]}")
+                        .getBytes(StandardCharsets.UTF_8);
+                for (boolean confirmed : new boolean[] {false, true}) {
+                    assertThatThrownBy(() -> fixture.store.uploadEnvironment("copy.json", copy, EnvironmentKind.SANDBOX, confirmed))
+                            .as(profile + " " + form).isInstanceOf(ValidationException.class)
+                            .hasMessageContaining("belongs to the production environment \"vendor-live-two\"");
+                }
+            }
+            // At write, as a literal of a collection: from the other production environment unlocked, and from a sandbox.
+            StoredCollection literal = fixture.collectionOf("Literal", items(
+                    item("literal to two dslash", "POST", "http://127.0.0.1:18472//live2/Claim/$submit"),
+                    item("literal to two semicolon", "POST", "http://127.0.0.1:18472/live2;a=b/Claim/$submit"),
+                    item("literal to two upper", "POST", "http://127.0.0.1:18472/LIVE2/Claim/$submit"),
+                    item("literal to two localhost", "POST", "http://localhost:18472/live2/Claim/$submit")));
+            for (String active : List.of("vendor-live", "pave-sandbox")) {
+                fixture.store.activate(active);
+                ProdUnlock unlock = active.equals("vendor-live") ? fixture.gateway.unlock("vendor-live") : null;
+                for (String name : List.of("literal to two dslash", "literal to two semicolon", "literal to two upper", "literal to two localhost")) {
+                    ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.UNMAPPED).withRequest(ref(literal, name))
+                            .withUnlock(unlock));
+                    assertThat(refusal.getMessage()).as(profile + " " + active + " " + name)
+                            .contains("belongs to the production environment \"vendor-live-two\"");
+                }
+            }
+            // The doubled slash does not go on the wire: the normal form is what is sent.
+            fixture.store.activate("vendor-live-two");
+            PreparedCall own = fixture.gateway.prepare(CallIntent.of(EpaOperation.UNMAPPED).withRequest(ref(literal, "literal to two dslash"))
+                    .withUnlock(fixture.gateway.unlock("vendor-live-two")));
+            assertThat(own.url().value()).as(profile).isEqualTo(LIVE_TWO + "/Claim/$submit");
+        }
+    }
+
+    @Test
+    void aDotSegmentWithAParameterIsRemovedSoAnInquiryThatIsACreateIsAWrite() {
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = threeEnvironments(on(profile).allowProdWrites());
+            fixture.store.activate("vendor-live");
+            ProdWriteBlockedException refusal = blocked(fixture, CallIntent.of(EpaOperation.PAS_INQUIRE)
+                    .withRunValues(Map.of("baseUrl", LIVE + "/Claim/$inquire/..;/..;/Claim?x=")));
+            assertThat(refusal.target().value()).as(profile).isEqualTo(LIVE + "/Claim?x=/Claim/$inquire");
+            assertThat(refusal.getMessage()).as(profile).contains("It counts as a write because");
+        }
+    }
+
+    @Test
     void aWriteWhosePathClimbsAboveItsRootIsRefused() {
         for (String profile : PROFILES) {
             ConfigFixture fixture = on(profile).build();
