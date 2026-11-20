@@ -61,14 +61,16 @@ public class ScenarioRepository {
 
     /**
      * Every top-level key a scenario file may hold. The protocols read their own sections from
-     * {@link Scenario#raw()}: {@code nextQuestion} is the DTR adaptive rule, and {@code paths} and
-     * {@code responses} are the DTR claims the scenario tests drive. A key outside this list is
-     * refused, because a misspelt one would otherwise be dropped and its scenario would quietly
-     * lose what the key held.
+     * {@link Scenario#raw()}: {@code nextQuestion} is the DTR adaptive rule, {@code paths} and
+     * {@code responses} are the DTR claims the scenario tests drive, and {@code crdSentinelMemberIds}
+     * names the CRD sentinels a DTR scenario answers for, which the DTR mock keeps apart from the
+     * scenario's own sentinel so that it can say which of the two selected it. A key outside this
+     * list is refused, because a misspelt one would otherwise be dropped and its scenario would
+     * quietly lose what the key held.
      */
     static final Set<String> KNOWN_KEYS = Set.of("id", "number", "label", "description", "basis", "assumption", "sentinelMemberId",
-            "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "behavior", "httpStatus", "delayMillis", "response", "responseText",
-            "expect", "steps", "nextQuestion", "paths", "responses");
+            "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "behavior", "httpStatus", "delayMillis",
+            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses");
 
     /** The scenarios found for a protocol, and the files that could not be used. */
     public record Loaded(List<Scenario> scenarios, List<String> problems) {

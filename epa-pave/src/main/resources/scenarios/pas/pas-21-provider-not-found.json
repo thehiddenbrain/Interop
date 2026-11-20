@@ -2,7 +2,7 @@
   "id": "pas-21-provider-not-found",
   "number": 21,
   "label": "Provider not found",
-  "description": "The payer does not recognise the provider, in the error shape of the PAS 2.0.1 error example: outcome error and an X12 reject reason, no item. This is a finding about the test data, not about the environment. The sentinel NPI 9999999995 selects it, as it selects the same case in CRD and DTR, and so does the CRD sentinel P32H-NOPROV. It is in the shape PAS 2.0.1 gives.",
+  "description": "The payer does not recognise the provider, in the error shape of the PAS 2.0.1 error example: outcome error and an X12 reject reason, no item. This is a finding about the test data, not about the environment. The sentinel NPI of this file selects it, as the same NPI selects the same case in CRD and DTR, and so does the CRD sentinel P32H-NOPROV. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-NOPROV",
   "sentinelNpi": "9999999995",
   "behavior": "respond",

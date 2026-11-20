@@ -17,4 +17,10 @@ public record ConformanceScope(String version, List<String> applied, List<String
         applied = applied == null ? List.of() : List.copyOf(applied);
         notApplied = notApplied == null ? List.of() : List.copyOf(notApplied);
     }
+
+    /** Prints the counts alone, as every record that can hold text keeps its text out of a log line. */
+    @Override
+    public String toString() {
+        return "ConformanceScope[" + applied.size() + " applied, " + notApplied.size() + " not applied]";
+    }
 }
