@@ -273,9 +273,13 @@ class ProtocolCaseRunnerTest {
         assertThat(invalid.status()).isEqualTo(CaseStatus.INVALID);
         assertThat(invalid.notes()).noneMatch(note -> note.contains("was sent"));
         // Sent, the same lookups say how it went out, and the default mock scenario that answered is named after them.
-        assertThat(runner().run(crdCase("S000000001").build()).notes()).containsExactly(
+        List<String> sent = runner().run(crdCase("S000000001").build()).notes();
+        assertThat(sent).hasSize(3);
+        assertThat(sent.subList(0, 2)).containsExactly(
                 "The member lookup does not know this member ID. The request was sent with the member ID alone.",
-                "The provider lookup is not configured. The request was sent with the NPI alone.",
+                "The provider lookup is not configured. The request was sent with the NPI alone.");
+        // The CRD mock goes on to say how it builds its answer, which is its own sentence to word.
+        assertThat(sent.get(2)).startsWith(
                 "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no sentinel matched.");
     }
 }
