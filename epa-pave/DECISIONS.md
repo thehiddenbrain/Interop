@@ -3900,3 +3900,216 @@ suite on the unchanged tree, and each relied on the integrator's build.
   comments; the NPI scan does not read the Markdown files.
 Each open line was decided and given to one of four tasks (D-246 to D-249). `PROGRESS.md` gives every
 finding with its state and the check's result.
+
+### Decided for the four tasks started from this revision, and not done on it
+
+Four tasks began from this revision at the moment these records were written, each on a branch of its
+own, to close what the checks of D-245 and the honesty audit found. The integrator decided each line
+before the work, as below. **None of it is done at this revision**; a later entry will say what became
+of each. `PROGRESS.md` marks every line one of them is meant to close.
+
+**D-246. The ledger (`TASK_CLOSE_LEDGER`): decided, not done.**
+1. **A request of the tester's own from a protocol tab** (N1 of the member data check). Every run that
+   carries a body of the tester's own and no member, on CRD, DTR and PAS, checks its note, tester
+   reference and expectation against the member identifiers it can read in that body, as a raw send
+   does (D-231), with the same refusal on the field. A body in which no identifier can be read cannot
+   be checked and is not refused.
+2. **Other ways of writing what the request carries** (N3). Text is brought to one form before it is
+   compared (Unicode compatibility normalisation, then the existing comparison); a date the request
+   carries is looked for in every form the record's identifier-or-date rule knows, month names
+   included; the run of digits of the member ID, when six digits or longer, is looked for as well as the
+   whole ID. In a note typed with a run, in a suite row and in a note added later.
+3. **An identifier a service or a notification supplies** (N2 and N4, together). Shape cannot settle
+   it: D-218 let a member ID through whose digits a separator splits, and stopped keeping the plain
+   numbers many FHIR servers mint, so a notification on such a subscription no longer matched its run.
+   Decided: **such an identifier is written in clear only when it cannot be anybody's data, that is a
+   UUID, an OID or an identifier this tool minted; every other one is kept as a token**, made as the
+   authorization reference on the same line is made, and the line says so. A notification is matched
+   to its run by comparing tokens, so matching works again for every identifier, a numeric one
+   included. Where a screen showed such an identifier from the ledger it says it was kept as a token; a
+   result on screen still shows what the service returned, because a result is not the ledger. A replay
+   that needs one refuses with a sentence, as for a value not recorded. The statement that an id
+   "reads like a member identifier or a date" goes. If this cannot be done whole, nothing is done by
+   half: N2 is closed by counting digits with separators removed, and N4 is reported open.
+4. **A name that is an ordinary word** (N6): a first or a last name is looked for alone only when it has
+   four letters or more; a shorter one only where the first and the last name stand together.
+5. **Parts of names and of addresses** (N5): one part of a hyphenated or two-word surname of four letters
+   or more, and the city with the postal code of the request's address, are looked for as the whole
+   surname and the address line are.
+6. **A long code** (N7): a code the loaded code list holds is kept as written, whatever its shape; for
+   one the list does not hold the rule of D-218 stands and the line says that something that was not a
+   code was there.
+7. **The results file of a suite** (N8) writes the refusal statement in place of an expectation refused
+   for holding the member ID.
+8. **A subscription the tool deleted** (N-DELETED-SUB of the fixture check): a subscription whose later
+   delete the ledger recorded is not the latest one this tool created, and a notification on it says
+   that this tool deleted it.
+9. **The receiver's refusal of an unknown run id** (house style audit) says what to do and where the
+   tester copies a run id from.
+
+**D-247. The guardrail (`TASK_CLOSE_GUARDRAIL`): decided, not done.**
+1. **A production environment whose address cannot be read** (N1 of the guardrail check, the open half
+   of B1). Both: an environment of the production kind whose address cannot be read as the client
+   reads it is refused at upload and cannot be made active, with a sentence that names the variable
+   holding the address and quotes it as the file writes it (an operator who means production writes
+   its address plainly); and **nothing that has a scheme and a host is ever dropped from what is
+   remembered**: a production address stored before this rule, or reaching the store another way,
+   protects its whole host, every port and every path, until it is replaced. D-210's rule 2 was
+   applied to what is sent and not to what is remembered; this applies it to both.
+2. **The cause of a refusal** (N2). An address whose scheme, host or port cannot be read is told apart
+   from a url that is whole up to its path and invalid after it; for the second, the refusal says the
+   url as filled is not a valid url and names the variable with its layer, or the value typed for the
+   run, whose text made it so. Never a secret.
+3. **No request leaves with a percent-escape of a byte above 0x7F in its path** (N3), by the rule and the
+   refusal of D-211; an environment whose base address holds one is reported at upload. A FHIR path is
+   plain ASCII. The query is not touched.
+4. **A short secret in a notification** (N4): the notification's notes say, as the wire view does, that a
+   secret was too short to search for.
+5. **The "same server" warning** (N5) for a production environment whose port could not be read says
+   that, not "by scheme, host and port".
+6. **A refusal at upload quotes the address as the file writes it** (F-ADDR-MISQUOTE of the honesty
+   audit).
+7. **On mock, every fault a scenario plays is headed as played** (F-MOCK-500-HEADING, major): an HTTP 500,
+   a 400, an unreachable service, a body that is not JSON or is empty. Its action does not tell the
+   tester to report a fault in an environment, since nothing left the machine; the heading and the
+   colour key agree. Live is unchanged. The note of `client/support/Exchanges` that "only the last
+   value of a repeated key is shown here" is worded as the views now behave (D-237).
+8. **The tests write nothing into the checkout** (F-BUILD-WRITES-TREE): every test that starts the whole
+   application gets folders of its own that are removed afterwards, without changing what a test
+   asserts about the defaults; after `clean build` the project directory holds nothing new but `build/`.
+9. **The upload's member data warning** knows more names (N9 of the member data check): a member number
+   written `mbr`, a Medicare or Medicaid number, a social security or medical record number, an
+   address, a telephone.
+
+**D-248. The fixtures (`TASK_CLOSE_FIXTURES`): decided, not done.**
+1. **A sentinel NPI in a pasted body selects** (N-RAW-NPI, the open half of F-RAW), in the same order of
+   precedence as on the form, with a note saying where it was found: D-220's one rule holds for the NPI
+   as for the member ID.
+2. **A tester's own scenario directory from before the mappings became data** (N-OLD-SCENARIO-DIR):
+   nothing is guessed back into it, and the tester is told. At load a note names each file whose
+   description speaks of a sentinel of another protocol selecting it while the file lists none, and
+   says which key carries the mapping now; and when DTR files are loaded and no CRD file answers DTR
+   sentinels, a note says a DTR sentinel typed in CRD gets the default. The notes reach the lists.
+3. **The list notes are tested** (N-LISTNOTES-UNTESTED): each list carries the note naming its default
+   file, and a file that is not read shows on the list, through the running application.
+4. **The documentation scenario chosen by hand** (N-CRD04-CHOSEN): the rule of D-222 applies whenever the
+   scenario that answers is the one that answers DTR sentinels, however it was chosen, and the note says
+   so.
+5. **A mapping entry that names no CRD sentinel** (N-CRDLIST-UNCHECKED) is noted at load, naming the file
+   and the entry.
+6. **Scenario labels** (F-SCEN-LABELS of the honesty audit): three labels read as observations of the
+   vendor's service while their `basis` says they are synthetic; each label says what the file plays,
+   and every other label of the three protocols is checked for the same.
+7. **Two stale comments** about the placeholder flag (N-STALE-JAVADOC), and the scan for an NPI outside
+   the placeholder set reads the project's Markdown files as well (N-NPI-DOCS).
+
+**D-249. The screens and what the last two fixes left each other (`TASK_CLOSE_SCREENS`): decided, not done.**
+1. **A repeated key, finished** (F13): the finding is raised on DTR, PAS and subscriptions as on CRD, and
+   a raw send and the two lookups list every value as the others do.
+2. **A resource of another kind, finished** (F6): the headline says what came, not that the body "could
+   not be read"; and the determination grid says that a coverage sub-extension was sent with no value,
+   as the coverage table does (F3).
+3. **The error panel** is headed by the server's `error.heading` and the page keeps no heading of its
+   own ("What went wrong" over a refusal by the guardrail, where nothing went wrong); the label the page
+   gives a refused form says what to do.
+4. **Marks and names left**: the list of chains in History draws a step nobody answered as the runs list
+   and the chain view do; the two buttons that say only "Dismiss" and "Close" name what they do.
+5. **What the two fixes did not see in a browser**: the chain view with a step nobody answered and a time
+   not measured; the renamed Config buttons; a step done inside the tool on live; a replay on mock and
+   what it says of its scenario; the presences of lists on a PAS inquiry, a subscription and a
+   notification; and all of it once at 1920 by 1080.
+6. Every README sentence the two fixes or this task make untrue is reported, not fixed.
+
+**D-250. The README and the pull request draft, last pass (`TASK_DOCS4`): decided, not done.**
+Started at the same moment from this revision, not one of the four above. Decided by the integrator:
+the honesty audit's findings that name the README or the draft come first. The draft states the level
+delivered with its limits beside it (D-235) and never says "nothing stubbed", "complete" or
+"everything"; part 1 carries every limit of sections 12, 13 and 24 and every open item of section 26.
+The README's open items say that the token request uses HTTP Basic and name the method to change
+(D-233); the README says the salt is a secret, where it speaks of secrets and of the member ID policy
+(D-234). Part 6 of the draft gives each decision entry what it assumes or decides in one line, through
+the last entry of this file at its base, and leaves out entries that record a step of the work. The
+rest of the audit's findings as it says (F-BEHIND, the minors about the draft, the README's list of
+statuses from V1's F-02, and the machine-wide JVM option and the shared build cache, which the draft
+names beside the fresh-clone gate). The README is brought up to this revision, every sentence that
+quotes the screen or the API checked on the running tool; lines the four tasks above are to close are
+marked `[open at this revision: being fixed]`.
+
+### Decided not to do, and known limits
+
+**D-251. Decided otherwise in the last audits' fixes, and the limits the fixes and the checks report.**
+Decided, each with its reason: by the integrator in its task files, or by the agent that did the work
+where marked so.
+- **No comparison, item by item, of what was asked with what was returned** (the PAS review's R07): the
+  decision of D-199 stands; the PAS detail shows each item's decision and the wire view the rest.
+- **No endpoint that works out which questionnaire items are enabled without a run** (D-199): the DTR tab
+  says the enabled items are worked out each time the response is completed (D-203).
+- **A PAS line names the package fetch it follows, not the response run** (the walkthrough's
+  F-TRACE-PAS-DTR): D-181 stands, for its reason (one package, several responses, one `correlatedRunId`).
+  The way from one to the other is "Followed by" (D-243).
+- **The zone filter of History is not offered** (D-207, D-230): History is worded in UTC days throughout,
+  and a zone would mean rewording the list, the export's range sentence and the date-range replay.
+- **`CHECK_ENVIRONMENT` keeps its code** on a played timeout, because the PAS tab keys the inquiry
+  hand-off on it; its label was made true of both profiles instead (D-231). The fix's own decision.
+- **A raw send does not look for a name or a date of birth in its body, and does not count a `P32H-`
+  sentinel as member data** (D-231): a sentinel is synthetic and is how a tester names a scenario.
+- **`REVIEW` stays for every outcome but CRD no determination** (D-241): the decision named that one.
+- **A replay on mock is answered by the scenario the original run recorded** (D-243), so mock replays are
+  stable; the verdict says it is so by construction.
+- **No `CrdOutcome` and no `FindingKind` were added** for a resource of another kind or a repeated key
+  (D-237, D-238): existing ones fit, and a new outcome would have reached a switch another agent owned.
+  The fix's own decision.
+- **The ledger record gains no count of fields returned but not interpreted** at this revision (the
+  completeness audit's F8): it needed the record, which another agent held; what it would gain is one
+  `Integer` component holding the number of returned fields of kind field, null when not counted, which
+  holds no member data. Not given to any of the four tasks; open.
+- **The style gate does not read commit messages, the pull request description, names of people or
+  comments that restate the code** (D-244): a build sees files, not history or meaning.
+Known limits the fixes and the checks report, not closed:
+- The member and provider detail records still hold the mask text of a masked lookup field; the page
+  fills the case only from the marked field list (D-229, D-231), and no build test pins that.
+- A note sent with a request as written that the guardrail refuses is checked against the body as typed,
+  not the saved body (D-231).
+- On DTR and in a subscription answer, the notes for a body that is not JSON were not reworded (the
+  completeness fix did CRD and PAS).
+- Behaviour on screen has no test in the build; `CaseCodesFrontendTest`, `StaticLedgerTextTest` and
+  `StaticServerWordsTest` read the page's source only.
+- The style gate's own failure path (the task's exit becoming a failed build) was seen by hand only, and
+  only a sample of comments was read for restating the code (D-244).
+- A one-word surname written where a code or an id belongs is kept (D-151, D-218); D-246 changes how an
+  id a service supplies is kept, not a code.
+- IPv6 destinations were proven by nobody, there being no IPv6 loopback here; how a real nginx, Tomcat or
+  IIS in front of a service decodes a path was tried by nobody (D-210, D-211, D-245).
+
+### Joining the parts
+
+**D-252. Decisions made while joining the last server task, the last screens pass, the last audits' fixes and the records.**
+This revision is branch `epa-pave` at `e1d37dc`, which is pushed: the line of D-228 (`5763c41`), the
+README (`docs-3` at `c735dee`), the records of D-202 to D-228 (`records-3` at `db98d7f`), the last server
+task (`left3-server` at `c15250c`), the last screens pass (`screens-fix` at `e995e6b`), the six lines
+(`seam-4` at `c8a7b9f`), and the three fixes for the last audits (`final-gate` at `e85facf`,
+`final-render` at `23edf9f`, `final-uat` at `a6446cd`).
+1. Nothing conflicted in any of these merges. The completeness fix and the walkthrough fix both changed
+   `static/js/result.js` and `css/pave.css`, in different places (the issues table and the list helpers
+   against the verdict strip and its import line; the issues grid against the verdict section). The
+   style gate's fix and the other two both changed `CrdControllerTest` (renamed fixture surnames against
+   new assertions). Each merged cleanly.
+2. The integrator changed no code in this stretch. It kept the note at the top of `PROGRESS.md`
+   current as the work was merged and as audits and checks reported, until these records replaced it.
+3. The line was built through the shared build wrapper as it grew: 2714 tests at `9e285a1` (the last
+   server task, the screens pass and the README merged), 2720 at `9e5306d` (with the six lines), and on
+   this revision 2767 tests, 2765 passed, 2 skipped, none failed. The two skipped tests need a folder
+   that cannot be written, which a build running as root cannot make. The wrapper builds offline.
+4. **Which revision each audit and check examined.** The second run of V2, V3 and V4 examined `0658a7c`.
+   V1, V5, V7 and the walkthrough examined `9e285a1`. V6 and the three checks of the V2, V3 and V4 fixes
+   examined `9e5306d`. V1's two clean builds from a fresh clone and V6's clean build and fresh-clone
+   build are builds of those revisions; this revision was built by the integrator alone, through the
+   wrapper. Its last gate (the plain `./gradlew clean build` twice, the build from a fresh clone, the
+   start and `GET /api/mode`, with no other agent at work) has not run.
+5. One more exchange with the operator, beside the questions of D-227: the operator asked how much
+   longer the work would take, and was told what remained and that the build prompt allows a finding to
+   be resolved or recorded. No instruction followed, and the full sequence was carried on. The four
+   questions of D-227 still have no answer.
+6. The build machine restarted three times while this tool was built (at about 00:17, 03:02 and 06:00
+   UTC), each time without warning and cutting off every agent then at work. Nothing committed was lost.
+   Since then every agent commits a checkpoint after each group of changes.
