@@ -98,9 +98,32 @@ public final class OnyxPasConventions {
     public static final String DEFAULT_CLAIM_TYPE = "professional";
     public static final String DEFAULT_CLAIM_PRIORITY = "normal";
 
-    /** The category under which a claim names supporting documentation. */
-    public static final String SUPPORTING_INFO_TYPES = "http://hl7.org/fhir/us/davinci-pas/CodeSystem/PASSupportingInfoType";
+    /**
+     * The category under which a claim names supporting documentation: PAS 2.0.1 PASClaim slice
+     * supportingInfo[AdditionalInformation] fixes it to PASTempCodes#additionalInformation, and the
+     * slice is told apart by that value. PASSupportingInfoType is the value set, not the code system.
+     */
+    public static final String SUPPORTING_INFO_TYPES = "http://hl7.org/fhir/us/davinci-pas/CodeSystem/PASTempCodes";
     public static final String ADDITIONAL_INFORMATION = "additionalInformation";
+
+    /** PAS 2.0.1 item extensions, by their canonical urls (the ids in the guide's Claim-update.fsh). */
+    private static final String PAS_EXTENSION = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-";
+    public static final String ITEM_TRACE_NUMBER = PAS_EXTENSION + "itemTraceNumber";
+    public static final String ITEM_REQUEST_TYPE = PAS_EXTENSION + "serviceItemRequestType";
+    public static final String ITEM_CERTIFICATION_TYPE = PAS_EXTENSION + "certificationType";
+    public static final String ITEM_REQUESTED_SERVICE = PAS_EXTENSION + "requestedService";
+    public static final String ITEM_PRE_AUTH_PERIOD = PAS_EXTENSION + "itemPreAuthPeriod";
+    public static final String ITEM_AUTHORIZATION_NUMBER = PAS_EXTENSION + "authorizationNumber";
+
+    /** X12 code systems PAS 2.0.1 binds, required, to the elements named. */
+    public static final String X12_SERVICE_TYPES = "https://codesystem.x12.org/005010/1365";
+    public static final String X12_REQUEST_TYPES = "https://codesystem.x12.org/005010/1525";
+    public static final String X12_CERTIFICATION_TYPES = "https://codesystem.x12.org/005010/1322";
+    public static final String X12_ENTITY_TYPES = "https://codesystem.x12.org/005010/98";
+    public static final String X12_RELATIONSHIP = "https://codesystem.x12.org/005010/1069";
+
+    /** X12 1322 code I, "Initial": the certification type of a request that is new, not a revision. */
+    public static final String CERTIFICATION_INITIAL = "I";
 
     /**
      * ASSUMPTION, attachment mode fhir: a document travels in the request bundle as a

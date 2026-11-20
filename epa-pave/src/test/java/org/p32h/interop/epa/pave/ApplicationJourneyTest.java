@@ -289,12 +289,27 @@ class ApplicationJourneyTest {
         assertThat(response.get("item").get(0).get("answer").get(0).get("valueBoolean").booleanValue()).isTrue();
         assertThat(response.get("item").get(1).get("answer").get(0).get("valueInteger").intValue()).isEqualTo(14);
         assertThat(response.get("item").get(2).get("answer").get(0).get("valueCoding").get("code").stringValue()).isEqualTo("snoring");
-        // The claim names it, and it is about the member, the coverage and the provider of this same bundle.
+        // The claim names it, and it is about the member, the coverage, the provider and the order of this same bundle.
+        // PAS 2.0.1 gives every entry a fullUrl and asks that the bundle carry everything the claim leads to, so
+        // every reference inside the outgoing bundle, the answers' own included, has to resolve to an entry of it.
+        String claimUrl = bundle.get("entry").get(0).get("fullUrl").stringValue();
         String named = claim.get("supportingInfo").get(0).get("valueReference").get("reference").stringValue();
-        assertThat(named).isEqualTo("QuestionnaireResponse/" + response.get("id").stringValue());
-        assertThat(inBundle).contains(named, response.get("subject").get("reference").stringValue(), "Coverage/coverage-1",
-                "Practitioner/practitioner-1");
-        assertThat(response.toString()).contains("Coverage/coverage-1").contains("Practitioner/practitioner-1");
+        assertThat(org.p32h.interop.epa.pave.service.pas.PasBundles.resolve(bundle, claimUrl, named)).isEqualTo(response);
+        assertThat(org.p32h.interop.epa.pave.service.pas.PasBundles.unresolved(bundle)).as("references that resolve to nothing").isEmpty();
+        assertThat(inBundle).contains("Patient/patient-1", "Coverage/coverage-1", "Practitioner/practitioner-1",
+                "ServiceRequest/service-request-1");
+        String answersUrl = null;
+        for (JsonNode entry : bundle.get("entry")) {
+            if (entry.get("resource") == response) {
+                answersUrl = entry.get("fullUrl").stringValue();
+            }
+        }
+        java.util.Set<String> namedByTheAnswers = new java.util.TreeSet<>();
+        for (JsonNode reference : response.findValues("reference")) {
+            JsonNode target = org.p32h.interop.epa.pave.service.pas.PasBundles.resolve(bundle, answersUrl, reference.stringValue());
+            namedByTheAnswers.add(target.get("resourceType").stringValue() + "/" + target.get("id").stringValue());
+        }
+        assertThat(namedByTheAnswers).contains("Patient/patient-1", "Coverage/coverage-1", "ServiceRequest/service-request-1");
 
         // One journey in history: four lines under one chain id, and every stage done.
         JsonNode chain = json(get("/api/chains/" + submitted.get("chainId").stringValue()), 200);

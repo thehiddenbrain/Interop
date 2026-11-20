@@ -28,6 +28,18 @@ final class PasFindings {
         return response.subsetted() || (response.outcome().is("error") && !response.errors().isEmpty());
     }
 
+    /**
+     * The one finding for a request that went out without elements a PAS 2.0.1 profile requires,
+     * naming each, so that a refusal by the service is not read as a fault of the service.
+     */
+    static Finding requestIncomplete(List<String> leftOut) {
+        int count = leftOut.size();
+        return new Finding(FindingKind.REQUEST_INCOMPLETE, "The request left out " + count + (count == 1 ? " element" : " elements")
+                + " the PAS 2.0.1 profiles require", "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not "
+                + "invent values: " + String.join("; ", leftOut) + ". A refusal by the service may be about this and not a fault of the "
+                + "service. The request notes say what supplies each one.", String.join("; ", leftOut), null, null);
+    }
+
     static List<Finding> check(PasReading reading) {
         List<Finding> findings = new ArrayList<>();
         for (ClaimResponseView response : reading.detail().claimResponses()) {

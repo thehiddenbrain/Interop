@@ -344,14 +344,14 @@ class PasServiceTest {
         assertThat(approvedRow.display()).isEqualTo("Certified in total");
         assertThat(emptyRow.code()).isNull();
         assertThat(emptyRow.presence()).isEqualTo(Presence.ABSENT);
-        assertThat(noDecision.findings()).extracting(Finding::kind).containsExactly(FindingKind.NOT_STATED);
+        assertThat(noDecision.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUEST_INCOMPLETE, FindingKind.NOT_STATED);
 
         // Two ledger rows.
         assertThat(ledger.records().get(0).outcome()).isEqualTo("APPROVED");
         assertThat(ledger.records().get(1).outcome()).isEqualTo("NO_DECISION");
         assertThat(ledger.records().get(0).result()).isEqualTo(TestResult.PASS);
         assertThat(ledger.records().get(1).result()).isEqualTo(TestResult.FAIL);
-        assertThat(ledger.records().get(1).findings()).containsExactly("NOT_STATED");
+        assertThat(ledger.records().get(1).findings()).containsExactly("REQUEST_INCOMPLETE", "NOT_STATED");
         // A code assertion cannot pass on it either, and neither can "pended" or "denied".
         for (String expected : List.of("review-action=A1", "PENDED", "DENIED")) {
             assertThat(service().runSubmit(submission("P32H-PAS-NO-DECISION").expected(expected).build(), RunOrigin.manual(), null)
@@ -434,9 +434,9 @@ class PasServiceTest {
             assertThat(row.display()).isEqualTo("Unrecognised code: ZZ");
             assertThat(row.recognised()).isFalse();
         });
-        assertThat(result.findings()).extracting(Finding::kind).containsExactly(FindingKind.CODE_OUTSIDE_VALUE_SET);
+        assertThat(result.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUEST_INCOMPLETE, FindingKind.CODE_OUTSIDE_VALUE_SET);
         assertThat(ledger.only().coverageCodes()).contains("review-action=ZZ");
-        assertThat(ledger.only().findings()).containsExactly("CODE_OUTSIDE_VALUE_SET");
+        assertThat(ledger.only().findings()).containsExactly("REQUEST_INCOMPLETE", "CODE_OUTSIDE_VALUE_SET");
     }
 
     // ---- the production guardrail ----
@@ -592,11 +592,12 @@ class PasServiceTest {
     void inFhirModeTheDocumentTravelsInTheBundleAndTheLedgerLineSaysFhir() {
         RunEnvelope<PasDetail> result = service().runSubmit(withAttachment("P32H-PAS-ATTACH-OK").build(), RunOrigin.manual(), null);
         JsonNode bundle = sentBundle(result);
-        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "DocumentReference");
-        assertThat(new String(Base64.getDecoder().decode(bundle.at("/entry/5/resource/content/0/attachment/data").asString()),
+        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "ServiceRequest", "DocumentReference");
+        assertThat(new String(Base64.getDecoder().decode(bundle.at("/entry/6/resource/content/0/attachment/data").asString()),
                 StandardCharsets.UTF_8)).isEqualTo(REPORT);
-        assertThat(bundle.at("/entry/0/resource/supportingInfo/0/valueReference/reference").asString())
-                .isEqualTo("DocumentReference/document-reference-1");
+        assertThat(PasBundles.resolve(bundle, bundle.at("/entry/0/fullUrl").asString(),
+                bundle.at("/entry/0/resource/supportingInfo/0/valueReference/reference").asString()).get("id").asString())
+                .isEqualTo("document-reference-1");
         assertThat(result.detail().attachmentMode()).isEqualTo("fhir");
         assertThat(ledger.only().attachmentMode()).isEqualTo("fhir");
         assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
@@ -609,7 +610,7 @@ class PasServiceTest {
         PasService x12 = service(mockClient, "mock", Map.of(), Map.of("pas.attachment-mode", "x12-275"));
         RunEnvelope<PasDetail> result = x12.runSubmit(withAttachment("P32H-PAS-ATTACH-OK").claimId(CLAIM).build(), RunOrigin.manual(), null);
         JsonNode bundle = sentBundle(result);
-        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole");
+        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "ServiceRequest");
         assertThat(result.wire().request().body()).doesNotContain("Placeholder report")
                 .doesNotContain(Base64.getEncoder().encodeToString(REPORT.getBytes(StandardCharsets.UTF_8)));
         assertThat(bundle.at("/entry/0/resource/supportingInfo/0/valueReference/identifier/value").asString()).isEqualTo(CLAIM + "-A1");
@@ -659,10 +660,12 @@ class PasServiceTest {
 
         // The answers the tester entered are on the wire, inside the outgoing request, as they were given.
         JsonNode bundle = sentBundle(result);
-        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "QuestionnaireResponse");
-        assertThat(bundle.at("/entry/5/resource")).isEqualTo(JsonSafe.parse(ANSWERS).node());
+        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "ServiceRequest", "QuestionnaireResponse");
+        assertThat(bundle.at("/entry/6/resource/item")).isEqualTo(JsonSafe.parse(ANSWERS).node().get("item"));
         assertThat(result.wire().request().body()).contains("Placeholder answer about daytime sleepiness");
-        assertThat(bundle.at("/entry/0/resource/supportingInfo/0/valueReference/reference").asString()).isEqualTo("QuestionnaireResponse/qr-sleep-1");
+        assertThat(PasBundles.resolve(bundle, bundle.at("/entry/0/fullUrl").asString(),
+                bundle.at("/entry/0/resource/supportingInfo/0/valueReference/reference").asString()).get("id").asString()).isEqualTo("qr-sleep-1");
+        assertThat(PasBundles.unresolved(bundle)).isEmpty();
 
         RunRecord record = ledger.only();
         assertThat(record.unrecordedInputs()).containsExactly(RunRecord.INPUT_PRIOR_STEP);
@@ -1277,7 +1280,7 @@ class PasServiceTest {
         assertThat(preview.url().configured()).isFalse();
         assertThat(preview.memberId().sent()).isEqualTo("S1234567801");
         JsonNode bundle = JsonSafe.parse(preview.body()).node();
-        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "DocumentReference");
+        assertThat(resourceTypes(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "ServiceRequest", "DocumentReference");
         // No identifier is minted for a preview, and the body says where one will go.
         assertThat(bundle.at("/entry/0/resource/identifier/0/value").asString()).isEqualTo("(a new id is generated when the request is sent)");
         assertThat(preview.notes()).isNotEmpty();
@@ -1298,5 +1301,43 @@ class PasServiceTest {
         assertThatThrownBy(() -> service.previewInquire(inquiry("S123456789").build(), null)).isInstanceOf(ValidationException.class);
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).isEmpty();
+    }
+
+    // ---- PAS 2.0.1: what the request goes out without, and the items of an inquiry ----
+
+    @Test
+    void aRequestSentWithoutWhatThe201ProfilesRequireSaysSoFirstAndCarriesOneFindingThatNamesEachElement() {
+        RunEnvelope<PasDetail> result = submit("P32H-PAS-APPROVED");
+        assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 4 elements the PAS 2.0.1 profiles require");
+        Finding incomplete = result.findings().get(0);
+        assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
+        assertThat(incomplete.title()).isEqualTo("The request left out 4 elements the PAS 2.0.1 profiles require");
+        assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
+                .contains("PASBeneficiary identifier.system");
+        assertThat(ledger.only().findings()).contains("REQUEST_INCOMPLETE");
+        // The request still went: a request that breaks a profile is a negative case a tester may want.
+        assertThat(result.wire().request().body()).contains("\"Claim\"");
+    }
+
+    @Test
+    void anInquiryWithNoCodesListsTheItemsTheLedgerLineOfTheSubmissionHolds() {
+        RunEnvelope<PasDetail> submitted = service().runSubmit(submission("P32H-PAS-INQUIRE").procedureCodes(List.of(CodeInput.of("95810"),
+                CodeInput.of("E0601"))).build(), RunOrigin.manual(), null);
+        String claimId = submitted.detail().claimId();
+
+        RunEnvelope<PasDetail> inquired = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(claimId).build(), RunOrigin.manual(), null);
+        JsonNode claim = sentBundle(inquired).at("/entry/0/resource");
+        assertThat(claim.get("item")).hasSize(2);
+        assertThat(claim.at("/item/1/productOrService/coding/0/code").asString()).isEqualTo("E0601");
+        assertThat(inquired.detail().requestNotes()).anySatisfy(note -> assertThat(note)
+                .contains("lists the procedure codes found on the ledger line of the submission " + submitted.runId()));
+
+        // With nothing to go on, the inquiry is still sent and says that 2.0.1 requires an item.
+        RunEnvelope<PasDetail> unknown = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId("claim-never-sent").build(),
+                RunOrigin.manual(), null);
+        assertThat(sentBundle(unknown).at("/entry/0/resource").has("item")).isFalse();
+        assertThat(unknown.findings()).extracting(Finding::kind).contains(FindingKind.REQUEST_INCOMPLETE);
+        assertThat(unknown.findings().get(0).detail()).contains("PASClaimInquiry item");
     }
 }
