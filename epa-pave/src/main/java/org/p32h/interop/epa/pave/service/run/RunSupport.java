@@ -470,6 +470,9 @@ public class RunSupport {
                         + timing.thresholdMillis() + " ms.", null, null, null);
     }
 
+    /** The heading of a timeout a mock scenario played, which no environment caused. */
+    public static final String PLAYED_TIMEOUT_HEADING = "A timeout played by a mock scenario, not a fault in the environment";
+
     /**
      * Describes a vendor fault for the error panel, the same way for every protocol. Null when the
      * call did not fail at the transport or HTTP level.
@@ -507,6 +510,7 @@ public class RunSupport {
                             + "the response time shown, " + exchange.elapsedMillis() + " ms, is the scenario's own delay.",
                     "Had this been a real service, this tool would have waited up to " + onyx.readTimeoutMs() + " ms for an answer "
                             + "(onyx.read-timeout-ms) before giving up. The next step says what a tester would do then.")
+                    .withHeading(PLAYED_TIMEOUT_HEADING)
                     : ErrorView.of(ErrorKind.TIMEOUT,
                     "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");

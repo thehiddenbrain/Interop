@@ -593,7 +593,8 @@ class ProductionGuardrailTest {
                 assertThat(call.url().resolved()).as(profile + " " + operation).isTrue();
             }
             assertThat(fixture.gateway.writeAccess(unlock)).as(profile).isEqualTo(new WriteAccess(true, true, true, "Production writes are "
-                    + "unlocked for this session on \"Onyx Production\". Any change to the configuration locks them again."));
+                    + "unlocked for this session on \"Onyx Production\". Any change to the configuration locks them again. Locking them again, from "
+                    + "this or any other browser, ends the unlock of every session."));
 
             // It is per session: a session that does not hold it is still blocked, and so is a replay or a suite, which pass none.
             blocked(fixture, CallIntent.of(EpaOperation.PAS_SUBMIT));

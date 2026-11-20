@@ -76,6 +76,9 @@ class PlayedTimeoutOverTheServerTest {
             JsonNode answer = post(tab[0], tab[1]);
             List<String> said = sentences(answer);
             assertThat(answer.at("/error/kind").asString()).as(tab[0]).isEqualTo("TIMEOUT");
+            // The heading is the server's, and says what the timeout was rather than blaming an environment.
+            assertThat(answer.at("/error/heading").asString()).as(tab[0])
+                    .isEqualTo("A timeout played by a mock scenario, not a fault in the environment");
             assertThat(answer.at("/error/title").asString()).as(tab[0]).startsWith("A mock scenario played a timeout. Nothing was sent and no "
                     + "environment failed: the response time shown, ");
             assertThat(answer.at("/error/action").asString()).as(tab[0]).startsWith("Had this been a real service, this tool would have "
@@ -96,6 +99,7 @@ class PlayedTimeoutOverTheServerTest {
         assertThat(saying(said, "played a timeout")).as(said.toString()).isEqualTo(1);
         assertThat(saying(said, "nothing was sent")).as(said.toString()).isEqualTo(1);
         assertThat(saying(said, "inside the read timeout")).as(said.toString()).isZero();
+        assertThat(submission.at("/error/heading").asString()).isEqualTo("A timeout played by a mock scenario, not a fault in the environment");
         // Never said as what happened beside "nothing was sent".
         assertThat(saying(said, "may have received")).as(said.toString()).isZero();
         assertThat(submission.at("/verdict/supporting")).hasSize(1);
@@ -106,5 +110,21 @@ class PlayedTimeoutOverTheServerTest {
                 + "submission: ask for its status before sending it again. Sending it again without checking could create a second request.");
         // The claim id to ask about is still handed on, as after a real timeout.
         assertThat(submission.at("/nextStep/carry/claimId")).hasSize(1);
+    }
+
+    @Test
+    void everyOtherErrorIsHeadedByTheServerAsItsKindIs() throws Exception {
+        JsonNode failed = post("/api/crd", "P32H-ERR500");
+        assertThat(failed.at("/error/kind").asString()).isEqualTo("VENDOR_ERROR");
+        assertThat(failed.at("/error/heading").asString()).isEqualTo("A fault in the environment: the service failed");
+
+        // An error answered in place of a result is headed too.
+        HttpResponse<String> refused = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/crd"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{\"hook\": \"order-sign\"}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(refused.statusCode()).as(refused.body()).isEqualTo(422);
+        JsonNode body = JsonSafe.parse(refused.body()).node();
+        assertThat(body.at("/kind").asString()).isEqualTo("VALIDATION");
+        assertThat(body.at("/heading").asString()).isEqualTo("A problem with what was submitted");
     }
 }
