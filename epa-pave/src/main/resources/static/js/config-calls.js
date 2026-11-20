@@ -83,8 +83,15 @@ export const codeListSelfCheck = () => api.get('/api/procedure-codes/self-check'
 export const canChangeMapping = () => typeof api.putJson === 'function';
 export const canRemove = () => typeof api.del === 'function';
 
-/** What the screen says where an action is not offered. One sentence, the same everywhere. */
-export const NOT_OFFERED = 'This page cannot send that change yet: the script every tab uses to talk to the tool has no call for it.';
+/**
+ * What the screen says where an action is not offered: that it cannot be done here, and what a
+ * tester can do instead. Said once per view, never on every row.
+ */
+export const MAPPING_NOT_OFFERED = 'This version of the page cannot change which request an operation uses. '
+    + 'To correct a request placed under the wrong operation, rename it in Postman so that its name says which operation it is for, '
+    + 'export the collection again and upload it here: the tool follows the name. Or ask whoever maintains this copy of the tool to change the mapping.';
+export const REMOVAL_NOT_OFFERED = 'This version of the page cannot remove one. '
+    + 'An upload whose file carries the same name inside it replaces the one the tool holds. To have one removed, ask whoever maintains this copy of the tool.';
 
 export function changeMapping(collectionId, requestId, operation) {
     return api.putJson('/api/config/collections/' + part(collectionId) + '/mapping', {requestId, operation});

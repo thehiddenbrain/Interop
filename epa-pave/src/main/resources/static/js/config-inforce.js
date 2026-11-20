@@ -160,7 +160,7 @@ export function createInForceView(context) {
     function addressCell(row, target) {
         if (!target) {
             return row.operation === 'UNMAPPED'
-                ? none('each one is sent to its own address')
+                ? none((row.requests || []).length > 0 ? 'each one is sent to its own address' : 'there is none to send')
                 : none(row.outbound ? 'no address' : 'nothing is sent');
         }
         return [
@@ -185,7 +185,7 @@ export function createInForceView(context) {
             return requests.length > 0
                 ? [requests.length === 1 ? 'One request of a collection is not mapped. ' : requests.length + ' requests of a collection are not mapped. ',
                     button('Send one as written', () => context.go('raw'), {class: 'button--text'})]
-                : none('every request is mapped');
+                : none(((context.stored().collections || {}).collections || []).length === 0 ? 'no collection is uploaded' : 'every request is mapped');
         }
         return [
             target && target.source ? el('span', null, target.source) : null,

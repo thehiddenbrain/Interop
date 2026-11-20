@@ -141,13 +141,21 @@ export function createEnvironmentsView(context) {
     const listStatus = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
     const variables = el('section', {class: 'result__section'});
 
+    // While production writes are unlocked, an upload ends the unlock, from this browser or any other.
+    const uploadLocks = el('p', {class: 'config-switch config-switch--unlocked'});
+    uploadLocks.hidden = true;
+
     const node = el('div', {class: 'config-view'},
-        el('section', {class: 'result__section'}, heading(2, 'Upload an environment'), form, outcome),
+        el('section', {class: 'result__section'}, heading(2, 'Upload an environment'), uploadLocks, form, outcome),
         el('section', {class: 'result__section'}, listHead, listStatus, list),
         variables);
 
     function draw() {
         const stored = context.stored();
+        const access = (context.app.mode() || {}).writeAccess || {};
+        uploadLocks.hidden = !(access.production === true && access.writesAllowed === true);
+        fill(uploadLocks, el('strong', null, 'Production writes are unlocked now, and an upload locks them again. '),
+            'Any change to the configuration does, made from any browser.');
         if (!stored.environments) {
             fill(listHead, 'Environments the tool holds');
             fill(list, el('p', {class: 'quiet'}, 'Reading the configuration from the tool.'));
@@ -164,7 +172,6 @@ export function createEnvironmentsView(context) {
         if (removing && !environments.some(environment => environment.id === removing)) {
             removing = null;
         }
-        const access = (context.app.mode() || {}).writeAccess || {};
         const unlocked = access.production === true && access.writesAllowed === true;
         const body = [];
         for (const environment of environments) {
@@ -182,7 +189,7 @@ export function createEnvironmentsView(context) {
             el('table', {class: 'grid config-environments'},
                 el('thead', null, el('tr', null, ['Environment', 'Kind', 'Variables', 'Uploaded', 'In use'].map(text => el('th', {scope: 'col'}, text)))),
                 el('tbody', null, body)),
-            calls.canRemove() ? null : el('p', {class: 'quiet small'}, 'Removing an environment is not offered here. ', calls.NOT_OFFERED));
+            calls.canRemove() ? null : el('p', {class: 'quiet small'}, el('strong', null, 'Removing an environment is not offered here. '), calls.REMOVAL_NOT_OFFERED));
         drawVariables(environments);
     }
 
@@ -209,9 +216,10 @@ export function createEnvironmentsView(context) {
                     signs.length > 0 ? [' It reads like production because ', signs.join(', and '), '.'] : null) : null],
             kindMark(environment.kind),
             [counted(all.length, 'variable', 'variables'), secrets > 0 ? ', ' + secrets + ' secret' : null,
-                el('div', null, button(shownEnvironment(context.stored().environments.environments).id === environment.id ? 'Listed below' : 'List them below',
-                    () => { shownId = environment.id; draw(); variables.scrollIntoView({block: 'start'}); },
-                    {class: 'button--text', aria: {label: 'List the variables of ' + environment.name + ' below'}}))],
+                // The visible words begin the accessible name, so a person who says what they see reaches it.
+                el('div', null, button('List the variables',
+                    () => { shownId = environment.id; draw(); focusVariables(); },
+                    {class: 'button--text', aria: {label: 'List the variables of ' + environment.name}}))],
             when(environment.uploadedAt),
             {class: 'config-actions', node: actions}
         ]});
@@ -273,6 +281,16 @@ export function createEnvironmentsView(context) {
     }
 
     /* ---------- the variables of one environment ---------- */
+
+    /** The keyboard follows the list it asked for: its heading takes the focus and comes into view. */
+    function focusVariables() {
+        const title = variables.querySelector('h2');
+        if (title) {
+            title.tabIndex = -1;
+            title.scrollIntoView({block: 'start'});
+            title.focus({preventScroll: true});
+        }
+    }
 
     /** The environment whose variables are listed: the one the tester chose, otherwise the active one, otherwise the first. */
     function shownEnvironment(environments) {

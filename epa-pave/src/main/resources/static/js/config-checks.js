@@ -17,7 +17,9 @@ export function createChecksView(context) {
     let readAt = null;
     let reading = 0;
 
-    const body = el('div', {class: 'config-checks', aria: {live: 'polite'}});
+    // Not a live region: it holds whole tables, and a live region is read out whole on every
+    // redraw. The tab's status line says in one sentence that the checks were read.
+    const body = el('div', {class: 'config-checks'});
     const readNote = el('span', {class: 'quiet small'});
     const node = el('div', {class: 'config-view'},
         el('section', {class: 'result__section'},
@@ -41,6 +43,9 @@ export function createChecksView(context) {
         codeList = check;
         readAt = new Date();
         draw();
+        const alarms = body.querySelectorAll('.config-check__alarm').length;
+        context.announce('Checked at ' + whenText(readAt) + '. ' + (alarms === 0 ? 'Nothing needs attention.'
+            : alarms === 1 ? 'One part needs attention.' : alarms + ' parts need attention.'));
     }
 
     function draw() {
@@ -109,7 +114,9 @@ export function createChecksView(context) {
         const lines = Object.entries(list.linesOfBusiness || {});
         const columns = Object.entries(list.recognisedColumns || {});
         const unrecognised = list.unrecognisedColumns || [];
-        return section(list.placeholder === true,
+        // Said loudly, in large type, but not in the heavy frame: the key gives that frame to a fault
+        // to report, and a placeholder list is a known state of a fresh installation, not a fault.
+        return section(false,
             list.placeholder === true
                 ? el('p', {class: 'config-check__alarm'}, 'The list in use is the synthetic placeholder, not a P32H export. '
                     + 'Every code, line of business and vendor it gives is made up.')
@@ -120,7 +127,7 @@ export function createChecksView(context) {
                 ['Rows read', count(list.rowCount)],
                 ['Rows stating whether prior authorization is required', count(list.statingAuthRequirement)],
                 ['Rows naming a delegated vendor', count(list.namingVendor)],
-                ['Lines of business', lines.length > 0 ? lines.map(([name, rows], index) => [index > 0 ? ', ' : null, el('strong', null, name), ' (' + count(rows) + ')'])
+                ['Lines of business', lines.length > 0 ? lines.map(([name, rows], index) => [index > 0 ? ', ' : null, name, ' (' + count(rows) + ')'])
                     : el('strong', null, 'none: no row names a line of business')],
                 ['Columns the file has that the tool does not read', unrecognised.length > 0
                     ? unrecognised.map((name, index) => [index > 0 ? ', ' : null, code(name)]) : 'none']
@@ -180,12 +187,21 @@ export function createChecksView(context) {
                 el('strong', null, row.label),
                 target && target.display ? [code(target.display, 'literal--address'), target.source ? el('div', {class: 'small quiet'}, target.source) : null]
                     : none('no address configured'),
-                enabled ? (enabled.set ? code(enabled.value) : none('not set')) : none('not stated'),
+                enabled ? switchedOn(enabled) : none('not stated'),
                 [row.unavailable ? el('strong', null, row.unavailable) : null, row.blocked ? el('div', null, row.blocked) : null,
                     row.note ? el('div', {class: 'small'}, row.note) : null,
                     !row.unavailable && !row.blocked && !row.note ? 'Configured.' : null]
             ];
         }), {class: 'config-lookups'}));
+    }
+
+    /** A setting the server reports as text. true and false are said in words; anything else is shown as it was set. */
+    function switchedOn(setting) {
+        if (!setting.set) {
+            return none('not set');
+        }
+        const value = String(setting.value).trim().toLowerCase();
+        return value === 'true' ? 'yes' : value === 'false' ? 'no' : code(String(setting.value));
     }
 
     function show() {

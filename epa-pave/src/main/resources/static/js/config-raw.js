@@ -15,7 +15,7 @@ import {el, fill, clear, button, code, facts} from './dom.js';
 import {textField} from './forms.js';
 import {createWorkbench, requestPreviewPanel} from './workbench.js';
 import {issuesTable} from './result.js';
-import {none, flag, placeholder, sourceWords, requestMarks} from './config-parts.js';
+import {none, flag, sentences, placeholder, sourceWords, requestMarks} from './config-parts.js';
 
 export function createRawView(context) {
     const app = context.app;
@@ -101,13 +101,25 @@ export function createRawView(context) {
         drawEmpty();
     }
 
-    /** What to do next, while the readout holds no result and no request is chosen. Once one is chosen it says nothing. */
+    /**
+     * What to do next, while the readout holds no result. Before a choice it asks for one; after it,
+     * it says what the two buttons do. While the request is shown before sending it says nothing,
+     * since the readout already holds what the tester asked for.
+     */
     function drawEmpty() {
         if (bench.hasResult()) {
             return;
         }
+        if (previewSlot.childElementCount > 0) {
+            bench.showEmpty(null);
+            return;
+        }
         const collections = (context.stored().collections || {}).collections || [];
-        bench.showEmpty(chosen ? null : emptyState(collections.length));
+        bench.showEmpty(chosen
+            ? el('div', {class: 'empty-state'},
+                el('p', null, 'Send it with "Send this request as written", or look at it first with "Show the request before sending". '
+                    + 'What comes back appears here.'))
+            : emptyState(collections.length));
     }
 
     function emptyState(collectionCount) {
@@ -188,11 +200,23 @@ export function createRawView(context) {
             return;
         }
         const variables = answer.body.variables || [];
+        // A {id} or :id part of the url. A request sent as written takes values for {{placeholders}}
+        // only, so such a part cannot be filled from here, and the tester is told before sending.
+        const tokens = (answer.body.urlTokens || []).filter(token => !token.supplied);
+        const unfilled = tokens.length > 0
+            ? el('div', {class: 'form-problem config-raw__tokens'},
+                el('p', {class: 'form-problem__title'}, 'The url of this request is not complete, and it cannot be completed here.'),
+                el('p', null, 'It has ', tokens.map((token, index) => [index > 0 ? ', ' : null, code('{' + token.name + '}')]),
+                    ', a part filled for each call. Sending a request as written takes values for ', code('{{placeholders}}'),
+                    ' only, so that part has no value.', (answer.body.notes || []).length > 0 ? ' What the tool says about it:' : null),
+                sentences(answer.body.notes, 'small'))
+            : null;
         if (variables.length === 0) {
-            fill(values, el('p', {class: 'small quiet'}, 'The url and headers of this request have no placeholders.'));
+            fill(values, unfilled, el('p', {class: 'small quiet'}, 'The url and headers of this request have no placeholders.'));
             return;
         }
         fill(values,
+            unfilled,
             el('p', {class: 'case-legend'}, 'Placeholders'),
             el('p', {class: 'small'}, 'Each takes the value the configuration gives it. Type a value to use another one for this send only.'),
             variables.map(variable => valueField(variable)));
@@ -250,8 +274,10 @@ export function createRawView(context) {
         }
         fill(previewSlot, requestPreviewPanel(answer.body, () => {
             clear(previewSlot);
+            drawEmpty();
             previewButton.focus();
         }));
+        drawEmpty();
         bench.say('The request as it would be sent is shown. Nothing was sent.');
         focusHeading(previewSlot, 'h2');
     }
@@ -298,6 +324,7 @@ export function createRawView(context) {
      */
     function configChanged() {
         clear(previewSlot);
+        drawEmpty();
         if (chosen) {
             listValues();
         }

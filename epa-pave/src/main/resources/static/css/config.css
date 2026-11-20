@@ -325,8 +325,21 @@
     color: var(--ink-soft);
 }
 
+/* A row header in the body of a table is ruled as its cells are, so a row reads across all its
+   columns. The heavy ink rule stays under the column headings only. The line is the control edge
+   grey, not the faint hairline, so that the rows of a long table stay apart over a screen share. */
+.config-operations tbody > tr > th, .config-operations tbody > tr > td,
+.config-mapping tbody > tr > th, .config-mapping tbody > tr > td {
+    border-bottom: 1px solid var(--line);
+}
+
+/* A second request of the same operation sits under the first, apart by a hairline only. */
 .config-op--more > td {
-    border-top-style: dashed;
+    border-top: 1px dashed var(--rule);
+}
+
+.config-mapping tbody > tr.config-op--more-follows > td {
+    border-bottom-color: var(--rule);
 }
 
 .config-op__unavailable, .config-op__unresolved {

@@ -84,7 +84,8 @@ export function createCollectionsView(context) {
             unplaced.length > 0
                 ? el('p', null, el('strong', null, unplaced.length === 1 ? 'One request could not be placed: ' : unplaced.length + ' requests could not be placed: '),
                     unplaced.map((request, index) => [index > 0 ? ', ' : null, request.name]),
-                    '. That is not an error: each can be sent as written, or mapped by hand below.')
+                    calls.canChangeMapping() ? '. That is not an error: each can be sent as written, or mapped by hand below.'
+                        : '. That is not an error: each can be sent as written from "Send a request as written".')
                 : el('p', null, 'Every request was placed.'),
             scripted.length > 0
                 ? el('p', null, el('strong', null, scripted.length === 1 ? 'One request carries a Postman script' : scripted.length + ' requests carry Postman scripts'),
@@ -102,12 +103,17 @@ export function createCollectionsView(context) {
     const mappingNode = el('section', {class: 'result__section'});
     const unmappedNode = el('section', {class: 'result__section'});
     const heldNode = el('section', {class: 'result__section'});
-    const detailNode = el('section', {class: 'result__section config-detail', id: 'config-request-in-full', tabIndex: -1, aria: {live: 'polite'}});
+    // Not a live region: a request in full is long. It takes the focus when it arrives, which is announced.
+    const detailNode = el('section', {class: 'result__section config-detail', id: 'config-request-in-full', tabIndex: -1});
     detailNode.hidden = true;
     const status = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
 
+    // While production writes are unlocked, an upload ends the unlock, from this browser or any other.
+    const uploadLocks = el('p', {class: 'config-switch config-switch--unlocked'});
+    uploadLocks.hidden = true;
+
     const node = el('div', {class: 'config-view'},
-        el('section', {class: 'result__section'}, heading(2, 'Upload a collection'), form, outcome),
+        el('section', {class: 'result__section'}, heading(2, 'Upload a collection'), uploadLocks, form, outcome),
         mappingNode, status, detailNode, unmappedNode, heldNode);
 
     /** Every request of every collection the tool holds, with the collection it belongs to. */
@@ -124,6 +130,10 @@ export function createCollectionsView(context) {
 
     function draw() {
         const stored = context.stored();
+        const access = (context.app.mode() || {}).writeAccess || {};
+        uploadLocks.hidden = !(access.production === true && access.writesAllowed === true);
+        fill(uploadLocks, el('strong', null, 'Production writes are unlocked now, and an upload locks them again. '),
+            'Any change to the configuration does, made from any browser.');
         if (!stored.effective || !stored.collections) {
             fill(mappingNode, heading(2, 'Which request each operation uses'), el('p', {class: 'quiet'}, 'Reading the configuration from the tool.'));
             clear(unmappedNode);
@@ -148,23 +158,29 @@ export function createCollectionsView(context) {
 
     function drawMapping(effective, collections) {
         const rows = (effective.operations || []).filter(row => row.operation !== 'UNMAPPED');
-        const empty = rows.filter(row => row.outbound && (row.requests || []).length === 0);
+        // An operation with no request of its own can still have an address the server derived for
+        // it (discovery is cut from the order-sign url). Only one with neither is counted as empty.
+        const empty = rows.filter(row => row.outbound && (row.requests || []).length === 0 && !row.target);
+        const derived = rows.filter(row => row.outbound && (row.requests || []).length === 0 && row.target);
         fill(mappingNode,
             heading(2, 'Which request each operation uses'),
             collections.length === 0
                 ? el('p', null, el('strong', null, 'No collection is uploaded, so no operation has a request of the vendor\'s. '),
                     'Upload the collection above. Until then an operation can only use an address from application.yml.')
                 : el('p', {class: 'quiet'}, empty.length === 0
-                    ? 'Every operation that is sent has a request of the collection.'
-                    : el('strong', null, empty.length === 1 ? 'One operation has no request mapped to it.' : empty.length + ' operations have no request mapped to them.'),
-                    ' Choose another request for an operation when detection placed the wrong one.'),
-            calls.canChangeMapping() ? null : el('p', {class: 'small'}, el('strong', null, 'Changing the mapping is not offered here yet. '), calls.NOT_OFFERED),
-            el('div', {class: 'table-scroll'}, el('table', {class: 'grid config-mapping'},
+                    ? 'Every operation that is sent has a request of the collection or an address.'
+                    : el('strong', null, empty.length === 1 ? 'One operation has no request mapped to it and no address.'
+                        : empty.length + ' operations have no request mapped to them and no address.'),
+                    derived.length > 0 ? (derived.length === 1 ? ' One more has no request of its own and takes its address from elsewhere, as its row says.'
+                        : ' ' + derived.length + ' more have no request of their own and take their address from elsewhere, as their rows say.') : null,
+                    calls.canChangeMapping() ? ' Choose another request for an operation when detection placed the wrong one.' : null),
+            calls.canChangeMapping() ? null : el('p', {class: 'small'}, el('strong', null, 'Changing the mapping is not offered here. '), calls.MAPPING_NOT_OFFERED),
+            el('div', {class: 'table-scroll'}, el('table', {class: 'grid config-mapping' + (calls.canChangeMapping() ? '' : ' config-mapping--fixed')},
                 el('thead', null, el('tr', null,
                     el('th', {scope: 'col'}, 'Operation'),
                     el('th', {scope: 'col'}, 'Request of the collection'),
                     el('th', {scope: 'col'}, 'How it was mapped'),
-                    el('th', {scope: 'col'}, 'Change'))),
+                    el('th', {scope: 'col'}, calls.canChangeMapping() ? 'Change' : 'Look'))),
                 el('tbody', null, rows.flatMap(row => mappingRows(row))))));
     }
 
@@ -172,21 +188,27 @@ export function createCollectionsView(context) {
         const requests = row.requests || [];
         const missing = row.outbound && requests.length === 0;
         const lines = [];
-        const changeCell = row.outbound || requests.length > 0
-            ? chooseControl(row)
-            : none('nothing to map');
+        const changeCell = !calls.canChangeMapping() ? null
+            : row.outbound || requests.length > 0 ? chooseControl(row) : none('nothing to map');
         if (requests.length === 0) {
-            lines.push(el('tr', {class: 'config-op' + (missing ? ' config-op--missing' : ' config-op--inside')},
+            const target = row.target || null;
+            lines.push(el('tr', {class: 'config-op' + (missing && !target ? ' config-op--missing' : '') + (row.outbound ? '' : ' config-op--inside')},
                 el('th', {scope: 'row'}, el('span', {class: 'config-op__label'}, row.label)),
-                el('td', {colSpan: 2}, missing
-                    ? el('div', {class: 'config-op__unavailable'}, el('strong', null, 'Nothing is mapped. '),
-                        row.unavailable || row.note || 'A run of it answers that it is not configured.')
-                    : el('span', {class: 'small'}, row.unavailable || row.note || '')),
-                el('td', null, changeCell)));
+                el('td', {colSpan: 2}, target
+                    // No request of its own, and an address all the same: where it comes from is the server's sentence.
+                    ? [el('div', null, 'No request of its own. It is sent to ', target.display ? code(target.display, 'literal--address') : none('an address that is not complete'), '.'),
+                        target.source ? el('div', {class: 'small'}, 'Where it comes from: ', target.source, '.') : null,
+                        row.unavailable || row.note ? el('div', {class: 'small'}, row.unavailable || row.note) : null]
+                    : missing
+                        ? el('div', {class: 'config-op__unavailable'}, el('strong', null, 'Nothing is mapped. '),
+                            row.unavailable || row.note || none('not stated'))
+                        : el('span', {class: 'small'}, row.unavailable || row.note || none('not stated'))),
+                el('td', null, changeCell || none('nothing to look at'))));
         } else {
             requests.forEach((available, index) => {
                 const request = available.request;
-                lines.push(el('tr', {class: 'config-op' + (index > 0 ? ' config-op--more' : '') + (row.outbound ? '' : ' config-op--inside')},
+                lines.push(el('tr', {class: 'config-op' + (index > 0 ? ' config-op--more' : '') + (index < requests.length - 1 ? ' config-op--more-follows' : '')
+                    + (row.outbound ? '' : ' config-op--inside')},
                     index === 0 ? el('th', {scope: 'row', rowSpan: requests.length},
                         el('span', {class: 'config-op__label'}, row.label),
                         row.outbound ? null : el('div', {class: 'small quiet'}, row.unavailable || '')) : null,
@@ -201,7 +223,7 @@ export function createCollectionsView(context) {
                     el('td', null, el('div', {class: 'config-change'},
                         button('Look at it in full', () => showInFull(available.collectionId, request.id), {class: 'button--text', aria: {label: 'Look at ' + request.name + ' in full'}}),
                         calls.canChangeMapping() && request.effectiveOperation !== 'UNMAPPED' ? takeOffControl(available.collectionId, request, row) : null,
-                        index === requests.length - 1 ? changeCell : null))));
+                        index === requests.length - 1 && changeCell ? changeCell : null))));
             });
         }
         if (choosing === row.operation) {
@@ -226,10 +248,6 @@ export function createCollectionsView(context) {
     }
 
     function chooseControl(row) {
-        if (!calls.canChangeMapping()) {
-            // Why is said once, above the table, rather than on every row.
-            return none('not offered yet');
-        }
         const open = choosing === row.operation;
         return button(open ? 'Close the choice' : 'Choose another request', () => {
             choosing = open ? null : row.operation;
@@ -318,8 +336,8 @@ export function createCollectionsView(context) {
         }
         fill(unmappedNode,
             heading(2, 'Requests not mapped to any operation', unmapped.length),
-            el('p', {class: 'quiet'}, 'An unmapped request is not an error. It can be sent exactly as written, with its placeholders filled in, '
-                + 'or mapped by hand with "Choose another request" above.'),
+            el('p', {class: 'quiet'}, 'An unmapped request is not an error. It can be sent exactly as written, with its placeholders filled in',
+                calls.canChangeMapping() ? ', or mapped by hand with "Choose another request" above.' : '.'),
             table([{text: 'Request', class: 'col-30'}, 'Method and url', {text: '', class: 'col-22'}],
                 unmapped.map(({collection, request}) => [
                     [requestName(request), requestMarks(request)],
@@ -355,7 +373,7 @@ export function createCollectionsView(context) {
                     scripted > 0 ? el('div', {class: 'small'}, counted(scripted, 'carries a pre-request script', 'carry a pre-request script')) : null),
                 el('td', null, variablesFold(collection)),
                 el('td', null, when(collection.uploadedAt)),
-                el('td', {class: 'config-actions'}, actions.length > 0 ? actions : none('no action offered'))));
+                el('td', {class: 'config-actions'}, actions.length > 0 ? actions : none('none here'))));
             if (removing === collection.id) {
                 body.push(removalRow(collection));
             }
@@ -365,7 +383,7 @@ export function createCollectionsView(context) {
             el('table', {class: 'grid config-collections'},
                 el('thead', null, el('tr', null, ['Collection', 'Requests', 'Variables of the collection', 'Uploaded', ''].map(text => el('th', {scope: 'col'}, text)))),
                 el('tbody', null, body)),
-            calls.canRemove() ? null : el('p', {class: 'quiet small'}, 'Removing a collection is not offered here. ', calls.NOT_OFFERED));
+            calls.canRemove() ? null : el('p', {class: 'quiet small'}, el('strong', null, 'Removing a collection is not offered here. '), calls.REMOVAL_NOT_OFFERED));
     }
 
     function variablesFold(collection) {
