@@ -62,6 +62,8 @@ final class CompareWords {
         List<String> out = new ArrayList<>();
         out.add(comparison.headline());
         add(out, comparison.whyNot());
+        add(out, comparison.caveat());
+        add(out, comparison.maskedNote());
         out.addAll(comparison.notes());
         comparison.caseSource().forEach(value -> {
             add(out, value.label());

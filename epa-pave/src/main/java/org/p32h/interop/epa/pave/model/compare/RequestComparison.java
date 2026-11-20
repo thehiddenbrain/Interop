@@ -29,13 +29,18 @@ import java.util.List;
  *                    the pasted request has follows what its neighbours in the tool's request have
  * @param counts      the number of differences in each group, every group listed
  * @param notes       what a tester should know about the comparison as a whole
+ * @param caveat      the sentence that a comparison shows where two requests differ and cannot show
+ *                    which one the service expects. Set on every comparison, comparable or not; a
+ *                    comparable one also carries it first among the notes
+ * @param maskedNote  one sentence saying how many values are shown masked because the name of the
+ *                    element holding each reads as a credential. Null when nothing was masked
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({"comparable", "whyNot", "headline", "hook", "counts", "notes", "caseSource", "notFound", "differences",
+@JsonPropertyOrder({"comparable", "whyNot", "headline", "caveat", "maskedNote", "hook", "counts", "notes", "caseSource", "notFound", "differences",
         "toolBody", "yourBody"})
 public record RequestComparison(boolean comparable, String whyNot, String headline, String hook, String toolBody, String yourBody,
                                 List<CaseValue> caseSource, List<NotFound> notFound, List<Difference> differences,
-                                List<GroupCount> counts, List<String> notes) {
+                                List<GroupCount> counts, List<String> notes, String caveat, String maskedNote) {
 
     public RequestComparison {
         if (headline == null || headline.isBlank()) {
@@ -73,6 +78,8 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
         private List<Difference> differences = List.of();
         private List<GroupCount> counts = List.of();
         private List<String> notes = List.of();
+        private String caveat;
+        private String maskedNote;
 
         private Builder() {
         }
@@ -132,9 +139,19 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
             return this;
         }
 
+        public Builder caveat(String value) {
+            this.caveat = value;
+            return this;
+        }
+
+        public Builder maskedNote(String value) {
+            this.maskedNote = value;
+            return this;
+        }
+
         public RequestComparison build() {
             return new RequestComparison(comparable, whyNot, headline, hook, toolBody, yourBody, caseSource, notFound, differences,
-                    counts, notes);
+                    counts, notes, caveat, maskedNote);
         }
     }
 }
