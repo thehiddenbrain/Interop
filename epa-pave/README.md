@@ -35,9 +35,15 @@ configuration is needed.
 - **The note, the tester reference and the expectation are kept in the ledger as typed.** PAVE
   refuses one that holds the member ID, name, date of birth, subscriber ID or address the same
   request carries, and cannot recognise anything else. A run sent with a request of your own from
-  the CRD, DTR or PAS tab is checked against the member identifiers that body carries, and only
-  against those: a name or a date of birth inside such a body is not looked for. Do not type
-  member data into them.
+  the CRD, DTR or PAS tab is checked against the member identifiers that body carries once its
+  `{{placeholders}}` are filled from the values of the run, the active environment and
+  `application.yml`, and only against those: a name or a date of birth inside such a body is not
+  looked for. Do not type member data into them.
+- **The last fixes were checked by nobody but their authors, and nothing checks them before
+  handover.** Three rounds of independent checking each found something real; the fourth round of
+  fixes (the ledger, completeness on screen, the walkthrough, the guardrail) was merged without a
+  check after it. What is open at this revision is under [Limitations](#limitations), as what a
+  tester meets and what to do about it; `PROGRESS.md` lists every item, the worst first.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -411,8 +417,11 @@ on the other two.
   "Placeholder code list in use: its tags are synthetic, not P32H's." A code already in the case
   is not added twice, and a chip for text that is not on the list and does not have the shape of a
   CPT or HCPCS code says so; it is still sent as you chose it. Text left in the box and not added
-  stops the send: "Nothing was sent: "MRI" was typed in the procedure code box and not added to the
-  case."
+  stops a call that sends the case: "Nothing was sent: "MRI" was typed in the procedure code box and
+  not added to the case." It does not stop the subscription calls of the PAS tab, a call made while
+  the case is hidden, or a request of your own. It does still stop `Discover the CDS services this
+  environment offers` on the CRD tab, although discovery sends nothing of the case (open at this
+  revision): clear the box, then discover.
 - **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
 - **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
   body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
@@ -434,8 +443,10 @@ on the other two.
   these fields are checked against the member identifiers the body carries (a Patient or Coverage
   identifier, a subscriber ID, a Patient id, `context.patientId` or a `Patient/<id>` reference), and
   refused with "The note holds a member ID the request body carries. ..."; a name or a date of
-  birth in such a body is not looked for, and an ID that reaches the body only through a
-  `{{placeholder}}` is not seen, because the body is checked as typed. A request sent as written
+  birth in such a body is not looked for. The body is read with its `{{placeholders}}` filled from
+  the values typed for the run, the active environment and `application.yml`, so an ID that a
+  placeholder brings in is seen; a value only a collection's variables give is not used for this,
+  and when any placeholder has no value the body is read as typed. A request sent as written
   from the Config tab is checked against the member and subscriber identifiers its body carries.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
@@ -463,7 +474,15 @@ From the top:
    decision. "The flow ends here. Record this result." means there is nothing further to send.
    When the service returned no determination the next step says to record the run and report it:
    "Next: record run run-... as "no determination returned" and report it to the people who look
-   after the service."
+   after the service." CRD says the same for an answer of the wrong kind, an OperationOutcome
+   answered with HTTP 200 among them. PAS, subscriptions and a notification give the same two
+   lines for what they cannot act on: "no decision returned", "decision code not recognised" and
+   "items decided differently" on PAS, "response not recognised" for a subscription call, "type
+   not recognised" for a notification ("this run" in place of the run id while it is not known).
+   Still open at this revision: on CRD, documentation asked for in a way the tool cannot act on,
+   no authorization answer, an unrecognised code or mixed answers, on DTR an answer that asks
+   nothing more and is not complete, or a status the tool does not act on, and a request sent as
+   written still say only that the tool cannot say what should happen next. Record such a run by its run id and report it, as for no determination.
 4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
 5. **Response time**, flagged `slow` above the threshold.
 6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
@@ -493,9 +512,13 @@ production guardrail", "The service rejected the request" or, on mock, "A timeou
 scenario, not a fault in the environment". On mock, every fault a scenario plays (a 500, a 400, an
 unreachable service, an empty or unreadable body) is headed as played by a mock scenario, and its
 action begins "Nothing left this machine: a mock scenario played this answer to show how this tool
-reads it." The next step of a played 500 or unreachable service still reads "Next: check the
-environment, then send again.", which does not fit a played answer; a played timeout's next step
-is already worded as played. A refused form is headed "A problem with what was submitted", and its
+reads it." The DTR package that `P32H-DTR-MALFORMED` plays is headed "An unreadable answer played
+by a mock scenario, not a fault in the environment" in the same way. Open at this revision: the
+next step of a played 500 or unreachable service still reads "Next: check the environment, then
+send again.", and that of the malformed DTR package "Next: read the problems listed with this
+result and report them as a defect in the service.", neither of which fits a played answer; a
+played timeout's next step is already worded as played. On mock, believe the heading and the
+action, not that next step. A refused form is headed "A problem with what was submitted", and its
 action says "Correct the marked fields and send again."
 
 ### The CRD tab
@@ -546,9 +569,14 @@ Choose the call at the top: `Send PAS request`, `Send inquiry`, `Subscriptions` 
 - **Send inquiry.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
 - **Subscriptions.** `Create subscription`, `List subscriptions`, `Read subscription`, `Update
   subscription`, `Delete subscription`, each with a preview. Create, update and delete are writes.
+  Text left in the procedure code box does not stop them, since a subscription carries no code.
 - **Notifications.** What the receiver has received, correlated to runs, `Ask the receiver now`,
-  and, on mock, `Deliver a sample notification`. Read [The notification receiver will very likely
-  not be reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
+  and, on mock, `Deliver a sample notification`. A sample notification is recorded as answered by
+  a mock scenario (`answeredBy` `SCENARIO`, observed on the running tool); so, on mock, is one
+  that somebody posts to the receiver by hand, and ledger lines that the revisions before the fix
+  wrote with `SERVICE` beside a scenario id are read as written (open at this revision). Read [The
+  notification receiver will very likely not be
+  reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
 
 On a production environment, a submit and every subscription write are refused until writes are
 unlocked on the Config tab, and the result says "Nothing was sent." with the reason in a purple
@@ -567,9 +595,18 @@ frame. See [The production guardrail](#the-production-guardrail).
   even outside a chain. A run that sent nothing shows its time as "not measured". From there:
   `Save the note`, `Replay this run`, and `Load this case into the form`, which puts its member,
   provider and codes back on the three protocol tabs. Where two protocols word an outcome
-  differently, the Outcome filter gives each wording with the protocols that use it.
+  differently, the Outcome filter gives each wording with the protocols that use it. A coverage
+  code that came as null, empty or with no value reads `pa-needed=(null)`, `(empty)` or `(no
+  value)` under "Codes returned". Open at this revision: a PAS run with no decision is shown in
+  the run view, under the "Next action" filter and in the chain view with the general label "Look
+  at the response detail. The tool cannot say what should happen next.", where the PAS tab itself
+  gives the two lines of next step; and History, a suite row and a chain say nothing of the fields
+  the tool did not interpret. Open the run's own tab, or replay it, to see both.
 - **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
   journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
+  Its total says how many runs were measured: "3 runs, 2 of them measured, taking ... in all",
+  "3 runs, none of them measured" or "1 run, not measured", since a step done inside this tool
+  is not timed.
   The list and the view both draw a step nobody answered with the dotted mark.
 - **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
   before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
@@ -773,26 +810,50 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   readable address is quoted as PAVE read it (`http://127.0.0.1:18742/fhir`). One the client
   cannot read is quoted as the file writes it, without user information or query, with the
   variable that holds it, and the sentence says that it cannot be read.
-- **A production environment whose own address PAVE cannot read** the way the HTTP client reads it
-  (a port with a plus sign, a backslash in the path, a colon with nothing after it) is refused at
-  upload (422, "... which this tool cannot read the way the HTTP client reads it. It was not
-  stored.") and cannot be made active. Write a production address plainly, as
-  `scheme://host:port/path`. Such an address that an earlier version stored, or that a collection
-  makes, is remembered as its whole host: every port and every path of that host is production
-  until that environment is uploaded again as `prod` with its address written plainly, and writes
-  to it cannot be unlocked meanwhile.
+- **A production environment whose address PAVE does not know exactly is refused** at upload
+  (422), cannot be made active and cannot be unlocked, with a sentence that names the variable and
+  says why. This holds whether the address is in the environment itself or comes from a
+  collection's variables or from `application.yml` (`onyx.variables`), and in three cases: the
+  HTTP client cannot read it (a port with a plus sign, a backslash in the path, a colon with
+  nothing after it: "... which this tool cannot read the way the HTTP client reads it. It was not
+  stored."); a placeholder in it has no value anywhere ("... has no value in this environment, its
+  collections or application.yml, so the address it would send to is not known. It was not
+  stored."); or it is read from an operating system variable (`{{env:PAVE_...}}`), which happens
+  only at the moment of sending ("... is read from an operating system variable only at the moment
+  of sending, so the address it would send to is not known before then. It was not stored."). A
+  secret that is part of such an address is not quoted. The field error says what to do: "Write
+  the address itself into the environment, plainly, as scheme://host:port/path, and upload the
+  environment again." Activation answers "... cannot be made active: it is a production
+  environment, and ...", the unlock "Writes to "..." cannot be unlocked: ...", each followed by
+  "Nothing was changed." and the same advice. The `onyx.<protocol>.url` fallback settings of
+  `application.yml` are the same for every environment and are not read as an address of a
+  production environment; a write to them is judged at sending like any other url.
+- **An unreadable production address that an earlier version stored** is remembered as its whole
+  host (every port and every path of that host is production), or, where its path could be read,
+  as that path and every path beneath it on every port of that host. Writes to it cannot be
+  unlocked meanwhile. It is given up only when that same environment is uploaded again as `prod`,
+  its address written plainly, on the same host; uploaded on another host it adds an address and
+  takes nothing away, because the old host may still be production. Open at this revision: while
+  such an environment is active, `/api/mode` and the Config tab still say "Unlock them by typing
+  the environment name" and offer the unlock field, and every unlock is refused with 422 (the
+  refusal says why). Upload it again with its address written plainly.
 - **Address warnings.** The upload answer, the environment list (`addressWarnings`) and the answer
   of a switch warn about four things, without refusing the file: an address whose scheme, host and
   port PAVE cannot read the way the HTTP client reads them (a port above 65535, a host in a form the
   client refuses), to which no write is sent; an address with an encoded slash, backslash,
-  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), or a percent-escape of a byte above
-  0x7F (`%C0`), to which nothing at all is sent; a non-production environment on the same scheme,
+  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), a percent-escape of a byte above
+  0x7F (`%C0`), or a character above 0x7F written as it is, which the client sends as such an
+  escape, to which nothing at all is sent; a non-production environment on the same scheme,
   host and port as a production environment under another base path, which PAVE treats as not
   production because the base path differs ("If that server routes this path to production,
   upload this environment with the kind prod."); and a non-production environment on the host of
-  a production environment one of whose addresses could not be read, to which no write is sent.
-  The first three were observed on mock, in the upload answer and in the environment list; the
-  fourth was read through the API by the fix's author only.
+  a production environment one of whose addresses could not be read, to which no write is sent
+  (on every path of that host, or, where the path could be read, "This tool takes the path ...
+  and every path beneath it, on every port of that host, as production."; once that production
+  environment is deleted the warning ends "... is no longer stored, and an address that was
+  production stays production."). The first three were observed on mock on an earlier revision,
+  in the upload answer and in the environment list; the character above 0x7F and the fourth were
+  seen through the API by the fixes' authors only.
 - **Member data in the file.** A variable whose name reads as member data (a member, patient or
   subscriber identifier or name, a first or last name, a birth date, `mbr`, a Medicare or Medicaid
   number, an MBI, SSN, HICN or MRN, an address, unless a machine word such as `host`, `server` or
@@ -1049,7 +1110,11 @@ A PAS submit against production creates a real prior authorization request again
   order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
   the variable "crdOrderSignServiceId" (typed for this run). ..." A percent-escape of any byte
   above 0x7F in the path (`%c0%af`, `%E2%88%95`, an overlong or look-alike slash) is refused by the
-  same rule with the same 422, since a FHIR path is plain ASCII.
+  same rule with the same 422, since a FHIR path is plain ASCII, and so is a character above 0x7F
+  typed or written as it is, which the client would send as such an escape: "CRD order-sign was
+  not sent: the path of its url holds a character above 0x7F (sent as %E2%88%95), which came from
+  the variable "crdOrderSignServiceId" (typed for this run). ..." (the raw character was seen
+  through the API by the fix's author only).
 - **Lock, from any browser, locks every session** (D-144). Observed on mock: session A unlocked and
   sent a submit; session B posted `{"action":"lock"}`; A's next submit answered 403, "... production
   writes are locked for this session. An earlier unlock no longer applies, because the
@@ -1063,10 +1128,12 @@ A PAS submit against production creates a real prior authorization request again
   addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
   cleverer.
 
-What the guardrail does not see (D-145): another DNS name for a production host; a production
-address that comes from an operating system variable, once another environment is active; a
-production address built from a secret, after its environment is removed and the tool restarted.
-No endpoint clears the remembered production addresses: with the tool stopped, edit
+What the guardrail does not see (D-145): another DNS name for a production host, and the
+`onyx.<protocol>.url` fallback settings of `application.yml` as an address of a production
+environment. A production address that comes from an operating system variable, or that has no
+value, is no longer a gap: such an environment is refused at upload and cannot be made active or
+unlocked (above, observed on the running tool for an operating system variable at upload). No
+endpoint clears the remembered production addresses: with the tool stopped, edit
 `productionDestinations` in `config-store/store.json`, or remove the store folder.
 
 **Audited twice.** The independent guardrail audit (V3) got writes through to production four ways
@@ -1078,9 +1145,21 @@ was fixed, and an agent that wrote none of the fixes checked them on revision `9
 nine closed; the port written with leading zeros closed in one direction and open in the other
 (the production address PAVE cannot read, above), with three smaller neighbours open (the refusal
 of an invalid url naming the wrong cause, escapes above 0x7F, and the notification's silence about
-short secrets). All four were fixed afterwards, as described above, merged at `6037d2a`; only the fix's author checked that fix when this was written, against stand-ins on this
-machine, and an independent check of it had not reported. The behaviour above was observed on
-mock, where the guardrail behaves as on live (D-021), except where a sentence says otherwise.
+short secrets). All four were fixed afterwards, merged at `6037d2a`. A last independent check of
+that fix, on `428eff5`, closed five of its nine lines and closed four in part, and found nine new
+ones: a production address taken from `application.yml` that was never remembered, an unreadable
+production address forgotten when any production environment of that name was uploaded, the
+heading of the malformed DTR package on mock, and six minor ones. The three major ones and three
+minor ones (a character above 0x7F written as it is; a production address written with three
+slashes or one, now refused as one the client cannot read; the warning for an unreadable address
+that keeps its path) were fixed last (`ca716a1`, merged in `902e0d9`), as described above, and
+**that last fix has been checked by nobody but its author**, who did not try a collection's own
+variable as the address on the running tool, IPv6, or TLS. Recorded and not fixed: the unlock
+offered for an environment that can never be unlocked (above); a member lookup fixture that plays a
+timeout on mock is headed "A fault in the environment: no answer in time", though nothing left the
+machine; and the member data warning at upload misses `MBRID` in capitals, `mobile` and `addr`,
+and catches `webhookAddress` wrongly. The behaviour above was observed on mock, where the guardrail
+behaves as on live (D-021), except where a sentence says otherwise.
 
 ## The test run ledger
 
