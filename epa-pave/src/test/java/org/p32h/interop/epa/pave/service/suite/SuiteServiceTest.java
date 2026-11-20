@@ -477,8 +477,10 @@ class SuiteServiceTest {
                 + "and will not be sent.");
         // A chain sends its reads before its submission is blocked, and the note says so instead of promising nothing is sent.
         assertThat(bed.service().preview("cases.csv", suite("TC-1,chain,P32H-PA-REQ," + NPI + ",95810,")).writeNote())
-                .endsWith("A chain still sends its CRD step, and its DTR step when CRD calls for one, before its submission is blocked: "
-                        + "those are reads.");
+                .endsWith("A suite never unlocks production writes, so a submission it reaches will be blocked and reported as blocked, "
+                        + "not as failed, and will not be sent. A chain sends its CRD step, and its DTR step when CRD calls for one, before "
+                        + "it reaches a submission: those are reads. A chain that ends before a submission is reported by what its steps gave, "
+                        + "not as blocked.");
         assertThat(preview.environment().kind()).isEqualTo(EnvironmentKind.PROD);
         assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""))).writeNote()).isNull();
     }
@@ -503,6 +505,14 @@ class SuiteServiceTest {
         SuitePreview preview = bed.service().preview("cases.csv", "caseId,protocol,memberId,scenario\nTC-1,crd,S123456789,crd-02-no-auth");
         assertThat(preview.runnable()).isFalse();
         assertThat(preview.rowProblems().get(0).problems()).singleElement().asString().contains("mock profile only");
+    }
+
+    @Test
+    void onLiveThePreviewSaysItHasNotAskedWhetherEachCaseHasATarget() {
+        bed.mode = "live";
+        assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "S123456789", ""))).headline()).isEqualTo("1 case, and every one "
+                + "can be run. Whether the active configuration has a target for each is found when the case is sent: one with none is "
+                + "reported as not configured.");
     }
 
     @Test

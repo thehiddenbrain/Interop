@@ -174,6 +174,11 @@ public class SuiteService implements AutoCloseable {
             headline = cases(rows.size()) + ": " + (parts.size() == 2 ? parts.get(0) + ", and " + parts.get(1)
                     : String.join(", ", parts.subList(0, parts.size() - 1)) + ", and " + parts.get(parts.size() - 1)) + ".";
         }
+        if (!valid.isEmpty() && definition.problems().isEmpty() && !epa.mock()) {
+            // The preview sends nothing, so it cannot know whether the active configuration has a target for each operation.
+            headline += " Whether the active configuration has a target for each is found when the case is sent: one with none is "
+                    + "reported as not configured.";
+        }
         return new SuitePreview(definition.name(), definition.format(), definition.runnable(), headline, rows.size(), valid.size(),
                 definition.problems(), rowProblems, problemRows.size(),
                 kinds.entrySet().stream().map(e -> new SuitePreview.Kind(e.getKey(), e.getValue())).toList(),
@@ -192,12 +197,16 @@ public class SuiteService implements AutoCloseable {
         // A suite carries no unlock, so this is the answer for every write in it.
         WriteAccess access = gateway.writeAccess(null);
         if (!access.writesAllowed()) {
-            boolean chains = writes.stream().anyMatch(SuiteRow::chain);
-            return subject + ". " + access.reason() + " A suite never unlocks production writes, so "
-                    + (count == 1 ? "its submission" : "the submission of each of them") + " will be blocked and reported as blocked, "
-                    + "not as failed, and will not be sent."
-                    + (chains ? " A chain still sends its CRD step, and its DTR step when CRD calls for one, before its submission is "
-                    + "blocked: those are reads." : "");
+            if (writes.stream().noneMatch(SuiteRow::chain)) {
+                return subject + ". " + access.reason() + " A suite never unlocks production writes, so "
+                        + (count == 1 ? "its submission" : "the submission of each of them") + " will be blocked and reported as blocked, "
+                        + "not as failed, and will not be sent.";
+            }
+            // A chain reaches a submission only when its earlier steps call for one, so not every chain row ends blocked.
+            return subject + ". " + access.reason() + " A suite never unlocks production writes, so a submission "
+                    + (count == 1 ? "it reaches" : "any of them reaches") + " will be blocked and reported as blocked, not as failed, "
+                    + "and will not be sent. A chain sends its CRD step, and its DTR step when CRD calls for one, before it reaches a "
+                    + "submission: those are reads. A chain that ends before a submission is reported by what its steps gave, not as blocked.";
         }
         if (epa.mock()) {
             return subject + ". On the mock profile nothing leaves this machine.";

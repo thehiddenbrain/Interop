@@ -87,6 +87,15 @@ public final class OutcomeCatalogue {
      * that is not registered is left to the service that runs it.
      */
     public List<String> expectationProblems(Protocol protocol, String expected) {
+        return expectationProblems(protocol, expected, Set.of());
+    }
+
+    /**
+     * As {@link #expectationProblems(Protocol, String)}, for a call that can produce only part of
+     * its protocol's outcomes, such as a step of a chain. The outcomes named in {@code notHere} are
+     * left out of the list a tester is offered, so following the list never leads to a refusal.
+     */
+    public List<String> expectationProblems(Protocol protocol, String expected, Set<String> notHere) {
         List<String> problems = new ArrayList<>();
         if (Texts.present(expected)) {
             List<String> terms = Arrays.stream(expected.split("[;\\r\\n]")).filter(Texts::present).map(String::strip).toList();
@@ -111,7 +120,9 @@ public final class OutcomeCatalogue {
         }
         Entry entry = protocol == null ? null : entries.get(protocol);
         if (entry != null) {
-            problems.addAll(Expectations.problems(expected, entry.vocabulary(), entry.elements()));
+            OutcomeCode[] vocabulary = Arrays.stream(entry.vocabulary()).filter(code -> !notHere.contains(code.name()))
+                    .toArray(OutcomeCode[]::new);
+            problems.addAll(Expectations.problems(expected, vocabulary, entry.elements()));
         }
         return problems;
     }

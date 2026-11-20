@@ -328,7 +328,13 @@ class SuiteCasesTest {
         assertThat(definition.runnable()).isFalse();
         assertThat(definition.columns()).isEmpty();
         assertThat(definition.problems()).hasSize(1);
-        assertThat(definition.problems().get(0)).startsWith("The file has no header row: most of its first row is not a column this tool knows");
+        assertThat(definition.problems().get(0)).startsWith("The file has no header row: no more than half of its first row is a column "
+                + "this tool knows");
+        // Exactly half known is not a header either: the verifier's file had a member ID, a surname and a date where names belong.
+        SuiteDefinition half = csv("caseId,protocol,S123456789,Zzlastname,1961-07-23,expected\nc1,crd,S123456789,x,y,");
+        assertThat(half.columns()).isEmpty();
+        assertThat(half.problems()).singleElement().asString().startsWith("The file has no header row");
+        assertThat(half.problems() + " " + half.rows()).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("1961-07-23");
         String all = definition.problems() + " " + definition.columns() + " " + definition.rows();
         assertThat(all).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("1961-07-23").doesNotContain("95810");
         // A header whose every column is the tester's own is still a header, and a misspelt column is still named.

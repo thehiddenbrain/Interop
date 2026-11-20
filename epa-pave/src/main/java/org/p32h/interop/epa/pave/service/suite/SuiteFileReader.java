@@ -93,11 +93,11 @@ public final class SuiteFileReader {
             String separator = headerNames.get(0).contains(";") ? "semicolons" : "tabs";
             return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file looks separated by " + separator + ", not by "
                     + "commas: its first row is one cell. In a spreadsheet, save it as \"CSV UTF-8 (Comma delimited)\" and choose it again."));
-        } else if (headerNames.stream().filter(h -> SuiteColumns.find(h) != null || SuiteColumns.ignored(h)).count() * 2 < headerNames.size()) {
-            // A first row is a header only when at least half of it reads as one. Otherwise it is taken for a case, and none of its cells
-            // is quoted back: a case holds a member ID, and one cell that happens to match a column name does not make it a header.
-            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file has no header row: most of its first row is "
-                    + "not a column this tool knows, so it looks like a case. Add a first row that names the columns, for example "
+        } else if (headerNames.stream().filter(h -> SuiteColumns.find(h) != null || SuiteColumns.ignored(h)).count() * 2 <= headerNames.size()) {
+            // A first row is a header only when most of it reads as one. Otherwise it is taken for a case, and none of its cells is
+            // quoted back: a case holds a member ID, and cells that happen to match column names do not make it a header.
+            return new SuiteTable(SuiteTable.CSV, List.of(), List.of(), List.of("The file has no header row: no more than half of its "
+                    + "first row is a column this tool knows, so it looks like a case. Add a first row that names the columns, for example "
                     + "caseId,protocol,memberId,npi,procedureCodes,expected. The columns this tool knows are: " + SuiteColumns.known() + "."));
         } else if (header.contains("")) {
             problems.add("Column " + (header.indexOf("") + 1) + " has no name in the first row. Every column needs one.");

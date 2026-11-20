@@ -85,7 +85,10 @@ public record ChainExpectation(Map<Protocol, String> byStep, List<String> proble
         terms.forEach((step, parts) -> {
             String joined = String.join("; ", parts);
             byStep.put(step, joined);
-            List<String> found = outcomes.expectationProblems(step, joined);
+            Set<String> notHere = notInAChain(step);
+            // A term only another call produces gets its own sentence below, and is not also called "not an outcome".
+            String checked = String.join("; ", parts.stream().filter(p -> !onlyElsewhere(notHere, p)).toList());
+            List<String> found = outcomes.expectationProblems(step, checked, notHere);
             for (String problem : found) {
                 problems.add("For the " + step.name() + " step: " + problem);
             }
@@ -95,8 +98,7 @@ public record ChainExpectation(Map<Protocol, String> byStep, List<String> proble
             }
             for (String part : parts) {
                 String code = OutcomeCatalogue.bareOutcome(part);
-                if (code != null && (step == Protocol.DTR && NOT_FROM_A_PACKAGE.contains(code)
-                        || step == Protocol.PAS && NOT_FROM_A_SUBMISSION.contains(code))) {
+                if (code != null && notHere.contains(code)) {
                     problems.add("For the " + step.name() + " step: " + code + (step == Protocol.DTR
                             ? " comes from answering a questionnaire, and a chain never answers one: it fetches the package and stops "
                             + "where a person has to answer it."
@@ -105,6 +107,21 @@ public record ChainExpectation(Map<Protocol, String> byStep, List<String> proble
             }
         });
         return new ChainExpectation(byStep, problems);
+    }
+
+    /** True for a bare outcome only another call produces. A code assertion is never one. */
+    private static boolean onlyElsewhere(Set<String> notHere, String term) {
+        String code = OutcomeCatalogue.bareOutcome(term);
+        return code != null && notHere.contains(code);
+    }
+
+    /** The outcomes of a step's protocol that the step cannot produce inside a chain. */
+    private static Set<String> notInAChain(Protocol step) {
+        return switch (step) {
+            case DTR -> NOT_FROM_A_PACKAGE;
+            case PAS -> NOT_FROM_A_SUBMISSION;
+            default -> Set.of();
+        };
     }
 
     private static String example(Protocol step) {
