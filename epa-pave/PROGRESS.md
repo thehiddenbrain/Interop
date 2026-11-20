@@ -1090,13 +1090,18 @@ tests.
 
 ### Degradation level
 
-Target: level 1, everything in the build prompt. At revision `5763c41` the server holds everything
-level 1 asks of it, the optional capabilities of section 28 included: CRD, DTR and PAS implemented and
-not stubbed, the chain, suites, conformance checking and response times, with the gaps listed under
-"Not done" above. The frontend is on the line with all five tabs joined into one tool, none of them a
-stub; on live each protocol tab holds back a form that cannot send, and the two proofs before
-handover were seen on the real tabs on mock by browser scripts. Level 1 is still not claimed: the
-fixes of the second audits have been checked by nobody but their authors, V1, V5, V6 and V7 and the
-walkthrough by a business tester have not run, the screen still states something false after a lock
-from another browser, and nothing has been observed against the vendor's service. The level
-delivered is stated at the top of the handover once those gates have run.
+Target: level 1 of section 0. At revision `e1d37dc` the server holds what level 1 asks of it, the
+optional capabilities of section 28 included: CRD, DTR and PAS, the chain, suites, conformance checking
+and response times, **with the limits D-235 names beside it**: in the X12 275 attachment mode the tool
+names the document and sends nothing; there is no `$submit-attachment` and no claim update, so the
+guide's route after "attachment required" is not built; DTR runs no `$expand`, no
+`$log-questionnaire-errors` and no CQL, and is the operations behind a SMART launch, not the launch;
+the token request's way of authenticating is an assumption (D-233). It is never described as having
+nothing stubbed. The frontend is on the line with all five tabs joined into one tool, none of them a
+stub, and a business tester's walkthrough on mock found every case it ran readable from the screen,
+three gaps since fixed. Level 1 is still not claimed: the fixes for V5, V7 and the walkthrough have
+been checked by nobody but their authors; the checks of the second audits' fixes found the guardrail
+blocker open in one direction (a production address the client cannot read) and member data reaching
+the ledger by two neighbouring routes, and the four tasks fixing them are not merged; the integrator's
+last gate has not run; and nothing has been observed against the vendor's service. The level delivered
+is stated at the top of the handover once those gates have run.
