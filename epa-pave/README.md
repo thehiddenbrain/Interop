@@ -35,8 +35,9 @@ configuration is needed.
 - **The note, the tester reference and the expectation are kept in the ledger as typed.** PAVE
   refuses one that holds the member ID, name, date of birth, subscriber ID or address the same
   request carries, and cannot recognise anything else. A run sent with a request of your own from
-  the CRD, DTR or PAS tab is checked against nothing, so its note goes into the ledger as typed
-  whatever it holds [open at this revision: being fixed]. Do not type member data into them.
+  the CRD, DTR or PAS tab is checked against the member identifiers that body carries, and only
+  against those: a name or a date of birth inside such a body is not looked for. Do not type
+  member data into them.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -312,30 +313,34 @@ How a scenario is chosen is one rule for the three protocols, and it is all in t
 
 - In order: the scenario you chose; the member ID on the form; the NPI on the form; a member ID
   found as a whole value in a request body you pasted; otherwise the default, the file with the
-  lowest number. The result says which rule chose it, for example "found in the request body". A
-  sentinel NPI in a pasted body (`9999999995` as a Practitioner identifier) is not read: the
-  default answers and the result says no sentinel matched [open at this revision: being fixed].
+  lowest number. The result says which rule chose it, for example "found in the request body". In
+  a pasted body a member ID is looked for before an NPI, as on the form: a sentinel NPI found
+  there as a whole value (`9999999995` as a Practitioner identifier) selects its scenario, and the
+  result says "selected by the sentinel NPI 9999999995 found in the request body".
 - A DTR or PAS file lists, under `crdSentinelMemberIds`, the CRD sentinels it answers for the same
   case (`P32H-NOMEM` selects PAS scenario `pas-15-member-not-found`, for example). The scenario
   list shows them. No two files of one protocol may claim one sentinel: the start stops and names
   both files.
 - On mock, CRD answers every DTR sentinel with "documentation required" (the file that does so,
   `crd-04-doc-dtr`, carries `answersDtrSentinels`), and names the questionnaire that the DTR
-  scenario of that sentinel holds, so `Continue in DTR` reaches what the DTR scenario's label says.
+  scenario of that sentinel holds, so `Continue in DTR` reaches what the DTR scenario's label says,
+  whether the member ID selected `crd-04-doc-dtr` or it was chosen in the Mock scenario field. The
+  result note then says that the member ID is the sentinel of that DTR scenario.
 - The scenario list carries notes, on the list and on the scenario they are about: which file is
   the default, an `expect` block whose HTTP status differs from the one its file answers with, and
-  a file in a scenario folder that is not read (another extension, or a subfolder), which on mock
-  is also named in one warning in the log at start. Not checked: an `expect` outcome that
-  contradicts the file's own body.
+  a file in a scenario folder that is not read (another extension, or a subfolder). It also names
+  a `crdSentinelMemberIds` entry that is no CRD file's sentinel, and, for a folder of your own,
+  each file whose description speaks of a sentinel of another protocol while the file lacks the
+  key that carries the mapping, and DTR files with no CRD file marked `answersDtrSentinels`. On
+  mock, each of these except the default and the `expect` notes is also named in one warning per
+  protocol in the log at start. Not
+  checked: an `expect` outcome that contradicts the file's own body.
 - **A scenario folder of your own** (`app.scenario-dir`) copied from the bundled files before the
-  cross-protocol keys (`crdSentinelMemberIds`, `answersDtrSentinels`) existed starts without a word
-  and loses every mapping between protocols: a CRD failure sentinel typed on PAS gets the default,
-  and a DTR sentinel on CRD no longer reaches DTR. Copy the bundled files again
-  [open at this revision: being fixed]. An entry of `crdSentinelMemberIds` that no CRD file
-  claims is not checked at start [open at this revision: being fixed].
-- With `crd-04-doc-dtr` chosen by hand in the Mock scenario field and a DTR sentinel as the member,
-  CRD names its own questionnaire, and DTR then says the package left one out
-  [open at this revision: being fixed].
+  cross-protocol keys (`crdSentinelMemberIds`, `answersDtrSentinels`) existed has its mappings
+  between protocols read from nothing: they are not guessed back from the descriptions. Add
+  `crdSentinelMemberIds` to the DTR and PAS files that answer a CRD sentinel, and
+  `"answersDtrSentinels": true` to the CRD file that answers DTR sentinels (compare with the
+  bundled files). Until then the scenario lists and the start log name each file that needs it.
 
 **Switching** is a restart: stop the tool and start it with `./run.sh live` (or `./run.sh` for
 mock). The mode is shown on every tab, at the top right (`Profile mock` or `Profile live`), and by
@@ -425,10 +430,13 @@ on the other two.
   it out. Nothing was sent." The sentence names the kind of value, never the value. Member data the
   request does not carry (somebody else's name, say) cannot be recognised and is written as typed:
   do not type member data into these fields. Each of them carries the hint "The ledger keeps this
-  as typed. Do not type member data into it." With `A request of my own` on the CRD, DTR or PAS tab
-  the run carries no member, so these fields are checked against nothing
-  [open at this revision: being fixed]; a request sent as written from the Config tab is checked
-  against the member and subscriber identifiers its body carries.
+  as typed. Do not type member data into it." With `A request of my own` on the CRD, DTR or PAS tab,
+  these fields are checked against the member identifiers the body carries (a Patient or Coverage
+  identifier, a subscriber ID, a Patient id, `context.patientId` or a `Patient/<id>` reference), and
+  refused with "The note holds a member ID the request body carries. ..."; a name or a date of
+  birth in such a body is not looked for, and an ID that reaches the body only through a
+  `{{placeholder}}` is not seen, because the body is checked as typed. A request sent as written
+  from the Config tab is checked against the member and subscriber identifiers its body carries.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
 
@@ -471,23 +479,24 @@ From the top:
 10. **Returned but not interpreted**: everything the service sent that the tool did not use, so
     nothing is dropped in silence. "not returned", "null" and "empty" are different statements,
     in this list and in the designed views above it, and none is shown as a blank. A key repeated
-    inside one object is listed with every value, in order ("(value 1 of 2)"); on CRD a finding
-    also names it. A request sent as written and the two lookups still show only the last value
-    of a repeated key, and DTR and PAS raise no finding for it
-    [open at this revision: being fixed].
+    inside one object is listed with every value, in order ("(value 1 of 2)"), here and on a
+    request sent as written, the two lookups and CRD discovery; on CRD, DTR, PAS and subscriptions
+    a finding also names it ("... is sent 2 times in one object").
 11. **The wire view**, collapsed: the request and the response as they went over the wire. On mock
     the request reads "not sent". See [The wire view carries member data](#the-wire-view-carries-member-data).
 
 A result made before the configuration changed is marked as such in a heavy frame. A refusal by
 the server (a field it refused, a 409, a blocked write) is shown with its own sentence, beside the
-field or the button it is about. A fault or a refusal is shown in an error panel under the
-heading "What went wrong", whatever it is, a refusal by the guardrail included
-[open at this revision: being fixed]; inside the panel the server's own heading says what kind it
-is, for example "Refused by the production guardrail" or, on mock, "A timeout played by a mock
-scenario, not a fault in the environment". On mock, a 500, a 400 or an unreadable body that a
-scenario plays is still headed "A fault in the environment: the service failed" (or "... the
-answer could not be read"), and its action says to report it, although nothing left the machine
-[open at this revision: being fixed].
+field or the button it is about. A fault or a refusal at the end of a result is shown in an error
+panel headed by the server's own heading, which says what kind it is, for example "Refused by the
+production guardrail", "The service rejected the request" or, on mock, "A timeout played by a mock
+scenario, not a fault in the environment". On mock, every fault a scenario plays (a 500, a 400, an
+unreachable service, an empty or unreadable body) is headed as played by a mock scenario, and its
+action begins "Nothing left this machine: a mock scenario played this answer to show how this tool
+reads it." The next step of a played 500 or unreachable service still reads "Next: check the
+environment, then send again.", which does not fit a played answer; a played timeout's next step
+is already worded as played. A refused form is headed "A problem with what was submitted", and its
+action says "Correct the marked fields and send again."
 
 ### The CRD tab
 
@@ -561,8 +570,7 @@ frame. See [The production guardrail](#the-production-guardrail).
   differently, the Outcome filter gives each wording with the protocols that use it.
 - **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
   journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
-  The list of chains does not yet draw the dotted mark of a step nobody answered
-  [open at this revision: being fixed].
+  The list and the view both draw a step nobody answered with the dotted mark.
 - **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
   before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
   example "Finished: 6 cases. 4 passed, 1 failed, 1 unverified." `Download a suite file template
@@ -670,8 +678,10 @@ place in this payload is masked because it repeats a secret this tool could have
 service ... What is shown is therefore not exactly what was received." This was checked by the
 fix's author, and again by an agent that did not write the fix, against stand-ins on this machine,
 not for this README. A secret shorter than six characters repeated in a notification is shown in
-clear, and, unlike the wire view, the notification does not say that a secret was too short to
-search for [open at this revision: being fixed].
+clear, and the notification's notes say so, as the wire view does ("... 1 secret shorter than 6
+characters. A secret that short is not searched for ..."); they also say when a secret could not
+be worked out and the payload was therefore not searched for it (covered by a test, not checked
+on the running tool).
 
 A lookup field whose value holds masked text is marked `masked` and is not taken into the case:
 "This value holds a secret the request sent, which this tool masked, so it is not what the
@@ -759,28 +769,35 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   it `prod` is the way through. The address is read the way the HTTP client reads it, so another
   spelling of the same address (a port written with leading zeros, for example) is the same
   address. Observed: with `http://127.0.0.1:18742/fhir` uploaded as `prod`, an environment at
-  `http://127.0.0.1:0018742/fhir` declared `sandbox` was refused, naming the production one. The
-  refusal quotes the address as PAVE read it (`http://127.0.0.1:18742/fhir`), not as the file
-  writes it [open at this revision: being fixed].
-- **A production environment whose own address PAVE cannot read** (a port with a plus sign, a
-  backslash in the path, a colon with nothing after it) is not remembered as production, and a
-  sandbox uploaded afterwards at the plain spelling of that address is accepted and sent writes
-  with no unlock. Write a production address plainly [open at this revision: being fixed].
+  `http://127.0.0.1:0018742/fhir` declared `sandbox` was refused, naming the production one. A
+  readable address is quoted as PAVE read it (`http://127.0.0.1:18742/fhir`). One the client
+  cannot read is quoted as the file writes it, without user information or query, with the
+  variable that holds it, and the sentence says that it cannot be read.
+- **A production environment whose own address PAVE cannot read** the way the HTTP client reads it
+  (a port with a plus sign, a backslash in the path, a colon with nothing after it) is refused at
+  upload (422, "... which this tool cannot read the way the HTTP client reads it. It was not
+  stored.") and cannot be made active. Write a production address plainly, as
+  `scheme://host:port/path`. Such an address that an earlier version stored, or that a collection
+  makes, is remembered as its whole host: every port and every path of that host is production
+  until that environment is uploaded again as `prod` with its address written plainly, and writes
+  to it cannot be unlocked meanwhile.
 - **Address warnings.** The upload answer, the environment list (`addressWarnings`) and the answer
-  of a switch warn about three things, without refusing the file: an address whose scheme, host and
+  of a switch warn about four things, without refusing the file: an address whose scheme, host and
   port PAVE cannot read the way the HTTP client reads them (a port above 65535, a host in a form the
   client refuses), to which no write is sent; an address with an encoded slash, backslash,
-  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), to which nothing at all is sent; and
-  a non-production environment on the same scheme, host and port as a production environment under
-  another base path, which PAVE treats as not production because the base path differs ("If that
-  server routes this path to production, upload this environment with the kind prod."). All three
-  were observed on mock, in the upload answer and in the environment list. When the production
-  environment's own port could not be read, this last warning still speaks of "the same server, by
-  scheme, host and port" [open at this revision: being fixed].
+  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), or a percent-escape of a byte above
+  0x7F (`%C0`), to which nothing at all is sent; a non-production environment on the same scheme,
+  host and port as a production environment under another base path, which PAVE treats as not
+  production because the base path differs ("If that server routes this path to production,
+  upload this environment with the kind prod."); and a non-production environment on the host of
+  a production environment one of whose addresses could not be read, to which no write is sent.
+  The first three were observed on mock, in the upload answer and in the environment list; the
+  fourth was read through the API by the fix's author only.
 - **Member data in the file.** A variable whose name reads as member data (a member, patient or
-  subscriber identifier or name, a first or last name, a birth date) is named in a warning
-  (observed with `patientLastName`). Names such as `mbrId`, `ssn`, `MBI`, `mrn`, `medicaidId`,
-  `address` or `phone` are not recognised [open at this revision: being fixed]. See
+  subscriber identifier or name, a first or last name, a birth date, `mbr`, a Medicare or Medicaid
+  number, an MBI, SSN, HICN or MRN, an address, unless a machine word such as `host`, `server` or
+  `callback` goes with it, or a telephone) is named in a warning (observed with `patientLastName`;
+  the newer names are covered by a test only). See
   [Member data in an uploaded file](#member-data-in-an-uploaded-file).
 - Uploading never activates. Activating switches every tab at runtime, with no restart and no
   reload, and drops any production unlock.
@@ -1013,9 +1030,12 @@ A PAS submit against production creates a real prior authorization request again
   production".** A write that would go to such an address (a port above 65535, a host in a form the
   client refuses) is refused with 403, naming the variable and its layer, the request or the
   `application.yml` setting it came from: "Blocked: the address it would go to could not be read."
-  When it is only the path that cannot be read, because a value typed for the run holds a space or
-  a stray `%`, the refusal still blames the host, the port or the base address and points at the
-  wrong remedy; nothing is sent [open at this revision: being fixed].
+  When the scheme, host and port read well and only the url as filled is not valid, because a
+  value holds a space, a stray `%` or a vertical bar, the answer is 422: "... was not sent: the
+  url as filled is not a valid url, because the text of the variable "..." (...) holds a character
+  that cannot stand in a url as it is ... Its scheme, host and port are not the problem." It names
+  the variable and its layer, or the value typed for the run, never the value; on live for every
+  method, on mock for writes only, since on mock a read is never sent. Nothing is sent.
   This was checked by the fix's author on live against stand-ins, and again by an agent that did
   not write the fix; on mock a protocol run does not
   resolve its url (see [Variables](#variables)), so there the run is answered from its scenario
@@ -1027,9 +1047,9 @@ A PAS submit against production creates a real prior authorization request again
   url part or the request, never the value. A query string is not touched. Observed on mock:
   `crdOrderSignServiceId` typed for one run as `..%2F..%2FClaim%2F%24submit` answered "CRD
   order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
-  the variable "crdOrderSignServiceId" (typed for this run). ..." An overlong or look-alike
-  encoding of a slash (`%c0%af`, `%E2%88%95`) is not caught, which matters only for a server that
-  decodes such bytes [open at this revision: being fixed].
+  the variable "crdOrderSignServiceId" (typed for this run). ..." A percent-escape of any byte
+  above 0x7F in the path (`%c0%af`, `%E2%88%95`, an overlong or look-alike slash) is refused by the
+  same rule with the same 422, since a FHIR path is plain ASCII.
 - **Lock, from any browser, locks every session** (D-144). Observed on mock: session A unlocked and
   sent a submit; session B posted `{"action":"lock"}`; A's next submit answered 403, "... production
   writes are locked for this session. An earlier unlock no longer applies, because the
@@ -1056,9 +1076,11 @@ written with leading zeros, an encoded separator that hid a path, a raw send ref
 reason, no test that Lock locks every session, and a secret shown in clear in a notification. Each
 was fixed, and an agent that wrote none of the fixes checked them on revision `9e5306d`: eight of
 nine closed; the port written with leading zeros closed in one direction and open in the other
-(the production address PAVE cannot read, above), with three smaller neighbours open, each marked
-above. The behaviour above was observed on mock, where the guardrail behaves as on live (D-021),
-except where a sentence says otherwise.
+(the production address PAVE cannot read, above), with three smaller neighbours open (the refusal
+of an invalid url naming the wrong cause, escapes above 0x7F, and the notification's silence about
+short secrets). All four were fixed afterwards, as described above, merged at `6037d2a`; only the fix's author checked that fix when this was written, against stand-ins on this
+machine, and an independent check of it had not reported. The behaviour above was observed on
+mock, where the guardrail behaves as on live (D-021), except where a sentence says otherwise.
 
 ## The test run ledger
 
@@ -1090,22 +1112,28 @@ with its result.
 gender, subscriber ID, or any request or response body. What the service or a tester can fill is
 checked before it is kept (D-151): a code or a line of business that reads like an identifier or a
 date is not kept; a line of business is written only when the code list knows it, otherwise as its
-length; a questionnaire address is kept only in a strict form. A procedure code that reads like an
-identifier or a date, or holds the run's member ID, is written as `(not a code, N characters)`,
-and so is the subject in front of each coverage code (observed on mock: `S123456789` typed as a
-procedure code was written so, beside `95810`). A claim id, ClaimResponse id or subscription id a
-service or a notification supplies is kept only as one token that does not read like an
-identifier or a date and does not hold the member ID, otherwise as `(not recorded, N
-characters)`; the ids PAVE mints itself and the mock's ids are kept. A notification that names an
-id the ledger does not keep is not looked up by it, and its result says so. Known gaps: a one-word
-surname written where a code or an id belongs is kept, because a single word cannot be told from a
-code or an id; a member ID whose digits are split by a separator (`S123-456-789`), supplied by a
-service as a subscription or claim id, is kept in clear [open at this revision: being fixed]; and
-a plain number of six digits or more, which many FHIR servers mint as an id, is not kept, so a
-notification on such a subscription is no longer matched to the run that created it
-[open at this revision: being fixed]. A procedure code of seven digits or more (an ICD-10-PCS or
-NDC shape) is written as not a code, and its run cannot be replayed
-[open at this revision: being fixed].
+length; a questionnaire address is kept only in a strict form. A procedure code that the loaded
+code list holds is kept as written, whatever its shape (a seven-digit or longer code included),
+unless it holds the run's member ID. One the list does not hold and that reads like an identifier
+or a date, or holds the run's member ID, is written as `(not a code, N characters)`, and so is the
+subject in front of each coverage code (observed on mock: `S123456789` typed as a procedure code
+was written so, beside `95810`; the long listed code is covered by a test only). A claim id,
+ClaimResponse id or subscription id that a service or a notification supplies is written in clear
+only when it cannot be anybody's data: a UUID, an OID (`urn:uuid:`, `urn:oid:`) or an id this
+tool minted. Every other one, a plain number included, is written as a token, as the
+authorization number is, unless the line's member ID is in clear (`tracking.record-member-id`,
+and on mock for a synthetic member or none); the line does not mark the token otherwise, and
+History says under it "Kept as a token, not as the identifier the service gave ...". A
+notification is matched to its run by comparing tokens, so matching works for a numeric id too.
+A run whose claim id is a token cannot be replayed, and replay says so. Lines written by an
+earlier version are not rewritten: their clear ids are shown, exported and matched as tokens when
+read. An id that is not one identifier (over 128 characters, or with spaces or other signs) is not
+kept and not looked up, and the notification's result says so. Known gaps: a one-word surname
+written where a code belongs is kept, because a single word cannot be told from a code; a
+ClaimResponse id that holds the member ID with separators (`S123-456-789` on a run for
+`S123456789`) is still written as `(not recorded, N characters)` on the submission line, so a
+notification carrying it is not matched; and lines written by the first fix with `(not recorded,
+N characters)` under a subscription or ClaimResponse id cannot be matched either.
 
 **The member ID policy** has two settings:
 
@@ -1146,10 +1174,13 @@ quotes nothing. What PAVE can recognise, it refuses:
   request body carries. ..." Only identifiers are checked there, not a name or a date of birth, and
   a `P32H-` sentinel does not count. When the guardrail refuses a write first, a saved body is never
   read, so the note is recorded with the blocked line as typed.
-- A run sent with `A request of my own` from the CRD, DTR or PAS tab is checked against nothing:
-  the screen sends no member with it, and its body is not read for identifiers. Observed on mock: a
-  note naming the member ID of the pasted body was recorded as typed
-  [open at this revision: being fixed].
+- A run sent with `A request of my own` from the CRD, DTR or PAS tab is checked against the member
+  identifiers its body carries: Patient and Coverage identifiers, `subscriberId`, a Patient id,
+  `context.patientId` and a `Patient/<id>` reference (not this tool's own `patient-1`), with the
+  same refusal. Only identifiers are read, not a name or a date of birth, and the body is read as
+  typed, before `{{placeholders}}` are filled, so an ID that only a placeholder brings in is not
+  seen. A body with no readable identifier is not refused. The fix's author saw the refusal on the
+  running tool for CRD only; DTR and PAS are covered by tests.
 - A note added later is refused when it holds the member ID of that run, also where the line keeps
   only the token: "The note holds the member ID of this run. The ledger keeps it as written and may
   not hold member data, so leave it out. The note was not added. Nothing was changed." (observed).
@@ -1157,18 +1188,23 @@ quotes nothing. What PAVE can recognise, it refuses:
   (or the tester reference or expectation likewise) in its place, and lines written by older
   versions are shown and exported the same way.
 
-What PAVE cannot recognise it writes as typed: somebody else's name or date of birth, a name the
-request does not carry, a member ID or subscriber ID under six letters and digits, an address line
-under five characters. On this revision it also misses, for the member the request carries, a date
-of birth written with the month's name ("July 23, 1961"), the member ID in fullwidth digits or
-without its letter, the city and postal code of the address, and one part of a hyphenated surname
-[open at this revision: being fixed]. **Do not type member data into a note, a tester reference or
-an expectation.** Old lines that hold a name or a date of birth in a note are still shown and
-exported as written: the files are append-only. A first or last name is matched as a whole word in
-any case, from two letters up, so for a member whose name is an ordinary word (`May`, `An`), a
-note holding that word is refused; reword the note [open at this revision: being fixed]. The
-results CSV of a suite still repeats the expectation of a row refused because that expectation
-held the member ID [open at this revision: being fixed].
+Text is brought to one form (Unicode compatibility normalisation) before it is compared, so the
+member ID in fullwidth characters is found, and so is the run of six or more digits of the member
+ID written alone; a date of birth is found written in numbers or with the month's name ("July 23,
+1961", "23 Jul 1961"); each part of a hyphenated or two-word surname of four letters or more is
+looked for alone; the city together with the postal code counts as the address, either alone does
+not. A first or last name of four letters or more is looked for alone, as a whole word in any
+case; a shorter one (`May`, `An`) only where the first and last name stand together, so an honest
+note holding the word "may" is kept. A note added later on a line that holds only the token is
+checked against the token, and the digits of the ID alone are found there only when one or two
+letters stood in front of them; a name or a date of birth cannot be checked then, because the line
+holds neither. What PAVE cannot recognise it writes as typed: somebody else's name or date of
+birth, a name or date the request does not carry, a member ID or subscriber ID under six letters
+and digits, an address line under five characters. **Do not type member data into a note, a tester
+reference or an expectation.** Old lines that hold a name or a date of birth in a note are still
+shown and exported as written: the files are append-only. In the results of a suite (on screen
+and in `results.csv`), a row refused because its expectation held member data, or was too long,
+carries the refusal sentence in place of the expectation.
 
 **The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
 run and, through the API, an exact tester reference (`testerRef`) and the run a line follows
