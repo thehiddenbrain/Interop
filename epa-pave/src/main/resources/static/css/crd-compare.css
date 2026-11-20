@@ -11,14 +11,29 @@
     border-top: 1px solid var(--rule);
 }
 
-.crd-cmp-bar[hidden] {
+.crd-cmp-bar[hidden], .crd-cmp-bar__sample[hidden] {
     display: none;
+}
+
+.crd-cmp-sample {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.crd-cmp-sample__title {
+    font-weight: 600;
+    color: var(--ink-strong);
 }
 
 .crd-cmp-bar__sample {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px var(--gap-4);
+    align-items: center;
+    gap: var(--gap-2) var(--gap-4);
 }
 
 .crd-cmp-bar__said:empty {
@@ -84,6 +99,11 @@
 .crd-cmp__whynot {
     font: 600 var(--text-large)/1.35 var(--font-display);
     color: var(--ink-strong);
+    max-width: 80ch;
+}
+
+.crd-cmp__hooks {
+    font-weight: 600;
     max-width: 80ch;
 }
 
@@ -418,4 +438,11 @@
 /* The detail list has four parts: CRD 2.0.1 adds a qualification, and the 2.2.0 ballot a category. */
 .detail .grid.detail-list th:nth-child(3), .detail .grid.detail-list th:nth-child(4) {
     width: 9rem;
+}
+
+/* The pane is narrow on a laptop: a button's words wrap inside it rather than run past its edge. */
+.crd-cmp-bar__sample .button, .crd-cmp-bar .button {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
 }

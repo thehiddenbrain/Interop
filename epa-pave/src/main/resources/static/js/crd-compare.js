@@ -40,26 +40,39 @@ export function createComparison(spec) {
     const {app, bench, ownRequest, slot} = spec;
     let busy = false;
     let drawn = null;
+    // Counts the questions about the vendor's sample, so only the answer to the latest is drawn.
+    let sampleAsked = 0;
 
     const compareButton = button('Compare with this tool\'s request', () => compare('box'), {class: 'button--quiet'});
-    const sampleButton = button('Compare the vendor\'s sample with this tool\'s request', () => compare('sample'), {class: 'button--text'});
+    const sampleButton = button('Compare the sample with this tool\'s request', () => compare('sample'), {class: 'button--quiet'});
     const loadSample = button('Put the vendor\'s sample in the box', putSampleInBox, {class: 'button--text'});
     const said = el('p', {class: 'small crd-cmp-bar__said', role: 'status', aria: {live: 'polite'}});
     const bar = el('div', {class: 'crd-cmp-bar', hidden: true},
         el('div', {class: 'button-row'}, compareButton),
         el('p', {class: 'small quiet'}, 'Builds this tool\'s request for the same case and lists where the two differ, with what each '
-            + 'difference means. Nothing is sent to the service and nothing is recorded.'),
-        el('div', {class: 'crd-cmp-bar__sample'}, sampleButton, loadSample),
-        said);
+            + 'difference means. Nothing is sent to the service and nothing is recorded.'));
+    // The vendor's sample is offered whichever request is chosen: it is compared as the collection
+    // holds it, without being put in the box. Whether there is one is said before anything is pressed.
+    const sampleState = el('p', {class: 'small'});
+    const sampleControls = el('div', {class: 'crd-cmp-bar__sample', hidden: true}, sampleButton, loadSample);
+    const samplePart = el('div', {class: 'crd-cmp-sample'},
+        el('p', {class: 'crd-cmp-sample__title'}, 'The vendor\'s sample'), sampleState, sampleControls, said);
     spec.track(compareButton, sampleButton, loadSample);
 
     // The comparison belongs with the box, so it is placed straight after it.
-    ownRequest.node.after(bar);
+    ownRequest.node.after(bar, samplePart);
     const showBar = () => {
         bar.hidden = !ownRequest.active();
     };
     ownRequest.node.addEventListener('change', showBar);
     showBar();
+    // Each hook has its own collection request, so the sample on offer follows the hook on the form.
+    bench.form.addEventListener('change', event => {
+        if (event.target.name === 'crd-hook') {
+            refreshSample();
+        }
+    });
+    refreshSample();
 
     /** Asks the server for the comparison: of the text in the box, or of the vendor's sample. */
     async function compare(what) {
@@ -121,32 +134,55 @@ export function createComparison(spec) {
 
     /**
      * The sample body of the request the active collection maps to the hook on the form, as the
-     * collection holds it. Null, with the reason said, when there is none.
+     * collection holds it: {sample: {name, body, scripted}}, or {reason} in words when there is none.
      */
-    async function vendorSample() {
+    async function readSample() {
         const operation = spec.operation();
-        bench.say('Reading the vendor\'s sample from the collection.');
         const answer = await api.postJson('/api/config/resolve', {operation});
         if (answer.kind !== 'ok') {
-            fill(said, el('strong', null, 'The vendor\'s sample could not be read. '), answer.body.title, ' ', answer.body.action || '');
-            bench.say(answer.body.title);
-            return null;
+            return {reason: [el('strong', null, 'The vendor\'s sample could not be read. '), answer.body.title, ' ', answer.body.action || '']};
         }
         const resolved = answer.body;
+        const named = resolved.label || operation;
         if (!resolved.requestName) {
-            fill(said, 'No collection request is mapped to ', code(operation), ', so there is no vendor\'s sample to use. ',
-                'Upload the vendor\'s collection on the Config tab.', ' ', button('Open the Config tab', () => app.navigate('config'),
-                    {class: 'button--text'}));
+            return {reason: ['No collection request is mapped to ', named, ', so there is no vendor\'s sample to compare. ',
+                'A collection is uploaded and mapped on the Config tab. ', button('Open the Config tab', () => app.navigate('config'),
+                    {class: 'button--text'})]};
+        }
+        if (typeof resolved.bodyTemplate !== 'string' || resolved.bodyTemplate.trim() === '') {
+            return {reason: ['The collection request ', el('strong', null, resolved.requestName), ', mapped to ', named,
+                ', has no sample body to compare.']};
+        }
+        return {sample: {name: resolved.requestName, body: resolved.bodyTemplate, scripted: resolved.scripted, operation: named}};
+    }
+
+    /** Says whether there is a sample for the hook on the form, and offers it only when there is. */
+    async function refreshSample() {
+        sampleAsked += 1;
+        const asked = sampleAsked;
+        const found = await readSample();
+        if (asked !== sampleAsked) {
+            // The hook or the configuration changed while this was on its way: a later answer is drawn.
+            return;
+        }
+        sampleControls.hidden = !found.sample;
+        clear(said);
+        fill(sampleState, found.sample
+            ? ['The collection request ', el('strong', null, found.sample.name), ' is mapped to ', found.sample.operation,
+                ' and has a sample body.', found.sample.scripted ? ' It carries a pre-request script, which this tool does not run.' : null]
+            : found.reason);
+    }
+
+    /** The sample as it stands now, or null with the reason said. */
+    async function vendorSample() {
+        bench.say('Reading the vendor\'s sample from the collection.');
+        const found = await readSample();
+        if (!found.sample) {
+            fill(said, found.reason);
             bench.say('There is no vendor\'s sample to use.');
             return null;
         }
-        if (typeof resolved.bodyTemplate !== 'string' || resolved.bodyTemplate.trim() === '') {
-            fill(said, 'The collection request ', el('strong', null, resolved.requestName), ' that is mapped to ', code(operation),
-                ' has no sample body.');
-            bench.say('The mapped collection request has no sample body.');
-            return null;
-        }
-        return {name: resolved.requestName, body: resolved.bodyTemplate, scripted: resolved.scripted};
+        return found.sample;
     }
 
     /** Puts the sample, exactly as the collection holds it, into the box, where it can be edited and sent. */
@@ -155,13 +191,16 @@ export function createComparison(spec) {
         if (!sample) {
             return;
         }
+        if (!ownRequest.active()) {
+            // The box is where a request of the tester's own is written, so that is chosen, as the tester would choose it.
+            ownRequest.node.querySelector('input[type="radio"][value="own"]').click();
+        }
         const box = ownRequest.field.querySelector('textarea');
         box.value = sample.body;
         // The box hears of it as it hears of typing, so it says again whether the text is valid JSON.
         box.dispatchEvent(new Event('input', {bubbles: true}));
         fill(said, 'The sample of the collection request ', el('strong', null, sample.name),
-            ' is in the box, exactly as the collection holds it. Its placeholders are filled in when it is compared or sent.',
-            sample.scripted ? ' The request carries a pre-request script, which this tool does not run.' : null);
+            ' is in the box, exactly as the collection holds it. Its placeholders are filled in when it is compared or sent.');
         bench.say('The vendor\'s sample is in the box.');
         ownRequest.focus();
     }
@@ -198,6 +237,7 @@ export function createComparison(spec) {
                 drawn.markStale();
             }
             showBar();
+            refreshSample();
         }
     };
 }
@@ -232,7 +272,14 @@ export function drawComparison(answer, about, actions) {
     if (!answer.comparable) {
         body.append(el('p', {class: 'crd-cmp__whynot', role: 'alert'}, answer.whyNot));
     }
-    if (answer.hook) {
+    // A pasted request for another hook is compared all the same, and every difference below is
+    // then between requests for two different hooks. The two hooks are the server's own values of
+    // its difference at /hook, set out here so the tester reads that first.
+    const hookDifference = (answer.differences || []).find(difference => difference.toolPointer === '/hook' && difference.yourPointer === '/hook');
+    if (answer.hook && hookDifference) {
+        body.append(el('p', {class: 'crd-cmp__hooks'}, 'Your request is for the hook ', requestValue(hookDifference.yourValue),
+            ', and this tool built its request for the hook ', code(answer.hook), '. These are requests for two different hooks.'));
+    } else if (answer.hook) {
         body.append(el('p', {class: 'small'}, 'This tool built its request for the hook ', code(answer.hook), '.'));
     }
     if (otherNotes.length > 0) {
