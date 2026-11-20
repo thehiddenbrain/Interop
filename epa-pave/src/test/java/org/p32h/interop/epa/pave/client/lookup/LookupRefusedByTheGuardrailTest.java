@@ -50,5 +50,7 @@ class LookupRefusedByTheGuardrailTest {
                 + "write because its header X-HTTP-Method-Override asks the far side to act on it as DELETE.")
                 .doesNotContain("switched off").doesNotContain("mapped to").doesNotContain("S1234567801");
         assertThat(result.error().action()).endsWith("Until then, type the member details by hand.");
+        // Refused by the guardrail, which the error panel shows as such, not as a configuration that is missing.
+        assertThat(result.error().kind()).isEqualTo(org.p32h.interop.epa.pave.model.ErrorKind.BLOCKED);
     }
 }

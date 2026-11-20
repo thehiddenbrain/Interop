@@ -209,6 +209,26 @@ public class ConfigStoreGateway implements OperationGateway {
         return store.epoch();
     }
 
+    @Override
+    public List<String> configuredUrls(Set<Protocol> protocols) {
+        ConfigSnapshot snapshot = store.snapshot();
+        List<String> urls = new ArrayList<>();
+        for (EpaOperation operation : EpaOperation.values()) {
+            if (!operation.outbound() || !protocols.contains(operation.protocol())) {
+                continue;
+            }
+            try {
+                CallPlan plan = plan(snapshot, CallIntent.of(operation));
+                if (plan.filled() != null && Texts.present(plan.filled().shown())) {
+                    urls.add(plan.filled().shown());
+                }
+            } catch (RuntimeException e) {
+                // A request that cannot be planned names no url. Nothing about it is logged.
+            }
+        }
+        return urls;
+    }
+
     // ------------------------------------------------------------------------------------------
     // The production unlock
     // ------------------------------------------------------------------------------------------
@@ -356,6 +376,7 @@ public class ConfigStoreGateway implements OperationGateway {
         Map<String, String> bound = Map.of();
         ResolvedUrl url = null;
         boolean climbed = false;
+        RunStart runStart = null;
 
         if (target.configured()) {
             String template = target.template();
@@ -391,6 +412,7 @@ public class ConfigStoreGateway implements OperationGateway {
                     }
                 }
                 filled = skeleton.fill(intent.urlValues());
+                runStart = runStart(snapshot, intent, target, toResolve, bound);
                 // Judged and sent in one normal form, so that what is judged is what a server acts on.
                 climbed = UrlNormal.of(filled.probe()).climbed();
                 filled = normalised(filled);
@@ -436,7 +458,7 @@ public class ConfigStoreGateway implements OperationGateway {
 
         String because = writeBecause(intent, target, method, url, filled, headers);
         boolean write = operation.write() || because != null;
-        Refusal refusal = write ? guard(snapshot, intent, target, because, filled, new Origin(urlVariables, climbed)) : null;
+        Refusal refusal = write ? guard(snapshot, intent, target, because, filled, new Origin(urlVariables, climbed, runStart)) : null;
         return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
                 because, refusal, callResolver);
     }
@@ -800,8 +822,66 @@ public class ConfigStoreGateway implements OperationGateway {
      *
      * @param resolution how the placeholders of the url resolved, piece by piece. Null when there is no url
      * @param climbed    true when a {@code ..} in the url reached above the root of its path
+     * @param runStart   where the first value typed for this run starts in the url, or null when none is in it
      */
-    private record Origin(Resolution resolution, boolean climbed) {
+    private record Origin(Resolution resolution, boolean climbed, RunStart runStart) {
+    }
+
+    /**
+     * Where the first value typed for this run starts in a url.
+     *
+     * @param name   the variable the value was typed for
+     * @param before the url as the configuration in force wrote it, up to that value. It can hold
+     *               a secret, so it is compared and never shown
+     */
+    private record RunStart(String name, String before) {
+
+        @Override
+        public String toString() {
+            return "RunStart[" + name + "]";
+        }
+    }
+
+    /** Stands in for every value typed for the run, so that where the first one starts is known exactly. */
+    private static final char RUN_MARK = '\u0001';
+
+    /**
+     * Resolves the url again with each value typed for this run replaced by a mark, and returns the
+     * text the configuration in force wrote before the first mark. A value typed for the run that
+     * sits inside an environment value, or a value typed for the run that refers to another
+     * variable, is found the same way, because the mark replaces the value wholesale wherever the
+     * resolver meets it. Null when no value typed for the run is in the url or the url is not
+     * complete, which is judged elsewhere.
+     */
+    private RunStart runStart(ConfigSnapshot snapshot, CallIntent intent, Target target, String toResolve, Map<String, String> bound) {
+        Map<String, String> marks = new LinkedHashMap<>();
+        // A blank value is not a value: the resolver passes over it to the next layer, so it marks nothing.
+        intent.runValues().forEach((name, value) -> {
+            if (Texts.present(value)) {
+                marks.put(name, String.valueOf(RUN_MARK));
+            }
+        });
+        if (marks.isEmpty()) {
+            return null;
+        }
+        Map<String, String> encoded = new LinkedHashMap<>();
+        bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
+        Resolution marked = resolver.resolve(toResolve, layers(snapshot, marks, target.collection(), encoded));
+        UrlForms.Skeleton skeleton = UrlForms.skeleton(marked);
+        if (target.source() == Source.DERIVED) {
+            skeleton = skeleton.upTo(DISCOVERY_MARKER);
+            if (skeleton == null) {
+                return null;
+            }
+        }
+        String send = skeleton.fill(intent.urlValues()).send();
+        int at = send == null ? -1 : send.indexOf(RUN_MARK);
+        if (at < 0) {
+            return null;
+        }
+        String name = marked.pieces().stream().filter(piece -> piece.send() != null && piece.send().indexOf(RUN_MARK) >= 0)
+                .map(Resolution.Piece::name).filter(java.util.Objects::nonNull).findFirst().orElse("a value typed for this run");
+        return new RunStart(name, send.substring(0, at));
     }
 
     /** A url in the one normal form in which it is judged, shown and sent. */
@@ -821,7 +901,7 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "something other than what it says." + why, "Nothing was sent. Correct the url, or the value that put \"..\" "
                     + "into it, so that it names the address directly.");
         }
-        String movedBy = complete ? movedByRunValue(origin.resolution(), filled.send()) : null;
+        String movedBy = complete ? movedByRunValue(origin.runStart(), filled.send()) : null;
         if (movedBy != null) {
             // The name of the value. Never the value: it can be a member ID or a typed secret.
             return new Refusal(what + " is blocked: the value typed for this run for " + movedBy + " would change where it goes, "
@@ -984,39 +1064,28 @@ public class ConfigStoreGateway implements OperationGateway {
      * will be sent, in its normal form, must still start with what the configuration wrote, so a
      * value cannot climb back out of the place it was given with {@code ..}.
      */
-    private static String movedByRunValue(Resolution resolution, String sent) {
-        if (resolution == null) {
+    private static String movedByRunValue(RunStart start, String sent) {
+        if (start == null) {
             return null;
         }
-        Map<String, VariableSource> sources = sources(resolution);
-        StringBuilder prefix = new StringBuilder();
-        for (Resolution.Piece piece : resolution.pieces()) {
-            if (piece.name() != null && sources.get(piece.name()) == VariableSource.RUN_VALUE) {
-                String before = prefix.toString();
-                int scheme = before.indexOf("://");
-                if (scheme <= 0) {
-                    return piece.name();
-                }
-                int pathStart = scheme + 3;
-                while (pathStart < before.length() && "/?#".indexOf(before.charAt(pathStart)) < 0) {
-                    pathStart++;
-                }
-                String rest = before.substring(pathStart);
-                int query = firstOf(rest, "?#");
-                if (query < 0 && !rest.endsWith("/")) {
-                    return piece.name();
-                }
-                String fixed = query >= 0 ? before.substring(0, pathStart + query) : before;
-                String base = UrlNormal.text(fixed);
-                String normal = UrlNormal.text(sent);
-                return normal != null && normal.startsWith(base) ? null : piece.name();
-            }
-            if (piece.send() == null) {
-                return null;
-            }
-            prefix.append(piece.send());
+        String before = start.before();
+        int scheme = before.indexOf("://");
+        if (scheme <= 0) {
+            return start.name();
         }
-        return null;
+        int pathStart = scheme + 3;
+        while (pathStart < before.length() && "/?#".indexOf(before.charAt(pathStart)) < 0) {
+            pathStart++;
+        }
+        String rest = before.substring(pathStart);
+        int query = firstOf(rest, "?#");
+        if (query < 0 && !rest.endsWith("/")) {
+            return start.name();
+        }
+        String fixed = query >= 0 ? before.substring(0, pathStart + query) : before;
+        String base = UrlNormal.text(fixed);
+        String normal = UrlNormal.text(sent);
+        return normal != null && normal.startsWith(base) ? null : start.name();
     }
 
     private static int firstOf(String text, String characters) {

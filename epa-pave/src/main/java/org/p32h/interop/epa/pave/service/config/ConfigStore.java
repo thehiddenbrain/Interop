@@ -487,7 +487,8 @@ public class ConfigStore {
      */
     private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
-        for (org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination : ProductionDestinations.of(parsed)) {
+        for (org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination : ProductionDestinations.of(parsed,
+                ProductionDestinations.urlForming(before.collections()))) {
             owners.addAll(before.productionOverlaps(destination));
         }
         if (owners.isEmpty()) {

@@ -114,6 +114,81 @@ class DestinationGuardrailTest {
     }
 
     // ------------------------------------------------------------------------------------------
+    // Rule 3: a value typed for one run may not move a write, wherever it sits
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    void aValueTypedForTheRunThatSitsInsideAnEnvironmentValueOrPointsAtAnotherVariableCannotMoveAWrite() {
+        String elsewhere = "http://127.0.0.1:18479/other";
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).build();
+            fixture.activeEnvironmentOf("pave-sandbox", EnvironmentKind.SANDBOX, "baseUrl", "http://{{host}}/sbx",
+                    "host", "127.0.0.1:18470", "spare", elsewhere);
+            fixture.collection(org.p32h.interop.epa.pave.postman.PostmanFiles.VENDOR_COLLECTION);
+            assertThat(fixture.gateway.prepare(submit()).url().value()).as(profile).isEqualTo(SANDBOX + "/Claim/$submit");
+
+            // The host is typed for the run, inside the environment's own base url.
+            ProdWriteBlockedException host = blocked(fixture, submit().withRunValues(Map.of("host", "127.0.0.1:18479")));
+            assertThat(host.getMessage()).as(profile).contains("the value typed for this run for host would change where it goes");
+            // The base url typed for the run refers to another variable of the environment.
+            ProdWriteBlockedException pointer = blocked(fixture, submit().withRunValues(Map.of("baseUrl", "{{spare}}")));
+            assertThat(pointer.getMessage()).as(profile).contains("the value typed for this run for baseUrl would change where it goes");
+            assertThat(pointer.action()).as(profile).isEqualTo("Nothing was sent. To send a write somewhere else, change the environment: "
+                    + "upload one whose values point there, with its kind, and activate it.");
+            // A blank value typed for the run is no value: the environment's own is used, and the write goes.
+            assertThat(fixture.gateway.prepare(submit().withRunValues(Map.of("baseUrl", " "))).url().value()).as(profile)
+                    .isEqualTo(SANDBOX + "/Claim/$submit");
+
+            // A value that fills a segment after the base still works, and one that climbs back out of it does not.
+            StoredCollection own = fixture.collectionOf("Own", items(item("subscription-delete by value", "DELETE",
+                    "{{baseUrl}}/Subscription/{{subId}}")));
+            CallIntent delete = CallIntent.of(EpaOperation.SUBSCRIPTION_DELETE).withRequest(ref(own, "subscription-delete by value"));
+            assertThat(fixture.gateway.prepare(delete.withRunValues(Map.of("subId", "SUB-7"))).url().value()).as(profile)
+                    .isEqualTo(SANDBOX + "/Subscription/SUB-7");
+            assertThat(blocked(fixture, delete.withRunValues(Map.of("subId", "../../other"))).getMessage()).as(profile)
+                    .contains("the value typed for this run for subId would change where it goes");
+            // A read may still be pointed anywhere for one run.
+            assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE).withRunValues(Map.of("host", "127.0.0.1:18479")))
+                    .url().value()).as(profile).isEqualTo("http://127.0.0.1:18479/sbx/Claim/$inquire");
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Rules 1 and 5: what counts as a production destination
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    void aCallbackOrATokenEndpointSharedWithProductionDoesNotRefuseTheSandboxUnlessARequestIsSentToIt() {
+        String callback = "https://callback.example.invalid/api/pas/notifications";
+        String tokens = "https://login.example.invalid/oauth2/token";
+        for (String profile : PROFILES) {
+            ConfigFixture fixture = on(profile).allowProdWrites().build();
+            fixture.environmentOf("vendor-live", EnvironmentKind.PROD, "baseUrl", LIVE, "callbackUrl", callback, "tokenUrl", tokens,
+                    "subscriptionCallback", callback);
+            assertThat(fixture.service.environments().productionDestinations()).as(profile)
+                    .containsExactly(new ConfigViews.ProductionDestinationView("vendor-live", LIVE, true));
+
+            // The sandbox shares both addresses no write goes to, and is stored.
+            fixture.environmentOf("pave-sandbox", EnvironmentKind.SANDBOX, "baseUrl", SANDBOX, "callbackUrl", callback, "tokenUrl", tokens);
+            assertThat(fixture.store.snapshot().byName("pave-sandbox")).as(profile).isNotNull();
+
+            // Once a request builds its url on the callback, that address is one a write can go to.
+            fixture.collectionOf("Calls the callback", items(item("notify", "POST", "{{callbackUrl}}/x")));
+            assertThat(fixture.service.environments().productionDestinations()).as(profile)
+                    .contains(new ConfigViews.ProductionDestinationView("vendor-live", callback, true));
+            byte[] again = ("{\"name\": \"pave-sandbox-2\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + SANDBOX + "\"}, "
+                    + "{\"key\": \"callbackUrl\", \"value\": \"" + callback + "\"}]}").getBytes(StandardCharsets.UTF_8);
+            assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", again, EnvironmentKind.SANDBOX, true)).as(profile)
+                    .isInstanceOf(ValidationException.class).hasMessageContaining("belongs to the production environment \"vendor-live\"");
+        }
+        assertThat(ProductionDestinations.notACall("callbackUrl")).isTrue();
+        assertThat(ProductionDestinations.notACall("OAuth2TokenURL")).isTrue();
+        assertThat(ProductionDestinations.notACall("baseUrl")).isFalse();
+        assertThat(ProductionDestinations.notACall("pasBaseUrl")).isFalse();
+        assertThat(ProductionDestinations.notACall("fhirServer")).isFalse();
+    }
+
+    // ------------------------------------------------------------------------------------------
     // G2: a sandbox cannot send a write to a production address
     // ------------------------------------------------------------------------------------------
 

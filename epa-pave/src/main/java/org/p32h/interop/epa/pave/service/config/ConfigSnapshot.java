@@ -32,9 +32,10 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
         environments = environments == null ? List.of() : List.copyOf(environments);
         collections = collections == null ? List.of() : List.copyOf(collections);
         Set<KnownDestination> all = new LinkedHashSet<>(remembered == null ? List.of() : remembered);
+        Set<String> urlForming = ProductionDestinations.urlForming(collections);
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                for (UrlNormal.Destination destination : ProductionDestinations.of(environment.content())) {
+                for (UrlNormal.Destination destination : ProductionDestinations.of(environment.content(), urlForming)) {
                     all.add(new KnownDestination(environment.name(), destination));
                 }
             }

@@ -69,4 +69,17 @@ class OnyxTokenDestinationTest {
         assertThat(OnyxHosts.admits(fixture.gateway, "https://onyx.example.invalid:8443/fhir")).isFalse();
         assertThat(OnyxHosts.admits(fixture.gateway, ELSEWHERE)).isFalse();
     }
+
+    @Test
+    void anAddressWhosePathStillWaitsForAnIdentifierStillNamesTheHostTheTokenMayGoTo() {
+        // The only Onyx request of the collection has a placeholder no layer fills until a run gives it.
+        ConfigFixture fixture = ConfigFixture.on(directory).live().build();
+        fixture.activeEnvironmentOf("Onyx Sandbox", EnvironmentKind.SANDBOX, "baseUrl", BASE);
+        fixture.collectionOf("Only one", ConfigFixture.items(ConfigFixture.item("subscription-get Happy Path", "GET",
+                "{{baseUrl}}/Subscription/{{subscriptionId}}")));
+
+        assertThat(OnyxHosts.admits(fixture.gateway, BASE + "/Subscription/SUB-1")).isTrue();
+        assertThat(OnyxHosts.of(fixture.gateway)).containsExactly("onyx.example.invalid");
+        assertThat(OnyxHosts.admits(fixture.gateway, ELSEWHERE + "/Subscription/SUB-1")).isFalse();
+    }
 }

@@ -177,7 +177,7 @@ final class LookupOutcomes {
      */
     static Ending refusedByTheGuardrail(LookupWords words, String refusal, String action) {
         String message = words.lookup() + " was refused by the production guardrail and not sent: " + Texts.orElse(refusal, "").strip();
-        return new Ending(LookupStatus.FAULT, message, ErrorView.of(ErrorKind.CONFIGURATION, message,
+        return new Ending(LookupStatus.FAULT, message, ErrorView.of(ErrorKind.BLOCKED, message,
                 Texts.orElse(action, "").strip() + (Texts.present(action) ? " " : "") + "Until then, " + words.byHand() + "."));
     }
 

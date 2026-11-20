@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
 import org.p32h.interop.epa.pave.postman.PostmanVariable;
 import org.p32h.interop.epa.pave.postman.Resolution;
@@ -17,7 +18,14 @@ import org.p32h.interop.epa.pave.postman.VariableResolver;
 
 /**
  * The destinations an environment's own values point at: the scheme, host, port and base path of
- * every variable in force whose value, resolved against that environment alone, reads as a url.
+ * every variable in force whose value, resolved against that environment alone, reads as a url and
+ * forms the url of a request.
+ *
+ * <p>A variable whose name says it is the address of something a request is never sent to as a
+ * call, such as the callback the vendor notifies or the endpoint an access token is fetched from,
+ * is not a destination, unless a collection request builds its own url on it. Production and the
+ * sandbox often share those two addresses, and treating them as production would refuse the
+ * sandbox for an address no write goes to.
  *
  * <p>For a production environment these are the addresses a write must be unlocked for. For any
  * other environment they are compared with those, so that production cannot be uploaded again
@@ -32,7 +40,15 @@ final class ProductionDestinations {
     private ProductionDestinations() {
     }
 
-    static List<UrlNormal.Destination> of(PostmanEnvironment environment) {
+    /** Words that name an address requests are not sent to as calls. */
+    private static final Set<String> NOT_A_CALL = Set.of("callback", "callbacks", "notification", "notifications", "notify",
+            "webhook", "webhooks", "redirect", "token", "oauth", "oauth2", "auth", "login", "issuer", "jwks", "sso", "idp", "openid");
+
+    /**
+     * @param urlForming the names of variables that a collection request puts where its url names
+     *                   its scheme, host and port. Such a variable is a destination whatever its name says
+     */
+    static List<UrlNormal.Destination> of(PostmanEnvironment environment, Set<String> urlForming) {
         Set<UrlNormal.Destination> found = new LinkedHashSet<>();
         if (environment == null) {
             return List.of();
@@ -40,7 +56,7 @@ final class ProductionDestinations {
         Map<String, PostmanVariable> inForce = environment.inForce();
         List<VariableLayer> layers = List.of(VariableLayer.environment(environment.name(), inForce));
         for (PostmanVariable variable : inForce.values()) {
-            if (!variable.hasValue()) {
+            if (!variable.hasValue() || (notACall(variable.key()) && !urlForming.contains(variable.key()))) {
                 continue;
             }
             Resolution resolved = WITHIN.resolve(variable.value(), layers);
@@ -54,5 +70,55 @@ final class ProductionDestinations {
             }
         }
         return new ArrayList<>(found);
+    }
+
+    /**
+     * The names of the variables the urls of these collections build their scheme, host and port
+     * from: every placeholder written before the path starts.
+     */
+    static Set<String> urlForming(List<StoredCollection> collections) {
+        Set<String> names = new LinkedHashSet<>();
+        for (StoredCollection collection : collections) {
+            for (StoredCollection.Mapped request : collection.requests()) {
+                String url = request.request().url();
+                if (url != null) {
+                    names.addAll(Placeholders.names(authority(url.strip())));
+                }
+            }
+        }
+        return names;
+    }
+
+    /** The text of a url template up to where its path starts: the scheme and the authority, or everything before the first slash. */
+    private static String authority(String url) {
+        int scheme = url.indexOf("://");
+        int from = scheme > 0 && !url.substring(0, scheme).contains("{{") ? scheme + 3 : 0;
+        // A placeholder can hold a slash, so the search for the path skips over each one whole.
+        int at = from;
+        while (at < url.length()) {
+            if (url.startsWith("{{", at)) {
+                int close = url.indexOf("}}", at + 2);
+                if (close < 0) {
+                    return url;
+                }
+                at = close + 2;
+                continue;
+            }
+            if ("/?#".indexOf(url.charAt(at)) >= 0) {
+                return url.substring(0, at);
+            }
+            at++;
+        }
+        return url;
+    }
+
+    /** True when the name says the variable is the address of a callback or of an authentication endpoint. */
+    static boolean notACall(String name) {
+        for (String word : name.split("(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")) {
+            if (NOT_A_CALL.contains(word.toLowerCase(java.util.Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 }
