@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.compare.Difference;
 import org.p32h.interop.epa.pave.model.compare.DifferenceKind;
 import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -29,23 +30,122 @@ final class ComparisonMasks {
         return masked;
     }
 
-    /** A whole request as shown, JSON or not, with each credential typed into it masked. */
+    /**
+     * A whole request as shown, JSON or not, with each credential typed into it masked. A text
+     * that reads as JSON, even broken JSON, is walked member by member, so its layout is kept and
+     * a long stretch with no quote in it cannot exhaust the stack as a pattern over the whole text
+     * can; each member is then judged by the rule alone. Any other text goes to the rule whole.
+     */
     String body(String text) {
         if (text == null) {
             return null;
         }
-        LiteralCredentials.Marked marked = LiteralCredentials.inBody(text);
+        String start = text.strip();
+        if (!start.startsWith("{") && !start.startsWith("[")) {
+            return wholeText(text);
+        }
+        StringBuilder out = new StringBuilder(text.length());
+        int copied = 0;
+        int at = 0;
+        while (true) {
+            int nameStart = text.indexOf('"', at);
+            if (nameStart < 0) {
+                break;
+            }
+            int nameEnd = closingQuote(text, nameStart);
+            if (nameEnd < 0) {
+                break;
+            }
+            int colon = skipSpace(text, nameEnd + 1);
+            if (colon >= text.length() || text.charAt(colon) != ':') {
+                at = nameEnd + 1;
+                continue;
+            }
+            int valueStart = skipSpace(text, colon + 1);
+            if (valueStart >= text.length() || text.charAt(valueStart) != '"') {
+                at = valueStart;
+                continue;
+            }
+            int valueEnd = closingQuote(text, valueStart);
+            if (valueEnd < 0) {
+                break;
+            }
+            String name = unescaped(text.substring(nameStart + 1, nameEnd));
+            String value = unescaped(text.substring(valueStart + 1, valueEnd));
+            if (!isMask(value) && credential(name, value)) {
+                out.append(text, copied, valueStart + 1).append(Secrets.mask(name + LiteralCredentials.SUFFIX));
+                copied = valueEnd;
+                masked++;
+            }
+            at = valueEnd + 1;
+        }
+        out.append(text, copied, text.length());
+        return out.toString();
+    }
+
+    /** A text that is not JSON, judged whole by the rule a run applies to such a body. */
+    private String wholeText(String text) {
+        LiteralCredentials.Marked marked;
+        try {
+            marked = LiteralCredentials.inBody(text);
+        } catch (StackOverflowError tooLong) {
+            // The rule could not be applied to this text, so none of it is shown: showing it whole could show a credential.
+            masked++;
+            return "(Not shown: this text could not be checked for a credential typed into it.)";
+        }
         if (marked.none()) {
             return text;
         }
         String shown = marked.template();
         for (var entry : marked.values().entrySet()) {
-            // A secret variable filled into the pasted text arrives as its mask already, which is the better name to show.
-            boolean alreadyMasked = isMask(entry.getValue());
-            shown = shown.replace("{{" + entry.getKey() + "}}", alreadyMasked ? entry.getValue() : Secrets.mask(entry.getKey()));
-            masked += alreadyMasked ? 0 : 1;
+            shown = shown.replace("{{" + entry.getKey() + "}}", Secrets.mask(entry.getKey()));
+            masked++;
         }
         return shown;
+    }
+
+    /** True when the rule a run applies to a body masks this member: judged on the member alone. */
+    private static boolean credential(String name, String value) {
+        if (!Secrets.looksSecret(name)) {
+            return false;
+        }
+        ObjectNode alone = JsonNodeFactory.instance.objectNode();
+        alone.put(name, value);
+        try {
+            return !LiteralCredentials.inBody(alone.toString()).none();
+        } catch (StackOverflowError tooLong) {
+            // A value too long for the rule to read, under a name that reads as a credential, is masked.
+            return true;
+        }
+    }
+
+    private static int closingQuote(String text, int open) {
+        for (int i = open + 1; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\\') {
+                i++;
+            } else if (c == '"') {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int skipSpace(String text, int from) {
+        int i = from;
+        while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+            i++;
+        }
+        return i;
+    }
+
+    /** The text of a JSON string as written between its quotes, or as written when its escapes cannot be read. */
+    private static String unescaped(String written) {
+        if (written.indexOf('\\') < 0) {
+            return written;
+        }
+        JsonNode node = org.p32h.interop.epa.pave.model.JsonSafe.parse("\"" + written + "\"").node();
+        return node != null && node.isString() ? node.stringValue() : written;
     }
 
     private static boolean isMask(String value) {
@@ -85,13 +185,7 @@ final class ComparisonMasks {
             String shown = body(value.value());
             return masked == before ? value : Shown.of(shown);
         }
-        if (!"string".equals(type) || name == null || isMask(value.value())) {
-            return value;
-        }
-        // The element alone, judged exactly as it would be inside a body a run sends.
-        ObjectNode alone = JsonNodeFactory.instance.objectNode();
-        alone.put(name, value.value());
-        if (LiteralCredentials.inBody(alone.toString()).none()) {
+        if (!"string".equals(type) || name == null || isMask(value.value()) || !credential(name, value.value())) {
             return value;
         }
         masked++;

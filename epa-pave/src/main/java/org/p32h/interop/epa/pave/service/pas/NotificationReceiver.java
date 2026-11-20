@@ -552,7 +552,7 @@ public class NotificationReceiver {
 
         VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut);
         NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
-                links.unmatched());
+                links.unmatched(), sampleScenarioId != null);
         return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
     }
 

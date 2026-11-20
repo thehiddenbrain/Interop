@@ -205,6 +205,29 @@ class SubscriptionServiceTest {
                 .doesNotContain("placeholder-receiver-token");
     }
 
+    @Test
+    void aCreateWithNoAddressToCallBackIsNeverSaidToCallBackOneAndItsToneIsNotTheOneForNothingFurther() {
+        RunEnvelope<SubscriptionDetail> created = service(mockClient, "mock", Map.of("subscription.callback-url", ""))
+                .run(CREATE, request().build(), RunOrigin.manual(), null);
+        assertThat(created.verdict().supporting()).contains("The request named no url to call back, and the service's answer names none.")
+                .noneMatch(line -> line.startsWith("It calls back"));
+        assertThat(created.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.OPEN_CONFIG);
+        assertThat(created.verdict().tone()).isNotEqualTo(org.p32h.interop.epa.pave.model.Tone.CLEAR);
+    }
+
+    @Test
+    void theAddressLineSaysWhatTheRequestNamedAndWhatTheServiceAnsweredWhenTheyDiffer() {
+        assertThat(SubscriptionVerdicts.endpointLine("https://a.example.invalid/x", true, null))
+                .isEqualTo("The request named no url to call back, and the service answered with one the request did not name: "
+                        + "https://a.example.invalid/x.");
+        assertThat(SubscriptionVerdicts.endpointLine("https://a.example.invalid/x", true, "https://b.example.invalid/y"))
+                .isEqualTo("The request named https://b.example.invalid/y to call back, and the service answered with another address: "
+                        + "https://a.example.invalid/x.");
+        assertThat(SubscriptionVerdicts.endpointLine(null, true, "https://b.example.invalid/y"))
+                .isEqualTo("The request named https://b.example.invalid/y to call back, and the service's answer names no url to call back.");
+        assertThat(SubscriptionVerdicts.endpointLine("https://a.example.invalid/x", false, null)).isEqualTo("It calls back https://a.example.invalid/x.");
+    }
+
     /** The bodies a client was handed to send, as they went on the wire. */
     private List<String> sentBodies(String template) {
         List<String> bodies = new java.util.ArrayList<>();
@@ -358,10 +381,11 @@ class SubscriptionServiceTest {
         assertThat(result.protocol()).isEqualTo(Protocol.SUBSCRIPTION);
         assertThat(result.operation()).isEqualTo(CREATE);
         assertThat(result.verdict().headline()).isEqualTo("The subscription was created.");
-        assertThat(result.verdict().tone()).isEqualTo(Tone.CLEAR);
+        // The next step is the tester's, so the tone is not the one for nothing further required.
+        assertThat(result.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         assertThat(result.verdict().supporting()).containsExactly(
                 "Mock scenario pas-10-subscription-lifecycle answered: the default for a subscription call, because no scenario was chosen.",
-                "Its id is " + ID + ".", "Status: Requested: the service has not yet activated it.", "It calls back " + RECEIVER + ".");
+                "Its id is " + ID + ".", "Status: Requested: the service has not yet activated it.", "It calls back " + RECEIVER + ", the address the request named.");
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         assertThat(result.nextStep().action()).isEqualTo(NextAction.START_PAS);
         // What a later read, update or delete starts from, and what a notification is matched by.

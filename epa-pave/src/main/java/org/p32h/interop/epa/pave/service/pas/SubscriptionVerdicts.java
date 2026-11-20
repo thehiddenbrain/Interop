@@ -36,6 +36,16 @@ public final class SubscriptionVerdicts {
      * @param subscriptionId the id the run is about: the one asked for, or the one a create returned. Null when there is none
      */
     public static VerdictView verdict(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId) {
+        return verdict(reading, exchange, operation, subscriptionId, false, null);
+    }
+
+    /**
+     * @param sentSubscription true when the call sent a subscription (a create or an update), so the
+     *                         address it named to call back can be set beside the one the service answered with
+     * @param sentEndpoint     that address as it may be shown, or null when the request named none
+     */
+    public static VerdictView verdict(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
+                                      boolean sentSubscription, String sentEndpoint) {
         SubscriptionOutcome outcome = reading.outcome();
         List<SubscriptionView> subscriptions = reading.detail().subscriptions();
         List<String> supporting = new ArrayList<>();
@@ -96,14 +106,31 @@ public final class SubscriptionVerdicts {
                 if (view.status().code() != null) {
                     supporting.add(name + "Status: " + view.status().display() + ".");
                 }
-                if (view.endpoint().hasValue()) {
-                    supporting.add(name + "It calls back " + view.endpoint().value() + ".");
-                } else {
-                    supporting.add(name + "It names no url to call back.");
-                }
+                supporting.add(name + endpointLine(view.endpoint().hasValue() ? view.endpoint().value() : null, sentSubscription, sentEndpoint));
             }
         }
         return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
+    }
+
+    /**
+     * The address a subscription calls back, worded from both sides when the request named one or
+     * was a subscription that could have: what the request named and what the service answered,
+     * and that the two differ when they do. The answer alone would have the tool say the service
+     * calls back an address nobody gave it.
+     */
+    static String endpointLine(String answered, boolean sentSubscription, String sent) {
+        if (!sentSubscription) {
+            return answered == null ? "It names no url to call back." : "It calls back " + answered + ".";
+        }
+        if (sent == null) {
+            return answered == null ? "The request named no url to call back, and the service's answer names none."
+                    : "The request named no url to call back, and the service answered with one the request did not name: " + answered + ".";
+        }
+        if (answered == null) {
+            return "The request named " + sent + " to call back, and the service's answer names no url to call back.";
+        }
+        return sent.equals(answered) ? "It calls back " + answered + ", the address the request named."
+                : "The request named " + sent + " to call back, and the service answered with another address: " + answered + ".";
     }
 
     /**

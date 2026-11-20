@@ -2,7 +2,9 @@ package org.p32h.interop.epa.pave.client.pas;
 
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.support.ExchangeOptions;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -12,6 +14,8 @@ import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The subscription client on the mock profile. It answers from the named steps of the scenario
@@ -48,7 +52,7 @@ public class MockSubscriptionClient implements SubscriptionClient {
 
     @Override
     public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
-        return answer(call, body, HttpSubscriptionClient.WRITE_OPTIONS, selection, STEP_CREATE);
+        return echoTheEndpoint(answer(call, body, HttpSubscriptionClient.WRITE_OPTIONS, selection, STEP_CREATE), body);
     }
 
     @Override
@@ -59,7 +63,40 @@ public class MockSubscriptionClient implements SubscriptionClient {
 
     @Override
     public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
-        return answer(call, body, HttpSubscriptionClient.WRITE_OPTIONS, selection, STEP_UPDATE);
+        return echoTheEndpoint(answer(call, body, HttpSubscriptionClient.WRITE_OPTIONS, selection, STEP_UPDATE), body);
+    }
+
+    /**
+     * A subscription the mock answers a create or an update with names the address to call back
+     * that the request sent, or none when it sent none. A scenario file holds one address, and
+     * answering with it would have the service call back an address nobody gave it: the result
+     * then said "It calls back ..." beside "the request named no url to call back".
+     */
+    static VendorExchange echoTheEndpoint(VendorExchange exchange, ResolvedText body) {
+        if (exchange.json() == null || !exchange.json().isObject() || body == null) {
+            return exchange;
+        }
+        JsonNode channel = JsonSafe.child(exchange.json(), "channel");
+        if (!(channel instanceof ObjectNode) || !channel.has("endpoint")) {
+            return exchange;
+        }
+        String sent = JsonSafe.presentText(JsonSafe.child(JsonSafe.parse(body.value()).node(), "channel"), "endpoint");
+        String answered = JsonSafe.presentText(channel, "endpoint");
+        if (java.util.Objects.equals(sent, answered)) {
+            return exchange;
+        }
+        ObjectNode copy = (ObjectNode) exchange.json().deepCopy();
+        ObjectNode copied = (ObjectNode) copy.get("channel");
+        if (sent == null) {
+            copied.remove("endpoint");
+        } else {
+            copied.put("endpoint", sent);
+        }
+        return Exchanges.fromResponse(exchange.request(), exchange.httpStatus(), exchange.responseHeaders(), JsonSafe.pretty(copy),
+                        exchange.elapsedMillis(), true)
+                .withScenario(exchange.scenarioId(), Texts.orElse(exchange.scenarioNote(), "") + (sent == null
+                        ? ". The subscription it answers with names no address to call back, because the request named none"
+                        : ". The subscription it answers with names the address to call back that the request sent"));
     }
 
     @Override

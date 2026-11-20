@@ -124,6 +124,15 @@ class NotificationReceiverTest {
         return submitted.ledger().record().correlation().get(RunRecord.CORR_CLAIM_RESPONSE_ID);
     }
 
+    @Test
+    void aSampleThatMatchesNoSubscriptionSaysToCreateOneAndDeliverTheSampleAgain() {
+        RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
+        NotificationView sample = receiver.deliverSample(new NotificationSampleRequest(null, submitted.runId(), null));
+        assertThat(sample.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(sample.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then choose "
+                + "Deliver a sample notification again.");
+    }
+
     // ---- a credential of the address to call back ----
 
     @Test
@@ -288,7 +297,13 @@ class NotificationReceiverTest {
 
         assertThat(view.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
         assertThat(view.verdict().headline()).isEqualTo("A notification arrived that matches no subscription this tool created.");
-        assertThat(view.verdict().tone()).isEqualTo(Tone.DATA);
+        assertThat(view.verdict().tone()).isEqualTo(Tone.NEUTRAL);
+        // The remedy first, the other cause second, and the reason does not repeat what the correlation line says.
+        assertThat(view.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, so that the next "
+                + "notification can be matched to it.");
+        assertThat(view.nextStep().reason()).isEqualTo("If a subscription was made another way (by another client, before this ledger began, "
+                + "or by another installation of this tool), the list of subscriptions shows what the service holds.");
+        assertThat(view.nextStep().reason()).doesNotContain("No run in the ledger");
         assertThat(view.verdict().supporting()).contains("It is recorded and shown all the same. It is not dropped.", "Its type: Event notification.");
         assertThat(view.subscriptionRunId()).isNull();
         assertThat(view.correlatedRunId()).isNull();
@@ -300,9 +315,6 @@ class NotificationReceiverTest {
                 + "subscription with that id. Another client may have created it, or it was created before this ledger began, or by another "
                 + "installation of this tool. It is recorded and shown, never dropped.");
         assertThat(view.nextStep().action()).isEqualTo(NextAction.REVIEW);
-        assertThat(view.nextStep().headline()).isEqualTo("Next: find out who created the subscription it names. The list of subscriptions "
-                + "shows what the service holds.");
-        assertThat(view.nextStep().reason()).isEqualTo("No run in the ledger created a subscription with the id this notification names.");
 
         // It has its ledger line, with the kind it was kept beside the fact that it is unmatched.
         RunRecord record = ledger.last();

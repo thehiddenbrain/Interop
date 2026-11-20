@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.crd.CardLinkView;
 import org.p32h.interop.epa.pave.model.crd.CardView;
@@ -44,6 +45,20 @@ public final class CrdVerdicts {
             + "supplied only in a request of your own, pasted as the body.";
 
     private CrdVerdicts() {
+    }
+
+    /**
+     * The verdict in the tone its next step allows. "No authorization is required" and "already
+     * met" carry the tone that means nothing further is required of the provider, and in CRD 2.0.1
+     * either can still come with documentation or information wanted, which sends the tester on to
+     * DTR or back to CRD. The strip is then coloured for something to do, because a tone says what
+     * the answer means for the person who must act. The outcome itself is unchanged.
+     */
+    public static VerdictView toned(VerdictView verdict, NextStepView next) {
+        if (verdict.tone() != Tone.CLEAR || next == null || next.action() == NextAction.FLOW_ENDS || next.action() == NextAction.NOTHING_FURTHER) {
+            return verdict;
+        }
+        return new VerdictView(verdict.headline(), verdict.outcomeCode(), verdict.outcomeLabel(), Tone.ACTION, verdict.supporting());
     }
 
     public static VerdictView verdict(CrdReading reading, VendorExchange exchange) {

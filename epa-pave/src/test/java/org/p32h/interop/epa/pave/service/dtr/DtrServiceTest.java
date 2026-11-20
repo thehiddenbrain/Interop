@@ -342,7 +342,7 @@ class DtrServiceTest {
         assertThat(empty.nextStep().reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer "
                 + "that no documentation is needed, so it cannot say what should happen next.");
         assertThat(askedNothing.verdict().headline()).isEqualTo("The response is complete and no question was asked.");
-        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.CLEAR);
+        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.ACTION);
 
         // The grid of the empty package still lists what would have answered, as not returned.
         assertThat(empty.determination()).extracting(DeterminationRow::label, DeterminationRow::presence)
@@ -1126,7 +1126,7 @@ class DtrServiceTest {
         assertStep(fourth, "RESPONSE_COMPLETED", 3, 3, "completed", List.of(), Map.of("mri-1-therapy", List.of("No (no)"),
                 "mri-2-red-flag", List.of("true"), "mri-3-red-flag-detail", List.of("Placeholder description of the symptom")));
         assertThat(fourth.verdict().headline()).isEqualTo("The questionnaire response is complete.");
-        assertThat(fourth.verdict().tone()).isEqualTo(Tone.CLEAR);
+        assertThat(fourth.verdict().tone()).isEqualTo(Tone.ACTION);
         assertThat(fourth.detail().form().complete()).isTrue();
         assertThat(fourth.expectation().result()).isEqualTo(TestResult.PASS);
 
