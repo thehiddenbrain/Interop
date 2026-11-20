@@ -1483,70 +1483,120 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 
 ## Limitations
 
-What is not done, not verified, or known to be wrong on this revision. `PROGRESS.md` is the
-project's own account, but **on this revision it is out of date about this work**: it still says
-that the README, `run.sh`, `run.cmd` and the sample files do not exist, gives the build as 1831
-tests (1,846 now, 2 of them skipped), and lists Wave C2 as not started. Everything else it lists
-as not done is repeated below.
+What is not done, not verified, or known to be wrong on the revision named at the end.
+`PROGRESS.md` is the project's own account and lists each item with the decision behind it; this
+section repeats what a tester or a maintainer needs to know.
 
-- **Nothing has been run against Onyx or any real service.** Every result anyone has seen came from
-  the mock profile or a fake.
-- **No screens on this revision.** The frontend is on its own branch.
-- **Message shapes do not conform to 2.0.1.** On this revision they were unverified: CRD and PAS
-  were written from memory of the guides, and DTR was compared by its own author only. The
-  operator has since supplied the CRD and DTR 2.0.1 packages (`hl7.fhir.us.davinci-crd-2.0.1.tgz`
-  and `hl7.fhir.us.davinci-dtr-2.0.1.tgz`), which removes the reason D-136 gave for comparing CRD
-  and DTR with the 2.2.0 ballot only. The comparison with 2.0.1 reported on a later commit of the
-  `epa-pave` branch: the tool does not conform (see
-  [What PAVE is not](#what-pave-is-not)). None of it is fixed on this revision. This README was not
-  compared with those packages.
-- **The section 27 verification agents** other than the member data audit had not run. The
-  guardrail audit, the fixture audit and the independent review of the integrator's own code (the
-  case runner, suites, the chain, the request guard) were owed.
-- **Code list findings with the placeholder list** do not say that the placeholder was used. On
-  live, ignore them until a real export is loaded.
-- **A secret a service sends back** in a Subscription's `channel.header` is visible in the wire
-  view.
-- **No real vendor Postman export was available.** The sample files and every test file were
-  written by hand to the shape the specification describes. Detection by url is verified only for
-  the standard FHIR operation paths and `/cds-services`.
-- **The notification receiver** does not authenticate its caller, has never been called by a real
-  payer, holds at most 200 notifications in memory (each cut at 128 KiB) and loses them on restart;
-  the ledger lines remain.
-- **In attachment mode `x12-275`** nothing sends the attachment.
-- **DTR:** which version of the guide the sandbox follows is not known and decides the shape of
-  next-question. A response built from nothing states no intended use. The author of an answer is
-  named without a role. `$expand` and `$log-questionnaire-errors` are not implemented. A failure of
-  the tool in the response step answers 500 and writes no ledger line.
-- **A DTR response refers to its order as `ServiceRequest/service-request-1`, and the PAS bundle
-  holds no ServiceRequest**, so that one reference does not resolve inside the submission (D-135).
-- **Lookups** have never met the real member API or provider directory. A member ID containing a
-  slash cannot be looked up. A name returned in one piece cannot fill first and last name.
-- **The ledger** was run on Linux only. That a line is flushed and synced to disk was checked by
-  reading the code, not by a test. Two instances pointed at one ledger folder are not
-  coordinated. A note written after the clock was set back across midnight is on disk and not
-  applied when the run is read.
-- **Comparing a pasted CRD request with the tool's own** (D-119) is not in this revision.
-- **Concurrency in the configuration store** (two uploads or a switch at the same moment) is
-  reasoned about and not tested.
-- **Two notifications arriving at the same moment** at the receiver are not tested.
-- **The receiver stops reading a notification at 8 MiB** (D-133): what lies beyond is not read,
-  and the record says the size is not known. Of what it reads it keeps the first 128 KiB.
-- **Reviewed by nobody but their author:** the chain as a suite case and the wiring of the second
-  wave (PAS and DTR into the application). The independent review of the integrator's own code
-  covered the first wave only.
-- **A key written into a url, or held by a variable with an ordinary name,** is shown as written
-  wherever configuration is shown (see [Secrets](#secrets)).
-- **`POST /api/raw` sends no body unless one is supplied** as `rawBody`; it does not send the body
-  saved in the collection.
-- **On mock, a run does not check that its url resolves.** Use `POST /api/config/resolve`.
+**Gates and checks that have not run**
+
+- **Nothing has been run against Onyx or any real service.** Every live check used a stand-in on a
+  loopback port.
+- Of the verification agents of section 27 of the specification, the member data audit (V2), the
+  guardrail audit (V3) and the fixture audit (V4) ran once, before the fixes, and have not run
+  again; the build audit from a fresh clone (V1), the house style audit (V5), the honesty audit
+  (V6) and the completeness audit on screen (V7) have not run. The house style rules are enforced
+  by the build on every file, which is not the same as the audit.
+- No business tester has used the tool. The journey under
+  [Using the screens](#using-the-screens) was walked by an automated browser, not by a person.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
   checklist.
+- STS, a mirror that needs credentials and a token server were not tried.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
   read-only for root. The same refusals are covered by tests that do run.
+
+**The screens**
+
+- Before anything is uploaded on live, the protocol tabs hold back their form; on mock they offer
+  it, because scenario files answer.
+- Some sentences on screen are the server's and are still being reworded: the DTR verdict carries
+  six to ten supporting lines; a completed DTR response is coloured as "nothing further is
+  required" although its next step is PAS; "This tool shows and hides them as the answers change"
+  is not true of a static questionnaire (its enabled items are worked out when the response is
+  completed); a PAS preview's notes are in the past tense; counts read "(s)"; a service that could
+  not be reached is named by a Java class; a mock timeout answers in about 400 ms under words that
+  say the service timed out.
+- The CRD comparison shows a credential in a pasted request as typed, and omits its caveat when the
+  two requests cannot be compared.
+- PAS: on mock, a subscription created with no call back address is said to call back one the mock
+  made up; an unmatched notification sends the tester after whoever created the subscription; the
+  timeout scenario says to inquire, and an inquiry with the same member is refused. What changed
+  per item between two answers is not shown.
+- Config: an operation is said to "still run" when a header or the body of its request holds a
+  placeholder with no value; which of several mapped requests an operation uses is said only in
+  the page's own words; the Config tab has no field for `urlValues`, so a request whose url holds a
+  `{part}` cannot be sent from it (use `POST /api/raw`).
+- History offers no `testerRef` or `zone` filter, and says every date is a UTC day.
+- The case: when a pasted request disagrees with a lookup, the lookup strip says only "Found."
+- Seen in a browser at 1366 by 768 and, for some states, 1920 by 1080, mostly on mock. At phone
+  width the History runs table and the CRD elements table run past the edge. No screen reader was
+  used, contrast was never measured, 200% zoom was never tried. Behaviour on screen has no test in
+  the build: it was checked by browser scripts kept outside the repository.
+
+**The protocols**
+
+- **Conformance**: checked against 2.0.1 as described under [What PAVE is not](#what-pave-is-not),
+  without US Core 3.1.1, SDC, HRex, the subscriptions backport or the X12 code lists. CRD sends the
+  ordering provider as a Practitioner or an Organization, never both, and never
+  `Organization.active`.
+- **CRD**: a pasted request for another hook is answered comparable, with a note.
+- **DTR**: which version of the guide the sandbox follows decides the shape of next-question and
+  is not known. Only the invariants dtrx-1 and dtrb-1 are evaluated. An answer's author carries no
+  role. `$expand` and `$log-questionnaire-errors` are not implemented. No CQL is run. A failure of
+  the tool in the response step answers 500 and writes no ledger line.
+- **PAS**: no claim update and no `$submit-attachment`; a resubmission reuses the claim id; after
+  "attachment required" the result names the guide's route and nothing builds it. In attachment
+  mode `x12-275` nothing sends the attachment. Mock X12 reason and category codes are
+  placeholders.
+- **The notification receiver** does not authenticate its caller, has never been called by a real
+  payer, holds at most 200 notifications in memory (each cut at 128 KiB, and read no further than
+  8 MiB) and loses them on restart; the ledger lines remain. Two notifications at the same moment
+  are not tested.
+- **The chain**: a DTR package that goes straight on to PAS is driven by no test and no mock
+  scenario. A later step handed only the procedure codes its line already holds is marked not
+  replayable alone. A well-formed chain id the tool never issued is accepted.
+
+**Configuration, the guardrail and secrets**
+
+- No real vendor Postman export was available. The sample files and every test file were written
+  by hand to the shape the specification describes. Detection by url is verified only for the
+  standard FHIR operation paths and `/cds-services`.
+- Concurrency in the configuration store (two uploads or a switch at the same moment) is reasoned
+  about and not tested.
+- The guardrail does not see another DNS name for a production host, or a production address that
+  comes from an operating system variable or a secret (see
+  [The production guardrail](#the-production-guardrail)). How a real FHIR server acts on `//`, `;`,
+  `..;` or an encoded slash inside a path segment was not checked.
+- A key written into a url, or held by a variable with an ordinary name, or typed into a path
+  segment or a host of a collection, is shown as written (see [Secrets](#secrets)). A secret a
+  service sends back re-encoded, shorter than six characters, or as a JSON number, is not masked;
+  for a request sent as it is written, the server does not mask it in the returned fields.
+- **On mock, a CRD, DTR or PAS run does not check that its url resolves.** Use the Config tab or
+  `POST /api/config/resolve`.
+
+**The ledger, lookups, suites, code list, the HTTP edge**
+
+- **The ledger** was run on Linux only. Flush and sync are checked by reading the code. Two
+  instances pointed at one ledger folder are not coordinated. A note written after the clock was
+  set back across midnight is on disk and not applied when the run is read. A run with a body of
+  your own records no member, NPI or line of business, and nothing on its line tells two such runs
+  apart. After the ledger folder was restored, the server kept saying it cannot write until the
+  next write succeeded.
+- **Lookups** have never met the real member API or provider directory. A name returned in one
+  piece cannot fill first and last name. An identifier with an encoded slash in the path form ends
+  as a bare 400; use the query form.
+- **Suites**: whether a code assertion's value is in its value set is not checked before sending. A
+  second suite started while one runs is answered 409 with kind `VALIDATION`.
+- **The code list**: no real P32H export was available, so everything about its shape is assumed.
+  A copy of the placeholder set as `codelist.file` counts as a real list.
+- **Fixtures**: any new top-level key in a scenario file stops the mock start until the loader
+  knows it. The CRD, DTR and PAS scenario files were rewritten after the fixture audit and not
+  audited again.
+- **The HTTP edge**: only Linux, curl, raw sockets and headless Chromium were used. `OPTIONS *`
+  carries none of the tool's headers. A cross-site request that carries neither `Sec-Fetch-Site`
+  nor `Origin` is let through.
 
 ## What this README was checked against
 
