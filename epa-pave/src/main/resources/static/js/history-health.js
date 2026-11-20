@@ -92,8 +92,11 @@ export function createHealth(app, announce) {
                 + 'That is not the same as none.']);
         }
         if (health.unreadableLines > 0) {
+            const files = Object.entries(health.unreadableFiles || {});
             problems.push([count(health.unreadableLines) + (health.unreadableLines === 1 ? ' line' : ' lines') + ' of the ledger could not be read.',
-                'They are left out of this list and out of the export. The files themselves are not changed: look at them in the folder below.']);
+                ['They are left out of this list and out of the export. The files themselves are not changed: look at them in the folder below.',
+                    files.length > 0 ? el('ul', {class: 'plain-list small'}, files.map(([file, lines]) =>
+                        el('li', null, code(file), ': ' + count(lines) + (lines === 1 ? ' line' : ' lines')))) : null]]);
         }
         const today = 'today, the UTC day ' + utcToday() + ', which is how the ledger counts days';
         const where = el('p', {class: 'small quiet'}, health.enabled && health.writable ? 'Writing to ' : 'The ledger folder is ', code(health.directory || 'no folder stated'),
@@ -108,7 +111,7 @@ export function createHealth(app, announce) {
         }
         fill(node, el('div', {class: 'ledger ledger--missing history-health__alarm'},
             problems.map(([title, detail]) => el('div', {class: 'history-health__problem'},
-                el('p', {class: 'history-health__state'}, title), el('p', null, detail))),
+                el('p', {class: 'history-health__state'}, title), el('div', null, detail))),
             health.enabled && typeof health.runsToday === 'number'
                 ? el('p', null, count(health.runsToday) + (health.runsToday === 1 ? ' run is' : ' runs are') + ' recorded in the file of ' + today + '.') : null,
             where));

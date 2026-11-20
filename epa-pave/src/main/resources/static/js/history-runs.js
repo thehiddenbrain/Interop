@@ -13,6 +13,9 @@ import {errorPanel} from './result.js';
 import {runLink, chainLink, suiteRunsLink, none, memberShort, outcomeOf, expectedOf, whatRan, whereRan, whenFiled, utcDayNote} from './history-common.js';
 import {replayReport, summaryText} from './history-replay.js';
 
+// The filters of the list that the export takes as well, by their query names. The export takes no others.
+const EXPORT_FILTERS = ['protocol', 'result'];
+
 // Every filter of GET /api/runs, by the name the endpoint gives it, with the words for it on screen.
 const FILTERS = [
     ['from', 'From'], ['to', 'To'], ['protocol', 'Protocol'], ['operation', 'Operation'], ['outcome', 'Outcome'],
@@ -183,8 +186,11 @@ export function createRunsList(app, context) {
     function drawStatus(body, query) {
         const active = FILTERS.filter(([name]) => query.get(name));
         const matched = body.count === 0 ? [el('strong', null, '0'), ' runs match.'] : body.truncated
-            ? ['Showing the newest ', el('strong', null, count(body.count)), ' runs. More runs match: the ledger stopped at the limit and did not count the rest. '
-                + 'Choose "Every match" under How many, or narrow the filters, to see them.']
+            ? (typeof body.matched === 'number'
+                ? ['Showing the newest ', el('strong', null, count(body.count)), ' of ', el('strong', null, count(body.matched)), ' runs that match. '
+                    + 'Choose "Every match" under How many, or narrow the filters, to see the rest.']
+                : ['Showing the newest ', el('strong', null, count(body.count)), ' runs. More runs match: the ledger stopped at the limit and did not count the rest. '
+                    + 'Choose "Every match" under How many, or narrow the filters, to see them.'])
             : [el('strong', null, count(body.count)), body.count === 1 ? ' run matches' : ' runs match',
                 active.length > 0 ? ' these filters, and every one is shown.' : ', and every one is shown.'];
         fill(status,
@@ -214,7 +220,10 @@ export function createRunsList(app, context) {
         return name === 'from' || name === 'to' ? el('strong', null, value) : code(value);
     }
 
-    /** The export and the replay of a date range. Both take the dates only, and say so. */
+    /**
+     * The export and the replay of a date range. The export takes the dates, the protocol and the
+     * test result as the list does; a replay takes the dates only. Each says what it leaves out.
+     */
     function drawActions(query) {
         const dates = new URLSearchParams();
         for (const name of ['from', 'to']) {
@@ -222,18 +231,27 @@ export function createRunsList(app, context) {
                 dates.set(name, query.get(name));
             }
         }
+        const exported = new URLSearchParams(dates);
+        for (const name of EXPORT_FILTERS) {
+            if (query.get(name)) {
+                exported.set(name, query.get(name));
+            }
+        }
         const otherFilters = FILTERS.some(([name]) => name !== 'from' && name !== 'to' && query.get(name));
+        const notExported = FILTERS.some(([name]) => name !== 'from' && name !== 'to' && !EXPORT_FILTERS.includes(name) && query.get(name));
         const range = dates.get('from') || dates.get('to')
             ? [dates.get('from') ? ['from ', dates.get('from')] : 'from the first run', ' ', dates.get('to') ? ['to ', dates.get('to')] : 'to the latest',
                 ', counted in UTC days']
             : 'of every day in the ledger';
         fill(actions,
             el('div', {class: 'history-actions__item'},
-                el('a', {class: 'button button--quiet', href: '/api/runs/export.csv' + (dates.toString() ? '?' + dates.toString() : ''), download: ''},
+                el('a', {class: 'button button--quiet', href: '/api/runs/export.csv' + (exported.toString() ? '?' + exported.toString() : ''), download: ''},
                     'Export runs as CSV'),
                 el('p', {class: 'small'}, 'A CSV file of the runs ', range, ', one row per run with every column of the ledger line. '
                     + 'A spreadsheet opens it as it is.',
-                    otherFilters ? el('strong', null, ' The export takes the dates only: it holds every run in those dates, whatever the other filters above.') : null)),
+                    EXPORT_FILTERS.some(name => query.get(name)) ? ' It keeps the protocol and the test result chosen above.' : null,
+                    notExported ? el('strong', null, ' It does not take the other filters above: it holds every run that matches the dates, '
+                        + 'the protocol and the test result.') : null)),
             el('div', {class: 'history-actions__item'},
                 dates.toString() ? replayOpener(dates) : null,
                 el('p', {class: 'small'}, dates.toString()

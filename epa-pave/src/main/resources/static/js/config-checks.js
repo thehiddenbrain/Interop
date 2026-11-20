@@ -196,7 +196,10 @@ export function createChecksView(context) {
                 el('strong', null, row.label),
                 target && target.display ? [code(target.display, 'literal--address'), target.source ? el('div', {class: 'small quiet'}, target.source) : null]
                     : none('no address configured'),
-                enabled ? switchedOn(enabled) : none('not stated'),
+                // Whether the lookup is on, as the server says it; the setting is read only when the server does not say.
+                typeof row.lookupEnabled === 'boolean'
+                    ? (row.lookupEnabled ? 'yes' : el('strong', null, 'no'))
+                    : enabled ? switchedOn(enabled) : none('not stated'),
                 [row.unavailable ? el('strong', null, row.unavailable) : null, row.blocked ? el('div', null, row.blocked) : null,
                     row.note ? el('div', {class: 'small'}, row.note) : null,
                     !row.unavailable && !row.blocked && !row.note ? 'Configured.' : null]

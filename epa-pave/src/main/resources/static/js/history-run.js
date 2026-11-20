@@ -95,10 +95,12 @@ export function createRunView(app, context) {
                     run.errorType && run.errorType !== 'NONE' ? [', error ', code(run.errorType)] : null, '.')]),
                 answer('Did it match', [stamp(run.result, 'large')]),
                 answer('What next', run.nextAction
-                    ? [code(run.nextAction), el('p', {class: 'small quiet'}, 'The name of the step this run named. The ledger keeps the name only, '
-                        + 'and the server gives no words for it afterwards, so the sentence the result showed cannot be shown here.'),
-                        run.chainId ? el('p', {class: 'small'}, chainLink(run.chainId, 'Open its chain'), ' for the next step in words.')
-                            : el('p', {class: 'small'}, 'To read it in words, load this case into the form below and send it: the result states the next step.')]
+                    ? [vocabulary.nextAction(run.nextAction) ? [el('strong', null, vocabulary.nextAction(run.nextAction)), ' '] : null,
+                        el('span', {class: 'small'}, '(', code(run.nextAction), ')'),
+                        el('p', {class: 'small quiet'}, 'The step this run named, in the server\'s words for it. The ledger keeps the name only, '
+                        + 'so the reason the result gave beside it is not kept.'),
+                        run.chainId ? el('p', {class: 'small'}, chainLink(run.chainId, 'Open its chain'), ' to see where the journey stands now.')
+                            : el('p', {class: 'small'}, 'To read the reason, load this case into the form below and send it: the result states it.')]
                     : [none('not recorded'), el('p', {class: 'small quiet'}, 'This line names no next step.')])),
 
             el('div', {class: 'facts-pair history-run__facts'},

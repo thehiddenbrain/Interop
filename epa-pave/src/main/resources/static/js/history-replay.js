@@ -7,6 +7,7 @@
 // that nothing was compared, and they are drawn as that, never as a failure.
 
 import {el, code, count, when, table, millis} from './dom.js';
+import {toneMark} from './marks.js';
 import {stamp} from './marks.js';
 import {runLink, outcomeOf, whatRan, none, whereRan} from './history-common.js';
 
@@ -132,6 +133,10 @@ function entryDetail(entry, vocabulary) {
         const run = entry.replayed;
         node.append(el('div', {class: 'history-replay__new'},
             el('p', {class: 'sub-heading'}, 'The run this replay made'),
+            // What the service said this time and what to do next, in the server's words for the new run.
+            entry.verdict ? el('p', {class: 'history-replay__verdict'}, toneMark(entry.verdict.tone), ' ', el('strong', null, entry.verdict.headline)) : null,
+            entry.nextStep && entry.nextStep.headline ? el('p', null, el('span', {class: 'quiet'}, 'Next step: '), entry.nextStep.headline,
+                entry.nextStep.reason ? el('span', {class: 'small quiet'}, ' ' + entry.nextStep.reason) : null) : null,
             el('dl', {class: 'facts facts--ruled'},
                 el('dt', null, 'Run'), el('dd', null, runLink(run.runId), ' ', el('span', {class: 'small quiet'}, 'opens its full record')),
                 el('dt', null, 'Outcome'), el('dd', null, outcomeOf(vocabulary, run), ' ', el('span', {class: 'small'}, code(run.outcome))),
