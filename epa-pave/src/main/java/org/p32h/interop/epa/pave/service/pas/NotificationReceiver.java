@@ -585,6 +585,11 @@ public class NotificationReceiver {
             } else if (target == null) {
                 unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
                 notLookedUp(notes, unasked, "No ledger is available, so the subscription it names could not be looked up.");
+            } else if (!RunRecord.keepsIdentifier(subscriptionId)) {
+                // The ledger writes such an id as its length, so no line can be found by it, and
+                // "no run created it" would not be known to be true.
+                unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
+                notLookedUp(notes, unasked, NOT_KEPT_SUBSCRIPTION);
             } else {
                 boolean[] lookupFailed = new boolean[1];
                 RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, lookupFailed);
@@ -608,10 +613,16 @@ public class NotificationReceiver {
         if (ids.any() && target != null) {
             // Each identifier is asked about on its own, so one that points somewhere else is seen and said.
             Map<String, RunRecord> found = new LinkedHashMap<>();
-            if (ids.claimId() != null) {
+            // An id the ledger does not keep cannot be found in it, so it is not asked about, and that is said.
+            List<String> notKept = new ArrayList<>();
+            if (ids.claimId() != null && !RunRecord.keepsIdentifier(ids.claimId())) {
+                notKept.add("the claim id");
+            } else if (ids.claimId() != null) {
                 found.put("the claim id", find(target, EpaOperation.PAS_SUBMIT, RunRecord.CORR_CLAIM_ID, ids.claimId(), failed));
             }
-            if (ids.claimResponseId() != null) {
+            if (ids.claimResponseId() != null && !RunRecord.keepsIdentifier(ids.claimResponseId())) {
+                notKept.add("the ClaimResponse id");
+            } else if (ids.claimResponseId() != null) {
                 found.put("the ClaimResponse id", submission(target, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId(), failed));
             }
             if (ids.authorizationRef() != null) {
@@ -639,8 +650,13 @@ public class NotificationReceiver {
                 differs(notes, target, chosen, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef(), "The authorization number it carries");
             } else if (failed[0]) {
                 notLookedUp(notes, unasked, "The ledger could not be read, so the submission it is about could not be looked up.");
-            } else {
+            } else if (!found.isEmpty()) {
                 notes.add("No submission in the ledger carries " + String.join(" or ", found.keySet()) + " this notification carries.");
+            }
+            if (!notKept.isEmpty()) {
+                notLookedUp(notes, unasked, "The submission it is about could not be looked up by " + String.join(" or ", notKept)
+                        + " it carries: " + (notKept.size() == 1 ? "it reads" : "they read") + " like a member identifier or a date, "
+                        + "which the ledger does not keep, so no run can be found by " + (notKept.size() == 1 ? "it" : "them") + ".");
             }
         } else if (ids.any()) {
             notLookedUp(notes, unasked, "No ledger is available, so the submission it is about could not be looked up.");
@@ -649,6 +665,10 @@ public class NotificationReceiver {
         }
         return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes, List.copyOf(unasked));
     }
+
+    /** Why a subscription named by an id the ledger does not keep is not looked up. */
+    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names reads like a member identifier or a date, which the ledger "
+            + "does not keep, so the run that created the subscription cannot be found by it and was not looked up.";
 
     /** Says that a link could not be looked up, in the notes a reader sees and in the list the finding is raised from. */
     private static void notLookedUp(List<String> notes, List<String> unasked, String why) {
@@ -681,7 +701,8 @@ public class NotificationReceiver {
     /** Says so when the submission recorded a different value than the notification carries. The ledger does the comparing. */
     private static void differs(List<String> notes, RunLedger target, RunRecord submission, String key, String carried, String what) {
         String stored = submission.correlation().get(key);
-        if (carried == null || stored == null) {
+        // A value the record wrote as its length cannot be compared, and is not said to differ.
+        if (carried == null || stored == null || stored.matches("\\(not recorded, \\d+ characters\\)")) {
             return;
         }
         boolean same;
