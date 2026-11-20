@@ -583,7 +583,7 @@ public class ConfigStore {
         if (!names.isEmpty()) {
             warnings.add((names.size() == 1 ? "The variable " : "The variables ") + String.join(", ", names.stream()
                     .map(name -> "\"" + oneLine(name) + "\"").toList()) + (names.size() == 1 ? " reads" : " read")
-                    + " as member data: an identifier, a name or a birth date." + kept);
+                    + " as member data: an identifier, a name, a birth date, an address or a telephone number." + kept);
         }
         List<String> withExamples = new ArrayList<>();
         for (PostmanRequest request : requests) {

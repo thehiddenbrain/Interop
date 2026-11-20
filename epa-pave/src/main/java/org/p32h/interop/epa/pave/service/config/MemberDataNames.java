@@ -9,7 +9,9 @@ import org.p32h.interop.epa.pave.postman.PostmanVariable;
 
 /**
  * Names of variables that read as member data: a member, patient or subscriber identifier, a
- * person's name, a birth date. Decided by the name alone, never by the value, as a secret is.
+ * Medicare or Medicaid number, a social security or medical record number, a person's name, a
+ * birth date, an address, a telephone number. Decided by the name alone, never by the value, as
+ * a secret is.
  *
  * <p>The configuration store keeps what is uploaded as it is, because it is what the tool sends
  * from, so a variable of this kind sits on disk with whatever value it was exported with. The
@@ -18,7 +20,15 @@ import org.p32h.interop.epa.pave.postman.PostmanVariable;
  */
 final class MemberDataNames {
 
-    private static final Set<String> PERSON = Set.of("member", "patient", "subscriber", "beneficiary", "insured", "enrollee");
+    private static final Set<String> PERSON = Set.of("member", "mbr", "patient", "subscriber", "beneficiary", "insured", "enrollee",
+            "medicare", "medicaid");
+    /** Words that are member data by themselves: a Medicare beneficiary identifier, a social security or medical record number. */
+    private static final Set<String> IDENTIFIER_ALONE = Set.of("mbi", "ssn", "mrn", "hicn");
+    private static final Set<String> ADDRESS = Set.of("address", "street", "zip", "zipcode", "postal", "postcode");
+    private static final Set<String> TELEPHONE = Set.of("phone", "telephone", "tel");
+    /** Words that make an address the address of a machine, not of a person. */
+    private static final Set<String> MACHINE = Set.of("ip", "host", "server", "mac", "callback", "web", "base", "service", "proxy",
+            "remote", "bind", "listen", "gateway", "network");
     private static final Set<String> ABOUT_A_PERSON = Set.of("id", "identifier", "number", "no", "num", "name", "first", "last", "given",
             "family", "surname", "birth", "dob", "birthdate");
     private static final Set<String> WHERE_NOT_WHAT = Set.of("system", "url", "uri", "type", "path", "endpoint", "field", "key", "column",
@@ -46,7 +56,12 @@ final class MemberDataNames {
         boolean personName = joined.contains("firstname") || joined.contains("lastname") || joined.contains("givenname")
                 || joined.contains("familyname") || words.contains("surname");
         boolean aboutAPerson = words.stream().anyMatch(PERSON::contains) && words.stream().anyMatch(ABOUT_A_PERSON::contains);
-        return birth || personName || aboutAPerson;
+        boolean identifier = words.stream().anyMatch(IDENTIFIER_ALONE::contains) || joined.contains("socialsecurity")
+                || joined.contains("medicalrecord");
+        boolean address = (words.stream().anyMatch(ADDRESS::contains) || joined.contains("streetaddress"))
+                && words.stream().noneMatch(MACHINE::contains);
+        boolean telephone = words.stream().anyMatch(TELEPHONE::contains) || joined.contains("phonenumber");
+        return birth || personName || aboutAPerson || identifier || address || telephone;
     }
 
     /** The names, in file order and each once, of the variables that read as member data. Disabled ones too: they are in the file. */
