@@ -121,7 +121,9 @@ class PlayedTimeoutOverTheServerTest {
                 + "mock scenario, not a fault in the environment"}, new String[] {"/api/pas/submit", "P32H-PAS-ERR500", "VENDOR_ERROR",
                 "A failure played by a mock scenario, not a fault in the environment"}, new String[] {"/api/pas/submit", "P32H-PAS-BAD400",
                 "VENDOR_REJECTED", "A rejection played by a mock scenario, not by a service"}, new String[] {"/api/pas/submit",
-                "P32H-PAS-DOWN", "UNREACHABLE", "An unreachable service played by a mock scenario, not a fault in the environment"})) {
+                "P32H-PAS-DOWN", "UNREACHABLE", "An unreachable service played by a mock scenario, not a fault in the environment"},
+                new String[] {"/api/dtr/package", "P32H-DTR-MALFORMED", "MALFORMED_RESPONSE", "An unreadable answer played by a mock "
+                + "scenario, not a fault in the environment"})) {
             JsonNode failed = post(played[0], played[1]);
             assertThat(failed.at("/error/kind").asString()).as(played[1]).isEqualTo(played[2]);
             assertThat(failed.at("/error/heading").asString()).as(played[1]).isEqualTo(played[3]);

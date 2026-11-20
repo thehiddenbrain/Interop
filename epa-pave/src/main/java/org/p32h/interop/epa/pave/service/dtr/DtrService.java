@@ -472,11 +472,17 @@ public class DtrService {
         if (transport != null) {
             return transport;
         }
-        return ErrorView.of(ErrorKind.MALFORMED_RESPONSE,
-                "The service answered" + (exchange.httpStatus() == null ? "" : " with HTTP " + exchange.httpStatus())
-                        + ", but what it sent cannot be used as a questionnaire.",
-                "The problems are listed with this result and the body is shown in full. Report it as a defect in the service.")
-                .withHttpStatus(exchange.httpStatus()).withIssues(reading.detail().issues());
+        String title = "The service answered" + (exchange.httpStatus() == null ? "" : " with HTTP " + exchange.httpStatus())
+                + ", but what it sent cannot be used as a questionnaire.";
+        // On the mock profile nothing leaves this machine: the package was played by a scenario,
+        // and it is headed and actioned as every other fault a scenario plays.
+        ErrorView view = epa.mock()
+                ? ErrorView.of(ErrorKind.MALFORMED_RESPONSE, title, "Nothing left this machine: a mock scenario played this answer to "
+                        + "show how this tool reads it. The problems are listed with this result and the body is shown in full. From a "
+                        + "real service it would be a defect in the service to report.").withHeading(RunSupport.PLAYED_UNREADABLE_HEADING)
+                : ErrorView.of(ErrorKind.MALFORMED_RESPONSE, title,
+                        "The problems are listed with this result and the body is shown in full. Report it as a defect in the service.");
+        return view.withHttpStatus(exchange.httpStatus()).withIssues(reading.detail().issues());
     }
 
     /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
