@@ -225,69 +225,24 @@ public class NotificationReceiver {
         this.reader = reader;
     }
 
-    /** The address this tool gives a service to call back, as configured, or null when it is not known here. */
-    private volatile String callbackTemplate;
-
     /**
-     * Tells the receiver the address it is reached at, so that a notification repeating a
-     * credential of that address (a token in its query, a secret variable in it) is shown with that
-     * credential masked, as a response repeating a secret of its request is. Given by setter, so
-     * that a receiver built in a test without it still works and masks nothing.
+     * Everything this tool could have sent to a service, by the rule the wire view of a call masks
+     * by: the secret variables of the active environment, the access token, the client secret and
+     * the credentials of the address to call back. A service may repeat any of them in a
+     * notification. Asked of the gateway each time, so a switch of environment is followed.
      */
-    @org.springframework.beans.factory.annotation.Autowired(required = false)
-    void callbackAddress(org.p32h.interop.epa.pave.config.OnyxProperties onyx) {
-        this.callbackTemplate = onyx == null || onyx.subscription() == null ? null : onyx.subscription().callbackUrl();
-    }
-
-    /**
-     * The credentials of the address to call back: each secret variable in it and each query
-     * parameter whose name reads as a credential. A notification is not an answer to a request of
-     * this tool's, so the access token and the other secrets of a request are not known here; the
-     * service has no reason to hold them, while it holds this address by design.
-     */
-    private org.p32h.interop.epa.pave.model.SentSecrets callbackSecrets() {
-        String template = callbackTemplate;
-        if (Texts.blank(template) || gateway == null) {
+    private org.p32h.interop.epa.pave.model.SentSecrets givenToServices() {
+        if (gateway == null) {
             return org.p32h.interop.epa.pave.model.SentSecrets.none();
         }
-        org.p32h.interop.epa.pave.model.SentSecrets.Builder found = org.p32h.interop.epa.pave.model.SentSecrets.builder();
         try {
-            ResolvedText resolved = gateway.resolve(template.strip(), Map.of());
-            if (resolved == null || !resolved.resolved() || resolved.value() == null) {
-                return org.p32h.interop.epa.pave.model.SentSecrets.none();
-            }
-            for (org.p32h.interop.epa.pave.model.VariableUse use : resolved.variables()) {
-                if (use.secret()) {
-                    ResolvedText one = gateway.resolve("{{" + use.name() + "}}", Map.of());
-                    if (one != null && one.resolved()) {
-                        found.variable(use.name(), one.value());
-                    }
-                }
-            }
-            String url = resolved.value();
-            int query = url.indexOf('?');
-            if (query >= 0) {
-                int end = url.indexOf('#', query);
-                for (String parameter : url.substring(query + 1, end < 0 ? url.length() : end).split("&")) {
-                    int equals = parameter.indexOf('=');
-                    if (equals <= 0) {
-                        continue;
-                    }
-                    String name = java.net.URLDecoder.decode(parameter.substring(0, equals), java.nio.charset.StandardCharsets.UTF_8);
-                    if (org.p32h.interop.epa.pave.model.Secrets.looksSecret(name)) {
-                        String value = parameter.substring(equals + 1);
-                        found.variable(name, value);
-                        found.variable(name, java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8));
-                    }
-                }
-            }
+            return gateway.secretsGivenToServices();
         } catch (RuntimeException e) {
             // A configuration that cannot be read now leaves the payload as it arrived; the run's
             // own call would report the configuration. The exception type only, never its message.
-            log.warn("The address to call back could not be read to mask a notification ({})", e.getClass().getSimpleName());
+            log.warn("The secrets to mask a notification with could not be worked out ({})", e.getClass().getSimpleName());
             return org.p32h.interop.epa.pave.model.SentSecrets.none();
         }
-        return found.build();
     }
 
     /** Records whatever arrived at the receiver. Never throws for anything a sender sent. */
@@ -410,15 +365,17 @@ public class NotificationReceiver {
     private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes) {
         List<String> payloadNotes = new ArrayList<>(sampleNotes);
         String text = decode(inbound.kept(), inbound.cut(), payloadNotes);
-        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = callbackSecrets().mask(text);
+        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = givenToServices().mask(text);
         if (masked.places() > 0) {
             // Masked before anything reads it, so the designed view, the payload and the ledger line see the mask alone.
             text = masked.text();
             payloadNotes.add(masked.places() == 1
-                    ? "1 place in this payload is masked because it repeats a credential of the address this tool gives the service to "
-                            + "call back. What is shown is therefore not exactly what was received."
-                    : masked.places() + " places in this payload are masked because they repeat a credential of the address this tool gives "
-                            + "the service to call back. What is shown is therefore not exactly what was received.");
+                    ? "1 place in this payload is masked because it repeats a secret this tool could have sent to the service: a secret "
+                            + "variable, the access token, the client secret or a credential of the address to call back. What is shown is "
+                            + "therefore not exactly what was received."
+                    : masked.places() + " places in this payload are masked because they repeat secrets this tool could have sent to the "
+                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back. "
+                            + "What is shown is therefore not exactly what was received.");
         }
         String cut = null;
         if (inbound.cut()) {

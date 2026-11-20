@@ -115,8 +115,12 @@ class SecretsSentBackOverTheServerTest {
         registry.add("onyx.auth.enabled", () -> "true");
         registry.add("onyx.auth.token-url", () -> url("/token"));
         registry.add("onyx.auth.client-id", () -> "placeholder-client");
-        registry.add("onyx.auth.client-secret", () -> "placeholder-secret");
+        registry.add("onyx.auth.client-secret", () -> CLIENT_SECRET);
+        registry.add("onyx.subscription.callback-url", () -> "https://pave.example.invalid/api/pas/notifications?access_token=" + CALLBACK);
     }
+
+    private static final String CLIENT_SECRET = "ZZECHO-CLIENT-SECRET-0005";
+    private static final String CALLBACK = "ZZECHO-CALLBACK-TOKEN-0004";
 
     private static String url(String path) {
         return "http://127.0.0.1:" + VENDOR.getAddress().getPort() + path;
@@ -254,5 +258,20 @@ class SecretsSentBackOverTheServerTest {
         }
         assertThat(calls).anyMatch(call -> call.contains("/Claim/$submit") && call.contains("auth=Bearer " + BEARER));
         assertThat(calls).anyMatch(call -> call.contains("/cds-services/order-sign-crd") && call.contains("auth=Bearer " + BEARER));
+
+        // A notification the service delivers repeats each of the four kinds of secret this tool gives it: a secret variable
+        // of the active environment, the access token, the client secret and the credential of the address to call back.
+        String notification = "{\"resourceType\":\"Bundle\",\"type\":\"history\",\"entry\":[{\"resource\":{\"resourceType\":"
+                + "\"ClaimResponse\",\"id\":\"cr-echo-1\",\"disposition\":\"echo " + VARIABLE + " " + BEARER + " " + CLIENT_SECRET + " "
+                + CALLBACK + "\"}}]}";
+        HttpResponse<String> delivered = send("POST", "/api/pas/notifications", "application/fhir+json", notification);
+        assertThat(delivered.statusCode()).as(delivered.body()).isEqualTo(200);
+        HttpResponse<String> held = json("GET", "/api/pas/notifications", null);
+        for (HttpResponse<String> shown : List.of(delivered, held)) {
+            for (String secret : List.of(VARIABLE, BEARER, CLIENT_SECRET, CALLBACK)) {
+                assertThat(shown.body()).as("the notification holds " + secret).doesNotContain(secret);
+            }
+        }
+        assertThat(held.body()).contains("[secret tenantSecret]").contains("4 places in this payload are masked");
     }
 }

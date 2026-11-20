@@ -206,4 +206,19 @@ public interface OperationGateway {
         }
         return urls;
     }
+
+    /**
+     * Everything this tool could have sent to a service, as the masking of a response takes it:
+     * the value of every secret variable of the active environment (an operating system value one
+     * refers to included) and of application.yml, the access token held for the service, the
+     * client secret it is fetched with, and the credentials of the address the service is given to
+     * call back. For masking what a service sends without being asked, such as a notification,
+     * by the same rule the wire view of a call uses.
+     *
+     * <p>The values are held in a type that only masks text and never hands a value back. This
+     * default knows of none.
+     */
+    default org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
+        return org.p32h.interop.epa.pave.model.SentSecrets.none();
+    }
 }

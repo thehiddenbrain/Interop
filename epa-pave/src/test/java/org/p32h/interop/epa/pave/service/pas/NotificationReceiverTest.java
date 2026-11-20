@@ -135,25 +135,67 @@ class NotificationReceiverTest {
 
     // ---- a credential of the address to call back ----
 
+    /** The fake gateway, with the secrets the configuration would give the services. */
+    private static org.p32h.interop.epa.pave.service.config.OperationGateway withSecrets(FakeGateway fake,
+            org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        return new org.p32h.interop.epa.pave.service.config.OperationGateway() {
+            @Override
+            public org.p32h.interop.epa.pave.service.config.PreparedCall prepare(org.p32h.interop.epa.pave.service.config.CallIntent intent) {
+                return fake.prepare(intent);
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.ResolvedText resolve(String template, Map<String, String> runValues) {
+                return fake.resolve(template, runValues);
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.EnvironmentRef activeEnvironment() {
+                return fake.activeEnvironment();
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.service.config.WriteAccess writeAccess(org.p32h.interop.epa.pave.service.config.ProdUnlock unlock) {
+                return fake.writeAccess(unlock);
+            }
+
+            @Override
+            public long epoch() {
+                return fake.epoch();
+            }
+
+            @Override
+            public org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
+                return secrets;
+            }
+        };
+    }
+
     @Test
-    void aNotificationThatRepeatsACredentialOfTheAddressToCallBackShowsItsMaskEverywhere() {
-        gateway.variable("receiverToken", "placeholder-receiver-token-777777");
-        NotificationReceiver masking = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios);
-        masking.callbackAddress(OnyxProperties.of(Map.of("subscription.callback-url",
-                "https://pave.example.invalid/api/pas/notifications/{{receiverToken}}?access_token=placeholder-literal-cb-888888&tenant=t1")));
+    void aNotificationThatRepeatsASecretTheConfigurationGivesServicesShowsItsMaskEverywhere() {
+        org.p32h.interop.epa.pave.model.SentSecrets secrets = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("receiverToken", "placeholder-receiver-token-777777").variable("access_token", "placeholder-literal-cb-888888")
+                .variable("clientSecret", "placeholder-client-secret-999999").accessToken("placeholder-access-token-666666").build();
+        NotificationReceiver masking = new NotificationReceiver(withSecrets(gateway, secrets), support, ledgerProvider(), scenarios);
         String body = bundle(status(SUBSCRIPTION, "event-notification"), NotificationJson.claimResponse("cr-echo-1", null, "A1",
-                "\"disposition\":\"echo placeholder-literal-cb-888888 and placeholder-receiver-token-777777\""));
+                "\"disposition\":\"echo placeholder-literal-cb-888888 and placeholder-receiver-token-777777 and "
+                        + "placeholder-client-secret-999999 and placeholder-access-token-666666\""));
         NotificationView view = masking.receive(NotificationReceiver.Inbound.of(body));
 
         String shown = JsonSafe.mapper().writeValueAsString(view);
         assertThat(shown).doesNotContain("placeholder-literal-cb-888888").doesNotContain("placeholder-receiver-token-777777")
+                .doesNotContain("placeholder-client-secret-999999").doesNotContain("placeholder-access-token-666666")
                 .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access_token"))
-                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("receiverToken"));
-        assertThat(view.payloadNotes()).contains("2 places in this payload are masked because they repeat a credential of the address this "
-                + "tool gives the service to call back. What is shown is therefore not exactly what was received.");
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("receiverToken"))
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("clientSecret"))
+                .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access token"));
+        assertThat(view.payloadNotes()).contains("4 places in this payload are masked because they repeat secrets this tool could have "
+                + "sent to the service: a secret variable, the access token, the client secret or a credential of the address to call "
+                + "back. What is shown is therefore not exactly what was received.");
         assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-cb")
-                .doesNotContain("placeholder-receiver-token");
-        // The receiver built without the address masks nothing, and says nothing about masking.
+                .doesNotContain("placeholder-receiver-token").doesNotContain("placeholder-client-secret")
+                .doesNotContain("placeholder-access-token");
+        // A gateway that knows of no secret masks nothing, and the receiver says nothing about masking.
         NotificationView plain = receiver.receive(NotificationReceiver.Inbound.of(body));
         assertThat(plain.payload()).contains("placeholder-literal-cb-888888");
         assertThat(plain.payloadNotes()).noneMatch(note -> note.contains("masked"));

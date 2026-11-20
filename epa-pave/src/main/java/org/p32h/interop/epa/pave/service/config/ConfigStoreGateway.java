@@ -298,6 +298,91 @@ public class ConfigStoreGateway implements OperationGateway {
         return resolver.resolve(template, layers(store.snapshot(), runValues, null, Map.of())).text();
     }
 
+    /** Whatever holds the access token, asked only when a notification is masked. Absent in tests that build the gateway alone. */
+    private volatile org.springframework.beans.factory.ObjectProvider<HeldAccessToken> heldToken;
+
+    @Autowired(required = false)
+    void heldAccessToken(org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held) {
+        this.heldToken = held;
+    }
+
+    @Override
+    public org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
+        ConfigSnapshot snapshot = store.snapshot();
+        org.p32h.interop.epa.pave.model.SentSecrets.Builder found = org.p32h.interop.epa.pave.model.SentSecrets.builder();
+        List<VariableLayer> layers = layers(snapshot, Map.of(), null, Map.of());
+        // Secret by the same rule the wire view masks by, which is the resolver's: typed secret in
+        // Postman, a credential by its name, or a value read from the operating system.
+        Set<String> names = new LinkedHashSet<>();
+        StoredEnvironment active = snapshot.active();
+        if (active != null) {
+            names.addAll(active.content().inForce().keySet());
+        }
+        names.addAll(onyx.variables().keySet());
+        for (String name : names) {
+            for (Resolution.Piece piece : resolver.resolve("{{" + name + "}}", layers).pieces()) {
+                if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
+                    found.variable(piece.name(), piece.send());
+                }
+            }
+        }
+        if (onyx.auth() != null && Texts.present(onyx.auth().clientSecret())) {
+            Resolution secret = resolver.resolve(onyx.auth().clientSecret(), layers);
+            if (secret.complete()) {
+                found.variable("onyx.auth.client-secret", secret.send());
+            }
+        }
+        callbackCredentials(found, layers);
+        org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held = heldToken;
+        HeldAccessToken token = held == null ? null : held.getIfAvailable();
+        if (token != null) {
+            token.addTo(found);
+        }
+        return found.build();
+    }
+
+    /**
+     * The credentials of the address the service is given to call back: each secret variable in
+     * it, and each query parameter whose name reads as a credential, as written and decoded.
+     */
+    private void callbackCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, List<VariableLayer> layers) {
+        String template = onyx.subscription() == null ? null : onyx.subscription().callbackUrl();
+        if (Texts.blank(template)) {
+            return;
+        }
+        Resolution resolved = resolver.resolve(template.strip(), layers);
+        for (Resolution.Piece piece : resolved.pieces()) {
+            if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
+                found.variable(piece.name(), piece.send());
+            }
+        }
+        if (!resolved.complete() || resolved.send() == null) {
+            return;
+        }
+        String url = resolved.send();
+        int query = url.indexOf('?');
+        if (query < 0) {
+            return;
+        }
+        int end = url.indexOf('#', query);
+        for (String parameter : url.substring(query + 1, end < 0 ? url.length() : end).split("&")) {
+            int equals = parameter.indexOf('=');
+            if (equals <= 0) {
+                continue;
+            }
+            String name = java.net.URLDecoder.decode(parameter.substring(0, equals), java.nio.charset.StandardCharsets.UTF_8);
+            if (Secrets.looksSecret(name)) {
+                String value = parameter.substring(equals + 1);
+                found.variable(name, value);
+                try {
+                    found.variable(name, java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8));
+                } catch (IllegalArgumentException e) {
+                    // An escape that does not decode: the value as written is already held.
+                }
+            }
+        }
+    }
+
     @Override
     public EnvironmentRef activeEnvironment() {
         return store.snapshot().activeRef();
