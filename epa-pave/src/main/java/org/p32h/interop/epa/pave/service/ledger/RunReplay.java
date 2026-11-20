@@ -419,6 +419,11 @@ public class RunReplay {
                     + ", and its line holds a statement that something was there in its place, because what was there did not have the "
                     + "shape of one. Running it again without it would send a different request, and the two answers could not be compared.";
         }
+        if (RunRecord.CORR_CLAIM_ID.equals(needed) && RunRecord.token(sent)) {
+            return "This run sent a claim id, and its line holds it as a token, because a claim id the ledger cannot tell from "
+                    + "somebody's data is not kept as it was given. A token cannot be turned back into the claim id, so the same request "
+                    + "cannot be sent again. Send the inquiry from the PAS tab with the claim id the submission returned.";
+        }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code or held the "
                     + "member ID. The line holds a statement that something was there and not the code, so the same request cannot be "
@@ -442,9 +447,10 @@ public class RunReplay {
     static CaseSpec specFor(RunRecord original, Long epoch) {
         Map<String, String> correlation = new LinkedHashMap<>();
         original.correlation().forEach((key, value) -> {
-            // An authorization number the ledger tokenised is no longer the number, and a value the
-            // record refused never was an identifier. Neither can be sent anywhere.
-            boolean tokenised = RunRecord.CORR_AUTHORIZATION_REF.equals(key) && LedgerTokens.looksLikeToken(value);
+            // An authorization number or a supplied identifier the ledger tokenised is no longer the
+            // identifier, and a value the record refused never was one. Neither can be sent anywhere.
+            boolean tokenised = (RunRecord.CORR_AUTHORIZATION_REF.equals(key) || RunRecord.SUPPLIED_ID_KEYS.contains(key))
+                    && LedgerTokens.looksLikeToken(value);
             if (!tokenised && !NOT_RECORDED.matcher(value).matches()) {
                 correlation.put(key, value);
             }

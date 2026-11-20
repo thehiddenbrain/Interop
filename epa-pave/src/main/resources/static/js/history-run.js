@@ -25,6 +25,8 @@ const CORRELATION = {
     questionnaire: 'Questionnaire'
 };
 const RUN_KEYS = new Set(['correlatedRunId', 'subscriptionRunId']);
+const TOKEN_NOTE = 'Kept as a token, not as the identifier the service gave: the ledger cannot tell this identifier from somebody\'s '
+    + 'data. A notification that carries the identifier is still matched by it.';
 
 // The tabs a protocol's case can be loaded into.
 const TAB_OF = {CRD: 'crd', DTR: 'dtr', PAS: 'pas'};
@@ -210,7 +212,9 @@ export function createRunView(app, context) {
         rows.push(['Replay of', run.replayOfRunId ? runLink(run.replayOfRunId) : null]);
         for (const [key, value] of Object.entries(run.correlation || {})) {
             const label = Object.prototype.hasOwnProperty.call(CORRELATION, key) ? CORRELATION[key] : key;
-            rows.push([label, RUN_KEYS.has(key) && /^run-/.test(value) ? runLink(value) : code(value)]);
+            // A value of 64 hex digits is the ledger's token, written in place of an identifier that could be somebody's data.
+            rows.push([label, RUN_KEYS.has(key) && /^run-/.test(value) ? runLink(value)
+                : /^[0-9a-f]{64}$/.test(value) ? [code(value), el('div', {class: 'small quiet'}, TOKEN_NOTE)] : code(value)]);
         }
         rows.push(['Followed by', followers(run)]);
         return facts(rows, 'facts--ruled');

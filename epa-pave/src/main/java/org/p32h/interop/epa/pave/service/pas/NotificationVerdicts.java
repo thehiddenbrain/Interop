@@ -39,9 +39,9 @@ public final class NotificationVerdicts {
         /** The ledger could not be asked, so whether this tool created the subscription is not known. */
         NOT_ASKED,
         /**
-         * The subscription id it names reads like a member identifier or a date, which the ledger
-         * writes as its length, so no run can be found by it and whether this tool created the
-         * subscription is not known.
+         * The subscription id it names is not one identifier, which the ledger writes as its
+         * length, so no run can be found by it and whether this tool created the subscription is
+         * not known. Every identifier the ledger keeps, in clear or as a token, can be looked up.
          */
         NOT_KEPT
     }
@@ -244,9 +244,10 @@ public final class NotificationVerdicts {
             case NOT_ASKED -> new NextStepView(NextAction.REVIEW, "Next: find out why the ledger could not be read. Until it can, this "
                     + "tool cannot say whether it created the subscription this notification names.",
                     "The ledger could not be asked which run created the subscription.", carry);
-            case NOT_KEPT -> new NextStepView(NextAction.REVIEW, "Next: look at the subscription id the service gave. One that reads like "
-                    + "a member identifier or a date is not kept in the ledger, so a notification on that subscription cannot be matched to "
-                    + "the run that created it.", "The ledger does not keep the subscription id this notification names.", carry);
+            case NOT_KEPT -> new NextStepView(NextAction.REVIEW, "Next: look at the subscription id this notification names, below. It "
+                    + "is not one identifier, so the ledger cannot keep it and a notification on that subscription cannot be matched to "
+                    + "the run that created it. Report it to the people who look after the service.",
+                    "The ledger does not keep the subscription id this notification names.", carry);
         };
     }
 

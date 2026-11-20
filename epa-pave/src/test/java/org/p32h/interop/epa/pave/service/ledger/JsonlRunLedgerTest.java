@@ -228,15 +228,20 @@ class JsonlRunLedgerTest {
         assertThat(tokenised.correlation().get(RunRecord.CORR_AUTHORIZATION_REF)).matches("[0-9a-f]{64}")
                 .isEqualTo(tokenising.tokenFor("PA-PLACEHOLDER0001"));
         assertThat(text(dayFile(home.resolve("a"), clock.today()))).doesNotContain("PA-PLACEHOLDER");
-        assertThat(tokenised.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, "claim-1").containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, "sub-1")
+        // An identifier a service or a tester supplied follows the same policy, unless it cannot be anybody's data
+        // (found by the independent check of the member data fixes, N2 and N4).
+        assertThat(tokenised.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, tokenising.tokenFor("claim-1"))
+                .containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, tokenising.tokenFor("sub-1"))
                 .containsEntry(RunRecord.CORR_RUN_ID, "run-0").containsEntry(RunRecord.CORR_SUBSCRIPTION_RUN_ID, "run-s")
-                .containsEntry(RunRecord.CORR_CLAIM_RESPONSE_ID, "response-1").containsEntry(RunRecord.CORR_QUESTIONNAIRE, questionnaires)
-                .hasSize(7);
+                .containsEntry(RunRecord.CORR_CLAIM_RESPONSE_ID, tokenising.tokenFor("response-1"))
+                .containsEntry(RunRecord.CORR_QUESTIONNAIRE, questionnaires).hasSize(7);
+        assertThat(tokenising.matches(tokenised.correlation().get(RunRecord.CORR_SUBSCRIPTION_ID), "sub-1")).isTrue();
 
         JsonlRunLedger recording = recordingIds(home.resolve("b"), clock);
         RunRecord kept = recording.record(draft("run-2", clock).correlation(correlation).build()).record();
         // Kept, in the same no-space form a member ID is kept in.
-        assertThat(kept.correlation()).containsEntry(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER0001").hasSize(7);
+        assertThat(kept.correlation()).containsEntry(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER0001")
+                .containsEntry(RunRecord.CORR_CLAIM_ID, "claim-1").containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, "sub-1").hasSize(7);
     }
 
     @Test
@@ -285,7 +290,7 @@ class JsonlRunLedgerTest {
         assertThat(written.memberId()).isNull();
         assertThat(written.npi()).isNull();
         assertThat(written.dateOfService()).isNull();
-        assertThat(written.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, "claim-1");
+        assertThat(written.correlation().get(RunRecord.CORR_CLAIM_ID)).matches("[0-9a-f]{64}");
         assertThat(written.correlation().get(RunRecord.CORR_AUTHORIZATION_REF)).matches("[0-9a-f]{64}");
     }
 

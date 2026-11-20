@@ -216,15 +216,14 @@ class RunReplayTest {
         // An authorization number that was kept as it is, as on mock, is an identifier and goes along.
         RunRecord kept = draft("run-2", clock).correlation(Map.of(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001")).build();
         assertThat(RunReplay.specFor(kept, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_AUTHORIZATION_REF, "PA-PLACEHOLDER-0001"));
-        // Text shaped like a token under any other key is that entry's own value. This one has no run
-        // of six digits, which the record would not keep under a claim id since the second member data audit.
-        String tokenShaped = "a1b2c3d4".repeat(8);
-        RunRecord claim = draft("run-3", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, tokenShaped)).build();
-        assertThat(RunReplay.specFor(claim, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_CLAIM_ID, tokenShaped));
-        // A claim id that reads like a member identifier was written as its length, and is never sent as one.
-        RunRecord refused = draft("run-4", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, token)).build();
-        assertThat(refused.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, "(not recorded, 64 characters)");
-        assertThat(RunReplay.specFor(refused, null).correlation()).isEmpty();
+        // Text shaped like a token under a key whose identifier the ledger tokenises is taken for its
+        // token and never sent (the independent check of the member data fixes, N2 and N4).
+        RunRecord claim = draft("run-3", clock).correlation(Map.of(RunRecord.CORR_CLAIM_ID, token)).build();
+        assertThat(claim.correlation()).containsEntry(RunRecord.CORR_CLAIM_ID, token);
+        assertThat(RunReplay.specFor(claim, null).correlation()).isEmpty();
+        // Under a key the ledger does not tokenise it is that entry's own value.
+        RunRecord run = draft("run-4", clock).correlation(Map.of(RunRecord.CORR_RUN_ID, "run-" + "a1b2c3d4".repeat(8))).build();
+        assertThat(RunReplay.specFor(run, null).correlation()).containsExactly(Map.entry(RunRecord.CORR_RUN_ID, "run-" + "a1b2c3d4".repeat(8)));
     }
 
     @Test
@@ -487,6 +486,18 @@ class RunReplayTest {
         assertThat(report.results().get(0).reason()).startsWith("This run sent a claim id, and its line holds a statement");
         assertThat(report.results().get(1).reason()).startsWith("This run sent the questionnaire addresses it asked for");
         assertThat(report.results().get(2).reason()).startsWith("This run sent the questionnaire addresses it asked for");
+        assertThat(runner.asked).isEmpty();
+
+        // A claim id the ledger keeps as a token is refused with a sentence, and the token is never sent as the claim id.
+        RunReplay tokens = replay();
+        recorded(draft("run-5", clock).protocol(org.p32h.interop.epa.pave.model.Protocol.PAS)
+                .operation(org.p32h.interop.epa.pave.model.EpaOperation.PAS_INQUIRE)
+                .correlation(Map.of(RunRecord.CORR_CLAIM_ID, "0123456789abcdef".repeat(4))));
+        ReplayEntry token = tokens.replay(null, null, List.of("run-5")).results().get(0);
+        assertThat(token.status()).isEqualTo(ReplayStatus.NOT_REPLAYABLE);
+        assertThat(token.reason()).isEqualTo("This run sent a claim id, and its line holds it as a token, because a claim id the ledger "
+                + "cannot tell from somebody's data is not kept as it was given. A token cannot be turned back into the claim id, so the "
+                + "same request cannot be sent again. Send the inquiry from the PAS tab with the claim id the submission returned.");
         assertThat(runner.asked).isEmpty();
 
         // On a line where the value is what came back, a refused one is only not compared, and the run is sent.

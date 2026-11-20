@@ -592,8 +592,9 @@ public class NotificationReceiver {
                 unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
                 notLookedUp(notes, unasked, "No ledger is available, so the subscription it names could not be looked up.");
             } else if (!RunRecord.keepsIdentifier(subscriptionId)) {
-                // The ledger writes such an id as its length, so no line can be found by it, and
-                // "no run created it" would not be known to be true.
+                // Not one identifier: the ledger writes such a value as its length, so no line can
+                // be found by it, and "no run created it" would not be known to be true. Every
+                // identifier it does keep, in clear or as a token, is looked up below.
                 unmatched = NotificationVerdicts.Unmatched.NOT_KEPT;
                 notLookedUp(notes, unasked, NOT_KEPT_SUBSCRIPTION);
             } else {
@@ -661,8 +662,9 @@ public class NotificationReceiver {
             }
             if (!notKept.isEmpty()) {
                 notLookedUp(notes, unasked, "The submission it is about could not be looked up by " + String.join(" or ", notKept)
-                        + " it carries: " + (notKept.size() == 1 ? "it reads" : "they read") + " like a member identifier or a date, "
-                        + "which the ledger does not keep, so no run can be found by " + (notKept.size() == 1 ? "it" : "them") + ".");
+                        + " it carries: " + (notKept.size() == 1 ? "it is not" : "they are not") + " one identifier (more than 128 "
+                        + "characters, or a space or a sign an identifier does not hold), which the ledger does not keep, so no run can be "
+                        + "found by " + (notKept.size() == 1 ? "it" : "them") + ".");
             }
         } else if (ids.any()) {
             notLookedUp(notes, unasked, "No ledger is available, so the submission it is about could not be looked up.");
@@ -673,8 +675,9 @@ public class NotificationReceiver {
     }
 
     /** Why a subscription named by an id the ledger does not keep is not looked up. */
-    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names reads like a member identifier or a date, which the ledger "
-            + "does not keep, so the run that created the subscription cannot be found by it and was not looked up.";
+    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names is not one identifier (more than 128 characters, or a space "
+            + "or a sign an identifier does not hold), which the ledger does not keep, so the run that created the subscription cannot be "
+            + "found by it and was not looked up.";
 
     /** Says that a link could not be looked up, in the notes a reader sees and in the list the finding is raised from. */
     private static void notLookedUp(List<String> notes, List<String> unasked, String why) {

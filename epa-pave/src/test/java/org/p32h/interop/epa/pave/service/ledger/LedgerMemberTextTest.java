@@ -114,32 +114,46 @@ class LedgerMemberTextTest {
     }
 
     @Test
-    void anIdentifierAServiceSuppliesIsNotKeptWhenItReadsLikeAMemberIdOrADateAndTheToolsOwnAreKept() {
+    void anIdentifierAServiceSuppliesIsWrittenAsATokenUnlessItCannotBeAnybodysData() {
+        // The notification the auditor used, and the neighbours the independent check found kept in
+        // clear (N2: a member ID whose digits a separator splits) or no longer kept at all (N4: a
+        // number a FHIR server mints). Shape cannot tell these apart, so each is a token.
         JsonlRunLedger ledger = ledger(home, CLOCK);
-        Map<String, String> correlation = new LinkedHashMap<>();
-        // The notification the auditor used: no member on the line to compare with.
-        correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, "sub-S123456789");
-        correlation.put(RunRecord.CORR_CLAIM_ID, "Zzlastname-19610723");
-        correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789");
-        correlation.put(RunRecord.CORR_RUN_ID, "run-" + UUID);
-        ledger.record(draft("run-1", CLOCK).protocol(Protocol.SUBSCRIPTION).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).memberId(null)
-                .correlation(correlation).build());
-
-        JsonNode line = onlyLine();
-        JsonNode kept = line.get("correlation");
-        assertThat(text(kept, "subscriptionId")).isEqualTo("(not recorded, 14 characters)");
-        assertThat(text(kept, "claimId")).isEqualTo("(not recorded, 19 characters)");
-        assertThat(text(kept, "claimResponseId")).isEqualTo("(not recorded, 10 characters)");
-        assertThat(text(kept, "correlatedRunId")).isEqualTo("run-" + UUID);
+        List<String> given = List.of("sub-S123456789", "Zzlastname-19610723", "S123456789", "S123-456-789", "S12345.6789", "s12345_6789",
+                "ZZQ12345-01", "1052344", "cr-1052344");
+        for (int i = 0; i < given.size(); i++) {
+            Map<String, String> correlation = new LinkedHashMap<>();
+            correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, given.get(i));
+            correlation.put(RunRecord.CORR_CLAIM_ID, given.get(i));
+            correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, given.get(i));
+            correlation.put(RunRecord.CORR_RUN_ID, "run-" + UUID);
+            ledger.record(draft("run-" + i, CLOCK).protocol(Protocol.SUBSCRIPTION).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION)
+                    .memberId(null).correlation(correlation).build());
+        }
+        List<String> written = lines(dayFile(home, TODAY));
+        assertThat(written).hasSize(given.size());
+        for (int i = 0; i < given.size(); i++) {
+            JsonNode kept = JsonSafe.parse(written.get(i)).node().get("correlation");
+            String token = ledger.tokenFor(given.get(i));
+            assertThat(text(kept, "subscriptionId")).as(given.get(i)).isEqualTo(token);
+            assertThat(text(kept, "claimId")).as(given.get(i)).isEqualTo(token);
+            assertThat(text(kept, "claimResponseId")).as(given.get(i)).isEqualTo(token);
+            assertThat(text(kept, "correlatedRunId")).isEqualTo("run-" + UUID);
+            assertThat(written.get(i)).doesNotContain(given.get(i)).doesNotContain("Zzlastname");
+        }
+        // A token is matched as the identifier is, so a notification still finds its run, a numeric id included.
+        RunRecord numeric = ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder()
+                .correlation(RunRecord.CORR_SUBSCRIPTION_ID, "1052344").build()).get(0);
+        assertThat(numeric.runId()).isEqualTo("run-7");
     }
 
     @Test
-    void theIdentifiersThisToolMintsAndOnesWithoutLongDigitRunsAreKept() {
+    void theIdentifiersThisToolMintsAUuidAndAnOidAreKeptInClear() {
         JsonlRunLedger ledger = ledger(home, CLOCK);
         Map<String, String> correlation = new LinkedHashMap<>();
         correlation.put(RunRecord.CORR_CLAIM_ID, "claim-" + UUID);
         correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "claimresponse-claim-" + UUID);
-        correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, "subscription-placeholder-0001");
+        correlation.put(RunRecord.CORR_SUBSCRIPTION_ID, "urn:oid:2.16.840.1.113883.4.642");
         correlation.put(RunRecord.CORR_SUBSCRIPTION_RUN_ID, "run-" + UUID);
         ledger.record(draft("run-1", CLOCK).protocol(Protocol.SUBSCRIPTION).operation(EpaOperation.SUBSCRIPTION_NOTIFICATION).memberId(null)
                 .correlation(correlation).build());
@@ -147,10 +161,30 @@ class LedgerMemberTextTest {
         JsonNode kept = JsonSafe.parse(lines(dayFile(home, TODAY)).get(0)).node().get("correlation");
         assertThat(text(kept, "claimId")).isEqualTo("claim-" + UUID);
         assertThat(text(kept, "claimResponseId")).isEqualTo("claimresponse-claim-" + UUID);
-        assertThat(text(kept, "subscriptionId")).isEqualTo("subscription-placeholder-0001");
+        assertThat(text(kept, "subscriptionId")).isEqualTo("urn:oid:2.16.840.1.113883.4.642");
         assertThat(text(kept, "subscriptionRunId")).isEqualTo("run-" + UUID);
-        assertThat(RunRecord.keepsIdentifier("2.16.840.1.113883.4.642")).isTrue();
-        assertThat(RunRecord.keepsIdentifier("sub-S123456789")).isFalse();
+        assertThat(RunRecord.nobodysData(UUID)).isTrue();
+        assertThat(RunRecord.nobodysData("2.16.840.1.113883.4.642")).isTrue();
+        assertThat(RunRecord.nobodysData("sub-" + UUID)).isFalse();
+        assertThat(RunRecord.nobodysData("subscription-placeholder-0001")).isFalse();
+        assertThat(RunRecord.keepsIdentifier("sub-S123456789")).isTrue();
+        assertThat(RunRecord.keepsIdentifier("two words")).isFalse();
+    }
+
+    @Test
+    void anIdentifierALineWrittenEarlierKeptInClearIsReadAsItsTokenAndStillMatched() throws java.io.IOException {
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        ledger.record(draft("run-0", CLOCK).build());
+        // As the first fix wrote it: a member ID with a separator, kept in clear by its shape.
+        String older = lines(dayFile(home, TODAY)).get(0).replace("\"run-0\"", "\"run-1\"").replace("\"hook\"",
+                "\"correlation\":{\"subscriptionId\":\"S123-456-789\"},\"hook\"");
+        java.nio.file.Files.writeString(dayFile(home, TODAY), older + "\n", java.nio.file.StandardOpenOption.APPEND);
+
+        RunRecord read = ledger.find("run-1").orElseThrow();
+        assertThat(read.correlation()).containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, ledger.tokenFor("S123-456-789"));
+        assertThat(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder().correlation(RunRecord.CORR_SUBSCRIPTION_ID, "S123-456-789")
+                .build())).extracting(RunRecord::runId).containsExactly("run-1");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.all()))).doesNotContain("S123-456-789");
     }
 
     @Test

@@ -27,10 +27,14 @@ import java.util.Map;
  *   <li>{@code correlation}: only the CORR keys are accepted. A questionnaire is kept only as one
  *       or more canonical addresses (http, https or urn, no query, no fragment, no user, no white
  *       space, an optional {@code |version}) none of whose path segments, urn name or version reads
- *       like an identifier or a date (an OID and a UUID excepted); every other value only as one
- *       identifier token that does not read like an identifier or a date once any UUID in it is set
- *       aside, so the ids this tool mints are kept and a member ID or a birth date a service put in
- *       a claim, ClaimResponse or subscription id is not</li>
+ *       like an identifier or a date (an OID and a UUID excepted). A claim id, a ClaimResponse id
+ *       and a subscription id are kept only as one identifier token. Its shape cannot say whether it
+ *       is somebody's data: a sequence number and a member ID with a separator in it look alike. So
+ *       the ledger writes one in clear only when it cannot be anybody's ({@link #nobodysData}: a
+ *       UUID, an OID, an identifier this tool minted) and every other one as a token, as it writes
+ *       the authorization number; the record keeps the token as it is. Every other value is kept
+ *       only as one identifier token that does not read like an identifier or a date once any UUID
+ *       in it is set aside</li>
  *   <li>{@code procedureCodes} and {@code lineOfBusiness}: a code is one token that does not read
  *       like an identifier or a date, a line of business is a short label that does not either.
  *       Which lines the tool knows is the ledger's to decide, since the record cannot see the code
@@ -478,15 +482,40 @@ public record RunRecord(
         return holdsMember(value, sought) || IDENTIFIER_OR_DATE.matcher(UUID_SHAPE.matcher(value).replaceAll("")).find();
     }
 
+    /** The correlation keys whose values a service, a notification or a tester supplies, and which the ledger tokenises. */
+    public static final java.util.Set<String> SUPPLIED_ID_KEYS = java.util.Set.of(CORR_CLAIM_ID, CORR_CLAIM_RESPONSE_ID,
+            CORR_SUBSCRIPTION_ID);
+
     /**
-     * True when an identifier under a correlation key may be someone's identifier or date. A claim
-     * id, a ClaimResponse id and a subscription id come from a service or a notification, and a
-     * line about a notification or a subscription has no member ID to compare with, so the rule
-     * codes are held to applies to each. A UUID inside one is left alone, and so is an OID, since
-     * their runs of digits are what they are made of; that keeps every id this tool mints.
+     * An identifier this tool mints: the claim id it puts on a submission, and the ClaimResponse id
+     * the mock scenarios give a claim. Each is a fixed word and a UUID.
      */
-    private static boolean identifyingId(String value, String sought) {
-        return !OID_SHAPE.matcher(value).matches() && identifyingPlace(value, sought);
+    private static final java.util.regex.Pattern MINTED = java.util.regex.Pattern.compile("(?:claim-|claimresponse-claim-)"
+            + UUID_SHAPE.pattern().substring(4), java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    /**
+     * True when an identifier cannot be anybody's data: a UUID, an OID (each also as a urn), or an
+     * identifier this tool minted. Only such an identifier is written in clear under a claim id,
+     * ClaimResponse id or subscription id key when the ledger does not record member IDs.
+     */
+    public static boolean nobodysData(String value) {
+        if (value == null) {
+            return false;
+        }
+        String id = value.strip();
+        String lower = id.toLowerCase(java.util.Locale.ROOT);
+        if (lower.startsWith("urn:uuid:")) {
+            return UUID_SHAPE.matcher(id.substring(9)).matches();
+        }
+        if (lower.startsWith("urn:oid:")) {
+            return OID_SHAPE.matcher(id.substring(8)).matches();
+        }
+        return UUID_SHAPE.matcher(id).matches() || OID_SHAPE.matcher(id).matches() || MINTED.matcher(id).matches();
+    }
+
+    /** True when a value has the form of the token the ledger writes in place of an identifier. */
+    public static boolean token(String value) {
+        return value != null && MEMBER_TOKEN.matcher(value).matches();
     }
 
     /**
@@ -580,6 +609,10 @@ public record RunRecord(
             }
             if (statement("not recorded", value)) {
                 out.put(key, value);
+            } else if ((SUPPLIED_ID_KEYS.contains(key) || CORR_AUTHORIZATION_REF.equals(key)) && token(value)) {
+                // The ledger's token: hex digits made from the identifier, which name nobody, so a
+                // run of them that happens to spell digits of the member ID is not the ID.
+                out.put(key, value);
             } else if (holdsMember(value, sought)) {
                 out.put(key, notKept("not recorded", value));
             } else if (CORR_QUESTIONNAIRE.equals(key)) {
@@ -593,21 +626,26 @@ public record RunRecord(
                 // break or more groups than that is not one identifier.
                 out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
                         ? value : notKept("not recorded", value));
+            } else if (SUPPLIED_ID_KEYS.contains(key)) {
+                // Kept as one token whatever it reads like: the ledger writes it as a token unless it
+                // cannot be anybody's data, and a token it wrote is kept as it is.
+                out.put(key, IDENTIFIER.matcher(value).matches() ? value : notKept("not recorded", value));
             } else {
-                out.put(key, IDENTIFIER.matcher(value).matches() && !identifyingId(value, sought) ? value : notKept("not recorded", value));
+                out.put(key, IDENTIFIER.matcher(value).matches() && !identifyingPlace(value, sought) ? value : notKept("not recorded", value));
             }
         });
         return java.util.Collections.unmodifiableMap(out);
     }
 
     /**
-     * True when this record keeps an identifier as it is under a claim id, ClaimResponse id or
-     * subscription id key of a line that names no member. A value it would not keep is written as
-     * its length, so a notification that carries one cannot be matched to the run that recorded it,
-     * and the receiver says so rather than that no run did.
+     * True when this record keeps an identifier under a claim id, ClaimResponse id or subscription
+     * id key of a line that names no member, in clear or as the ledger's token. A value it would not
+     * keep, one that is not a single identifier, is written as its length, so a notification that
+     * carries one cannot be matched to the run that recorded it, and the receiver says so rather
+     * than that no run did.
      */
     public static boolean keepsIdentifier(String value) {
-        return value != null && IDENTIFIER.matcher(value).matches() && !identifyingId(value, null);
+        return value != null && IDENTIFIER.matcher(value).matches();
     }
 
     public static Builder builder() {

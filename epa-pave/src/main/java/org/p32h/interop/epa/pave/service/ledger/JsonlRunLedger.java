@@ -648,9 +648,12 @@ public class JsonlRunLedger implements RunLedger {
     /**
      * A run as it is shown and exported. A line written before every way in refused member data in
      * free text, or a note line appended by such a version, can hold the member ID that the line
-     * keeps only as a token. The file is never rewritten, so such text is replaced as it is read.
+     * keeps only as a token. A line written before identifiers a service supplies were tokenised can
+     * hold one in clear that would now be a token. The file is never rewritten, so such text is
+     * replaced as it is read.
      */
-    private RunRecord withoutMemberText(RunRecord run) {
+    private RunRecord withoutMemberText(RunRecord line) {
+        RunRecord run = policy.asRead(line);
         if (Texts.present(run.memberId()) || Texts.blank(run.memberToken())) {
             return run;
         }
