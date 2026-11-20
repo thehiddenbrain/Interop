@@ -289,7 +289,7 @@ public class NotificationReceiver {
         RunRecord run = null;
         if (runId != null) {
             if (!PasService.isRunId(runId)) {
-                throw ValidationException.of("runId", "The run must be a run id this tool returned.");
+                throw ValidationException.of("runId", RUN_ID_TO_COPY);
             }
             run = target == null ? null : target.find(runId).orElse(null);
             if (run == null) {
@@ -334,7 +334,8 @@ public class NotificationReceiver {
         String toSeeAMatch = null;
         if (subscriptionId == null) {
             boolean[] lookupFailed = new boolean[1];
-            subscriptionId = latestCreatedSubscription(target, lookupFailed);
+            String[] deletedBy = new String[1];
+            subscriptionId = latestCreatedSubscription(target, lookupFailed, deletedBy);
             if (subscriptionId != null && !notify.body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)) {
                 // This sample names a subscription of its own, which nobody created here, on purpose. Creating
                 // another subscription would change nothing, so the step names a sample that would be matched.
@@ -350,6 +351,10 @@ public class NotificationReceiver {
             if (subscriptionId == null) {
                 notes.add(target == null || lookupFailed[0]
                         ? "The ledger could not be asked which subscription this tool created last, so this sample names one nobody created."
+                        : deletedBy[0] != null
+                        ? "The subscription this tool created last was deleted by this tool in the run " + deletedBy[0] + ", and no other it "
+                                + "created is still there, so this sample names one nobody created and is shown as unmatched. Create a "
+                                + "subscription first to see a notification that is matched to it."
                         : "No run in the ledger has created a subscription, so this sample names one nobody created and is shown as "
                                 + "unmatched. Create a subscription first to see a notification that is matched to it.");
             }
@@ -508,7 +513,12 @@ public class NotificationReceiver {
         List<Finding> findings = new ArrayList<>();
         // Raised only when it is known that nobody here created the subscription. When the ledger
         // could not be asked that is not known, and the finding after this one says so in its place.
-        if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION) {
+        if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION && links.unmatched() == NotificationVerdicts.Unmatched.DELETED) {
+            findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification is on a subscription this tool deleted",
+                    "It names the subscription " + status.subscriptionId() + ", which this tool created and then deleted, and the service "
+                            + "confirmed the delete. A service that still notifies on it has not let it go. It is recorded and shown, "
+                            + "never dropped.", status.subscriptionId(), null, null));
+        } else if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION) {
             findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification matches no subscription this tool created",
                     (status.subscriptionId() == null ? "It names no subscription, so there is none to look up."
                             : "It names the subscription " + status.subscriptionId() + ", and no run in the ledger created a subscription "
@@ -592,14 +602,23 @@ public class NotificationReceiver {
                 unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
                 notLookedUp(notes, unasked, "No ledger is available, so the subscription it names could not be looked up.");
             } else if (!RunRecord.keepsIdentifier(subscriptionId)) {
-                // The ledger writes such an id as its length, so no line can be found by it, and
-                // "no run created it" would not be known to be true.
+                // Not one identifier: the ledger writes such a value as its length, so no line can
+                // be found by it, and "no run created it" would not be known to be true. Every
+                // identifier it does keep, in clear or as a token, is looked up below.
                 unmatched = NotificationVerdicts.Unmatched.NOT_KEPT;
                 notLookedUp(notes, unasked, NOT_KEPT_SUBSCRIPTION);
             } else {
                 boolean[] lookupFailed = new boolean[1];
                 RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, lookupFailed);
-                if (created != null) {
+                RunRecord deleted = created == null ? null : deletedAfter(target, created, subscriptionId, lookupFailed);
+                if (deleted != null) {
+                    // The run that created it is still the run it belongs to, but the subscription is
+                    // not live: this tool deleted it, and a notification on it is not "still there".
+                    subscriptionRunId = created.runId();
+                    unmatched = NotificationVerdicts.Unmatched.DELETED;
+                    notes.add("The subscription it names was created by the run " + created.runId() + " and deleted by this tool in the run "
+                            + deleted.runId() + ", so a notification on it was not expected.");
+                } else if (created != null) {
                     subscriptionRunId = created.runId();
                     notes.add("The subscription it names was created by the run " + created.runId() + ".");
                 } else if (lookupFailed[0]) {
@@ -661,8 +680,9 @@ public class NotificationReceiver {
             }
             if (!notKept.isEmpty()) {
                 notLookedUp(notes, unasked, "The submission it is about could not be looked up by " + String.join(" or ", notKept)
-                        + " it carries: " + (notKept.size() == 1 ? "it reads" : "they read") + " like a member identifier or a date, "
-                        + "which the ledger does not keep, so no run can be found by " + (notKept.size() == 1 ? "it" : "them") + ".");
+                        + " it carries: " + (notKept.size() == 1 ? "it is not" : "they are not") + " one identifier (more than 128 "
+                        + "characters, or a space or a sign an identifier does not hold), which the ledger does not keep, so no run can be "
+                        + "found by " + (notKept.size() == 1 ? "it" : "them") + ".");
             }
         } else if (ids.any()) {
             notLookedUp(notes, unasked, "No ledger is available, so the submission it is about could not be looked up.");
@@ -672,9 +692,14 @@ public class NotificationReceiver {
         return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes, List.copyOf(unasked));
     }
 
+    /** What to do when the run named for a sample notification is not a run id. */
+    static final String RUN_ID_TO_COPY = "This is not a run id. Copy the run id of a PAS submission, which starts with run-, from its "
+            + "result on the PAS tab or from the Runs list in History, and paste it into About the submission (run id).";
+
     /** Why a subscription named by an id the ledger does not keep is not looked up. */
-    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names reads like a member identifier or a date, which the ledger "
-            + "does not keep, so the run that created the subscription cannot be found by it and was not looked up.";
+    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names is not one identifier (more than 128 characters, or a space "
+            + "or a sign an identifier does not hold), which the ledger does not keep, so the run that created the subscription cannot be "
+            + "found by it and was not looked up.";
 
     /** Says that a link could not be looked up, in the notes a reader sees and in the list the finding is raised from. */
     private static void notLookedUp(List<String> notes, List<String> unasked, String why) {
@@ -743,6 +768,17 @@ public class NotificationReceiver {
      * @param failed set when the ledger could not be read, so "none" is not said when it is not known
      */
     private static String latestCreatedSubscription(RunLedger target, boolean[] failed) {
+        return latestCreatedSubscription(target, failed, new String[1]);
+    }
+
+    /**
+     * The same, skipping a subscription whose later delete the ledger recorded: it is not the
+     * latest one this tool created that is still there.
+     *
+     * @param deletedBy set to the run that deleted the newest subscription this tool created, when
+     *                  that is why none is returned
+     */
+    private static String latestCreatedSubscription(RunLedger target, boolean[] failed, String[] deletedBy) {
         if (target == null) {
             return null;
         }
@@ -750,13 +786,44 @@ public class NotificationReceiver {
             for (RunRecord run : target.query(RunQuery.builder().operation(EpaOperation.SUBSCRIPTION_CREATE)
                     .outcome(SubscriptionOutcome.CREATED.name()).limit(20).build())) {
                 String id = run.correlation().get(RunRecord.CORR_SUBSCRIPTION_ID);
-                if (Texts.present(id)) {
+                if (Texts.blank(id) || id.matches("\\(not recorded, \\d+ characters\\)")) {
+                    continue;
+                }
+                RunRecord deleted = deletedAfter(target, run, id, failed);
+                if (deleted == null) {
                     return id;
+                }
+                if (deletedBy[0] == null) {
+                    deletedBy[0] = deleted.runId();
                 }
             }
         } catch (RuntimeException e) {
             failed[0] = true;
             return null;
+        }
+        return null;
+    }
+
+    /**
+     * The run in which this tool deleted a subscription after the run that created it, or null. Only
+     * a delete the service confirmed counts, never one the guardrail refused or the service did not
+     * carry out. The ledger is read newest first, so whichever of a confirmed create and a confirmed
+     * delete of this id comes first is the latest thing this tool did to it. The id may be the
+     * ledger's token, which the ledger compares as it compares the id.
+     */
+    private static RunRecord deletedAfter(RunLedger target, RunRecord created, String subscriptionId, boolean[] failed) {
+        try {
+            for (RunRecord run : target.query(RunQuery.builder().protocol(created.protocol())
+                    .correlation(RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId).build())) {
+                if (run.operation() == EpaOperation.SUBSCRIPTION_DELETE && SubscriptionOutcome.DELETED.name().equals(run.outcome())) {
+                    return run;
+                }
+                if (run.operation() == EpaOperation.SUBSCRIPTION_CREATE && SubscriptionOutcome.CREATED.name().equals(run.outcome())) {
+                    return null;
+                }
+            }
+        } catch (RuntimeException e) {
+            failed[0] = true;
         }
         return null;
     }

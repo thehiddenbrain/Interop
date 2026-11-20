@@ -207,11 +207,20 @@ public final class SuiteCases {
         // the line keeps in its place. The row carries no name or date of birth to look for; the
         // service looks for those once the member is looked up, before the case is sent.
         String rowMember = Texts.trimToNull(cells.get(Column.MEMBER_ID));
+        // What the results of the suite repeat as the row's expectation. One that was refused for
+        // its length or for holding the member ID is not repeated: the refusal is written in its
+        // place, so the results file a tester downloads does not carry what the ledger may not.
+        String shownExpected = text.containsKey("expected") && expected != null && expected.length() > RunRecord.LONGEST_EXPECTED
+                ? text.get("expected") : expected;
         if (rowMember != null) {
-            MemberInText.problems(text.containsKey("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)),
+            Map<String, String> member = MemberInText.problems(text.containsKey("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)),
                     text.containsKey("testerRef") ? null : Texts.trimToNull(cells.get(Column.TESTER_REF)),
                     text.containsKey("expected") ? null : expected, MemberDetail.builder().memberId(rowMember).build(),
-                    "The row was not run.").values().forEach(problems::add);
+                    "The row was not run.");
+            member.values().forEach(problems::add);
+            if (member.containsKey("expected")) {
+                shownExpected = member.get("expected");
+            }
         }
         Map<String, String> correlation = new LinkedHashMap<>();
         correlation(cells, Column.CLAIM_ID, RunRecord.CORR_CLAIM_ID, correlation, problems);
@@ -250,7 +259,14 @@ public final class SuiteCases {
                 problems.addAll(runner.refusals(spec));
             }
         }
-        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), expected,
+        // The service's own check, made once the member is looked up, can refuse the expectation for
+        // a name or a date of birth, and says so in the words MemberInText gives it.
+        for (String problem : problems) {
+            if (problem.startsWith("The expectation holds ") && problem.contains("may not hold member data")) {
+                shownExpected = problem;
+            }
+        }
+        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), shownExpected,
                 problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null);
     }
 

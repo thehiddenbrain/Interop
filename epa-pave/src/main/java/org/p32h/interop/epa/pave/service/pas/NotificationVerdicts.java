@@ -39,11 +39,17 @@ public final class NotificationVerdicts {
         /** The ledger could not be asked, so whether this tool created the subscription is not known. */
         NOT_ASKED,
         /**
-         * The subscription id it names reads like a member identifier or a date, which the ledger
-         * writes as its length, so no run can be found by it and whether this tool created the
-         * subscription is not known.
+         * The subscription id it names is not one identifier, which the ledger writes as its
+         * length, so no run can be found by it and whether this tool created the subscription is
+         * not known. Every identifier the ledger keeps, in clear or as a token, can be looked up.
          */
-        NOT_KEPT
+        NOT_KEPT,
+        /**
+         * A run of this tool created the subscription it names, and a later run of this tool deleted
+         * it, which the service confirmed. The subscription is not live, so the notification is not
+         * taken as news about one that is.
+         */
+        DELETED
     }
 
     /**
@@ -64,7 +70,7 @@ public final class NotificationVerdicts {
         if (unmatched != null) {
             // A switch expression with no default: a reason added without an outcome here does not compile.
             return switch (unmatched) {
-                case NAMES_NONE, NOT_IN_LEDGER -> NotificationOutcome.UNMATCHED_NOTIFICATION;
+                case NAMES_NONE, NOT_IN_LEDGER, DELETED -> NotificationOutcome.UNMATCHED_NOTIFICATION;
                 case NOT_ASKED, NOT_KEPT -> NotificationOutcome.UNCHECKED_NOTIFICATION;
             };
         }
@@ -125,7 +131,8 @@ public final class NotificationVerdicts {
                 if (type.code() != null) {
                     supporting.add("Its type: " + type.display() + ".");
                 }
-                yield "A notification arrived that matches no subscription this tool created.";
+                yield unmatched == Unmatched.DELETED ? "A notification arrived on a subscription this tool created and then deleted."
+                        : "A notification arrived that matches no subscription this tool created.";
             }
             case UNCHECKED_NOTIFICATION -> {
                 supporting.add("It is recorded and shown all the same. It is not dropped.");
@@ -244,9 +251,13 @@ public final class NotificationVerdicts {
             case NOT_ASKED -> new NextStepView(NextAction.REVIEW, "Next: find out why the ledger could not be read. Until it can, this "
                     + "tool cannot say whether it created the subscription this notification names.",
                     "The ledger could not be asked which run created the subscription.", carry);
-            case NOT_KEPT -> new NextStepView(NextAction.REVIEW, "Next: look at the subscription id the service gave. One that reads like "
-                    + "a member identifier or a date is not kept in the ledger, so a notification on that subscription cannot be matched to "
-                    + "the run that created it.", "The ledger does not keep the subscription id this notification names.", carry);
+            case DELETED -> new NextStepView(NextAction.REVIEW, "Next: report to the people who look after the service that it still "
+                    + "sends notifications on a subscription this tool deleted. The run that deleted it is named above.",
+                    "This tool deleted that subscription and the service confirmed it, so nothing should arrive on it.", carry);
+            case NOT_KEPT -> new NextStepView(NextAction.REVIEW, "Next: look at the subscription id this notification names, below. It "
+                    + "is not one identifier, so the ledger cannot keep it and a notification on that subscription cannot be matched to "
+                    + "the run that created it. Report it to the people who look after the service.",
+                    "The ledger does not keep the subscription id this notification names.", carry);
         };
     }
 

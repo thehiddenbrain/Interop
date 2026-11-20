@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.ledger;
 
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.Texts;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.UnaryOperator;
@@ -13,7 +14,9 @@ import java.util.regex.Pattern;
  *
  * <p>The ledger applies this to every draft it is given, so no caller can get it wrong. It rewrites
  * exactly the parts of a draft that {@code RunLedger.record} lists and nothing else: the member ID,
- * the date of service, the NPI and the authorization number among the correlation entries. It also
+ * the date of service, the NPI, and among the correlation entries the authorization number and the
+ * identifiers a service, a notification or a tester supplies (a claim id, a ClaimResponse id, a
+ * subscription id). It also
  * decides the one thing the record cannot decide for itself: whether the line of business is one
  * the tool knows, which needs the code list.
  *
@@ -117,7 +120,48 @@ final class TrackingPolicy {
             }
             out.correlation(correlation);
         }
-        return settled(out.build());
+        return settled(withSuppliedIds(out.build(), inTheClear));
+    }
+
+    /**
+     * The record with each identifier a service, a notification or a tester supplied written as
+     * this policy writes the authorization number: in clear only when member IDs are, or when it
+     * cannot be anybody's data ({@link RunRecord#nobodysData}), and otherwise as a token. Its shape
+     * cannot tell a sequence number from a member ID with a separator in it, and a token is matched
+     * as well as the identifier is, so a notification still finds the run that created its
+     * subscription.
+     */
+    private RunRecord withSuppliedIds(RunRecord record, boolean inTheClear) {
+        Map<String, String> correlation = new LinkedHashMap<>(record.correlation());
+        boolean changed = false;
+        for (String key : RunRecord.SUPPLIED_ID_KEYS) {
+            String value = correlation.get(key);
+            if (value == null || inTheClear || NOT_RECORDED.matcher(value).matches() || RunRecord.token(value)
+                    || RunRecord.nobodysData(value)) {
+                continue;
+            }
+            String stored = stored(value, false);
+            if (stored == null) {
+                correlation.remove(key);
+            } else {
+                correlation.put(key, stored);
+            }
+            changed = true;
+        }
+        return changed ? record.toBuilder().correlation(correlation).build() : record;
+    }
+
+    /**
+     * A line as it is read: an identifier a line written by an earlier version of this tool kept in
+     * clear, and that this policy would now write as a token, is shown as its token. The file is
+     * never rewritten, and a token matches whatever the identifier matched.
+     */
+    RunRecord asRead(RunRecord line) {
+        if (line.caseLine() || line.correlation().isEmpty()) {
+            return line;
+        }
+        boolean inTheClear = Texts.present(line.memberId()) || Texts.blank(line.memberToken()) && recordMemberId;
+        return withSuppliedIds(line, inTheClear);
     }
 
     /**
@@ -128,6 +172,11 @@ final class TrackingPolicy {
     static RunRecord withoutMemberData(RunRecord draft) {
         Map<String, String> correlation = new LinkedHashMap<>(draft.correlation());
         correlation.remove(RunRecord.CORR_AUTHORIZATION_REF);
+        for (String key : RunRecord.SUPPLIED_ID_KEYS) {
+            if (correlation.containsKey(key) && !RunRecord.nobodysData(correlation.get(key))) {
+                correlation.remove(key);
+            }
+        }
         return settled(draft.toBuilder().memberId(null).memberToken(null).memberIdLast4(null).npi(null).dateOfService(null)
                 .correlation(correlation).build());
     }
