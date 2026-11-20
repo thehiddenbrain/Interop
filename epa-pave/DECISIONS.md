@@ -3451,3 +3451,452 @@ at `fd61e6e`, `audit-fix-v3` at `1557e5c`, `audit-fix-v2` at `d542405`).
 5. The build machine restarted three times while this tool was built (at about 00:17, 03:02 and 06:00
    UTC), each time cutting off every
    agent then at work. Nothing committed was lost; each piece of work was taken over in its worktree.
+
+## Decisions of the last server task, the last screens pass, the last audits and their checks
+
+After the revision of D-228 (`5763c41`), eight branches were merged into `epa-pave`: the README after
+the second audits (`docs-3`), the records of D-202 to D-228 (`records-3`), the last server task
+(`left3-server`) and the last pass over the screens (`screens-fix`), which D-226 recorded as started,
+six lines those two left for each other (`seam-4`), and the fixes for what three of the last audits
+of section 27 found: house style (`final-gate`), completeness on screen (`final-render`) and the
+walkthrough by a business tester (`final-uat`). Each branch was done by one agent. Between the
+merges, the audits of section 27 that had not yet run were run, each by an agent that wrote none of
+the tool: V1 (the build from a fresh clone), V5 (house style), V7 (completeness on screen) and the
+walkthrough by a business tester on revision `9e285a1`, V6 (honesty) on `9e5306d`. Three more agents,
+each of which wrote neither the tool nor the fix it examined, checked every fix of the second run of
+V2, V3 and V4, also on `9e5306d`. **The fixes for V5, V7 and the walkthrough have been checked by
+nobody but their authors.** The entries below record, in this order: the work D-226 recorded as
+started, what the last audits found that nobody had decided, the rules the screens and the server
+gained from them, the style gate, what the checks of the second audits' fixes established, what the
+integrator decided for the four tasks started from this revision, what was decided not to do, and
+what was decided while joining. "The fix", "the pass", "the audit" or "the check" means the agent
+that did that work. What is still open is in `PROGRESS.md`.
+
+### The work D-226 recorded as started, and what it left
+
+**D-229. The last server task: a refusal says what happened, a played timeout is said once, and a replay never joins a chain.**
+From `TASK_LEFT3_SERVER`, the server half of D-226, on revision `5763c41`. Each line below was taken
+out again by its author and a named test failed, except line 7, which changed only tests and comments.
+1. **A write refused at the moment of sending says so.** `ConfigurationChangedException` carries an
+   optional title and action, and the shared error handler shows whichever it carries, falling back
+   to its fixed words only for what is missing. When production writes are locked again between the
+   preparing and the sending of a write, the 409 reads "Production writes were locked again before
+   this write was sent, so it was not sent." with the action "Unlock them on the Config tab by typing
+   the environment name, then send it again." A configuration that changed after the screen was
+   drawn has its own pair of sentences. `SecondGuardrailAuditOverTheServerTest` requires the new
+   title and the absence of the old one. The check of the guardrail fixes saw it on the jar (D-245).
+2. **On mock a played timeout is said once.** A timeout is "played" when the exchange is a timeout
+   and carries a scenario id (`VendorExchange.playedTimeout`). The error panel alone says that a
+   scenario played it, that nothing was sent and that no environment failed, with the delay shown and
+   what live would wait (`onyx.read-timeout-ms`). The verdict keeps only the scenario line: no "No
+   response arrived inside the read timeout", and on PAS no "The payer may have received the
+   submission". The next step keeps its action and its carry, so the screens offer what they offer
+   after a real timeout, and its words begin "Next, had this been a real service:" (for a PAS
+   submission: "the payer might have received the submission: ask for its status before sending it
+   again"). `service/run/PlayedTimeouts` holds the words for CRD, DTR, PAS, subscriptions and the raw
+   send. Live is unchanged. The sentence `VendorExchange.SIMULATED_TIMEOUT`, which D-204 added, was
+   removed: nothing read it any more.
+3. **The resolve note agrees with the raw refusal.** For a request whose url is configured but has a
+   part with no value, `POST /api/config/resolve` on mock says that sent as written it is refused until
+   every part has a value, as the raw preview and send refuse it; for a mapped operation it also says
+   that a run from its tab is still answered from a scenario. A target with no url keeps the old note.
+4. **A lookup field that holds masked text is marked.** `LookupField` gains `masked` (true, present
+   only then) and `note` ("This value holds a secret the request sent, which this tool masked, so it
+   is not what the service returned and is not offered for the case."), set only on an answer the
+   tool actually masked. `MemberLookupResult.member` and `ProviderLookupResult.provider` still hold the
+   mask text: the page fills the case only from the field list and leaves a marked field out (D-231).
+5. **An empty element of an issue is consumed.** `expression` or `location` sent as an empty list is
+   shown in the issues table and no longer again among the fields returned but not interpreted. A null
+   or another value stays there (D-236 then told null from empty in the table).
+6. **The comparison's caveat lives only in `RequestComparison.caveat`.** `notes` holds what is
+   particular to the comparison and may be empty.
+7. **A replay never joins a chain**, as D-208 decided. `ChainServiceTest` now pins a blocked suite row
+   of a protocol chain, which is the one blocked line in a chain that carries no unlock, and
+   `ApplicationJourneyTest` asserts through the real case runner that a replayed run's line holds no
+   chain id. No code was removed: the `SEND_ON_ITS_OWN` branch of the chain view serves that suite row.
+   Whether a blocked suite chain row against production reads as the code says was not run.
+8. **The code list sentences describe a list by what it says of itself.** `CODE_LIST_NOT_COMPARED`
+   reads "No P32H code list is loaded. The code list in use says of itself that it is synthetic (its
+   rows carry the note "Not from a P32H export."), ...", and a CRD finding on mock that rests on such a
+   list ends "The code list in use says of itself that it is synthetic, so it is not a P32H list." True
+   of the bundled list, the sample and a tester's own marked list.
+Left by the task, each with its reason: whether a raw send's body source gets a label or only the
+sentence (a design choice, not decided by anybody since D-207); an `expect` outcome that contradicts
+its scenario body (D-224, it needs every mapper at load time).
+
+**D-230. The pass over the screens: a lock from another browser is seen at once, every free-text field carries one hint, and the warnings reach the screen.**
+From `TASK_SCREENS_FIX`, the screens half of D-226, on revision `5763c41`, by browser scripts on mock
+unless said otherwise, at 1366 by 768 with some states also at 1920 by 1080.
+- **Lock from another browser (F-SCREEN).** When `/api/mode` says writes are locked and the epoch did
+  not move, every built tab that states write access is told (`onWriteAccessChange`): the banner, the
+  Config tab's writes panel, the PAS write box and an open replay confirmation are redrawn, and the
+  tester is told once: "Writes to production were locked again. This browser did not lock them, so it
+  may have been done from another browser: locking from any browser ends the unlock of every session.
+  Every tab now shows them as locked. ..." The notice is raised only by a poll that is not quiet,
+  because the Config tab's own Lock refreshes quietly and announces in its own words; so "This browser
+  did not lock them" is true. Proven with two browser contexts, and since by the check of the
+  guardrail fixes (D-245).
+- **One hint on every field the ledger keeps as typed.** `LEDGER_TEXT_HINT`, "The ledger keeps this as
+  typed. Do not type member data into it.", on the note and the tester reference of CRD, DTR, PAS, the
+  raw send and the History note editor, and in the hint of the code assertions of an expectation (the
+  outcome itself is a choice, not typed). A suite file's field says the same of its rows. A refusal
+  marks the field it names and shows the server's sentence, and the result area is not replaced.
+  `StaticLedgerTextTest` checks that each of the six forms passes the hint.
+- **Warnings where the tester decides.** `addressWarnings` are shown under each listed environment and
+  after a switch, as the server words them, in the black side rule of an upload warning: the browser
+  does not sort or classify the server's sentences. The upload's member data warnings are shown with
+  the rest of the upload's warnings. The colour key's entry for that rule says it marks a warning about
+  an uploaded file or an environment's address.
+- **The scenario tables show the notes.** A scenario's own notes sit under its label; the list's notes
+  that no scenario already carries sit under "About the scenario files". PAS rows read "or the CRD
+  member ID ..." because either selects. The label beside a code list finding reads "The code list (a
+  placeholder, not a P32H list, read from <source>)", from the self-check's source; the words "the
+  bundled placeholder" are now refused by `StaticServerWordsTest`.
+- **A masked lookup field is shown with its mask and its note and never put into the case**
+  (`caseContext.fillFrom(record, maskedNames)`, origin "masked, not taken"). Written before the server
+  marked such a field; seen with the server's own mark by the next task (D-231).
+- **What the pass before had not reached** was seen: the answers an adaptive questionnaire dropped (the
+  line now reads "The answer sent: 8", because the values come from the request sent, not from an
+  earlier response), a CRD coverage section with no "applies to", an unmatched notification, a
+  notification naming an id the ledger does not keep, and the secret echo on live at 1920 by 1080
+  (none in the page text or a field). One sweep at 1366 by 768 of production locked, unlocked and held
+  by the floor, UAT, live with an empty store, tracking off, a ledger that cannot write (reached by
+  renaming its folder after start: a folder that cannot be created now stops the tool at start), a
+  suite from the samples and a replay of one run and of a date range: every word read, nothing broke.
+- History stays worded in UTC days and the zone filter stays out (D-207).
+Left by the pass: the DTR change block (appeared, disappeared, dropped) is drawn twice, in the
+questionnaire pane and in the result detail, as it was before; screen reader, 200% zoom, phone width
+and `prefers-reduced-motion` were not tried.
+
+**D-231. The six lines the two left for each other: a raw send's note is checked against its body, the server words what Lock does, and the server heads every error.**
+From `TASK_SEAM4`, on revision `9e285a1`, one agent owning both sides for these lines only.
+1. **A request sent as written checks its free text against the member identifiers its body states**:
+   the identifier values of every Patient and Coverage and the `subscriberId` of every Coverage,
+   wherever the resource sits in the JSON (a Bundle entry, a prefetch, a contained resource), by
+   `service/run/MembersInBody` and `MemberInText.problemsInBody`. The resolved body is checked, supplied
+   or saved, before anything is sent, and in the preview too; the refusal is a 422 on `note`,
+   `testerRef` or `expected` ("The note holds a member ID the request body carries. ..."), and nothing
+   is recorded. A body that is not JSON, or holds neither resource, cannot be checked and is not
+   refused. Not looked for: a name or a date of birth the body carries, and a `P32H-` sentinel, which
+   is synthetic and is how a tester names a scenario in a note. A write the guardrail refuses is
+   checked against the body as typed, because the refusal comes before the saved body is read; a note
+   that holds an identifier of the saved body is then recorded with the blocked line. Test that fails
+   without the change: `RawSendMemberTextOverTheServerTest`.
+2. **The server words what Lock does.** The reason of an unlocked session ends "Locking them again,
+   from this or any other browser, ends the unlock of every session." The Config tab shows the
+   server's sentence in place of its own paragraph, and `StaticServerWordsTest` fails if the paragraph
+   comes back. The locked panel's own sentence and the notice after a lock from elsewhere stay: they
+   describe the unlock ending, which the server's locked reason does not.
+3. **The server heads every error.** `ErrorView` gains `heading`, filled from the kind in the compact
+   constructor (`ErrorView.headingOf`) when none is given, so every error on both profiles carries one;
+   a seven-argument constructor keeps old callers. A played mock timeout is headed "A timeout played by
+   a mock scenario, not a fault in the environment". The page's table of words by error kind is gone
+   (`ERROR_FORMS` keeps only the style per kind), and `StaticServerWordsTest` fails if it comes back. A
+   new `ErrorKind` must be added to `headingOf` or the build does not compile. Left: on mock any other
+   fault a scenario plays (an HTTP 500, a 400, an unreadable or empty body) keeps the kind's own
+   heading, "A fault in the environment: ...", which is untrue there (D-247, item 7).
+4. **A masked lookup field and the case, seen together** on live against a stand-in that sent secrets
+   back inside a first name, a plan name and a provider's last name: each field marked, the case left
+   empty for all three ("masked, not taken"), and the CRD request that followed carried no mask text.
+   `StaticServerWordsTest` pins `field.masked` and `field.note`. No build test pins that the page fills
+   the case only through the masked set, and the detail records still hold the mask text.
+5. **Small ends.** The comparison page no longer filters the caveat out of the notes by its text. The
+   label of `CHECK_ENVIRONMENT` keeps its code (the PAS tab keys on it) and now reads "Check the
+   environment. No usable answer came back: on the live profile the service failed or could not be
+   reached, and on the mock profile a scenario played that, with nothing sent.", so a chain view and a
+   suite row are true on mock; tested through the API, not seen on screen.
+
+**D-232. The README after the second audits.**
+From `TASK_DOCS3`, on revision `5763c41`. The README was gone through from the first line to the last
+against the tool at that revision: the guardrail, the ledger, member data, the mock scenarios, the
+samples and the code list were checked against the fixes, a subsection on member data in an uploaded
+file was added (D-213), and the limitations were rewritten from what was true then. All 70 examples
+under Endpoints were run in order on another port. Not done: a fresh clone, `./gradlew` itself, the
+live profile against a stand-in, `run.cmd`. It describes `5763c41`, so the sentences the four
+branches merged after it changed (the 409 at the send, the hint on the note fields, the address
+warnings on screen, the played timeout, the renamed buttons, the code list label and the others the
+fix reports list) are behind; bringing it up is `TASK_DOCS4` (D-250). The pull request draft lives
+outside the repository; it was brought to the same revision with a place for every gate that had not
+run, and its list of decision entries stopped at D-201.
+
+### What the last audits found that nobody had decided
+
+**D-233. The token request authenticates the client by HTTP Basic.**
+From the honesty audit's F-TOKEN-BASIC (major). Section 26 leaves open how the tool authenticates to
+the vendor's token service. The code decided it and no document said so: `OnyxTokenService` sends the
+OAuth2 client credentials grant with `grant_type=client_credentials` (and the scopes) in the form body
+and the client id and secret in an `Authorization: Basic` header (`client_secret_basic`). The audit
+saw exactly that arrive at a stand-in. A vendor that expects the credentials in the form body
+(`client_secret_post`) or a signed JWT assertion answers 401, and nothing in the tool explains it. The
+one method to change for either is `OnyxTokenService.requestToken`, which its Javadoc names as the one
+to replace. Recorded as an assumption about the vendor; whether it holds is not known until the token
+service is reached, which has not happened (nothing has been observed against the vendor's service).
+The README's open items and the pull request draft are to say so (D-250).
+
+**D-234. The installation salt is a secret.**
+From the honesty audit's F-SALT (major). On live, by default, the ledger replaces a member ID with an
+HMAC-SHA-256 token under a 32-byte salt and keeps the ID's last four characters (D-032, D-151), so
+that two runs of one member can be matched without the file becoming a roster. That holds only while
+the salt is kept apart from the ledger. By default the salt is written in plain text to
+`config-store/installation-salt` (mode 0600 where the file system allows; `tracking.salt-file` moves
+it, never into the ledger directory), beside `run-history/`. With it, a member ID of the usual short shape is
+recovered from its token by trying every candidate that ends in the four kept characters: the audit
+recovered a placeholder ID from its own live ledger in 0.02 seconds. What follows, for anyone who
+handles the files: the salt is a secret like a client secret; it is never copied, sent or attached
+together with the ledger, its export or a ledger line; whoever holds both holds the member IDs. A new
+salt makes every older token unmatchable, which is why the tool keeps it. Nothing in the code changed;
+the README's sections on secrets and on the member ID policy are to say this (D-250).
+
+**D-235. What "level 1" means for this tool, and the limits that stand beside it.**
+From the honesty audit's F-PR-LIMITS (blocker, about the pull request draft, which said "level 1 ...
+everything in the build prompt, with nothing stubbed"). Section 0 defines level 1 as everything the
+build prompt asks. Decided: the tool is described as built to level 1 **with its named limits beside
+it**, and the words "nothing stubbed", "complete" and "everything" are never used of it. The limits,
+each a part of the build prompt the tool does not do or does in part:
+- In the X12 275 attachment mode the tool names the document in the request and sends no 275: the
+  service receives no document from this tool (`PasRequestBuilder`). The FHIR mode sends the
+  attachment in the bundle.
+- No `$submit-attachment` and no claim update, so the route the guide gives after "attachment
+  required" is not built; the result names it (D-161). A resubmission reuses the claim id (D-133).
+- DTR: no `$expand`, no `$log-questionnaire-errors`, no CQL is run; only the invariants dtrx-1 and
+  dtrb-1 are evaluated (D-165). DTR is the operations behind a SMART launch, not the launch.
+- The notification receiver listens on this machine only by default and does not authenticate its
+  caller (D-115, D-227).
+- The wire view carries member data by design; secrets sit in plain text in `config-store/`
+  (D-147); the tool has no sign-in.
+- Not verified: the STS minimum version (none is claimed), a dependency mirror that needs
+  credentials, a token server; the member and provider lookups have never met the real APIs (section
+  26).
+Whether level 1 is claimed at all is stated with the handover, after the integrator's last gate
+(`PROGRESS.md`, "Degradation level").
+
+### The rules the screens and the server gained from the last audits
+
+**D-236. Not returned, null and empty are said in words in every designed view.**
+From the completeness audit's F1 and F9 (blockers), F2, F4, F5 (majors), F3 and F11 (minors), decided
+by the integrator in `TASK_FINAL_RENDER`. **This overturns, for the designed views, the part of D-058
+that let an absent list and an empty one read alike.** D-058's rule for the tracked reads stands.
+- Wherever a designed view states a value or heads a list, it says which of the three it is, in words,
+  on CRD, DTR and PAS alike, as the CRD Cards section already did ("cards not returned", "cards null",
+  "cards empty"). Where the page cannot know, the server sends the presence beside the value: a map
+  `lists` (element name as the response spells it, to `Presence`) on `CardView`, `SuggestionView`,
+  `ClaimResponseView`, `PasItemView`, `AdjudicationView` and `ItemView`; `CardView.source`;
+  `ClaimResponseView.preAuthPeriod`; `PasDecision.authorizedPeriod`; `IssueView.expressionPresence` and
+  `locationPresence`, from which the two booleans of D-205 are now derived so they cannot disagree.
+- A list that a view heads with a count is always named, absent included ("Adjudications (0)" then
+  "adjudication not returned", "null" or "empty"). A list the view hides when it holds nothing (item
+  extensions, `noteNumber`, `enableWhen`, `initial`, `communicationRequest`) is named only when it was
+  sent null or empty: "not returned" on every item would bury the rest.
+- A CRD sub-extension that can repeat and is missing reads "not returned", not "none returned": in the
+  response each is a sub-extension of its own.
+- A coverage sub-extension sent with no `value[x]` keeps presence `EMPTY`, so the outcome rules do not
+  change; `CoverageInformationView.sentWithNoValue` names it, the coverage table draws "sent with no
+  value", and the finding says "it carries no value[x] at all", apart from "its value is empty". The
+  determination grid still says "empty" for it (D-249).
+- The code list finding words `pa-needed` from its presence: "(pa-needed was returned as null)",
+  "(pa-needed was returned empty)", "(pa-needed was sent with no value)", never "was not returned" for
+  a value that came.
+- The ledger line writes `covered`, `pa-needed` and `doc-needed` sent null, empty or with no value as
+  `name=(null)`, `name=(empty)`, `name=(no value)`, as D-056 writes `(no answer)`; a code that was not
+  returned still has no pair. No component of the record was added for it.
+Tests that fail without it: `CrdConformanceCheckerTest`, `OperationOutcomesTest`, `CrdCardPresenceTest`,
+`PasPresenceTest`, `DtrItemPresenceTest`, `CrdNoValueTest`; `CompletenessScreenTest` checks that the
+page reads the presences. Seen in a browser at 1366 by 768 only; the PAS inquiry, a subscription and
+the notification fold were not looked at.
+
+**D-237. Every value of a repeated key is listed, and a request body that repeats a key is refused.**
+From the completeness audit's F13 (major) and F14 (minor), and the build audit's F-01 (minor).
+- **In an answer, the tool reads the last value of a repeated key, as JSON readers do, and says
+  everything it dropped.** `JsonSafe.Parsed.repeated` records each repeated key with its path, its
+  pointer and every value as JSON text in order, found by a token walk run only when a key repeats.
+  The returned fields list each value as `<path> (value i of n)`, masked as the wire view masks, on
+  CRD, DTR, PAS, subscriptions and notifications, under a note that no longer says only the last value
+  is shown. When the key is one a designed view read, CRD raises `GUIDE_RULE_BROKEN` in the guide group
+  ("<path> is sent <n> times in one object"), citing RFC 8259 and FHIR JSON, giving every value and
+  calling neither wrong. No finding kind was added. At this revision the finding is raised on CRD
+  only, and the raw send and the two lookups still list only the last value under the old note
+  (D-249).
+- **The CRD mock plays a scenario body that repeats a key exactly as written**, and does not carry the
+  orders back on it, because rebuilding the body from the tree would drop the earlier values. The
+  scenario note says so.
+- **Every JSON request body the tool reads refuses a repeated key** (`STRICT_DUPLICATE_DETECTION` on the
+  strict mapper), with a 422 that names the place from the parser's path, never a value: "The request
+  repeats the field "member" inside one object. Nothing was sent." Scenario files and suite files
+  already refused one. A body of the tester's own travels as a text value and is passed on as written;
+  Postman uploads, scenario files and the notification receiver read their own way and are unchanged.
+
+**D-238. A resource of another kind sent in answer to a CRD hook is not "no determination".**
+From the completeness audit's F6 (major). A Patient sent with HTTP 200 in answer to a hook was read as a
+CDS Hooks response with no cards, drawn exactly as `P32H-EMPTY`, and passed a row that expected no
+determination. Decided: a JSON object whose `resourceType` is anything but `OperationOutcome`, and any
+JSON that is not an object, is `OTHER_JSON` ("The body says it is a Patient resource.") and its outcome
+is the existing `MALFORMED_RESPONSE`, which cannot match `NO_DETERMINATION`, on the tab, in a suite row
+and on the ledger line. No CRD outcome was added. A blank `resourceType` names nothing and the object is
+read as CDS Hooks. DTR and PAS already said so of their own answers. At this revision the verdict
+headline still says the body "could not be read", which is untrue of a Patient (D-249).
+
+**D-239. A notification is read whole; only the text it keeps is cut.**
+From the completeness audit's F10 (major). The receiver read a body only from its first 131072 bytes,
+so a larger one was not JSON, had no designed view and matched no run. Now it reads the body to its
+end (up to 8 MiB), and decodes, masks, reads, maps and matches all of it; it still holds only the
+first 131072 bytes as text, and the note says both ("All of it was read, and everything above comes
+from all of it. Only its first 131072 bytes are held, so the payload text below is cut there."). A
+body whose reading stopped before its end is read from its start as before. This changes the reading
+part of D-133; the held text stays as D-133 says.
+
+**D-240. Who answered a run is a fact of the result and of the ledger line, and a time that was not measured is not zero.**
+From the walkthrough's F-LOCALSOLID (major) and F-0MS (minor). Completing a questionnaire response
+happens inside the tool, and its result carried the hatched mark of the mock, a sentence for screen
+readers that a scenario file answered, and the solid colour the key gives to an answer from the payer.
+- `AnsweredBy`, one of `SERVICE` (live, a timeout and a received notification included), `SCENARIO`
+  (mock, a played fault included), `NOBODY` (a step done inside the tool: an operation that is not
+  outbound and not a notification) and `NOT_SENT` (refused before sending), worked out by one rule
+  (`AnsweredBy.of(operation, profile, refused)`) for `RunEnvelope.answeredBy`, `RunRecord.answeredBy`
+  (written, and worked out for a line written before it) and `ChainRun.answeredBy`. It is a column of
+  the export.
+- A step nobody answered is drawn as a dotted frame in its tone's colour, never filled, with no hatch
+  and no sentence about a scenario: "done in this tool, nobody answered" on the strip, "(done inside
+  this tool: nobody answered)" read out in History and the chain view, and a row of its own in the
+  colour key. At this revision the list of chains in History does not draw it (D-249).
+- A run that sent nothing (a step inside the tool, a notification, a refused write) records
+  `elapsedMillis` null; a line already written with 0 for such a run is read as null; the export cell
+  is empty and History and the chain view say "not measured". An outbound run's time is kept.
+
+**D-241. "No determination" tells a business tester what to do.**
+From the walkthrough's F-NODET-NEXT (major). CRD `NO_DETERMINATION` gets a next action of its own,
+`REPORT_NO_DETERMINATION`: "Next: record run <runId> as "no determination returned" and report it to
+the people who look after the service." with "The answer does not say whether prior authorization is
+needed, and this tool does not guess. What came back is in the response detail below." The tool still
+says neither whose fault it is nor whether authorization is needed. The strip, its words and its
+dashed hollow tone, which keep it apart from "prior authorization is not required", are unchanged.
+`REVIEW` stays for every other outcome that has it, including `AUTH_NOT_STATED` and `UNRECOGNISED_CODE`:
+the decision named no determination only. Older ledger lines keep `REVIEW` and are read as before.
+
+**D-242. Text typed and not added is never sent.**
+From the walkthrough's F-DUPCODE (major) and F-MRI (minor). Text typed into the procedure code box and
+never added went into the case when Send was pressed, on whichever tab was open, and could repeat a
+code already there (the duplicate check compared the wrong property and never matched).
+- Nothing the tester did not see as part of the case is sent. A send with text still in the box is
+  refused before anything is asked, on every protocol tab and on "Complete the response": "Nothing was
+  sent: "<text>" was typed in the procedure code box and not added to the case." and at the box "Typed
+  and not added. Choose Add code, or clear the box." Only the tab that holds the case checks, so the
+  Config tab's raw send is never blocked by the box.
+- Every way a code gets into the case goes through one check that refuses the same code twice and says
+  what it refused ("70553 is in the case already, and is not added twice.").
+- A typed entry that is not on the list and lacks the shape of a CPT code (five digits, or four digits
+  and a letter) or a HCPCS Level II code (a letter and four digits) gets the server's `shapeNote`
+  under "not on the list"; it is still sent as chosen. A code on the list is never judged by its shape.
+`CaseCodesFrontendTest` reads the source only: the build has no JavaScript runner, so the behaviour
+was seen in a browser and not run by a test.
+
+**D-243. One action keeps one name, an error says what to do, and a replay is described as it is.**
+From the house style audit's V5-SCREEN-ONE-ACTION-NAMES, V5-SCREEN-ERRORS-NO-ACTION and
+V5-SCREEN-PLAIN-WORDS (minors), and the walkthrough's F-FILTER-LABELS, F-CHAIN-WORDING, F-REPLAY-SCENARIO
+and F-TRACE-PAS-DTR (minors).
+- **Names.** The PAS submission and the status inquiry are named by their buttons, as the DTR actions
+  were (D-205): `START_PAS` is "Send PAS request" and `CHECK_STATUS` "Send inquiry", in the next-action
+  labels, the call choices of the PAS tab and every sentence that names them. The hand-over keeps its
+  own name ("Continue in PAS"), so a headline reads "Next: choose Continue in PAS, then Send PAS
+  request." The Config tab's actions each have one name: "Send as written", "Upload a collection",
+  "Upload an environment", "Show how it resolves", "Unlock production writes for this browser session",
+  "Open the Config tab". Close buttons name what they close. "mints" became "creates".
+- **Errors.** A run not found gains an action (where to copy a run id from); one date check is worded
+  one way everywhere ("The From day is after the To day. ..."); a parameter error no longer names the
+  API parameter in its sentence, the field it marks does; an unknown scenario id says to choose one
+  from the list or leave it empty; a build without a case runner says what is missing. At this
+  revision the page's error panel is still headed "What went wrong", a refused form's label does not
+  say what to do, the receiver's refusal of an unknown run id has no action, and two buttons still say
+  only "Dismiss" and "Close" (D-246, D-249).
+- **The outcome filter of History** lists each protocol's wording of a code where protocols word it
+  differently, instead of the bare code.
+- **A replay refused because the run was handed its case** says it followed run X and was handed its
+  case, so it cannot be sent again alone; it is called a step of a chain only when the line carries a
+  chain id. History called the same run "a single run".
+- **A replay on mock is still answered by the scenario the original run recorded**, so mock replays stay
+  stable, and its verdict says so: "the scenario the original run recorded, sent again by its id. On the
+  mock profile a replay is therefore answered as the original run was, by construction, whatever its
+  member ID would select today." The selector's own sentence is unchanged for runs from the tabs and
+  suites. Not checked over HTTP after the last change to it.
+- **F-TRACE-PAS-DTR decided otherwise: D-181 stands.** A PAS line still names the package fetch it
+  follows. What was missing was the way from one to the other: `GET /api/runs` takes `follows=<runId>`,
+  and a run's view in History lists "Followed by", so from a PAS submission a QA analyst reaches the
+  response run whose answers it carried in two steps (the package fetch it follows, then that fetch's
+  followers).
+
+**D-244. The style gate: one class that the build's task and a test both run.**
+From the house style audit's V5-GATE-NOTEST and V5-GATE-PATTERNS (majors), V5-GATE-SCOPE,
+V5-INVISIBLE-CHARS, V5-FIXTURE-NAMES and V5-COMMENTS-WHAT (minors). The audit found no tracked file and
+no commit message breaking the character and word rules; it found that the build would not have
+noticed if one did: the gate had no test, and its patterns let compounds, spellings with a separator
+and several look-alike characters through. **This replaces D-013's description of the gate.**
+- **One class.** The rules and the scan live once, in `src/houseStyle/java/.../style/HouseStyle.java`,
+  a source set of its own that never reaches the application jar. `houseStyleCheck` is a `JavaExec`
+  of it, `check` depends on it, and the tests and `CompareWords` call the same class, so the rules
+  cannot drift. It still takes seconds.
+- **A test that fails when the gate goes.** `HouseStyleTest` plants a violation of every rule and
+  requires each to be refused with its own label and the clean lines to pass; requires the set of rule
+  labels to equal the set of planted groups; checks through system properties that the test task works
+  out from the live task graph that `check` depends on `houseStyleCheck` and that it runs
+  `HouseStyle`; and scans the real tree itself, so after this change a violation anywhere also turns
+  that test red. With the gate taken out of `check` the test failed. The test does not run Gradle
+  itself, so the path where the task's exit becomes a failed build was seen by hand only.
+- **What it reads.** Every file `git ls-files --cached --others --exclude-standard` lists in
+  `epa-pave/` (tracked, plus new files not yet added, minus what `.gitignore` excludes), so
+  `.gitignore` and `.gitattributes` are read; without git, a walk that skips the same directories, and
+  the report says which. Every file's name as well as its lines. A binary file is skipped (a known
+  extension or a NUL byte in its first 8000 bytes); a text file that is not valid UTF-8 is a violation,
+  because decoding with replacement would hide the bytes the character rules look for.
+- **The rules.** Banned words with no leading word boundary, so a compound in camel case or with
+  underscores is caught; two-part forms allow up to three separator characters between their parts
+  (one for the word made of "seam" and "less", since "seam" alone is a common word here), which also
+  refuses such pairs in ordinary prose: such a line is reworded. The product name in every spelling
+  with a separator; the organisation's short name without its trailing H anywhere, inside an
+  identifier included; the tracking property in a stylesheet or set from a script; every dash-like,
+  quote-like and space-like character of Unicode that could stand in for a forbidden one, the ellipsis
+  character, and raw invisible characters, which must be written as escapes; the formal name spelt
+  otherwise than Point32Health. Angle quotation marks are refused everywhere but `gradlew`, which Gradle
+  writes and rewrites on upgrade (D-013's reason).
+- **What it cannot read**, said in a comment on the task and on the last line of every report: commit
+  messages, the pull request description, names of people, and comments that only restate the code.
+- The tightened gate found eight raw invisible characters in string literals (test data and two byte
+  order marks in `SuiteFileReader`); each is now its escape, with the same value. Six invented surnames
+  were renamed to start with `Placeholder` (a fixture convention; no test checks it). Five comments of
+  the audit's sample were rewritten to say why and eight empty banners removed; only the sample of 50
+  of 4,769 comment blocks in the main sources was read.
+
+### The checks of the second audits' fixes
+
+**D-245. What the independent checks of the V2, V3 and V4 fixes established.**
+On revision `9e5306d`, each by an agent that wrote neither the tool nor the fix, against the built jar
+on live with stand-ins of its own on loopback ports, repeating every finding of the second run and
+attacking its neighbours. For each finding it called closed, the check took the fix out again, ran the
+fix's tests and saw them fail, then restored the file; F-SCREEN and m2 were seen in a browser with two
+contexts and have no test to undo. The check of one fix is not a check of the tool: none ran the full
+suite on the unchanged tree, and each relied on the integrator's build.
+- **Member data (V2):** F0, F3, F5, F6 and F7 closed. F1 and F2 closed for the audit's own requests
+  and open one step away: a note sent with a request of the tester's own from a protocol tab is checked
+  against nothing (the page sends no member with it); a date of birth written with the month's name,
+  and the member ID in fullwidth digits or without its letter, are not recognised; a member ID whose
+  digits are split by a separator, supplied by a service as an identifier, is kept in clear; and the
+  fix had stopped keeping the plain numbers many FHIR servers mint, so a notification on such a
+  subscription is no longer matched to its run. Four minors more (address parts and name parts, names
+  that are common words, long digit codes, the suite results file, variable names the upload warning
+  misses).
+- **Guardrail (V3):** M-ENC, m3, m4, T1, GAP1, m1, F-SCREEN and m2 closed; nothing reached a
+  production stand-in on any route the audit or the check tried, but one. B1 closed in its first
+  direction and open in the second: a production environment whose own address the client cannot read
+  (a port with a plus sign, a backslash in the path, a colon with nothing after it) is not remembered
+  as production, and a sandbox at the plain spelling of that address then sent writes there with no
+  unlock. Also found: a value typed for a run that makes the path unreadable is refused with the
+  wrong cause; an overlong or look-alike encoding of a slash is not refused; a short secret in a
+  notification is shown with no note; a false "same server" warning.
+- **Fixtures (V4):** F-CHAIN-DTR, F-DUP-CRDSENT, F-PAS-SHADOW, F-SAMPLE-LIST, F-PAS-CRDMAP-HIDDEN,
+  F-ORPHAN, F-UNMATCHED-LOOP and F-NPI-TEST closed; F-V4-02-REST recorded as the known limit of D-224.
+  F-RAW open one step away: a sentinel NPI in a pasted body is ignored, while the README says it
+  selects. Also found: a scenario directory of a tester's own from before the mappings became data
+  loses them without a word; no test fails when the scenario lists' notes are dropped; the
+  documentation scenario chosen by hand with a DTR sentinel names the wrong questionnaire; a mapping
+  entry naming no CRD sentinel is not noticed; a deleted subscription is treated as live; two stale
+  comments; the NPI scan does not read the Markdown files.
+Each open line was decided and given to one of four tasks (D-246 to D-249). `PROGRESS.md` gives every
+finding with its state and the check's result.
