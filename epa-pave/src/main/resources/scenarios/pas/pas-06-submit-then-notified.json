@@ -342,8 +342,8 @@
                     {
                       "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemPreAuthPeriod",
                       "valuePeriod": {
-                        "start": "2026-03-20",
-                        "end": "2026-09-20"
+                        "start": "2026-01-15",
+                        "end": "2026-04-15"
                       }
                     }
                   ],
