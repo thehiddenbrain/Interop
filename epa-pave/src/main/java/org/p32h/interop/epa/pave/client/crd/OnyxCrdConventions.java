@@ -91,6 +91,10 @@ public final class OnyxCrdConventions {
 
     /** The code system CRD 2.0.1 and the 2.2.0 ballot both put reason codes in. */
     public static final String CRD_TEMP_CODES = "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp";
+    /** The CRD 2.0.1 reason "gold-card": the ordering practitioner has gold card status with this payer or coverage type. */
+    public static final String REASON_GOLD_CARD = CRD_TEMP_CODES + "|gold-card";
+    /** The CRD 2.0.1 reason "detail-code": the ordered code is too general to decide on. */
+    public static final String REASON_DETAIL_CODE = CRD_TEMP_CODES + "|detail-code";
     /** The 2.2.0 ballot's reason for "the member was not found". CRD 2.0.1 has no such code. */
     public static final String LATER_NO_MEMBER_FOUND = CRD_TEMP_CODES + "|no-member-found";
     /** The 2.2.0 ballot's reason for "the coverage is not active". CRD 2.0.1 has no such code. */

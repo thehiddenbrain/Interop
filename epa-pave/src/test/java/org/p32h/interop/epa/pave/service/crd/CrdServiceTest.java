@@ -503,6 +503,18 @@ class CrdServiceTest {
                 .containsExactly("BAD_REQUEST", "SERVER_ERROR", "TIMEOUT", "UNAVAILABLE", "MALFORMED_RESPONSE");
     }
 
+    @Test
+    void everyResultSaysWhichRulesOfCrd201TheCheckerAppliedFaultsAndEmptyAnswersIncluded() {
+        // V-02 and CRD201-08: silence about a rule the checker does not apply is not read as a pass.
+        for (String sentinel : List.of("P32H-PA-REQ", "P32H-EMPTY", "P32H-ERR500", "P32H-BAD400")) {
+            assertThat(run(sentinel).detail().conformance()).as(sentinel).isEqualTo(CrdConformanceChecker.SCOPE);
+        }
+        OnyxCrdClient unreachable = stub(TestExchanges.unavailable(EpaOperation.CRD_ORDER_SIGN));
+        assertThat(service(unreachable, "mock", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null).detail()
+                .conformance()).isEqualTo(CrdConformanceChecker.SCOPE);
+        assertThat(CrdConformanceChecker.SCOPE.version()).isEqualTo("CRD 2.0.1");
+    }
+
     // ---- validation: nothing sent, nothing recorded ----
 
     @Test

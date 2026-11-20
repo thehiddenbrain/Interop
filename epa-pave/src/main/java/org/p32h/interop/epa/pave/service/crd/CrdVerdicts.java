@@ -64,6 +64,11 @@ public final class CrdVerdicts {
             case PERFORMER_AUTH -> "The performing provider must obtain prior authorization.";
             case DOCUMENTATION_REQUIRED -> {
                 for (CoverageInformationView view : coverage) {
+                    // An answer that is partly conditional gets a "Definite" line that already
+                    // states a recognised pa-needed, so it is not said twice in a row.
+                    if (partlyConditional(view) && view.paNeeded().code() != null && view.paNeeded().recognised()) {
+                        continue;
+                    }
                     supporting.add(prefix(view, named) + "Prior authorization: "
                             + (view.paNeeded().code() == null ? "not stated" : lower(view.paNeeded().display())) + ".");
                 }
@@ -191,9 +196,21 @@ public final class CrdVerdicts {
         return out;
     }
 
-    /** A reason as the verdict states it: as returned, and for a later version's code, with that version's meaning. */
+    /**
+     * A reason as the verdict states it: as returned, with its meaning for a code this tool can
+     * read. A CRD 2.0.1 code gets its 2.0.1 meaning, and a later version's code that version's,
+     * named as such.
+     */
     private static String reason(Shown reason) {
         String value = reason.value();
+        if (value.contains(OnyxCrdConventions.REASON_GOLD_CARD)) {
+            return value + " (" + CrdCodes.JUDGED_BY + " gold-card: the ordering practitioner has been granted gold card status with "
+                    + "this payer or coverage type)";
+        }
+        if (value.contains(OnyxCrdConventions.REASON_DETAIL_CODE)) {
+            return value + " (" + CrdCodes.JUDGED_BY + " detail-code: the ordered code is too general for the payer to decide "
+                    + "coverage or prior authorization, and a more detailed code is needed)";
+        }
         for (String later : List.of(OnyxCrdConventions.LATER_NO_MEMBER_FOUND, OnyxCrdConventions.LATER_NO_ACTIVE_COVERAGE,
                 OnyxCrdConventions.LATER_AUTH_OUT_NETWORK)) {
             if (value.contains(later)) {
@@ -201,6 +218,15 @@ public final class CrdVerdicts {
             }
         }
         return value;
+    }
+
+    /** True when covered, pa-needed or doc-needed is a recognised conditional, which is when {@link #facets} spells the answer out element by element. */
+    private static boolean partlyConditional(CoverageInformationView view) {
+        return conditional(view.covered()) || conditional(view.paNeeded()) || conditional(view.docNeeded());
+    }
+
+    private static boolean conditional(CodedValue value) {
+        return value.code() != null && value.recognised() && value.is("conditional");
     }
 
     /** Puts one element of an answer under definite or conditional. An element not returned, or not recognised, goes under neither. */
@@ -346,9 +372,7 @@ public final class CrdVerdicts {
                     "Next: read the response detail below. This tool cannot say what should happen next.",
                     "The response asks for documentation in a way this tool cannot act on.", carry);
             case AUTH_REQUIRED -> new NextStepView(NextAction.START_PAS, "Next: submit the prior authorization request in PAS.",
-                    vendor != null
-                            ? "Prior authorization is required and routes to " + vendor + "."
-                            : "Prior authorization is required and no documentation is asked for first.", carry);
+                    authRequiredReason(coverage, vendor), carry);
             case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
                     "The payer answered that prior authorization is not required, so there is nothing to submit.", carry);
             case AUTH_SATISFIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
@@ -376,6 +400,21 @@ public final class CrdVerdicts {
                     outcome == CrdOutcome.MIXED ? "Not every answer in the response is the same, so each needs its own next step."
                             : "The response does not carry an authorization answer this tool can act on.", carry);
         };
+    }
+
+    /**
+     * Why PAS is next when prior authorization is required. A doc-needed of conditional is not a
+     * "no": CRD 2.0.1 defines it as a decision that cannot be made without more information, so
+     * the reason says documentation may still be asked for.
+     */
+    private static String authRequiredReason(List<CoverageInformationView> coverage, String vendor) {
+        boolean documentationConditional = coverage.stream().anyMatch(view -> conditional(view.docNeeded()));
+        String base = vendor != null ? "Prior authorization is required and routes to " + vendor + "." : null;
+        if (documentationConditional) {
+            return (base != null ? base : "Prior authorization is required.") + " Documentation may be needed once the payer has more "
+                    + "information: doc-needed is conditional.";
+        }
+        return base != null ? base : "Prior authorization is required and no documentation is asked for first.";
     }
 
     /**

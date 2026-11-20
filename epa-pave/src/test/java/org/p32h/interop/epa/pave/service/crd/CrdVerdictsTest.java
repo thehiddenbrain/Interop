@@ -276,6 +276,87 @@ class CrdVerdictsTest {
     }
 
     @Test
+    void aCrd201ReasonCodeIsShownWithItsCrd201Meaning() {
+        // V-08: gold-card and detail-code are the only reason codes CRD 2.0.1 defines.
+        VendorExchange goldCard = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"},{\"url\":\"reason\","
+                + "\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\",\"code\":"
+                + "\"gold-card\"}]}}"));
+        assertThat(CrdVerdicts.verdict(mapper.read(goldCard), goldCard).supporting()).contains("Reason the payer gives: "
+                + "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|gold-card (CRD 2.0.1 gold-card: the ordering practitioner has been "
+                + "granted gold card status with this payer or coverage type).");
+        VendorExchange detailCode = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"conditional\"},{\"url\":\"reason\","
+                + "\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\",\"code\":"
+                + "\"detail-code\"}]}}"));
+        assertThat(CrdVerdicts.verdict(mapper.read(detailCode), detailCode).supporting()).contains("Reason the payer gives: "
+                + "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|detail-code (CRD 2.0.1 detail-code: the ordered code is too general "
+                + "for the payer to decide coverage or prior authorization, and a more detailed code is needed).");
+    }
+
+    @Test
+    void requirementsAlreadyMetEndTheFlowInTheWordsOfCrd201() {
+        // V-04 and CRD201-20: satisfied says the conditions were evaluated, not that an authorization is on file.
+        NextStepView satisfied = next("P32H-PA-SAT");
+        assertThat(satisfied.action()).isEqualTo(NextAction.FLOW_ENDS);
+        assertThat(satisfied.reason()).isEqualTo("The payer answered that the requirements prior authorization would check are already "
+                + "met, so prior authorization can be bypassed and there is nothing to submit.");
+    }
+
+    @Test
+    void documentationThatIsConditionalIsNotCalledNotAskedFor() {
+        // V-05: CRD 2.0.1 conditional means the decision cannot be made without more information.
+        VendorExchange exchange = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},{\"url\":\"doc-needed\",\"valueCode\":\"conditional\"}"));
+        assertThat(mapper.read(exchange).outcome()).isEqualTo(CrdOutcome.AUTH_REQUIRED);
+        NextStepView next = CrdVerdicts.nextStep(mapper.read(exchange), exchange);
+        assertThat(next.action()).isEqualTo(NextAction.START_PAS);
+        assertThat(next.reason()).isEqualTo("Prior authorization is required. Documentation may be needed once the payer has more "
+                + "information: doc-needed is conditional.");
+        // With a vendor, the vendor is still named first.
+        VendorExchange routed = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},"
+                + "{\"url\":\"doc-needed\",\"valueCode\":\"conditional\"},{\"url\":\"detail\",\"extension\":[{\"url\":\"code\","
+                + "\"valueCodeableConcept\":{\"coding\":[{\"code\":\"delegated-vendor\"}]}},{\"url\":\"value\",\"valueString\":\"eviCore\"}]}"));
+        assertThat(CrdVerdicts.nextStep(mapper.read(routed), routed).reason()).isEqualTo("Prior authorization is required and routes to "
+                + "eviCore. Documentation may be needed once the payer has more information: doc-needed is conditional.");
+        // Without doc-needed, the reason is as it was.
+        VendorExchange plain = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"}"));
+        assertThat(CrdVerdicts.nextStep(mapper.read(plain), plain).reason())
+                .isEqualTo("Prior authorization is required and no documentation is asked for first.");
+    }
+
+    @Test
+    void aDefinitePriorAuthorizationAnswerIsNotSaidTwiceWhenTheAnswerIsPartlyConditional() {
+        // V-06.
+        VendorExchange exchange = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"conditional\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},{\"url\":\"doc-needed\",\"valueCode\":\"clinical\"},"
+                + "{\"url\":\"info-needed\",\"valueCode\":\"location\"}"));
+        CrdReading reading = mapper.read(exchange);
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.DOCUMENTATION_REQUIRED);
+        List<String> supporting = CrdVerdicts.verdict(reading, exchange).supporting();
+        assertThat(supporting).filteredOn(line -> line.contains("prior authorization is needed")).containsExactly(
+                "Definite: prior authorization: prior authorization is needed; documentation: clinical documentation is needed.");
+        assertThat(supporting).contains("Conditional on information not yet supplied: coverage.");
+        // With nothing conditional there is no Definite line, so the prior authorization line stays.
+        VendorExchange firm = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},{\"url\":\"doc-needed\",\"valueCode\":\"clinical\"}"));
+        assertThat(CrdVerdicts.verdict(mapper.read(firm), firm).supporting()).contains("Prior authorization: prior authorization is needed.");
+    }
+
+    @Test
+    void aNamedQuestionnaireResponseIsShownAndTheReasonSaysItIsNotYetHandedOnToDtr() {
+        // V-01: NextStepView has no carry key for a QuestionnaireResponse reference, so it is shown and said not to be carried.
+        VendorExchange exchange = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},"
+                + "{\"url\":\"doc-needed\",\"valueCode\":\"both\"},{\"url\":\"doc-purpose\",\"valueCode\":\"withpa\"},"
+                + "{\"url\":\"response\",\"valueReference\":{\"reference\":\"QuestionnaireResponse/qr-1\"}},"
+                + "{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}"));
+        NextStepView next = CrdVerdicts.nextStep(mapper.read(exchange), exchange);
+        assertThat(next.action()).isEqualTo(NextAction.START_DTR);
+        assertThat(next.reason()).endsWith("A partly completed questionnaire response is named for DTR to start from. This tool does not "
+                + "yet hand that response on to DTR: it is shown on the result.");
+        assertThat(next.carry().values()).noneSatisfy(values -> assertThat(values).contains("QuestionnaireResponse/qr-1"));
+        assertThat(next.carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
+    }
+
+    @Test
     void everythingDtrNeedsIsCarriedAndNothingIsReducedToItsFirstValue() {
         String two = "{\"systemActions\":["
                 + "{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"service-request-1\",\"extension\":[{\"url\":\"" + EXT

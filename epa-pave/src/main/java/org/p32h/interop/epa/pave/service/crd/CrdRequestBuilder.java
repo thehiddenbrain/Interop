@@ -77,9 +77,12 @@ public final class CrdRequestBuilder {
         root.put("hook", hook);
         root.put("hookInstance", hookInstance);
         String fhirServer = CaseResources.value(variables, CaseResources.VAR_FHIR_SERVER);
+        boolean prefetchSent = !Boolean.FALSE.equals(request.includePrefetch());
         if (fhirServer != null) {
             root.put("fhirServer", fhirServer);
-        } else {
+        } else if (prefetchSent) {
+            // Without prefetch either, the note below says both at once, so the two notes never
+            // send the service to a prefetch that was not sent.
             notes.add("No fhirServer was sent: the variable " + CaseResources.VAR_FHIR_SERVER + " is not set. This tool is not an "
                     + "EHR, so the service must work from the prefetch it is given.");
         }
@@ -117,7 +120,7 @@ public final class CrdRequestBuilder {
         }
         context.set("draftOrders", bundle);
 
-        if (!Boolean.FALSE.equals(request.includePrefetch())) {
+        if (prefetchSent) {
             ObjectNode prefetch = root.putObject("prefetch");
             prefetch.set("patient", resources.crdPatient(member, variables, notes, missing));
             prefetch.set("coverage", resources.crdCoverage(member, variables, notes, missing));
@@ -131,9 +134,13 @@ public final class CrdRequestBuilder {
             notes.add("The prefetch keys patient, coverage, practitionerRole and " + (named.practitioner() != null ? "practitioner" : "organization")
                     + " are this tool's own choice. The keys the live service declares are not known: compare them with its discovery "
                     + "response.");
-        } else {
+        } else if (fhirServer != null) {
             notes.add("No prefetch was sent, because the form said to leave it out. The Patient, Coverage and provider resources, and "
-                    + "what " + CaseResources.CRD_VERSION + " requires of them, are then the service's to fetch.");
+                    + "what " + CaseResources.CRD_VERSION + " requires of them, are then the service's to fetch from the fhirServer sent.");
+        } else {
+            notes.add("No prefetch was sent, because the form said to leave it out, and no fhirServer was sent either: the variable "
+                    + CaseResources.VAR_FHIR_SERVER + " is not set. This request gives the service no way to read the Patient, the "
+                    + "Coverage or the provider.");
         }
         if (!missing.isEmpty()) {
             // First, so a refusal by the service is read beside it and not taken for a fault of the service.

@@ -136,6 +136,39 @@ class CrdConformanceCheckerTest {
     }
 
     @Test
+    void anAnswerWithOnlyPaNeededIsMissingEveryPartCrd201RequiresDateIncluded() {
+        // V-02: the date 1..1 rule, beside coverage, covered and coverage-assertion-id.
+        List<Finding> findings = checkResponse(200, response(bareAction(1, code("pa-needed", "auth-needed"))), "95810");
+        assertThat(findings).extracting(Finding::title).containsExactly(
+                "CRD 2.0.1 requires coverage on coverage information",
+                "CRD 2.0.1 requires covered on coverage information",
+                "CRD 2.0.1 requires date on coverage information",
+                "CRD 2.0.1 requires coverage-assertion-id on coverage information");
+        assertThat(findings.get(2).detail()).isEqualTo("The coverage information at systemActions[0].resource.extension[0] does not "
+                + "carry date. CRD 2.0.1 ext-coverage-information requires it once (1..1).");
+    }
+
+    @Test
+    void aDetailWithTheBallotsCategoryIsNamedAsLaterVersionContent() {
+        // V-03 and CRD201-12: category is the 2.2.0 ballot's, so it is named with that version and not called wrong.
+        List<Finding> findings = checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
+                + ",{\"url\":\"detail\",\"extension\":[{\"url\":\"code\",\"valueCodeableConcept\":{\"coding\":[{\"code\":"
+                + "\"allowed-quantity\"}]}},{\"url\":\"value\",\"valuePositiveInt\":2},{\"url\":\"category\",\"valueCodeableConcept\":"
+                + "{\"coding\":[{\"code\":\"limitation\"}]}}]}")), "95810");
+        assertThat(findings).singleElement().satisfies(f -> {
+            assertThat(f.kind()).isEqualTo(FindingKind.OTHER_VERSION_CONTENT);
+            assertThat(f.title()).isEqualTo("detail.category is defined in CRD 2.2.0 ballot, not in CRD 2.0.1");
+            assertThat(f.detail()).isEqualTo("The coverage information at systemActions[0].resource.extension[0] gives detail[0] a "
+                    + "category. CRD 2.0.1 defines a detail as code, value and qualification; CRD 2.2.0 ballot adds category. It is shown "
+                    + "as returned and not called wrong, because which version the service follows is not known.");
+        });
+        // The same detail without a category raises nothing.
+        assertThat(checkResponse(200, response(action(1, code("pa-needed", "auth-needed")
+                + ",{\"url\":\"detail\",\"extension\":[{\"url\":\"code\",\"valueCodeableConcept\":{\"coding\":[{\"code\":"
+                + "\"allowed-quantity\"}]}},{\"url\":\"value\",\"valuePositiveInt\":2}]}")), "95810")).isEmpty();
+    }
+
+    @Test
     void anElementSentWithNoValueIsAFindingAndNotAnAnswer() {
         List<Finding> findings = checkResponse(200, response(action(1, code("covered", "covered") + ",{\"url\":\"pa-needed\",\"valueCode\":null}")),
                 "95810");

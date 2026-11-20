@@ -263,6 +263,27 @@ class CrdRequestBuilderTest {
     }
 
     @Test
+    void withNeitherPrefetchNorFhirServerTheNotesSayTheServiceHasNoWayToReadTheResources() {
+        // V-09: the notes never send the service to a prefetch that was not sent, or to a server that was not named.
+        List<String> neither = new CrdRequestBuilder(null, CLOCK).build(request().includePrefetch(false).build(), "h", NOTHING_SET).notes();
+        assertThat(neither).noneSatisfy(n -> assertThat(n).contains("No fhirServer was sent")).noneSatisfy(n -> assertThat(n)
+                .contains("the prefetch it is given")).noneSatisfy(n -> assertThat(n).contains("the service's to fetch"));
+        assertThat(neither).containsOnlyOnce("No prefetch was sent, because the form said to leave it out, and no fhirServer was sent "
+                + "either: the variable fhirServer is not set. This request gives the service no way to read the Patient, the Coverage "
+                + "or the provider.");
+
+        FakeGateway gateway = new FakeGateway().variable("fhirServer", "https://ehr.example.invalid/fhir");
+        List<String> serverOnly = new CrdRequestBuilder(null, CLOCK).build(request().includePrefetch(false).build(), "h",
+                t -> gateway.resolve(t, Map.of())).notes();
+        assertThat(serverOnly).containsOnlyOnce("No prefetch was sent, because the form said to leave it out. The Patient, Coverage and "
+                + "provider resources, and what CRD 2.0.1 requires of them, are then the service's to fetch from the fhirServer sent.");
+
+        List<String> prefetchOnly = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", NOTHING_SET).notes();
+        assertThat(prefetchOnly).containsOnlyOnce("No fhirServer was sent: the variable fhirServer is not set. This tool is not an EHR, "
+                + "so the service must work from the prefetch it is given.");
+    }
+
+    @Test
     void everyOrderCarriesTheMomentTheRequestWasBuiltAsAuthoredOnAndANoteSaysSo() {
         // CRD201-06 and DTR-05: CRD 2.0.1 profile-servicerequest requires authoredOn, and nobody supplies it.
         CrdRequestBuilder.Built built = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", NOTHING_SET);
