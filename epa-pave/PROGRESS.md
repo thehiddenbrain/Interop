@@ -84,6 +84,30 @@ each. None of it is done here, and every item below that D-226 covers is still o
   placeholder "that ships with the tool" or "the bundled placeholder", untrue of the shipped sample
   and of a tester's own marked list. A chain suite with the DTR sentinels was driven by a test and not
   by hand. Only the CRD tab with `P32H-DTR-ADAPT` into DTR was looked at on screen.
+- *What the second member data audit did not examine.* DTR on live (its stand-in had no DTR
+  endpoints, so the package, the next question and the response were not run there); PAS inquiry and
+  subscription read, update and delete on live (judged by reading the code); a raw send on live and
+  the Config tab's "send as written" path; a log file appender, heap or thread dumps and swap; file
+  modes and the temporary folder on Windows. It did not read the `postman` package,
+  `ConfigStoreGateway` or the CRD and PAS request builders line by line, only the changes since
+  `7dade28` in the files that touch member data.
+- *What the second guardrail audit did not examine.* A replay that reaches the gateway against
+  production (its replays were refused earlier for want of a recorded member); a chain whose PAS step
+  runs on production (checked in the code only); a real nginx, Tomcat or HAPI server in front of a
+  service; the race between preparing and sending, by a timed run (read in the code only); a
+  production address taken from an operating system variable; proxy settings and redirects (the
+  client is built never to follow a redirect, read in the code; neither was run); the PAS form's own
+  send button (writes from the page were sent with a fetch from the tab, and the CRD, DTR and History
+  tabs were not driven in a browser); the findings F2, F6 to F9 and F11 to F15 of the first
+  guardrail fix's verification, not repeated; the whole test suite under each of its mutations (only
+  the packages concerned were run); Windows.
+- *What the second fixture audit did not examine.* The rest of the DTR loop (the branch change of
+  `dtr-02`, the HTTP 500 on step 2 of `dtr-14`, the two questionnaires of `dtr-13`, the prepopulated
+  answers of `dtr-03`); each scenario file's `basis`, its claim about which guide text it follows,
+  not checked against the guides; the History, chain, suite and notification screens and the DTR loop
+  on screen (it looked at the CRD tab for 14 scenarios, 5 DTR and 7 PAS, at one size); VF-01 and VF-02
+  of the first fixture verification, not run again; lookup fixtures loaded from a damaged directory of
+  the tester's own (a test of two files claiming one identifier exists since D-204).
 
 **The screens, after the two passes over them.** Both passes drove the tool in a real browser with
 scripts, on mock unless said otherwise. What neither did, or what is still wrong:
@@ -104,7 +128,11 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   question, a questionnaire of undetermined kind, a wrapped next-question step, a DTR package request
   of the tester's own, DTR "could not be reached" on live, the UAT banner, History's view and replay of
   a DTR run, PAS on live with an unreachable sandbox, the masking of a channel header on screen, a PAS
-  payload over the 131072-byte cut.
+  payload over the 131072-byte cut, a chain joined from the PAS tab, PAS inquiry scenarios other than
+  the pended one (the timeout and server error ones were followed by an inquiry through the API only),
+  and a PAS replay that is sent (only a refused one was seen). Whether every protocol's determination
+  grid writes "no meaning to state" was not checked. The Config tab's files were never reread against
+  the Config review's CFG-01 to CFG-22: each pass drove only the flows it names.
 - *Seen at one size only.* The echo of secrets on live (1366); production, the ledger states, the
   suite and the replays (1366, first pass); the refused note (1366); most DTR states (1366, its own
   pass). No screen reader was used on any tab, contrast was never measured, 200% zoom and phone width
@@ -123,8 +151,8 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   empty `issue.expression` shows in the issues table and again among the fields returned but not
   interpreted. The comparison's `notes` repeats the caveat, and the page drops it by its text.
 - *Older, still true.* The body source of a raw send is served as a code only, and the page shows the
-  server's sentence; nothing has been decided about it. A tester reference or a note typed on one tab is not carried to the next (each
-  tab has its own fields). The PAS detail and the notifications list are not given the page's masking
+  server's sentence; nothing has been decided about it. A tester reference or a note typed on one tab
+  is not carried to the next (each tab has its own fields). The PAS detail and the notifications list are not given the page's masking
   stopgap and rely on the server. When a pasted request and the case disagree, only a member ID gets a
   button; two dates of service that disagree are listed with no button. The vendor's sample on the
   CRD tab passes through the browser, and the tool's own hook instance is always one difference. The
@@ -146,7 +174,8 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
 - *CRD.* `POST /api/crd/compare` cannot take a collection request by name, and ignores `configEpoch`.
 - *DTR.* A failure of the tool inside the response step, which sends nothing, answers 500 and writes no
   ledger line (from the first DTR report, not checked again). The intended use code system in the PAS
-  bundle was not checked against DTR 2.0.1. Replay of a DTR run through the running tool was not driven.
+  bundle was not checked against DTR 2.0.1. Replay of a DTR run, and a PAS replay that is sent, were
+  never driven through the running tool.
 - *Older items still true.* A run with the tester's own body records no member, NPI or line of
   business, and nothing on its ledger line tells two such runs apart (CASE-05). A CRD or PAS step of a
   chain handed only the procedure codes its line already holds is still marked as not replayable alone
@@ -165,7 +194,16 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
   has no inquiry answer or that a secret written as a JSON number is not masked. It does not yet
   carry the sentences of D-213 and D-217, the refusal of encoded separators, what Lock does, or how a
   notification is masked. Its list of sentences that quote the screen word for word has not been
-  checked again.
+  checked again. The README's own checks did not run `run.sh` from a checkout without a jar (its
+  `./gradlew bootJar` branch never ran), did not check that `run.sh` refuses a Java older than 21,
+  did not check an `{{env:PAVE_...}}` reference at send time, and ran every Endpoints example on port
+  8091, not on the documented 8057. Its screen sentences were checked at 1366 by 768 only, and those
+  about the production banner, the ledger's fault states, the suite chips, the chain view, the replay
+  result and "Load this case into the form" were taken from the join's report, not seen by the
+  README's author.
+- *The pull request draft.* Its attribution footer, required for pull request descriptions, holds a
+  non-ASCII character and names the generating tool, which conflicts with the house style and the
+  rule against naming a tool as an author (D-209). Undecided.
 
 **Limits each part reports that are still true.**
 - CRD: US Core 3.1.1 PractitionerRole was not checked (the package is not here; it may require both a
@@ -231,7 +269,11 @@ back address that the service echoes in its Subscription is masked in every view
 (`SubscriptionServiceTest`). A notification repeating a secret variable, the token, the client
 secret and a call back credential holds none of them in the list of notifications, the ledger or the
 log (`SecretsSentBackOverTheServerTest`, D-215). A note holding the member ID is refused on the CRD
-tab and marks its field (`LedgerPhiTest`, D-217). The DTR sentinels from CRD into DTR (D-222).
+tab and marks its field, seen once at 1366 by 768; `LedgerPhiTest` pins the refusal, not the mark
+(D-217).
+
+**Seen on the running application on mock and pinned by a test.** Every DTR sentinel taken from CRD
+into DTR (`DtrSentinelJourneyTest`, D-222); on screen only `P32H-DTR-ADAPT`.
 
 ### What the audits found and what was done
 
@@ -244,7 +286,9 @@ done.
 
 Every fix in these three tables was made by one agent and **has been checked by nobody else**. The
 test named is the one its author ran against the code with the fix taken out and saw fail; "none
-named" means no such run was reported.
+named" means no such run was reported. For the member data findings F1, F2 and F3 the tests named
+failed in a run that took all eight of that fix's changes out at once; only the cleaning on the read
+path and the receiver's check of an id not kept were also taken out alone.
 
 **Member data audit (V2), second run.** 1 blocker, 3 majors, 3 minors. Its answer: yes, on the live
 profile with default tracking the ledger and the export could hold a member ID, a name and a date of
@@ -294,6 +338,12 @@ states; four gaps.
 | F-NPI-TEST | minor | A test NPI that passes the check could be a real provider's | Replaced everywhere; a scan fails on any NPI outside the placeholder set | `NoNpiOutsideThePlaceholderSetTest` proves it catches the old number | Fixed, not yet verified by another agent | D-224 |
 
 #### The first run, and the reviews
+
+The rows of the reviews of the frame, the CRD tab, the DTR tab and the PAS tab that are closed by
+D-202 to D-205 were closed by the two server tasks for the screens, which had no verifier of their
+own. "Fixed" in those rows means fixed and not yet verified by another agent, unless the row says the
+join or the second pass saw it on screen (D-206, D-207); for several of them (FR-17, CMP-12, CRD-3 and
+the DTR review's R18 among them) no other agent is reported to have seen the fix hold.
 
 **Member data audit (V2), first run.** No blocker; 7 majors, 10 minors.
 
@@ -703,7 +753,7 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 | Spine 4: integrate Wave B, chain, suites, cross-protocol tests. V3 guardrail audit | done. V3 ran twice; the fixes of the second run, on `0658a7c`, are merged and not yet verified by another agent |
 | Fix wave: every audit and review finding | merged at `33893aa` |
 | Leftovers between the parts of the fix wave | merged at `7dade28`, each verified alone |
-| Server work the reviews of the screens asked for | merged (`screens-protocol` at `ce345e4`, `screens-platform` at `3b1ddf4`), no verifier of its own; the second audits were its first independent readers |
+| Server work the reviews of the screens asked for | merged (`screens-protocol` at `ce345e4`, `screens-platform` at `3b1ddf4`), each begun by an agent a restart cut off and finished by a second; no verifier of its own, the second audits were its first independent readers; the platform half has no mutation evidence |
 | Wave C: C1 frontend | merged and joined into one tool by two passes (`fe-join` at `4d795d8`, `fe-join-2` at `d15db15`). A third pass, for what the audits asked of the screens, is started and not merged |
 | Wave C: C2 docs and scripts | merged (`docs-2` at `81637c2`); the README describes the tool at the join. An update for the later changes is started and not merged. `run.cmd` never run |
 | Wave C: C3 verification V1 to V7 | V2, V3 and V4 ran twice, the second time on `0658a7c`; their fixes are merged (`audit-fix-v2` at `d542405`, `audit-fix-v3` at `1557e5c`, `audit-fix-v4` at `fd61e6e`) and not yet checked by another agent. V1, V5, V6, V7 not run |
@@ -715,10 +765,11 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
 at once by a usage limit; what each had written survived in its worktree and was handed to a new
 agent, and since then every agent commits a checkpoint after each green slice. The verifier planned
 after each wave package was dropped then, and the section 27 agents and independent reviews took its
-place. Later the build machine restarted three times (at about 00:17, 03:02 and 06:00 UTC on the day
-of the second audits), each time cutting off every agent then at work, at least twice when several
-full builds ran side by side; nothing committed was lost and each task was taken over in its
-worktree. Since then every build goes through one shared wrapper that lets two run at a time.
+place. Later the build machine restarted three times while the tool was built (at about 00:17, 03:02
+and 06:00 UTC), each time cutting off every agent then at work; nothing committed was lost and each
+task was taken over in its worktree. Both server tasks for the screens were such takeovers (D-202 to
+D-205 say what the second agent checked of the first one's work). Every build now goes through one
+shared wrapper that lets two run at a time.
 
 **Added by the operator during the build (D-118, D-119, D-136):** paste a request of your own and send
 it; compare a pasted CRD request with the tool's own, each difference explained; hold the tool to
