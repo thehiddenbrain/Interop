@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import tools.jackson.core.JacksonException;
@@ -463,7 +464,38 @@ public final class PostmanParser {
         }
         Set<String> names = new LinkedHashSet<>();
         collectPlaceholders(auth, names);
-        return new AuthSetting(true, new PostmanAuth(type.toLowerCase(Locale.ROOT), from, List.copyOf(names)));
+        String helper = type.toLowerCase(Locale.ROOT);
+        return new AuthSetting(true, new PostmanAuth(helper, from, List.copyOf(names), literalFields(helper, JsonSafe.child(auth, type))));
+    }
+
+    /**
+     * The fields of a helper that hold a credential typed into the file: a field named like a
+     * credential, or for an API key helper its value, whose value is written out with no
+     * placeholder. Postman writes the fields as a list of key and value, or in older exports as
+     * an object. Only the names are kept.
+     */
+    private static List<String> literalFields(String helper, JsonNode fields) {
+        Set<String> found = new LinkedHashSet<>();
+        if (JsonSafe.isArray(fields)) {
+            for (JsonNode field : JsonSafe.elements(fields)) {
+                literalField(helper, JsonSafe.presentText(field, "key"), JsonSafe.child(field, "value"), found);
+            }
+        } else if (JsonSafe.isObject(fields)) {
+            JsonSafe.properties(fields).forEach(entry -> literalField(helper, entry.getKey(), entry.getValue(), found));
+        }
+        return List.copyOf(found);
+    }
+
+    private static void literalField(String helper, String key, JsonNode value, Set<String> found) {
+        String text = JsonSafe.text(value);
+        if (key == null || text == null || text.isBlank() || text.contains("{{")) {
+            return;
+        }
+        // An API key helper names the header in its field "key" and holds the credential in "value".
+        boolean credential = "apikey".equals(helper) ? "value".equalsIgnoreCase(key) : Secrets.looksSecret(key);
+        if (credential) {
+            found.add(key);
+        }
     }
 
     /** Collects the placeholder names under a node. The values themselves are not kept: one of them may be a credential. */

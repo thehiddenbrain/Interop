@@ -17,6 +17,7 @@ import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
 import org.p32h.interop.epa.pave.model.VariableUse;
+import org.p32h.interop.epa.pave.postman.LiteralCredentials;
 import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.PostmanAuth;
 import org.p32h.interop.epa.pave.postman.PostmanExample;
@@ -152,7 +153,12 @@ public class ConfigService {
         return new CollectionList(views, snapshot.epoch());
     }
 
-    /** One request in full: its headers, its raw body exactly as the collection holds it, and its saved examples with their bodies. */
+    /**
+     * One request in full: its headers, its raw body as the collection holds it, and its saved
+     * examples with their bodies. A credential typed into the body is given as a placeholder of its
+     * own, which a send of this body resolves to the value as written; one typed into the url or a
+     * saved example is masked.
+     */
     public RequestDetail request(String collectionId, String requestId) {
         ConfigSnapshot snapshot = store.snapshot();
         StoredCollection collection = requireCollection(snapshot, collectionId);
@@ -167,7 +173,8 @@ public class ConfigService {
         request.pathVariables().forEach(variable -> pathVariables.add(new PathVariableView(variable.name(), variable.value())));
         return new RequestDetail(collection.id(), collection.name(), summary(snapshot, collection, mapped), headers, request.bodyMode(),
                 request.bodyLanguage(),
-                request.body(), pathVariables, scripts(request), auth(request.auth()), examples(request), request.description());
+                LiteralCredentials.inBody(request.body()).template(), pathVariables, scripts(request), auth(request.auth()), examples(request),
+                request.description());
     }
 
     public MappingChanged correctMapping(String collectionId, String requestId, EpaOperation operation) {
@@ -221,7 +228,7 @@ public class ConfigService {
                 .name(request.name())
                 .folderPath(request.folderPath())
                 .method(request.method())
-                .urlTemplate(request.url())
+                .urlTemplate(LiteralCredentials.inUrl(request.url()).shown())
                 .detectedOperation(mapped.detection().operation())
                 .detectionBasis(mapped.detection().basis())
                 .detectionConflict(mapped.detection().conflict())
@@ -256,7 +263,8 @@ public class ConfigService {
                 headers.add(new HeaderView(header.name(), Secrets.credentialHeader(header.name())
                         ? Secrets.redactCredential(header.name(), header.value()) : header.value(), false));
             }
-            examples.add(new ExampleView(example.name(), example.status(), example.code(), headers, example.body()));
+            examples.add(new ExampleView(example.name(), example.status(), example.code(), headers,
+                    LiteralCredentials.inBody(example.body()).shown()));
         }
         return examples;
     }
@@ -501,7 +509,7 @@ public class ConfigService {
                 .headers(headers)
                 .variables(new ArrayList<>(rows.values()))
                 .urlTokens(tokens)
-                .bodyTemplate(bodyTemplate)
+                .bodyTemplate(LiteralCredentials.inBody(bodyTemplate).template())
                 .body(body == null ? null : body.display())
                 .bodyUnresolved(body == null ? List.of() : body.unresolved())
                 .bodyMode(source == null ? null : source.bodyMode())

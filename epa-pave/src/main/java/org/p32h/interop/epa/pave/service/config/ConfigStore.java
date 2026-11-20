@@ -30,6 +30,9 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.postman.Ids;
 import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.Placeholders;
+import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import org.p32h.interop.epa.pave.postman.PostmanAuth;
+import org.p32h.interop.epa.pave.postman.PostmanExample;
 import org.p32h.interop.epa.pave.postman.PostmanCollection;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
 import org.p32h.interop.epa.pave.postman.PostmanHeader;
@@ -543,6 +546,42 @@ public class ConfigStore {
                 + oneLine(requests.get(0)) + "\", and it now sits in the file " + directory.resolve(file) + " in plain text. This tool "
                 + "redacts it wherever it shows the header. To keep it out of that file, replace it in Postman with a {{placeholder}} and "
                 + "export again."));
+
+        // The places are named. A value never is.
+        String stored = " It sits in the file " + directory.resolve(file) + " in plain text: the collection is kept exactly as it was "
+                + "uploaded, value included.";
+        String move = " To keep it out of that file, move the value into a secret variable of the environment, or into an operating "
+                + "system variable referred to as {{env:" + VariableResolver.OS_NAME_PREFIX + "YOUR_NAME}}, refer to it from the request as "
+                + "a {{placeholder}} in Postman, and export again.";
+        Set<String> helpers = new LinkedHashSet<>();
+        for (PostmanRequest request : collection.requests()) {
+            List<String> places = new ArrayList<>();
+            LiteralCredentials.inUrl(request.url()).found().forEach(found -> places.add(found.place()));
+            LiteralCredentials.inBody(request.body()).found().forEach(found -> places.add(found.place()));
+            if (!places.isEmpty()) {
+                warnings.add("The request \"" + oneLine(request.qualifiedName()) + "\" holds a credential typed into the collection, in "
+                        + String.join(" and in ", places) + "." + stored + " This tool masks it wherever it shows the request, and sends it "
+                        + "as written." + move);
+            }
+            for (PostmanExample example : request.examples()) {
+                List<String> inExample = new ArrayList<>();
+                example.headers().stream().filter(header -> HeaderMasking.literalCredential(header.name(), header.value()))
+                        .forEach(header -> inExample.add("its header " + oneLine(header.name())));
+                LiteralCredentials.inBody(example.body()).found().forEach(found -> inExample.add(found.place()));
+                if (!inExample.isEmpty()) {
+                    warnings.add("The saved example \"" + oneLine(example.name()) + "\" of the request \"" + oneLine(request.qualifiedName())
+                            + "\" holds a credential, in " + String.join(" and in ", inExample) + "." + stored + " This tool masks it "
+                            + "wherever it shows the example. A saved example is never sent. If it is a real credential, have it revoked.");
+                }
+            }
+            PostmanAuth auth = request.auth();
+            if (auth != null && !auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
+                warnings.add("The authentication helper " + oneLine(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
+                        + "typed into the collection, in its field " + String.join(" and its field ", auth.literals().stream()
+                        .map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
+                        + "shows that value." + move);
+            }
+        }
         return warnings;
     }
 

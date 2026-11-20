@@ -29,6 +29,7 @@ import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
 import org.p32h.interop.epa.pave.model.VariableUse;
+import org.p32h.interop.epa.pave.postman.LiteralCredentials;
 import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.PostmanHeader;
 import org.p32h.interop.epa.pave.postman.PostmanRequest;
@@ -159,7 +160,13 @@ public class ConfigStoreGateway implements OperationGateway {
         ProdUnlock authorisedBy = plan.write() && holds(intent.unlock(), snapshot) ? intent.unlock() : null;
         LongSupplier belongsTo = authorisedBy == null ? () -> epoch : () -> stillHeld(authorisedBy, epoch) ? epoch : Long.MIN_VALUE;
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
-                plan.target().requestName(), plan.target().scripted(), belongsTo, template -> resolve.apply(template).text());
+                plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template));
+    }
+
+    /** The resolved text with its template as written, any credential typed into it masked. */
+    private static ResolvedText shownAsWritten(ResolvedText resolved, String template) {
+        return new ResolvedText(LiteralCredentials.inBody(template).shown(), resolved.display(), resolved.value(), resolved.variables(),
+                resolved.unresolved());
     }
 
     @Override
@@ -379,9 +386,12 @@ public class ConfigStoreGateway implements OperationGateway {
         RunStart runStart = null;
 
         if (target.configured()) {
-            String template = target.template();
-            String toResolve = target.resolved();
-            List<VariableLayer> layers = layers(snapshot, intent.runValues(), target.collection(), Map.of());
+            // A credential typed into the url is marked as a secret before anything is resolved,
+            // and the template is shown with it masked, everywhere.
+            LiteralCredentials.Marked typed = LiteralCredentials.inUrl(target.resolved());
+            String template = LiteralCredentials.inUrl(target.template()).shown();
+            String toResolve = typed.template();
+            List<VariableLayer> layers = typed.before(layers(snapshot, intent.runValues(), target.collection(), Map.of()));
             urlVariables = resolver.resolve(toResolve, layers);
             UrlForms.Skeleton skeleton = UrlForms.skeleton(urlVariables);
             boolean cutInsideAVariable = false;
@@ -404,7 +414,7 @@ public class ConfigStoreGateway implements OperationGateway {
                     // fills a place in a url is.
                     Map<String, String> encoded = new LinkedHashMap<>();
                     bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
-                    urlVariables = resolver.resolve(toResolve, layers(snapshot, intent.runValues(), target.collection(), encoded));
+                    urlVariables = resolver.resolve(toResolve, typed.before(layers(snapshot, intent.runValues(), target.collection(), encoded)));
                     skeleton = UrlForms.skeleton(urlVariables);
                     UrlForms.Segment after = skeleton.segmentAfter("Subscription");
                     if (after == null || !bound.containsKey(after.placeholder())) {
@@ -412,7 +422,7 @@ public class ConfigStoreGateway implements OperationGateway {
                     }
                 }
                 filled = skeleton.fill(intent.urlValues());
-                runStart = runStart(snapshot, intent, target, toResolve, bound);
+                runStart = runStart(snapshot, intent, target, typed, bound);
                 // Judged and sent in one normal form, so that what is judged is what a server acts on.
                 climbed = UrlNormal.of(filled.probe()).climbed();
                 filled = normalised(filled);
@@ -444,12 +454,22 @@ public class ConfigStoreGateway implements OperationGateway {
         String method = method(intent, target);
 
         // Text that belongs to the call is resolved with the id bound as it was given, not encoded.
-        List<VariableLayer> callLayers = layers(snapshot, intent.runValues(), target.collection(), bound);
-        Function<String, Resolution> callResolver = text -> resolver.resolve(text, callLayers);
+        List<VariableLayer> plainLayers = layers(snapshot, intent.runValues(), target.collection(), bound);
+        // The request's own body, as the Config tab hands it out, has a placeholder where a
+        // credential was typed into it. That placeholder is supplied here, from the request.
+        List<VariableLayer> callLayers = target.source() == Source.REQUEST
+                ? LiteralCredentials.inBody(target.request().request().body()).before(plainLayers) : plainLayers;
+        // A credential typed into a body is marked as a secret where the body is read, so the wire
+        // view and every preview mask it as they mask a secret variable. A header is masked by its
+        // own name instead, as it always was.
+        Function<String, Resolution> callResolver = text -> {
+            LiteralCredentials.Marked typed = LiteralCredentials.inBody(text);
+            return resolver.resolve(typed.template(), typed.before(callLayers));
+        };
         List<CallPlan.Header> headers = new ArrayList<>();
         for (PostmanHeader header : target.headers()) {
             String template = Texts.orElse(header.value(), "");
-            Resolution how = callResolver.apply(template);
+            Resolution how = resolver.resolve(template, plainLayers);
             // A header that still holds a placeholder is carried as unresolved. It is neither
             // dropped nor sent empty: the sending layer refuses the call and names what is missing.
             headers.add(new CallPlan.Header(how.complete() ? new ResolvedHeader(header.name(), shownValue(header.name(), how), how.send())
@@ -853,7 +873,8 @@ public class ConfigStoreGateway implements OperationGateway {
      * resolver meets it. Null when no value typed for the run is in the url or the url is not
      * complete, which is judged elsewhere.
      */
-    private RunStart runStart(ConfigSnapshot snapshot, CallIntent intent, Target target, String toResolve, Map<String, String> bound) {
+    private RunStart runStart(ConfigSnapshot snapshot, CallIntent intent, Target target, LiteralCredentials.Marked typed,
+                              Map<String, String> bound) {
         Map<String, String> marks = new LinkedHashMap<>();
         // A blank value is not a value: the resolver passes over it to the next layer, so it marks nothing.
         intent.runValues().forEach((name, value) -> {
@@ -866,7 +887,7 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         Map<String, String> encoded = new LinkedHashMap<>();
         bound.forEach((name, value) -> encoded.put(name, UrlForms.encode(value)));
-        Resolution marked = resolver.resolve(toResolve, layers(snapshot, marks, target.collection(), encoded));
+        Resolution marked = resolver.resolve(typed.template(), typed.before(layers(snapshot, marks, target.collection(), encoded)));
         UrlForms.Skeleton skeleton = UrlForms.skeleton(marked);
         if (target.source() == Source.DERIVED) {
             skeleton = skeleton.upTo(DISCOVERY_MARKER);
