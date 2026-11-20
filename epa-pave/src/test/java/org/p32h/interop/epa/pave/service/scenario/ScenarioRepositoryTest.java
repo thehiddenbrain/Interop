@@ -554,6 +554,20 @@ class ScenarioRepositoryTest {
     }
 
     @Test
+    void noLabelReadsAsAnObservationOfTheVendorsService() {
+        // F-SCEN-LABELS: every bundled file is synthetic, so a label names the case the file plays, never what a service was seen to do.
+        java.util.regex.Pattern observation = java.util.regex.Pattern.compile("(?i)\\bOnyx\\b|^(the service|the payer|the vendor)\\b");
+        for (String protocol : List.of("crd", "dtr", "pas", "raw")) {
+            for (Scenario scenario : bundled.list(protocol)) {
+                assertThat(scenario.basis()).as(scenario.id()).startsWith("Synthetic");
+                assertThat(observation.matcher(scenario.label()).find()).as(scenario.id() + ": " + scenario.label()).isFalse();
+            }
+        }
+        assertThat(bundled.list("crd").get(10).label()).isEqualTo("Request rejected with HTTP 400");
+        assertThat(bundled.list("crd").get(11).label()).isEqualTo("Server error, HTTP 500");
+    }
+
+    @Test
     void theBundledSetsSayOnlyWhichFileIsTheDefault() {
         for (String protocol : ScenarioRepository.PROTOCOLS) {
             ScenarioRepository.Loaded loaded = bundled.load(protocol);

@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -17,10 +18,11 @@ import org.p32h.interop.epa.pave.model.Npi;
 
 /**
  * F-NPI-TEST of the second fixture audit: a ten-digit number that passes the NPI check could be a
- * real provider's, and nobody here can look it up. Every such number in the main and test sources
- * and in the samples is one of the project's placeholders: {@code 1234567893}, or one of the
- * {@code 99999999xx} and {@code 10000000xx} numbers made with {@link Npi#withCheckDigit}. Numbers
- * that fail the check are left alone: several tests type them on purpose as typing mistakes.
+ * real provider's, and nobody here can look it up. Every such number in the main and test sources,
+ * in the samples and in the project's Markdown files is one of the project's placeholders:
+ * {@code 1234567893}, or one of the {@code 99999999xx} and {@code 10000000xx} numbers made with
+ * {@link Npi#withCheckDigit}. Numbers that fail the check are left alone: several tests type them
+ * on purpose as typing mistakes.
  */
 class NoNpiOutsideThePlaceholderSetTest {
 
@@ -73,6 +75,27 @@ class NoNpiOutsideThePlaceholderSetTest {
             }
         }
         assertThat(read).isGreaterThan(500);
+        assertThat(wrong).isEmpty();
+    }
+
+    /** The Markdown files of the project outside the folders scanned above, where nothing built or downloaded lives. */
+    static List<Path> markdownFiles() throws IOException {
+        Set<String> skipped = Set.of("src", "samples", "build", ".gradle", "bin", "out", "node_modules");
+        try (Stream<Path> files = Files.walk(Path.of("."))) {
+            return files.filter(Files::isRegularFile).filter(file -> file.getFileName().toString().endsWith(".md"))
+                    .filter(file -> file.getNameCount() < 2 || !skipped.contains(file.getName(1).toString())).sorted().toList();
+        }
+    }
+
+    @Test
+    void everyNpiThatPassesTheCheckInTheMarkdownFilesIsAPlaceholder() throws IOException {
+        // N-NPI-DOCS: the specification forbids a real-looking identifier in the documentation as much as in the code.
+        List<Path> markdown = markdownFiles();
+        assertThat(markdown).extracting(file -> file.getFileName().toString()).contains("README.md", "DECISIONS.md", "PROGRESS.md");
+        List<String> wrong = new ArrayList<>();
+        for (Path file : markdown) {
+            outsideTheSet(Files.readString(file, StandardCharsets.UTF_8)).forEach(npi -> wrong.add(file + ": " + npi));
+        }
         assertThat(wrong).isEmpty();
     }
 
