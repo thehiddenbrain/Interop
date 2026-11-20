@@ -144,7 +144,7 @@ class PlaceholderOnTheLiveProfileTest {
                 + "list that ships with it, which says nothing about real codes, so nothing was compared with the service's answer. Set "
                 + "codelist.file to the P32H export and restart the tool.");
         // As the browser gets it: no code is named and neither side is given a position.
-        assertThat(finding.propertyNames()).containsExactlyInAnyOrder("kind", "title", "detail");
+        assertThat(finding.propertyNames()).containsExactlyInAnyOrder("kind", "title", "detail", "group", "groupLabel");
 
         // The ledger line of that run says the same, so history and a suite count cannot say otherwise.
         JsonNode line = json(get("/api/runs/" + result.get("runId").stringValue()));
