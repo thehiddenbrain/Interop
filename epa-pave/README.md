@@ -1190,12 +1190,15 @@ Every endpoint answers JSON in one shared error shape, never an HTML error page.
 - **422** when the form failed validation (and for an unknown property in a request body, which is
   named); on live, and for `POST /api/raw` on mock too, when a placeholder the request needs has
   no value (`"kind":"CONFIGURATION"`, naming the variable and the active environment; see
-  [Variables](#variables)); and for `POST /api/raw` when a `{part}` of the url has no value in
-  `urlValues` (`"kind":"VALIDATION"`, field `urlValues.<name>`).
-- **403** when the production guardrail blocked a write, or when the request came from another
-  site or a host name the tool does not answer to.
-- **409** when no url is configured for an operation, or the configuration changed since the screen
-  was drawn.
+  [Variables](#variables)); for `POST /api/raw` when a `{part}` of the url has no value in
+  `urlValues` (`"kind":"VALIDATION"`, field `urlValues.<name>`); when the path of a url would hold
+  an encoded separator; and when a note, a tester reference or an expectation holds member data
+  the request carries.
+- **403** when the production guardrail blocked a write (also a write to an address the tool
+  cannot read), or when the request came from another site or a host name the tool does not answer
+  to.
+- **409** when no url is configured for an operation, the configuration changed since the screen
+  was drawn, or production writes were locked between preparing a write and sending it.
 - **404** for an unknown run, environment, collection or address.
 - **500** when PAVE itself failed after the call was made: the body still carries the result.
 - **Lookups always answer 200** once a lookup was made: not found is a normal answer.
