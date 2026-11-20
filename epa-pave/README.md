@@ -390,6 +390,15 @@ on the other two.
   on mock a `Mock scenario` chooser ("The member ID decides" by default), and `Expected outcome
   (optional)`. Leave the expectation empty and the run is Unverified; choose one and the run is
   Passed or Failed. `Assert standard codes as well` adds expectations on single codes.
+- **The note, the tester reference and the expectation go into the ledger as typed.** A run whose
+  note, tester reference or expectation holds the member ID, the first or last name, the date of
+  birth, the subscriber ID or the address that the same request carries is refused before anything
+  is sent: the field is marked and the server's sentence is shown under it, for example "The note
+  holds this run's member ID. The ledger keeps it as written and may not hold member data, so leave
+  it out. Nothing was sent." The sentence names the kind of value, never the value. Member data the
+  request does not carry (somebody else's name, say) cannot be recognised and is written as typed:
+  do not type member data into these fields. On this revision the fields carry no hint saying so
+  before you type.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
 
@@ -491,7 +500,8 @@ frame. See [The production guardrail](#the-production-guardrail).
 
 ### The History tab
 
-- **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome and result.
+- **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome, result and
+  tester reference (as typed with the run).
   Above the list: whether tracking is on, how many runs were recorded today and where the file is.
   `Export runs as CSV` downloads the runs of the chosen days, protocol and result; the tab says
   which filters the export does not take. Open a run to read it from the ledger in four
@@ -519,11 +529,20 @@ Five parts, chosen at the top:
   uploaded it walks you through the three steps: upload the environment, make it active, upload
   the collection.
 - **Environments**: upload a Postman environment, saying whether it is `sandbox`, `uat` or `prod`
-  (the tool never guesses), make one active, remove one.
+  (the tool never guesses), make one active, remove one. What the server warns about a file is
+  shown under the upload as "The tool has one warning about this file" (or the number), among them
+  a variable whose name reads as member data, a secret typed into the file, and an address the tool
+  cannot read, has an encoded separator in its path, or shares a server with a production
+  environment. On this revision the list of environments and the answer of a switch do not show
+  the address warnings again: read them at upload, or in `addressWarnings` of
+  `GET /api/config/environments`.
 - **Collections and mapping**: upload a collection, see which request each operation uses and how
-  it was mapped, change a mapping (`Choose a request`), remove a collection.
+  it was mapped, change a mapping (`Choose a request`), remove a collection. The upload warns, as
+  for an environment, about a credential typed into the collection and about requests that carry a
+  saved example response, which can hold the member data of whoever it was saved for.
 - **Send a request as written**: any request of the collection, sent with its own method, url,
-  headers and body (`Send this request as written`, `Show the request before sending`).
+  headers and body (`Send this request as written`, `Show the request`). A url part in single
+  braces, such as `{claimId}`, gets a field of its own under "Parts of the url".
 - **Check this installation**: the ledger, the code list self-check, the tool and where it is
   pointed, in one place, with `Copy as text for support`. It holds no member data and no secret.
 
@@ -1037,8 +1056,8 @@ fails on purpose and one declares no expectation. A test runs it through the rea
   counted apart from failures.
 - A suite is pinned to the configuration it started under. If the configuration changes while it
   runs (an upload, a removal, a switch of environment), it stops and says so, and the cases left
-  are marked as not run ("The configuration changed while the suite was running.", seen on an
-  earlier revision, not again for this one).
+  are marked as not run ("The configuration was changed while the suite was running.", seen on
+  an earlier revision, not again for this one; the wording was read in the code for this one).
 - Every case writes its own ledger line. The summary counts the cases by result, each group
   labelled ("Passed", "Failed", "Unverified: nothing was declared to compare with", and the groups
   for blocked, not valid, not configured and not run). Results can be exported as CSV, and a run can
