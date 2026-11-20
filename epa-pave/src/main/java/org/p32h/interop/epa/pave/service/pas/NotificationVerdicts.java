@@ -37,7 +37,13 @@ public final class NotificationVerdicts {
         /** The ledger was asked, and no run in it created the subscription the notification names. */
         NOT_IN_LEDGER,
         /** The ledger could not be asked, so whether this tool created the subscription is not known. */
-        NOT_ASKED
+        NOT_ASKED,
+        /**
+         * The subscription id it names reads like a member identifier or a date, which the ledger
+         * writes as its length, so no run can be found by it and whether this tool created the
+         * subscription is not known.
+         */
+        NOT_KEPT
     }
 
     /**
@@ -59,7 +65,7 @@ public final class NotificationVerdicts {
             // A switch expression with no default: a reason added without an outcome here does not compile.
             return switch (unmatched) {
                 case NAMES_NONE, NOT_IN_LEDGER -> NotificationOutcome.UNMATCHED_NOTIFICATION;
-                case NOT_ASKED -> NotificationOutcome.UNCHECKED_NOTIFICATION;
+                case NOT_ASKED, NOT_KEPT -> NotificationOutcome.UNCHECKED_NOTIFICATION;
             };
         }
         String type = reading.status().type().code();
@@ -82,6 +88,16 @@ public final class NotificationVerdicts {
      */
     public static VerdictView verdict(NotificationOutcome outcome, NotificationReading reading, List<String> correlationNotes,
                                       String sampleScenarioId, String cut) {
+        return verdict(outcome, reading, correlationNotes, sampleScenarioId, cut, null);
+    }
+
+    /**
+     * The same, worded by why a notification was not matched when that is known.
+     *
+     * @param unmatched why no run of this tool was found to have created the subscription, or null
+     */
+    public static VerdictView verdict(NotificationOutcome outcome, NotificationReading reading, List<String> correlationNotes,
+                                      String sampleScenarioId, String cut, Unmatched unmatched) {
         List<String> supporting = new ArrayList<>();
         // First, so a sample is never mistaken for something a service sent.
         if (sampleScenarioId != null) {
@@ -113,6 +129,13 @@ public final class NotificationVerdicts {
             }
             case UNCHECKED_NOTIFICATION -> {
                 supporting.add("It is recorded and shown all the same. It is not dropped.");
+                if (unmatched == Unmatched.NOT_KEPT) {
+                    if (type.code() != null) {
+                        supporting.add("Its type: " + type.display() + ".");
+                    }
+                    yield "A notification arrived naming a subscription id the ledger does not keep, so which subscription it belongs to "
+                            + "could not be looked up.";
+                }
                 supporting.add("This says nothing about who created the subscription. It is a finding about this installation of the tool.");
                 if (type.code() != null) {
                     supporting.add("Its type: " + type.display() + ".");
@@ -206,6 +229,9 @@ public final class NotificationVerdicts {
             case NOT_ASKED -> new NextStepView(NextAction.REVIEW, "Next: find out why the ledger could not be read. Until it can, this "
                     + "tool cannot say whether it created the subscription this notification names.",
                     "The ledger could not be asked which run created the subscription.", carry);
+            case NOT_KEPT -> new NextStepView(NextAction.REVIEW, "Next: look at the subscription id the service gave. One that reads like "
+                    + "a member identifier or a date is not kept in the ledger, so a notification on that subscription cannot be matched to "
+                    + "the run that created it.", "The ledger does not keep the subscription id this notification names.", carry);
         };
     }
 

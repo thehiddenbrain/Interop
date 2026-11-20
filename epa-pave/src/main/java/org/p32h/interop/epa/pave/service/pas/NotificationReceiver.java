@@ -550,7 +550,7 @@ public class NotificationReceiver {
         put(correlation, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId());
         put(correlation, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef());
 
-        VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut);
+        VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut, links.unmatched());
         NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
                 links.unmatched(), sampleScenarioId != null);
         return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
@@ -588,7 +588,7 @@ public class NotificationReceiver {
             } else if (!RunRecord.keepsIdentifier(subscriptionId)) {
                 // The ledger writes such an id as its length, so no line can be found by it, and
                 // "no run created it" would not be known to be true.
-                unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
+                unmatched = NotificationVerdicts.Unmatched.NOT_KEPT;
                 notLookedUp(notes, unasked, NOT_KEPT_SUBSCRIPTION);
             } else {
                 boolean[] lookupFailed = new boolean[1];

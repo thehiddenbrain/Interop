@@ -70,6 +70,9 @@ class NotificationIdsNotKeptTest {
         assertThat(view.correlationNotes()).contains(NotificationReceiver.NOT_KEPT_SUBSCRIPTION,
                 "The submission it is about could not be looked up by the claim id or the ClaimResponse id it carries: they read like a "
                         + "member identifier or a date, which the ledger does not keep, so no run can be found by them.");
+        assertThat(view.verdict().headline()).isEqualTo("A notification arrived naming a subscription id the ledger does not keep, so which "
+                + "subscription it belongs to could not be looked up.");
+        assertThat(view.nextStep().reason()).isEqualTo("The ledger does not keep the subscription id this notification names.");
         assertThat(view.correlationNotes()).noneMatch(note -> note.startsWith("No run in the ledger created"))
                 .noneMatch(note -> note.startsWith("No submission in the ledger carries"));
     }
