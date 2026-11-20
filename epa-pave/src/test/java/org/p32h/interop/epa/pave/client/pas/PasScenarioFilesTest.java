@@ -225,7 +225,7 @@ class PasScenarioFilesTest {
                             + "answer for an inquiry. Use a member ID whose scenario answers an inquiry, or choose a scenario.");
                 }));
         // A CRD sentinel that selects the PAS scenario for the same case is not that scenario's sentinel, and is not called one.
-        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-ERR500", "P32H-TIMEOUT", "P32H-BAD400")) {
+        for (String crd : List.of("P32H-NOMEM", "P32H-NOPROV", "P32H-BAD400")) {
             assertThatThrownBy(() -> inquire(null, crd, body)).as(crd).isInstanceOfSatisfying(ValidationException.class,
                     e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
                         assertThat(error.field()).isEqualTo("member.memberId");

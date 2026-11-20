@@ -732,7 +732,7 @@ class PasControllerTest {
         assertThat(submit.get("elements")).extracting(JsonNode::asString).containsExactly("review-action", "review-reason", "claim-outcome", "error-code");
 
         JsonNode inquire = send(mvc, get("/api/pas/scenarios").param("for", "Inquire"), 200);
-        assertThat(inquire.get("scenarios")).hasSize(9);
+        assertThat(inquire.get("scenarios")).hasSize(11);
         // The outcome a scenario claims for an inquiry is its inquiry's, not its submission's.
         assertThat(inquire.get("scenarios")).anySatisfy(scenario -> {
             assertThat(scenario.get("id").asString()).isEqualTo("pas-05-submit-then-inquire");

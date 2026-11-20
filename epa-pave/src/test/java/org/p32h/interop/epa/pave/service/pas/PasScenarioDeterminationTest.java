@@ -119,7 +119,8 @@ class PasScenarioDeterminationTest {
             }
         }
         assertThat(submissions).isEqualTo(16);
-        assertThat(inquiries).isEqualTo(9);
+        // Scenarios 16 and 17 answer an inquiry too, so the next step of a submission that may have arrived can be followed on mock.
+        assertThat(inquiries).isEqualTo(11);
     }
 
     /** Compares one answer with the claim its file makes, and puts the claim through the comparison a tester's expectation would go through. */

@@ -138,6 +138,34 @@ class PasServiceTest {
         assertThat(gateway.lastIntent().origin()).isNull();
     }
 
+    @Test
+    void whateverTheNextStepOfASubmissionAsksOfAnInquiryCanBeDoneOnMockWithTheSameSentinel() {
+        List<String> followed = new ArrayList<>();
+        for (var summary : scenarios.list(MockOnyxPasClient.SCENARIOS)) {
+            if (summary.sentinelMemberId() == null || summary.step(null) == null) {
+                continue;
+            }
+            RunEnvelope<PasDetail> submitted = service().runSubmit(submission(summary.sentinelMemberId()).claimId(CLAIM).build(),
+                    RunOrigin.manual(), null);
+            NextStepView next = submitted.nextStep();
+            if (next.action() != NextAction.CHECK_STATUS && !next.headline().contains("status") && !next.headline().contains("inquiry")) {
+                continue;
+            }
+            // The step tells the tester to inquire, so an inquiry with the same member is answered, never refused for want of a scenario.
+            RunEnvelope<PasDetail> inquired = service().runInquire(inquiry(summary.sentinelMemberId()).claimId(CLAIM).build(),
+                    RunOrigin.manual(), null);
+            assertThat(inquired.verdict()).as(summary.id()).isNotNull();
+            followed.add(summary.id());
+        }
+        // Before scenarios 16 and 17 had an answer for an inquiry, their next step led to a refusal.
+        assertThat(followed).contains("pas-02-pended", "pas-16-timeout", "pas-17-server-error-500");
+        // The timeout one finds the submission pended, which is what a submission that may have arrived is for.
+        assertThat(service().runInquire(inquiry("P32H-PAS-TIMEOUT").claimId(CLAIM).build(), RunOrigin.manual(), null).verdict().outcomeCode())
+                .isEqualTo("PENDED");
+        assertThat(service().runInquire(inquiry("P32H-PAS-ERR500").claimId(CLAIM).build(), RunOrigin.manual(), null).verdict().outcomeCode())
+                .isEqualTo("PENDED");
+    }
+
     private static PasInquireRequest.Builder inquiry(String memberId) {
         return PasInquireRequest.builder().member(member(memberId)).provider(provider());
     }

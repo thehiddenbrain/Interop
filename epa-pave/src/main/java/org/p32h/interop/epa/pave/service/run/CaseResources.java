@@ -167,11 +167,6 @@ public final class CaseResources {
     }
 
     /**
-     * The value of a placeholder, or null when no layer supplies one.
-     *
-     * @param variables resolves text holding placeholders, as a prepared call does
-     */
-    /**
      * Resolves variables for a builder and remembers each secret one it reads, so that the body
      * built from them can be shown with every such value masked.
      *
@@ -235,19 +230,14 @@ public final class CaseResources {
         }
     }
 
+    /**
+     * The value of a placeholder, or null when no layer supplies one.
+     *
+     * @param variables resolves text holding placeholders, as a prepared call does
+     */
     public static String value(Function<String, ResolvedText> variables, String name) {
         ResolvedText resolved = variables == null ? null : variables.apply("{{" + name + "}}");
         return resolved != null && resolved.resolved() ? Texts.trimToNull(resolved.value()) : null;
-    }
-
-    /**
-     * An order as CRD 2.0.1 profile-servicerequest has it, written now and with HCPCS under the
-     * address that profile's value set names. DTR sends its orders through this form.
-     */
-    public ObjectNode serviceRequest(String id, CodeInput code, MemberDetail member, String dateOfService, List<String> notes) {
-        String authoredOn = now();
-        addOnce(notes, authoredOnNote(authoredOn));
-        return serviceRequest(id, code, member, dateOfService, authoredOn, HCPCS_CRD_201, notes);
     }
 
     /**
@@ -299,11 +289,6 @@ public final class CaseResources {
         }
         return "HCPCS Level II codes were sent with the system " + hcpcsSystem + ", from the variable " + VAR_HCPCS_SYSTEM + ". The "
                 + CRD_VERSION + " ServiceRequest value set names HCPCS as " + HCPCS_CRD_201 + ".";
-    }
-
-    /** A procedure code as a CodeableConcept with one coding, as a claim item carries it, HCPCS under {@link #HCPCS}. */
-    public ObjectNode codeableConcept(CodeInput code, String lineOfBusiness, List<String> notes) {
-        return codeableConcept(code, lineOfBusiness, notes, HCPCS);
     }
 
     /** A procedure code as a CodeableConcept with one coding, HCPCS Level II sent under the address given. */
@@ -424,36 +409,6 @@ public final class CaseResources {
         return "\"" + (cut ? cell.substring(0, cell.offsetByCodePoints(0, QUOTED_LENGTH)) + "..." : cell) + "\"";
     }
 
-    public ObjectNode patient(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes) {
-        ObjectNode patient = JSON.objectNode();
-        patient.put("resourceType", "Patient");
-        patient.put("id", PATIENT_ID);
-        patient.putArray("identifier").add(memberIdentifier(member, variables, notes, true));
-        if (Texts.present(member.lastName()) || Texts.present(member.firstName())) {
-            ObjectNode name = patient.putArray("name").addObject();
-            if (Texts.present(member.lastName())) {
-                name.put("family", member.lastName().strip());
-            }
-            if (Texts.present(member.firstName())) {
-                name.putArray("given").add(member.firstName().strip());
-            }
-        } else {
-            notes.add("No member name was sent, because none was supplied.");
-        }
-        if (Texts.present(member.dateOfBirth())) {
-            patient.put("birthDate", member.dateOfBirth().strip());
-        } else {
-            notes.add("No date of birth was sent, because none was supplied.");
-        }
-        String gender = gender(member.gender());
-        if (gender != null) {
-            patient.put("gender", gender);
-        } else if (Texts.present(member.gender())) {
-            notes.add("The gender \"" + member.gender().strip() + "\" is not one this tool can map to a FHIR code, so none was sent.");
-        }
-        return patient;
-    }
-
     private static ObjectNode memberIdentifier(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes,
                                                boolean note) {
         ObjectNode identifier = JSON.objectNode();
@@ -467,39 +422,6 @@ public final class CaseResources {
         // The no-space form, which is the only form the service accepts.
         identifier.put("value", MemberIds.noSpace(member.memberId()));
         return identifier;
-    }
-
-    public ObjectNode coverage(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes) {
-        ObjectNode coverage = JSON.objectNode();
-        coverage.put("resourceType", "Coverage");
-        coverage.put("id", COVERAGE_ID);
-        String status = coverageStatus(member.coverageStatus());
-        if (status != null) {
-            coverage.put("status", status);
-        } else {
-            // A coverage status the source did not return is not "active". It is left out.
-            notes.add(Texts.present(member.coverageStatus())
-                    ? "The coverage status \"" + member.coverageStatus().strip() + "\" is not one this tool can map to a FHIR code, so none was sent."
-                    : "No coverage status was sent, because none was supplied.");
-        }
-        coverage.putArray("identifier").add(memberIdentifier(member, variables, notes, false));
-        if (Texts.present(member.subscriberId())) {
-            coverage.put("subscriberId", member.subscriberId().strip());
-        }
-        coverage.putObject("beneficiary").put("reference", PATIENT_REF);
-        ObjectNode payor = payer(variables);
-        if (payor.isEmpty()) {
-            notes.add("No payer was named on the coverage: neither " + VAR_PAYER_ID + " nor " + VAR_PAYER_NAME + " is set.");
-        } else {
-            coverage.putArray("payor").add(payor);
-        }
-        if (Texts.present(member.planName())) {
-            coverage.putArray("class").addObject()
-                    .put("value", member.planName().strip())
-                    .putObject("type").putArray("coding").addObject()
-                    .put("system", "http://terminology.hl7.org/CodeSystem/coverage-class").put("code", "plan");
-        }
-        return coverage;
     }
 
     /**
@@ -522,35 +444,6 @@ public final class CaseResources {
             payor.put("display", payerName);
         }
         return payor;
-    }
-
-    /**
-     * The payer as an Organization resource, for a bundle that must carry the insurer as a
-     * resource. Returns null, with a note, when neither payer placeholder is set: an insurer with
-     * no name and no identifier would say nothing.
-     */
-    public static ObjectNode insurer(Function<String, ResolvedText> variables, List<String> notes) {
-        String payerId = value(variables, VAR_PAYER_ID);
-        String payerName = value(variables, VAR_PAYER_NAME);
-        if (payerId == null && payerName == null) {
-            notes.add("No insurer organization was sent: neither " + VAR_PAYER_ID + " nor " + VAR_PAYER_NAME + " is set.");
-            return null;
-        }
-        ObjectNode organization = JSON.objectNode();
-        organization.put("resourceType", "Organization");
-        organization.put("id", INSURER_ID);
-        if (payerId != null) {
-            ObjectNode identifier = organization.putArray("identifier").addObject();
-            String payerSystem = value(variables, VAR_PAYER_ID_SYSTEM);
-            if (payerSystem != null) {
-                identifier.put("system", payerSystem);
-            }
-            identifier.put("value", payerId);
-        }
-        if (payerName != null) {
-            organization.put("name", payerName);
-        }
-        return organization;
     }
 
     /**
