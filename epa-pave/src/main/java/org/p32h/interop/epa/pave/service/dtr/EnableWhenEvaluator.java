@@ -49,7 +49,9 @@ import tools.jackson.databind.node.MissingNode;
  * <p>Nothing but enableWhen and enableBehavior is evaluated. An item whose display, requiredness or
  * answer is decided by a rule this tool does not apply ({@link DtrNotApplied}), or that sits in a
  * group whose display is, is undetermined too, and differently: whether it still needs an answer is
- * not known at all, so it is never listed as a required question with no answer. It is listed
+ * not known at all, so it is never listed as a required question with no answer. So is an item whose
+ * enableWhen reads a question that has no answer while such a rule fills that answer in: the
+ * condition rests on an answer this tool does not work out. It is listed
  * apart, under {@link Form#undetermined()}, which a response that this tool completes must also
  * have empty.
  */

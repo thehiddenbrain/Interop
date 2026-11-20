@@ -93,7 +93,7 @@ class DtrResponseShapeTest {
 
     @Test
     void aVariableThatHoldsNoCodeIsReadAsNotSetSoWhatCrdSaidIsUsed() {
-        DtrResponseShape comma = DtrResponseShape.read(variables("dtrIntendedUse", " , "), crdSaid("withclaim"));
+        DtrResponseShape comma = DtrResponseShape.read(variables("dtrIntendedUse", ", ,"), crdSaid("withclaim"));
         assertThat(comma.codes()).containsExactly("withclaim");
         assertThat(comma.intendedUseSource()).isEqualTo("as CRD said the documentation is for (doc-purpose)");
         assertThat(comma.notes()).containsExactly("The variable dtrIntendedUse is set but holds no code, so it was read as not set.");
