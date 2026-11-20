@@ -248,9 +248,9 @@ class ConfigStoreTest {
                 });
         assertThatThrownBy(() -> fixture.store.correctMapping(vendor.id(), requestId, null)).isInstanceOf(ValidationException.class);
         assertThatThrownBy(() -> fixture.store.correctMapping(vendor.id(), "r-000000000000", EpaOperation.PAS_INQUIRE))
-                .isInstanceOf(NotFoundException.class).hasMessageEndingWith("\" has no request with that id.");
+                .isInstanceOf(NotFoundException.class).hasMessageStartingWith("That request of the collection \"").hasMessageContaining("is no longer held");
         assertThatThrownBy(() -> fixture.store.correctMapping("no-such-collection", requestId, EpaOperation.PAS_INQUIRE))
-                .isInstanceOf(NotFoundException.class).hasMessage("There is no uploaded collection with that id.");
+                .isInstanceOf(NotFoundException.class).hasMessage("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
         // A notification is what the vendor's own sample is detected as, so it can be chosen.
         assertThat(fixture.store.correctMapping(vendor.id(), requestId, EpaOperation.SUBSCRIPTION_NOTIFICATION).request().effective())
                 .isEqualTo(EpaOperation.SUBSCRIPTION_NOTIFICATION);
@@ -345,7 +345,7 @@ class ConfigStoreTest {
 
         assertThat(fixture.store.removeEnvironment("Onyx UAT").wasActive()).isFalse();
         assertThatThrownBy(() -> fixture.store.removeEnvironment("Onyx UAT")).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded environment with that name.");
+                .hasMessage("The environment is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
     }
 
     @Test

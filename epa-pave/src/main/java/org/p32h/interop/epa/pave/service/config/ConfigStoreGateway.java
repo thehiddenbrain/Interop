@@ -567,18 +567,22 @@ public class ConfigStoreGateway implements OperationGateway {
     // Where the call goes
     // ------------------------------------------------------------------------------------------
 
+    /** The advice for a request chosen from a list that has changed since: nobody typed its id, so checking the id helps nobody. */
+    private static final String CHOOSE_AGAIN = "Read the list of collections again, for example by reloading the page, and choose the request "
+            + "from it as it is now.";
+
     private Target target(ConfigSnapshot snapshot, CallIntent intent) {
         EpaOperation operation = intent.operation();
         RequestRef named = intent.request();
         if (named != null) {
             StoredCollection collection = snapshot.collection(named.collectionId());
             if (collection == null) {
-                throw new NotFoundException("The collection this request was chosen from is not uploaded. Reload and choose again.");
+                throw new NotFoundException("The collection this request was chosen from is not uploaded. Reload and choose again.", CHOOSE_AGAIN);
             }
             StoredCollection.Mapped request = collection.request(named.requestId());
             if (request == null) {
                 throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with the id that was chosen. "
-                        + "Reload and choose again.");
+                        + "Reload and choose again.", CHOOSE_AGAIN);
             }
             // A read button can never be pointed at a write request: the request must stand for
             // the operation it is used for. Only a raw send may name any request.

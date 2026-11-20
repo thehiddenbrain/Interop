@@ -258,7 +258,8 @@ class ConfigControllerTest {
 
         mvc.perform(post("/api/config/environments/{name}/activate", "No such environment")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded environment with that name."));
+                .andExpect(jsonPath("$.title").value("The environment is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."))
+                .andExpect(jsonPath("$.action").value("Read the list of environments again and choose from it as it is now."));
         assertThat(fixture.gateway.activeEnvironment().name()).isEqualTo("Onyx UAT");
     }
 
@@ -401,10 +402,10 @@ class ConfigControllerTest {
 
         mvc.perform(get("/api/config/collections/{id}/requests/{requestId}", "no-such-collection", orderSign.requestId()))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded collection with that id."));
+                .andExpect(jsonPath("$.title").value("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
         mvc.perform(get("/api/config/collections/{id}/requests/{requestId}", orderSign.collectionId(), "r-000000000000"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with that id."));
+                .andExpect(jsonPath("$.title").value("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
     }
 
     @Test
@@ -423,7 +424,8 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.request.detectedOperation").value("PAS_INQUIRE"))
                 .andExpect(jsonPath("$.request.correctedOperation").value("UNMAPPED"))
                 .andExpect(jsonPath("$.request.effectiveOperation").value("UNMAPPED"))
-                .andExpect(jsonPath("$.notes[0]").value("The request is now mapped to Unmapped request. Detection proposed PAS inquire."));
+                .andExpect(jsonPath("$.notes[0]").value("The request is now not mapped to any operation, so it is sent only as written, "
+                        + "from the Config tab. Detection proposed PAS inquire."));
         mvc.perform(get("/api/config/collections")).andExpect(jsonPath("$.collections[0].requests[4].correctedOperation").value("UNMAPPED"));
 
         // A second store on the same directory is what a restart is.
@@ -480,7 +482,7 @@ class ConfigControllerTest {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.kind").value("NOT_FOUND"));
         mvc.perform(json(put(url), "{\"requestId\": \"r-000000000000\", \"operation\": \"UNMAPPED\"}"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection \"Onyx Sandbox ePA\" has no request with that id."));
+                .andExpect(jsonPath("$.title").value("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."));
         // None of the refused corrections changed anything.
         assertThat(fixture.gateway.epoch()).isEqualTo(epoch);
     }
@@ -498,7 +500,8 @@ class ConfigControllerTest {
         mvc.perform(get("/api/config/collections")).andExpect(jsonPath("$.collections", hasSize(0)));
         mvc.perform(delete("/api/config/collections/{id}", id)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.title").value("There is no uploaded collection with that id."));
+                .andExpect(jsonPath("$.title").value("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read."))
+                .andExpect(jsonPath("$.action").value("Read the list of collections again and choose from it as it is now."));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -878,7 +881,9 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"));
         mvc.perform(json(post("/api/config/resolve"), "{\"operation\": \"PAS_SUBMIT\", \"request\": {\"collectionId\": \"no-such-collection\", "
                         + "\"requestId\": \"" + submit.requestId() + "\"}}")).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("The collection this request was chosen from is not uploaded. Reload and choose again."));
+                .andExpect(jsonPath("$.title").value("The collection this request was chosen from is not uploaded. Reload and choose again."))
+                .andExpect(jsonPath("$.action").value("Read the list of collections again, for example by reloading the page, and choose "
+                        + "the request from it as it is now."));
     }
 
     @Test

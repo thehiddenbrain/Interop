@@ -134,7 +134,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorView> notFound(NotFoundException e) {
-        return respond(HttpStatus.NOT_FOUND, ErrorView.of(ErrorKind.NOT_FOUND, e.getMessage(), "Check the identifier and try again."));
+        return respond(HttpStatus.NOT_FOUND, ErrorView.of(ErrorKind.NOT_FOUND, e.getMessage(),
+                org.p32h.interop.epa.pave.model.Texts.orElse(e.action(), "Check the identifier and try again.")));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

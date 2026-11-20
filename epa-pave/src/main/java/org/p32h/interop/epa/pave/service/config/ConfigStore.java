@@ -399,7 +399,7 @@ public class ConfigStore {
         StoredCollection collection = requireCollection(before, collectionId);
         StoredCollection.Mapped request = collection.request(requestId);
         if (request == null) {
-            throw new NotFoundException("The collection \"" + oneLine(collection.name()) + "\" has no request with that id.");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + oneLine(collection.name()) + "\"", "collections");
         }
         if (operation == null) {
             throw ValidationException.of("operation", "Choose the operation this request stands for.");
@@ -442,7 +442,7 @@ public class ConfigStore {
     private static StoredEnvironment requireEnvironment(ConfigSnapshot snapshot, String nameOrId) {
         StoredEnvironment environment = snapshot.environment(nameOrId);
         if (environment == null) {
-            throw new NotFoundException("There is no uploaded environment with that name.");
+            throw NotFoundException.noLongerHeld("The environment", "environments");
         }
         return environment;
     }
@@ -450,7 +450,7 @@ public class ConfigStore {
     private static StoredCollection requireCollection(ConfigSnapshot snapshot, String collectionId) {
         StoredCollection collection = snapshot.collection(collectionId);
         if (collection == null) {
-            throw new NotFoundException("There is no uploaded collection with that id.");
+            throw NotFoundException.noLongerHeld("The collection", "collections");
         }
         return collection;
     }

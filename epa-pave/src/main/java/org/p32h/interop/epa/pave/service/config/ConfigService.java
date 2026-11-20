@@ -164,7 +164,7 @@ public class ConfigService {
         StoredCollection collection = requireCollection(snapshot, collectionId);
         StoredCollection.Mapped mapped = collection.request(requestId);
         if (mapped == null) {
-            throw new NotFoundException("The collection \"" + collection.name() + "\" has no request with that id.");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + ConfigStore.oneLine(collection.name()) + "\"", "collections");
         }
         PostmanRequest request = mapped.request();
         List<HeaderView> headers = new ArrayList<>();
@@ -183,12 +183,14 @@ public class ConfigService {
         RequestSummary summary = summary(change.after(), change.collection(), mapped);
         List<String> notes = new ArrayList<>();
         if (!change.changed()) {
-            notes.add("The mapping already was " + mapped.effective().label() + ". Nothing changed.");
+            notes.add("The request already was " + mappedWords(mapped.effective()) + ". Nothing changed.");
         } else if (mapped.correction() == null) {
             notes.add("That is what detection proposed, so the correction was removed and the mapping follows detection again.");
         } else {
-            notes.add("The request is now mapped to " + mapped.effective().label() + ". Detection proposed "
-                    + mapped.detection().operation().label() + ".");
+            notes.add("The request is now " + mappedWords(mapped.effective())
+                    + (mapped.effective() == EpaOperation.UNMAPPED ? ", so it is sent only as written, from the Config tab" : "")
+                    + ". Detection proposed " + (mapped.detection().operation() == EpaOperation.UNMAPPED ? "no operation"
+                    : mapped.detection().operation().label()) + ".");
         }
         if (summary.guardedAsWrite() && !mapped.effective().writesWith(mapped.request().method())) {
             notes.add("This request still counts as a write, because of its name, its url or its method. Mapping it to "
@@ -196,6 +198,11 @@ public class ConfigService {
                     + "writes are unlocked.");
         }
         return new MappingChanged(change.collection().id(), summary, change.changed(), notes, change.epoch());
+    }
+
+    /** What a request is mapped to, in words: "Unmapped request" is the label of no operation, so it is never said as one. */
+    private static String mappedWords(EpaOperation operation) {
+        return operation == EpaOperation.UNMAPPED ? "not mapped to any operation" : "mapped to " + operation.label();
     }
 
     public Removed removeCollection(String collectionId) {
@@ -272,7 +279,7 @@ public class ConfigService {
     private static StoredCollection requireCollection(ConfigSnapshot snapshot, String collectionId) {
         StoredCollection collection = snapshot.collection(collectionId);
         if (collection == null) {
-            throw new NotFoundException("There is no uploaded collection with that id.");
+            throw NotFoundException.noLongerHeld("The collection", "collections");
         }
         return collection;
     }

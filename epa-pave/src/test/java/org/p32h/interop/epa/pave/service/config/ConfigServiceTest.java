@@ -264,7 +264,7 @@ class ConfigServiceTest {
         assertThat(fixture.service.activate("Onyx Production", unlock).writeAccess().writesAllowed()).isFalse();
 
         assertThatThrownBy(() -> fixture.service.activate("No such environment", null)).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded environment with that name.");
+                .hasMessage("The environment is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
         assertThat(fixture.service.removeEnvironment("Onyx Production").wasActive()).isTrue();
         assertThat(fixture.service.environments().active()).isNull();
         assertThatThrownBy(() -> fixture.service.removeEnvironment("Onyx Production")).isInstanceOf(NotFoundException.class);
@@ -410,9 +410,9 @@ class ConfigServiceTest {
         assertThat(byPath.pathVariables()).containsExactly(new ConfigViews.PathVariableView("id", "saved-subscription-7"));
 
         assertThatThrownBy(() -> fixture.service.request("no-such-collection", "r-000000000000")).isInstanceOf(NotFoundException.class)
-                .hasMessage("There is no uploaded collection with that id.");
+                .hasMessage("The collection is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
         assertThatThrownBy(() -> fixture.service.request(vendor.id(), "r-000000000000")).isInstanceOf(NotFoundException.class)
-                .hasMessage("The collection \"Onyx Sandbox ePA\" has no request with that id.");
+                .hasMessage("That request of the collection \"Onyx Sandbox ePA\" is no longer held by this tool. It may have been removed, or uploaded again, in another window since the list was read.");
     }
 
     @Test
@@ -446,12 +446,13 @@ class ConfigServiceTest {
         assertThat(corrected.request().detectedOperation()).isEqualTo(EpaOperation.PAS_INQUIRE);
         assertThat(corrected.request().correctedOperation()).isEqualTo(EpaOperation.UNMAPPED);
         assertThat(corrected.request().effectiveOperation()).isEqualTo(EpaOperation.UNMAPPED);
-        assertThat(corrected.notes()).containsExactly("The request is now mapped to Unmapped request. Detection proposed PAS inquire.");
+        assertThat(corrected.notes()).containsExactly("The request is now not mapped to any operation, so it is sent only as written, from the "
+                + "Config tab. Detection proposed PAS inquire.");
 
         MappingChanged again = fixture.service.correctMapping(vendor.id(), inquiry, EpaOperation.UNMAPPED);
         assertThat(again.changed()).isFalse();
         assertThat(again.epoch()).isEqualTo(corrected.epoch());
-        assertThat(again.notes()).containsExactly("The mapping already was Unmapped request. Nothing changed.");
+        assertThat(again.notes()).containsExactly("The request already was not mapped to any operation. Nothing changed.");
 
         MappingChanged back = fixture.service.correctMapping(vendor.id(), inquiry, EpaOperation.PAS_INQUIRE);
         assertThat(back.request().correctedOperation()).isNull();
