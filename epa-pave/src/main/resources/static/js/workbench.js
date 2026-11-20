@@ -608,3 +608,23 @@ export function requestPreviewPanel(preview, close) {
                 copyButton('Copy request body', () => body.textContent, body)),
             body) : null);
 }
+
+/**
+ * The member ID cell of a mock scenario's row on an empty tab: the first member ID that selects
+ * it, then every other identifier the server lists for it (sentinelMemberIds, sentinelNpis and,
+ * on DTR, the CRD member IDs it also answers for), so a tester can reach it every way it can be
+ * reached. Each list is the server's; none is worked out here.
+ */
+export function sentinelCell(scenario) {
+    const first = scenario.sentinelMemberId || null;
+    const others = (scenario.sentinelMemberIds || []).filter(id => id !== first);
+    const npis = scenario.sentinelNpis || [];
+    const fromCrd = scenario.crdSentinelMemberIds || [];
+    const list = values => values.map((value, index) => [index > 0 ? ', ' : null, code(value)]);
+    return [
+        first ? code(first) : el('span', {class: 'presence presence--none'}, 'none'),
+        others.length > 0 ? el('div', {class: 'small'}, 'or ', list(others)) : null,
+        npis.length > 0 ? el('div', {class: 'small'}, 'or the NPI ', list(npis)) : null,
+        fromCrd.length > 0 ? el('div', {class: 'small'}, 'and the CRD member ', fromCrd.length === 1 ? 'ID ' : 'IDs ', list(fromCrd), ', for a journey begun at CRD') : null
+    ];
+}

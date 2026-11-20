@@ -13,7 +13,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, table, facts, copyButton} from './dom.js';
 import {textField, textArea, selectField, setOptions} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, sentinelCell} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -525,7 +525,7 @@ function drawEmptyState() {
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
             scenario.label,
-            scenario.sentinelMemberId ? code(scenario.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),
+            sentinelCell(scenario),
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)
                     : button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),

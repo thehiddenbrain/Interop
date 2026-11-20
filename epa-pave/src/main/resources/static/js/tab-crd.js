@@ -10,7 +10,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
 import {textField, selectField, setOptions} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
-import {createWorkbench, requestPreviewPanel} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, sentinelCell} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -547,7 +547,7 @@ function drawEmptyState() {
             {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
             {class: 'num', node: String(scenario.number)},
             scenario.label,
-            scenario.sentinelMemberId ? code(scenario.sentinelMemberId) : el('span', {class: 'presence presence--none'}, 'none'),
+            sentinelCell(scenario),
             // The form's member is not sent with a body of the tester's own: the ID is copied, to be put into the body.
             !scenario.sentinelMemberId ? null
                 : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)

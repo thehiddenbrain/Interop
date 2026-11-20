@@ -19,7 +19,7 @@ const EXPORT_FILTERS = ['protocol', 'result'];
 // Every filter of GET /api/runs, by the name the endpoint gives it, with the words for it on screen.
 const FILTERS = [
     ['from', 'From'], ['to', 'To'], ['protocol', 'Protocol'], ['operation', 'Operation'], ['outcome', 'Outcome'],
-    ['result', 'Test result'], ['chainId', 'Chain'], ['suiteRunId', 'Suite run']
+    ['result', 'Test result'], ['testerRef', 'Tester reference'], ['chainId', 'Chain'], ['suiteRunId', 'Suite run']
 ];
 
 const LIMITS = [{value: '200', label: 'Newest 200'}, {value: '50', label: 'Newest 50'},
@@ -38,6 +38,7 @@ export function createRunsList(app, context) {
         outcome: selectField({label: 'Outcome', field: 'outcome', options: [{value: '', label: 'Any outcome'}]}),
         result: selectField({label: 'Test result', field: 'result', options: [{value: '', label: 'Any result'}]
             .concat(['pass', 'fail', 'unverified'].map(value => ({value, label: resultWord(value)})))}),
+        testerRef: textField({label: 'Tester reference', field: 'testerRef', placeholder: 'as typed with the run'}),
         chainId: textField({label: 'Chain id', field: 'chainId', literal: true}),
         suiteRunId: textField({label: 'Suite run id', field: 'suiteRunId', literal: true}),
         limit: selectField({label: 'How many', field: 'limit', options: LIMITS})

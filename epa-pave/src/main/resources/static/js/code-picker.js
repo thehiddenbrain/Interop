@@ -36,7 +36,7 @@ export function createCodePicker(spec) {
     };
 
     // Each entry: {code, system, description, rows (the list's rows for the code, or null when
-    // not checked), check ('pending', 'listed', 'other-lines', 'not-listed', 'failed'), sentence}
+    // not checked), check ('pending', 'listed', 'other-case', 'other-lines', 'not-listed', 'failed'), sentence, exact}
     let entries = [];
     let options = [];      // what the open list offers: [{code, rows}]
     let active = -1;       // the option the arrows are on, or -1
@@ -310,16 +310,18 @@ export function createCodePicker(spec) {
                 entry.sentence = answer.body.title + (answer.body.reference ? ' Reference ' + answer.body.reference + '.' : '');
             } else {
                 const returned = answer.body.codes || [];
-                const rows = returned.filter(row => row.code === entry.input.code);
-                // The list is searched without regard to case, so e0601 finds E0601. That is the same
-                // code on the list, written another way: it is not "not on the list", and the code
-                // is still sent as typed, which the chip says.
-                const otherCase = rows.length > 0 ? []
-                    : returned.filter(row => String(row.code).toUpperCase() === entry.input.code.toUpperCase());
-                entry.rows = rows.length > 0 ? rows : otherCase;
-                entry.check = rows.length > 0 ? 'listed' : otherCase.length > 0 ? 'other-case'
-                    : answer.body.otherLines ? 'other-lines' : 'not-listed';
-                entry.sentence = rows.length > 0 || otherCase.length > 0 ? null : answer.body.otherLines || null;
+                // The server says whether the code is on the list at all, in any line and on any
+                // date, and how the list writes it (exactCode). Searched without regard to case,
+                // e0601 finds E0601: the same code written another way, still sent as typed, which
+                // the chip says. The rows for the case's line are what the list says about it.
+                const exact = answer.body.exactCode || null;
+                const rows = exact ? returned.filter(row => row.code === exact) : [];
+                entry.rows = rows;
+                entry.exact = exact;
+                entry.check = !exact ? 'not-listed'
+                    : rows.length === 0 ? 'other-lines'
+                        : exact === entry.input.code ? 'listed' : 'other-case';
+                entry.sentence = entry.check === 'other-lines' ? answer.body.otherLines || null : null;
             }
             draw();
         }
@@ -387,7 +389,7 @@ export function createCodePicker(spec) {
                 entry.sentence ? el('span', {class: 'picker__chip-sentence'}, entry.sentence) : null);
         }
         if (entry.check === 'other-case') {
-            const listed = entry.rows[0].code;
+            const listed = entry.exact || entry.rows[0].code;
             return el('span', null,
                 el('span', {class: 'picker__chip-sentence picker__chip-sentence--strong'}, 'On the list as ', code(listed),
                     '. It will be sent as typed, ', code(entry.input.code), '. ',
