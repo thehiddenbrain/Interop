@@ -112,6 +112,10 @@ class CrdControllerTest {
         assertThat(result.at("/error/kind").asString()).isEqualTo("VENDOR_ERROR");
         assertThat(result.at("/error/httpStatus").asInt()).isEqualTo(500);
         assertThat(result.at("/wire/request/body").asString()).contains("\"hook\"");
+        // The issue's empty expression is in the issues table as returned empty, and not listed again as not interpreted.
+        assertThat(result.at("/error/issues/0/expressionPresent").asBoolean()).isTrue();
+        assertThat(result.at("/error/issues/0/expression")).isEmpty();
+        assertThat(result.get("additionalFields").toString()).doesNotContain("expression");
         JsonNode timeout = run(mvc("mock"), body("P32H-TIMEOUT", ""), 200);
         assertThat(timeout.at("/error/kind").asString()).isEqualTo("TIMEOUT");
         // Not found is an answer about test data, so it has no error panel at all.
