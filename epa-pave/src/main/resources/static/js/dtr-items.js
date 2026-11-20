@@ -365,11 +365,18 @@ function control(item, linkId, labelId, ctx) {
     } else if (type.code === 'boolean') {
         built = booleanControl(labelId, given, report);
     } else if ((type.code === 'choice' || type.code === 'open-choice') && options.length === 0) {
-        // Plain text is refused for a choice whose options come only from a value set; an open
-        // choice still takes text. Either way the reason is said at the control.
+        // Plain text is refused for a choice with no options to draw; an open choice still takes
+        // text. Either way the reason is said at the control, and a value set is named only when
+        // the item names one.
+        const valueSet = Boolean(item.answerValueSet) && item.answerValueSet.presence === 'VALUE';
         built = type.code === 'open-choice'
-            ? textControl(item, labelId, given, report, repeats, 'An answer of your own. The options come from a value set this tool does not expand.')
-            : objectControl(type, labelId, given, report, 'Its options come from a value set, which this tool does not expand, so the answer is given as a FHIR answer object, such as {"valueCoding": {"system": "...", "code": "..."}}. It is sent as written.');
+            ? textControl(item, labelId, given, report, repeats, valueSet
+                ? 'An answer of your own. The options come from a value set this tool does not expand.'
+                : 'An answer of your own. The item offers no options this tool can draw and names no value set.')
+            : objectControl(type, labelId, given, report, (valueSet
+                ? 'Its options come from a value set, which this tool does not expand,'
+                : 'It offers no options this tool can draw and names no value set,')
+                + ' so the answer is given as a FHIR answer object, such as {"valueCoding": {"system": "...", "code": "..."}}. It is sent as written.');
     } else if (type.code === 'choice' || type.code === 'open-choice') {
         built = choiceControl(options, labelId, given, report, repeats, type.code === 'open-choice');
     } else {

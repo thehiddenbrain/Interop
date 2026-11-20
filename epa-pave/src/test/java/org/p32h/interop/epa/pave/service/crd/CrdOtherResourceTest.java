@@ -92,4 +92,20 @@ class CrdOtherResourceTest {
         // With an error status it is the refusal it always was.
         assertThat(mapper.read(TestExchanges.crd(400, OUTCOME_ERRORS)).outcome()).isEqualTo(CrdOutcome.REJECTED);
     }
+
+    @Test
+    void theNextStepForAReadableAnswerOfTheWrongKindIsToReportItNotToCheckTheEnvironment() {
+        for (String body : List.of(PATIENT, OUTCOME_ERRORS)) {
+            var exchange = TestExchanges.crd(200, body);
+            var next = CrdVerdicts.nextStep(mapper.read(exchange), exchange, "run-1");
+            assertThat(next.action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.REPORT_NO_DETERMINATION);
+            assertThat(next.headline()).isEqualTo("Next: record run run-1 as \"no determination returned\" and report it to the people "
+                    + "who look after the service.");
+            assertThat(next.reason()).startsWith("The service was reached and answered, but not with a CDS Hooks response");
+        }
+        // A body that could not be read is still a finding about the environment.
+        var garbled = TestExchanges.crd(200, "{\"cards\": [");
+        assertThat(CrdVerdicts.nextStep(mapper.read(garbled), garbled, "run-1").action())
+                .isEqualTo(org.p32h.interop.epa.pave.model.NextAction.CHECK_ENVIRONMENT);
+    }
 }

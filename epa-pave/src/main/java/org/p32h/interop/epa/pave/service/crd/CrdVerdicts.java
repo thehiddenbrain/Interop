@@ -390,6 +390,17 @@ public final class CrdVerdicts {
             }
         }
 
+        // A readable answer of the wrong kind came from a service that was reached and answered, so it
+        // is an answer to report, as "no determination" is, and not a finding about the environment.
+        CrdResponseKind kind = reading.detail().responseKind();
+        if (outcome == CrdOutcome.MALFORMED_RESPONSE && exchange.ok()
+                && (kind == CrdResponseKind.OTHER_JSON || kind == CrdResponseKind.OPERATION_OUTCOME)) {
+            String which = Texts.present(runId) ? "run " + runId : "this run";
+            return new NextStepView(NextAction.REPORT_NO_DETERMINATION, "Next: record " + which + " as \"no determination returned\" "
+                    + "and report it to the people who look after the service.",
+                    "The service was reached and answered, but not with a CDS Hooks response, so the answer does not say whether "
+                            + "prior authorization is needed. What came back is in the response detail below.", carry);
+        }
         return switch (outcome) {
             case DOCUMENTATION_REQUIRED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",
