@@ -69,11 +69,13 @@ public final class ConfigViews {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record EnvironmentView(String id, String name, EnvironmentKind kind, boolean active, String uploadedAt, String originalFileName,
-                                  String file, boolean acknowledgedNotProd, List<String> productionSigns, List<VariableView> variables) {
+                                  String file, boolean acknowledgedNotProd, List<String> productionSigns, List<VariableView> variables,
+                                  List<String> addressWarnings) {
 
         public EnvironmentView {
             productionSigns = productionSigns == null ? List.of() : List.copyOf(productionSigns);
             variables = variables == null ? List.of() : List.copyOf(variables);
+            addressWarnings = addressWarnings == null ? List.of() : List.copyOf(addressWarnings);
         }
     }
 
@@ -115,7 +117,11 @@ public final class ConfigViews {
 
     /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Activated(EnvironmentRef environment, long epoch, WriteAccess writeAccess) {
+    public record Activated(EnvironmentRef environment, long epoch, WriteAccess writeAccess, List<String> addressWarnings) {
+
+        public Activated {
+            addressWarnings = addressWarnings == null ? List.of() : List.copyOf(addressWarnings);
+        }
     }
 
     /**

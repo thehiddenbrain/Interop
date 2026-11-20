@@ -112,7 +112,7 @@ public class ConfigService {
     /** @param unlock the session's unlock. A switch drops it, and the answer says whether a write would be sent now */
     public Activated activate(String nameOrId, ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.activate(nameOrId);
-        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock));
+        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), AddressChecks.of(snapshot.active(), snapshot));
     }
 
     public Removed removeEnvironment(String nameOrId) {
@@ -134,7 +134,7 @@ public class ConfigService {
         environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         return new EnvironmentView(environment.id(), environment.name(), environment.kind(), environment.name().equals(snapshot.activeName()),
                 environment.uploadedAt(), environment.originalFileName(), store.directory().resolve(environment.file()).toString(),
-                environment.acknowledgedNotProd(), environment.productionSigns(), variables);
+                environment.acknowledgedNotProd(), environment.productionSigns(), variables, AddressChecks.of(environment, snapshot));
     }
 
     // ------------------------------------------------------------------------------------------

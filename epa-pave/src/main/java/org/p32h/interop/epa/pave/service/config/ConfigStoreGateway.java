@@ -1148,6 +1148,12 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "application.yml or another environment cannot send a write to it.");
         }
 
+        // An address this tool cannot read as the HTTP client reads it is never taken as "not
+        // production": what the client would connect to is not known here.
+        if (complete && (destination == null || !destination.readable())) {
+            return unreadable(what, why, addressFrom(origin.resolution(), filled.send(), target));
+        }
+
         if (active == null) {
             // On the mock profile nothing is sent, so the out-of-the-box install can run a write
             // with nothing configured. On live there is no kind to go by, and a fallback url cannot
@@ -1196,6 +1202,58 @@ public class ConfigStoreGateway implements OperationGateway {
             return null;
         }
         return locked(snapshot, intent, active, what, why);
+    }
+
+    /** The refusal of a write whose address cannot be read. It names where the address came from and quotes none of it. */
+    static Refusal unreadable(String what, String why, String from) {
+        return new Refusal("Blocked: the address it would go to could not be read.", what + " is blocked: the scheme, host and port "
+                + "it would go to could not be read the way the HTTP client reads them, so this tool cannot tell whether that address "
+                + "is production. The address comes from " + from + "." + why, "Nothing was sent. Write the address as "
+                + "scheme://host:port/path, with the host as a name or as four decimal numbers and a port of at most 65535, then send "
+                + "it again.");
+    }
+
+    /**
+     * Where the scheme, host and port of a url came from, in words: the variables whose values
+     * form them, each with its layer, or the request or setting that wrote them literally. Names
+     * and layers only, never a value.
+     */
+    static String addressFrom(Resolution resolution, String sent, Target target) {
+        List<String> names = new ArrayList<>();
+        if (resolution != null) {
+            Map<String, VariableSource> sources = sources(resolution);
+            String text = resolution.send() == null ? sent : resolution.send();
+            int authorityEnd = authorityEnd(text == null ? "" : text);
+            int at = 0;
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (at > authorityEnd) {
+                    break;
+                }
+                if (piece.name() != null) {
+                    VariableSource source = sources.get(piece.name());
+                    String named = "the variable \"" + ConfigStore.oneLine(piece.name()) + "\""
+                            + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
+                    if (!names.contains(named)) {
+                        names.add(named);
+                    }
+                }
+                at += piece.send() == null ? 0 : piece.send().length();
+            }
+        }
+        if (!names.isEmpty()) {
+            return String.join(" and ", names);
+        }
+        return target == null || target.described() == null ? "the url as it is written" : target.described();
+    }
+
+    /** Where the scheme and the authority of a url end: the first slash, question mark or hash after {@code ://}, or the end. */
+    private static int authorityEnd(String url) {
+        int scheme = url.indexOf("://");
+        int at = scheme < 0 ? 0 : scheme + 3;
+        while (at < url.length() && "/?#".indexOf(url.charAt(at)) < 0) {
+            at++;
+        }
+        return at;
     }
 
     /**

@@ -99,6 +99,42 @@ final class ProductionDestinations {
         return new ArrayList<>(found);
     }
 
+    /**
+     * The names of the variables considered by {@link #of} whose value, resolved against the
+     * environment alone, has a scheme and a host and yet no destination the HTTP client would read
+     * the same way. A write to such an address is refused, and the environment says so before
+     * anything is sent.
+     */
+    static List<String> unreadable(PostmanEnvironment environment, Set<String> urlForming) {
+        List<String> names = new ArrayList<>();
+        if (environment == null) {
+            return names;
+        }
+        Map<String, PostmanVariable> inForce = environment.inForce();
+        List<VariableLayer> layers = List.of(VariableLayer.environment(environment.name(), inForce));
+        for (PostmanVariable variable : inForce.values()) {
+            if (!variable.hasValue() || (notACall(variable.key()) && !urlForming.contains(variable.key()))) {
+                continue;
+            }
+            Resolution resolved = WITHIN.resolve(variable.value(), layers);
+            String value = resolved.send();
+            if (value == null || !hasSchemeAndHost(value.strip())) {
+                continue;
+            }
+            UrlNormal.Destination destination = UrlNormal.destination(value);
+            if (destination == null || !destination.readable()) {
+                names.add(variable.key());
+            }
+        }
+        return names;
+    }
+
+    /** True when the text starts with a scheme followed by {@code ://} and at least one character of authority. */
+    private static boolean hasSchemeAndHost(String value) {
+        int scheme = value.indexOf("://");
+        return scheme > 0 && value.substring(0, scheme).matches("[A-Za-z][A-Za-z0-9+.-]*") && authorityEnd(value) > scheme + 3;
+    }
+
     /** The destinations alone, for comparing with the addresses another environment would use. */
     static List<UrlNormal.Destination> destinations(PostmanEnvironment environment, Set<String> urlForming) {
         return of(environment, urlForming).stream().map(Found::destination).toList();

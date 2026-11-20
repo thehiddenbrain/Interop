@@ -305,6 +305,7 @@ public class ConfigStore {
                 before.remembered()), file, previous == null ? null : previous.file());
 
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
+        warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
         warnings.addAll(leftBehind);
         warnings.addAll(parsed.notes());
         // The name, the kind and a count. Never a variable value.
