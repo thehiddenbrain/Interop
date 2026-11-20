@@ -14,6 +14,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.testsupport.GradleTestTask;
 import org.p32h.interop.epa.pave.style.HouseStyle.Rule;
 import org.p32h.interop.epa.pave.style.HouseStyle.Scan;
 import org.p32h.interop.epa.pave.style.HouseStyle.Violation;
@@ -188,6 +189,7 @@ class HouseStyleTest {
 
     @Test
     void theRealProjectListsItsDotFilesAndBreaksNoRule() {
+        GradleTestTask.assumeRunning("the system property pave.houseStyle.projectDir, set by the test task in build.gradle");
         Path projectDir = Path.of(requiredProperty("pave.houseStyle.projectDir"));
 
         HouseStyle.Listing listing = HouseStyle.projectFiles(projectDir);
@@ -226,6 +228,8 @@ class HouseStyleTest {
     void theBuildRunsThisGateAsPartOfCheck() {
         // build.gradle hands these over when the tests start. If the task is deleted, taken out of
         // check, or pointed at another class, this fails.
+        GradleTestTask.assumeRunning("the system properties pave.houseStyle.checkDependsOn and pave.houseStyle.mainClass, "
+                + "set by the test task in build.gradle");
         assertThat(requiredProperty("pave.houseStyle.checkDependsOn").split(",")).contains("houseStyleCheck");
         assertThat(requiredProperty("pave.houseStyle.mainClass")).isEqualTo(HouseStyle.class.getName());
     }

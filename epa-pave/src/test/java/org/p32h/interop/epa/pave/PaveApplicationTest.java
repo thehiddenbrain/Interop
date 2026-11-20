@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.bind.handler.NoUnboundElement
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.BindHandler;
+import org.p32h.interop.epa.pave.testsupport.GradleTestTask;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -21,6 +22,7 @@ import org.p32h.interop.epa.pave.config.LookupProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,7 +43,9 @@ class PaveApplicationTest {
     @Autowired AppProperties app;
     @Autowired OnyxProperties onyx;
     @Autowired LookupProperties lookup;
-    @Autowired BuildProperties build;
+    // Only the Gradle build writes META-INF/build-info.properties. Taken through a provider so that
+    // the context, and every test here but the version test, also runs in an IDE that has no such file.
+    @Autowired ObjectProvider<BuildProperties> buildProperties;
     @Autowired JsonMapper mapper;
 
     @Autowired org.springframework.context.ApplicationContext context;
@@ -137,6 +141,10 @@ class PaveApplicationTest {
 
     @Test
     void theVersionOnScreenIsTheVersionThatWasBuilt() {
+        GradleTestTask.assumeRunning("META-INF/build-info.properties, written only by the Gradle build");
+        BuildProperties build = buildProperties.getIfAvailable();
+        assertThat(build).as("the build information from META-INF/build-info.properties, written by the bootBuildInfo task "
+                + "that springBoot.buildInfo in build.gradle adds").isNotNull();
         // epa.version is typed by hand in application.yml; the build version is in build.gradle.
         assertThat(epa.version()).isEqualTo(build.getVersion());
         assertThat(build.getArtifact()).isEqualTo("epa-pave");
