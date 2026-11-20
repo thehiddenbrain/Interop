@@ -8,7 +8,8 @@ import org.p32h.interop.epa.pave.model.Shown;
  * One piece of content a Library in the package carries, such as its CQL source.
  *
  * <p>The encoded bytes are described by their size and not repeated here. They can run to
- * hundreds of kilobytes, they are in the wire view exactly as received, and a tester reading the
+ * hundreds of kilobytes, they are in the wire view as received (a place repeating a secret the
+ * request carried is masked there, as everywhere), and a tester reading the
  * result needs to know that the logic arrived, not to read it in base64.
  *
  * @param dataPresence   whether the content carried inline data at all, and if so whether it was empty

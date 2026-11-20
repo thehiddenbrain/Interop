@@ -228,7 +228,9 @@ class CrdRequestBuilderTest {
         assertThat(built.orders()).containsExactly(new SentOrder("ServiceRequest/service-request-1", "95810"),
                 new SentOrder("ServiceRequest/service-request-2", "E0601"));
         // Reading the orders back out of the body gives the same list, which is the path a tester's own body takes.
-        assertThat(SentOrder.fromBody(built.json())).isEqualTo(built.orders());
+        // A body read back numbers its orders as well, so that one with no code is named by its place.
+        assertThat(SentOrder.fromBody(built.json())).containsExactly(new SentOrder("ServiceRequest/service-request-1", "95810", 1),
+                new SentOrder("ServiceRequest/service-request-2", "E0601", 2));
         JsonNode entries = JsonSafe.parse(built.json()).node().at("/context/draftOrders/entry");
         assertThat(entries.at("/1/resource/id").asString()).isEqualTo("service-request-2");
         assertThat(entries.at("/1/resource/code/coding/0/code").asString()).isEqualTo("E0601");
@@ -245,9 +247,10 @@ class CrdRequestBuilderTest {
                 + "{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"no-code\"}},"
                 + "{\"resource\":{\"resourceType\":\"MedicationRequest\",\"medicationCodeableConcept\":{\"coding\":[{\"code\":\"J1745\"}]}}},"
                 + "{\"fullUrl\":\"x\"},\"text\"]}}}";
-        assertThat(SentOrder.fromBody(body)).containsExactly(new SentOrder("ServiceRequest/abc", "70553"),
-                new SentOrder("ServiceRequest/no-code", null), new SentOrder(null, "J1745"));
-        assertThat(new SentOrder("ServiceRequest/no-code", null).label()).isEqualTo("ServiceRequest/no-code");
+        assertThat(SentOrder.fromBody(body)).containsExactly(new SentOrder("ServiceRequest/abc", "70553", 1),
+                new SentOrder("ServiceRequest/no-code", null, 2), new SentOrder(null, "J1745", 3));
+        // An order with no code is named by its place among the orders, never by its id, which a tester wrote and may be anything.
+        assertThat(SentOrder.fromBody(body).get(1).label()).isEqualTo("order 2 (no code)");
         assertThat(new SentOrder("ServiceRequest/abc", "70553").label()).isEqualTo("70553");
     }
 

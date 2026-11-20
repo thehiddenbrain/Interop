@@ -126,6 +126,18 @@ class PasServiceTest {
                 .procedureCodes(List.of(new CodeInput("95810", null, "Sleep study, attended"))).dateOfService("2026-03-20");
     }
 
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        service().runSubmit(submission("P32H-PAS-APPROVED").build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        service().previewSubmit(submission("P32H-PAS-APPROVED").build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
+    }
+
     private static PasInquireRequest.Builder inquiry(String memberId) {
         return PasInquireRequest.builder().member(member(memberId)).provider(provider());
     }

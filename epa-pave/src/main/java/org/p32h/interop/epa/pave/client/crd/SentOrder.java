@@ -16,16 +16,38 @@ import tools.jackson.databind.JsonNode;
  * @param reference the order as the response would refer to it, for example
  *                  {@code ServiceRequest/service-request-1}. Null when the resource had no id
  * @param code      the procedure code on the order, or null when it carried none
+ * @param position  where the order stands among the orders of a body the tester supplied,
+ *                  counting from one. Null for an order this tool built, which always has a code
  */
-public record SentOrder(String reference, String code) {
+public record SentOrder(String reference, String code, Integer position) {
 
-    /** How the order is named on a result: its code, else its reference. */
-    public String label() {
-        return Texts.present(code) ? code : Texts.orElse(reference, "unidentified-order");
+    /**
+     * The resource types CRD 2.0.1 profiles as orders that an order hook carries in draftOrders.
+     * Anything else in the bundle, a Patient for one, is not an order and is not read as one.
+     */
+    public static final List<String> ORDER_TYPES = List.of("ServiceRequest", "DeviceRequest", "MedicationRequest", "NutritionOrder",
+            "CommunicationRequest", "VisionPrescription");
+
+    /** An order this tool built, which carries a code. */
+    public SentOrder(String reference, String code) {
+        this(reference, code, null);
     }
 
     /**
-     * The orders in a request body the tester supplied, read from {@code context.draftOrders}.
+     * How the order is named on a result and on the ledger line: its code, else its position. An
+     * order with no code is never named by its id: in a body the tester wrote, an id is free text
+     * and can be a member's name or date of birth.
+     */
+    public String label() {
+        if (Texts.present(code)) {
+            return code;
+        }
+        return position != null ? "order " + position + " (no code)" : "unidentified-order";
+    }
+
+    /**
+     * The orders in a request body the tester supplied, read from {@code context.draftOrders}: the
+     * entries whose resource is one of {@link #ORDER_TYPES}, numbered in the order they stand.
      * Empty when the body is not JSON or carries no draft orders: the result then names answers by
      * the resource they apply to, and no code is said to be unanswered.
      */
@@ -42,10 +64,13 @@ public record SentOrder(String reference, String code) {
                 continue;
             }
             String type = JsonSafe.presentText(resource, "resourceType");
+            if (!ORDER_TYPES.contains(type)) {
+                continue;
+            }
             String id = JsonSafe.presentText(resource, "id");
-            String reference = type != null && id != null ? type + "/" + id : id;
+            String reference = id != null ? type + "/" + id : null;
             List<String> codes = codes(resource);
-            out.add(new SentOrder(reference, codes.isEmpty() ? null : codes.get(0)));
+            out.add(new SentOrder(reference, codes.isEmpty() ? null : codes.get(0), out.size() + 1));
         }
         return out;
     }

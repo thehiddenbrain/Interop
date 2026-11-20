@@ -328,6 +328,7 @@ public final class CrdVerdicts {
         carry.put(NextStepView.CARRY_COVERAGE_ASSERTION_ID, assertionIds);
         carry.put(NextStepView.CARRY_ORDER, orders);
         carry.put(NextStepView.CARRY_DOC_PURPOSE, purposes);
+        carry.put(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, responses);
         if (smartLink != null) {
             // Carried as what it is, a SMART link, and only the first, so the url and the appContext
             // belong to one link. It does not decide whether DTR is next: doc-needed does.
@@ -352,9 +353,6 @@ public final class CrdVerdicts {
                     reason.append(" A partly completed questionnaire response is named for DTR to start from.");
                 } else if (questionnaires.isEmpty()) {
                     reason.append(" No questionnaire is named, so DTR asks the payer for its package by the order and the coverage.");
-                }
-                if (!responses.isEmpty()) {
-                    reason.append(" This tool does not yet hand that response on to DTR: it is shown on the result.");
                 }
                 if (asked != null) {
                     reason.append(" ").append(asked);

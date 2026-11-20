@@ -125,7 +125,7 @@ public class DtrService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin);
         }
@@ -140,6 +140,10 @@ public class DtrService {
             if (!request.questionnaires().isEmpty() || Texts.present(request.coverageAssertionId())) {
                 requestNotes.add("The questionnaires and the coverage assertion id on the form were not added to the body you supplied. "
                         + "Only what the body itself holds was sent.");
+            }
+            String draftNote = DtrRequestBuilder.namedDraftNote(request.carry());
+            if (draftNote != null) {
+                requestNotes.add(draftNote);
             }
         } else {
             sent = builder.buildPackage(request, call::resolve);
@@ -182,7 +186,7 @@ public class DtrService {
         MemberIdForms shown = shownMemberId(request);
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, shown);
         }
@@ -209,7 +213,7 @@ public class DtrService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin);
         }
@@ -253,7 +257,9 @@ public class DtrService {
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
             // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
-            String answered = Texts.orElse(first(OnyxDtrConventions.completes(QuestionnaireJson.findResponse(exchange.json()))), answering);
+            // Read through the mask: the name goes to the ledger line, which never holds a secret the request carried.
+            String answered = Texts.orElse(first(OnyxDtrConventions.completes(
+                    QuestionnaireJson.findResponse(exchange.withReturnedSecretsMasked().json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)),
                     DtrProfileCheck.finding(gaps, true));
@@ -269,7 +275,7 @@ public class DtrService {
         EpaOperation operation = EpaOperation.DTR_NEXT_QUESTION;
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, null);
         }
@@ -454,9 +460,10 @@ public class DtrService {
                 .withHttpStatus(exchange.httpStatus()).withIssues(reading.detail().issues());
     }
 
-    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock) {
+    /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
+    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock, RunOrigin origin) {
         return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
-                .withExpectedEpoch(request.configEpoch());
+                .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
     private static MockSelection selection(RunRequest request) {
@@ -703,11 +710,11 @@ public class DtrService {
             correlation.put(RunRecord.CORR_RUN_ID, followsRunId);
         }
         if (!canonicals.isEmpty()) {
-            // A url is kept. Anything else a response put where a url belongs is replaced by a
-            // statement that something was there, so the fact survives and the text does not.
-            correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", canonicals.stream()
-                    .map(canonical -> CANONICAL.matcher(canonical).matches() ? canonical : "(not a url, " + canonical.length() + " characters)")
-                    .toList()));
+            // The addresses as they came. The record keeps them only when every one is an address,
+            // and otherwise writes its own statement that something was there and was not recorded,
+            // which replay refuses. A statement of this class's own in place of one address would
+            // put text on the line where an address belongs.
+            correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", canonicals));
         }
         return correlation;
     }

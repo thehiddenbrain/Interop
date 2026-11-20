@@ -55,7 +55,7 @@ class ReturnedSecretsInTheViewTest {
     void aBodyThatRepeatsNoSecretIsReadAsItCame() {
         VendorExchange exchange = answered(bundle(claimResponse("\"outcome\":\"complete\"", "\"disposition\":\"approved\"",
                 items(decided(1, "A1")))));
-        assertThat(ReturnedSecrets.masked(exchange)).isSameAs(exchange);
+        assertThat(exchange.withReturnedSecretsMasked()).isSameAs(exchange);
         assertThat(new PasResponseMapper().read(exchange, sent("E0601")).detail().claimResponses().get(0).disposition().value())
                 .isEqualTo("approved");
     }

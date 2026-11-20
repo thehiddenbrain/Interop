@@ -43,11 +43,13 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      * The keys a DTR step passes on unchanged. They are the ones CRD writes and a DTR step has
      * nothing to add to. A key that is not one of the CARRY constants is never passed on. What CRD
      * said the documentation is for is among them, because the step that builds a response reads
-     * it as the intended use, and that step comes after the package fetch and the loop.
+     * it as the intended use, and that step comes after the package fetch and the loop. So is the
+     * reference to a partly completed response CRD named for DTR to start from: no step of this
+     * tool fetches it, and it stays visible on every step's result until the journey leaves DTR.
      */
     private static final List<String> PASSED_ON = List.of(NextStepView.CARRY_COVERAGE_ASSERTION_ID, NextStepView.CARRY_ORDER,
             NextStepView.CARRY_DELEGATED_VENDOR, NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT,
-            NextStepView.CARRY_DOC_PURPOSE);
+            NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
 
     public DtrHandoff {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
@@ -86,12 +88,28 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      *                          prior authorization request
      */
     public Map<String, List<String>> carry(String completedResponse) {
+        return carry(completedResponse, List.of());
+    }
+
+    /**
+     * What the next step starts from, with questionnaires that are done although nothing of them
+     * is handed on taken off the list of the package's questionnaires, so that no later step asks
+     * for them again.
+     *
+     * @param done the questionnaires of the package that are done and have no completed response
+     *             handed on, as {@link #named} gives them
+     */
+    public Map<String, List<String>> carry(String completedResponse, List<String> done) {
         Map<String, List<String>> carry = new LinkedHashMap<>();
         for (String key : PASSED_ON) {
             carry.put(key, values(given, key));
         }
         carry.put(NextStepView.CARRY_PROCEDURE_CODES, procedureCodes);
-        carry.put(NextStepView.CARRY_QUESTIONNAIRE, questionnaires);
+        List<String> left = new ArrayList<>(questionnaires);
+        if (done != null) {
+            left.removeAll(done);
+        }
+        carry.put(NextStepView.CARRY_QUESTIONNAIRE, left);
         carry.put(NextStepView.CARRY_RUN_ID, Texts.present(followsRunId) ? List.of(followsRunId) : List.of());
         carry.put(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, completedResponses(completedResponse));
         return carry;
@@ -138,6 +156,15 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
             }
         }
         return remaining;
+    }
+
+    /**
+     * The questionnaires of the package a response names, as the package lists them. Empty when it
+     * names none of them.
+     */
+    public List<String> named(String response) {
+        List<String> names = answeredBy(response);
+        return questionnaires.stream().filter(wanted -> names(names, wanted)).toList();
     }
 
     /**

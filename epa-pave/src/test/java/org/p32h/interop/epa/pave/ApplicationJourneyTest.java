@@ -248,6 +248,9 @@ class ApplicationJourneyTest {
         // The payer asks for documentation, so the journey goes through DTR and a person answers.
         JsonNode crd = step("/api/crd", "P32H-DOC-DTR", null, null);
         assertThat(crd.get("nextStep").get("action").stringValue()).isEqualTo("START_DTR");
+        // CRD hands on what the documentation is for, and its own run, so the step after it is linked to it.
+        String purpose = crd.get("nextStep").get("carry").get("docPurpose").get(0).stringValue();
+        assertThat(crd.get("nextStep").get("carry").get("runId").get(0).stringValue()).isEqualTo(crd.get("runId").stringValue());
 
         JsonNode fetched = step("/api/dtr/package", "P32H-DOC-DTR", crd, null);
         assertThat(fetched.get("verdict").get("outcomeCode").stringValue()).isEqualTo("PACKAGE_LOADED");
@@ -310,6 +313,15 @@ class ApplicationJourneyTest {
             namedByTheAnswers.add(target.get("resourceType").stringValue() + "/" + target.get("id").stringValue());
         }
         assertThat(namedByTheAnswers).contains("Patient/patient-1", "Coverage/coverage-1", "ServiceRequest/service-request-1");
+        // What CRD said the documentation is for is the intended use the response states inside the PAS bundle.
+        JsonNode intendedUse = null;
+        for (JsonNode extension : response.get("extension")) {
+            if (extension.get("url").stringValue().endsWith("/StructureDefinition/intendedUse")) {
+                intendedUse = extension;
+            }
+        }
+        assertThat(intendedUse).as("the intendedUse extension of the response").isNotNull();
+        assertThat(intendedUse.get("valueCodeableConcept").get("coding").get(0).get("code").stringValue()).isEqualTo(purpose);
 
         // One journey in history: four lines under one chain id, and every stage done.
         JsonNode chain = json(get("/api/chains/" + submitted.get("chainId").stringValue()), 200);
@@ -321,6 +333,79 @@ class ApplicationJourneyTest {
         // Nothing of the answers is in the ledger: a line holds no wire JSON and no response text.
         String ledger = json(get("/api/runs").param("chainId", submitted.get("chainId").stringValue()), 200).toString();
         assertThat(ledger).doesNotContain("sleep-1").doesNotContain("snoring").doesNotContain("QuestionnaireResponse\"");
+
+        // Each later line holds the run it follows: the package the CRD run, the response and the submission the package.
+        assertThat(json(get("/api/runs/" + fetched.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
+                .isEqualTo(crd.get("runId").stringValue());
+        assertThat(json(get("/api/runs/" + answered.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
+                .isEqualTo(fetched.get("runId").stringValue());
+        assertThat(json(get("/api/runs/" + submitted.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
+                .isEqualTo(fetched.get("runId").stringValue());
+        // The four lines as written on disk hold no name, no date of birth, no answer and no body.
+        List<String> written = new java.util.ArrayList<>();
+        try (var files = Files.list(home.resolve("run-history"))) {
+            for (Path file : files.filter(f -> f.getFileName().toString().endsWith(".jsonl")).toList()) {
+                Files.readAllLines(file, StandardCharsets.UTF_8).stream().filter(l -> l.contains(submitted.get("chainId").stringValue()))
+                        .forEach(written::add);
+            }
+        }
+        assertThat(written).hasSize(4);
+        JsonNode member = json(get("/api/members/P32H-DOC-DTR"), 200).get("member");
+        for (String line : written) {
+            assertThat(line).doesNotContain(member.get("lastName").stringValue()).doesNotContain(member.get("firstName").stringValue())
+                    .doesNotContain(member.get("dateOfBirth").stringValue()).doesNotContain("snoring").doesNotContain("\"resourceType\"")
+                    .doesNotContain("\"item\"");
+        }
+    }
+
+    @Test
+    void aManualCrdThenPasLinksTheSubmissionToTheCrdRun() throws Exception {
+        // Suites VS-11, by hand: CRD says go to PAS, and the submission made from its result names the CRD run.
+        JsonNode crd = step("/api/crd", "P32H-PA-REQ", null, null);
+        assertThat(crd.get("nextStep").get("action").stringValue()).isEqualTo("START_PAS");
+        JsonNode submitted = step("/api/pas/submit", "P32H-PA-REQ", crd, null);
+        assertThat(json(get("/api/runs/" + submitted.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
+                .isEqualTo(crd.get("runId").stringValue());
+    }
+
+    @Test
+    void aPackageOfTwoWhoseFirstQuestionnaireIsCompletedWithNoItemGoesOnToPasOnceTheOtherIsAnswered() throws Exception {
+        JsonNode fetched = step("/api/dtr/package", "P32H-DTR-TWO", null, null);
+        assertThat(fetched.get("verdict").get("outcomeCode").stringValue()).isEqualTo("PACKAGE_LOADED");
+        JsonNode cardiology = fetched.get("detail").get("questionnaires").get(0);
+        JsonNode musculoskeletal = fetched.get("detail").get("questionnaires").get(1);
+        String cardiologyUrl = cardiology.get("url").get("value").stringValue();
+        String musculoskeletalUrl = musculoskeletal.get("url").get("value").stringValue();
+
+        // The first questionnaire, in a form whose only question is optional, answered with nothing: complete, and it holds no item.
+        String optional = "{\"resourceType\":\"Questionnaire\",\"id\":\"cardiology-criteria\",\"url\":\"" + cardiologyUrl + "\","
+                + "\"version\":\"1.0.0\",\"title\":\"Cardiology criteria (placeholder)\",\"status\":\"active\",\"subjectType\":[\"Patient\"],"
+                + "\"item\":[{\"linkId\":\"card-1\",\"text\":\"Optional\",\"type\":\"boolean\",\"required\":false}]}";
+        JsonNode first = step("/api/dtr/response", "P32H-DTR-TWO", fetched, "\"questionnaire\":" + JsonSafe.mapper().writeValueAsString(optional));
+        assertThat(first.get("verdict").get("outcomeCode").stringValue()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(first.get("nextStep").get("action").stringValue()).isEqualTo("REVIEW");
+        assertThat(first.get("nextStep").get("reason").stringValue()).contains("The questionnaire " + cardiologyUrl + "|1.0.0 is done all the same");
+        // It is done: off the list of what is still to answer, and not handed to PAS.
+        assertThat(first.get("nextStep").get("carry").get("questionnaire")).hasSize(1);
+        assertThat(first.get("nextStep").get("carry").get("questionnaire").get(0).stringValue()).startsWith(musculoskeletalUrl);
+        assertThat(first.get("nextStep").get("carry").has("questionnaireResponse")).isFalse();
+
+        // The other questionnaire answered: PAS is offered, with that one response.
+        JsonNode second = step("/api/dtr/response", "P32H-DTR-TWO", first, "\"questionnaire\":" + musculoskeletal.get("json")
+                + ",\"answers\":[{\"linkId\":\"msk-1\",\"values\":[\"true\"]},{\"linkId\":\"msk-2\",\"values\":[\"4\"]}]");
+        assertThat(second.get("verdict").get("outcomeCode").stringValue()).isEqualTo("RESPONSE_COMPLETED");
+        assertThat(second.get("nextStep").get("action").stringValue()).isEqualTo("START_PAS");
+        assertThat(second.get("nextStep").get("carry").get("questionnaireResponse")).hasSize(1);
+
+        JsonNode submitted = step("/api/pas/submit", "P32H-DTR-TWO", second, null);
+        JsonNode bundle = JsonSafe.parse(submitted.get("wire").get("request").get("body").stringValue()).node();
+        List<String> responses = new java.util.ArrayList<>();
+        for (JsonNode entry : bundle.get("entry")) {
+            if (entry.get("resource").get("resourceType").stringValue().equals("QuestionnaireResponse")) {
+                responses.add(entry.get("resource").get("questionnaire").stringValue());
+            }
+        }
+        assertThat(responses).singleElement().satisfies(q -> assertThat(q).startsWith(musculoskeletalUrl));
     }
 
     @Test

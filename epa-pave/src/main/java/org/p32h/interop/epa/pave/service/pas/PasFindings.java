@@ -6,13 +6,15 @@ import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.pas.ClaimResponseView;
 import org.p32h.interop.epa.pave.model.pas.PasDecision;
 import org.p32h.interop.epa.pave.model.pas.PasOutcome;
+import org.p32h.interop.epa.pave.model.pas.ReviewActionView;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 /**
  * What a person should look at on a PAS response, apart from its outcome: a code outside the codes
- * this tool knows, and an item for which no decision is stated. A finding is not a failure
+ * this tool knows, a review action where PAS 2.0.1 does not place one, and an item for which no
+ * decision is stated. A finding is not a failure
  * of the call. It is kept on the ledger line by its kind, so history can be searched for it.
  */
 final class PasFindings {
@@ -50,6 +52,17 @@ final class PasFindings {
                                 + "there; PAS 2.0.1, the version this tool is held to, does not. It is listed among the fields returned but "
                                 + "not interpreted, and decides nothing for the items that were requested.",
                         String.join("; ", response.addItemReviewActions()), null, null));
+            }
+            List<ReviewActionView> misplaced = new ArrayList<>(response.reviewActions());
+            response.items().forEach(item -> misplaced.addAll(item.reviewActions()));
+            for (ReviewActionView action : misplaced) {
+                if (action.placement() != null) {
+                    findings.add(new Finding(FindingKind.GUIDE_RULE_BROKEN, "A review action sits where PAS 2.0.1 does not place one",
+                            action.placement() + " PAS 2.0.1 defines the review action extension (extension-reviewAction) for Claim.item "
+                                    + "and ClaimResponse.item.adjudication, and for no other place. The decision it carries is shown, so "
+                                    + "that it can be seen, and the place is reported.",
+                            action.foundAt(), null, null));
+                }
             }
             CodedValue status = response.outcome();
             if (status.code() != null && !status.recognised()) {

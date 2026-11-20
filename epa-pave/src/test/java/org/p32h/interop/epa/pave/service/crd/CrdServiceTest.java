@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.MockOnyxCrdClient;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
+import org.p32h.interop.epa.pave.client.support.Exchanges;
 import org.p32h.interop.epa.pave.client.support.MockExchanges;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.config.CodelistProperties;
@@ -37,6 +38,9 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.VendorExchange;
+import org.p32h.interop.epa.pave.model.SentSecrets;
+import org.p32h.interop.epa.pave.model.Secrets;
+import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.crd.CrdDetail;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
@@ -65,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import tools.jackson.databind.JsonNode;
 
@@ -457,6 +462,34 @@ class CrdServiceTest {
         assertThat(gateway.lastIntent().unlock()).isNull();
     }
 
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        service().run(request("P32H-NO-AUTH").build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().run(request("P32H-NO-AUTH").build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        // A preview is no run, and says nothing about where one came from.
+        service().preview(request("P32H-NO-AUTH").build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
+    }
+
+    @Test
+    void aNextStepToDtrOrPasHandsOnThisRunSoTheLaterLineIsLinkedToIt() {
+        // Suites VS-11: a manual chain's later line names the CRD run it followed, as a suite chain row's does.
+        RunEnvelope<CrdDetail> toDtr = run("P32H-DOC-DTR");
+        assertThat(toDtr.nextStep().action()).isEqualTo(NextAction.START_DTR);
+        assertThat(toDtr.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(toDtr.runId());
+        assertThat(ledger.last().runId()).isEqualTo(toDtr.runId());
+        RunEnvelope<CrdDetail> toPas = run("P32H-PA-REQ");
+        assertThat(toPas.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(toPas.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(toPas.runId());
+        // A step that starts nothing hands on no run.
+        assertThat(run("P32H-NO-AUTH").nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
+        assertThat(run("P32H-EMPTY").nextStep().carry()).doesNotContainKey(NextStepView.CARRY_RUN_ID);
+    }
+
     // ---- not found, faults ----
 
     @Test
@@ -804,6 +837,29 @@ class CrdServiceTest {
     }
 
     @Test
+    void onMockABodyThatIsNotJsonOffersNoNextStepFromTheScenarioThatAnsweredItAndOnLiveTheAnswerDecides() {
+        // Case CASE-06: the sentinel in the text chose a scenario that requires prior authorization. That answer says nothing
+        // about a body no service could read, so PAS is not offered from it and nothing is handed on.
+        String unreadable = "{\"hook\":\"order-sign\", not json P32H-PA-REQ";
+        RunEnvelope<CrdDetail> onMock = service().run(CrdRunRequest.builder().rawBody(unreadable).build(), RunOrigin.manual(), null);
+        assertThat(onMock.verdict().outcomeCode()).isEqualTo("AUTH_REQUIRED");
+        assertThat(onMock.nextStep().action()).isEqualTo(NextAction.REVIEW);
+        assertThat(onMock.nextStep().headline()).isEqualTo("Next: correct the body and send it again. Nothing is handed on from this answer.");
+        assertThat(onMock.nextStep().reason()).isEqualTo("On the mock profile a scenario answered, although the body you supplied is not "
+                + "valid JSON. That answer says nothing about the body, so no next step is offered from it. A service would read the body "
+                + "as it stands.");
+        assertThat(onMock.nextStep().carry()).isEmpty();
+        assertThat(ledger.last().nextAction()).isEqualTo(NextAction.REVIEW.name());
+        // A body that is JSON keeps the next step its answer gives.
+        assertThat(service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-PA-REQ\"}}")
+                .build(), RunOrigin.manual(), null).nextStep().action()).isEqualTo(NextAction.START_PAS);
+        // On live the service itself answered the body, so its answer decides the next step.
+        RunEnvelope<CrdDetail> onLive = service(mockClient, "live", Map.of()).run(CrdRunRequest.builder().rawBody(unreadable).build(),
+                RunOrigin.manual(), null);
+        assertThat(onLive.nextStep().action()).isEqualTo(NextAction.START_PAS);
+    }
+
+    @Test
     void aBodyWhosePlaceholdersOnlyResolveIntoJsonIsAccepted() {
         // Unquoted, as a vendor sample writes a number. It is not JSON until the value is filled in.
         String body = "{\"hook\":\"order-sign\",\"context\":{\"encounterNumber\":{{encounterNumber}}}}";
@@ -822,6 +878,20 @@ class CrdServiceTest {
         // The form still held another code. What went out is what is recorded.
         assertThat(ledger.only().procedureCodes()).containsExactly("70553");
         assertThat(result.detail().coverageInformation().get(0).procedureCodes()).containsExactly("70553");
+    }
+
+    @Test
+    void anOrderInATestersOwnBodyIsNamedByItsCodeOrItsPositionAndNeverByAnIdAndAPatientIsNoOrder() {
+        // Ledger m6: ids in a body the tester wrote are free text, and a Patient in draftOrders is not an order CRD 2.0.1 profiles.
+        String body = "{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-NO-AUTH\",\"draftOrders\":{\"resourceType\":\"Bundle\","
+                + "\"entry\":[{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"Zzlastname-1961-07-23\",\"code\":{\"coding\":"
+                + "[{\"code\":\"70553\"}]}}},{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"Zzfirstname.Zzlastname\"}},"
+                + "{\"resource\":{\"resourceType\":\"Patient\",\"id\":\"p1\",\"identifier\":[{\"value\":\"S123456789\"}]}}]}}}";
+        service().run(CrdRunRequest.builder().rawBody(body).build(), RunOrigin.manual(), null);
+        String line = JsonSafe.mapper().writeValueAsString(ledger.only());
+        assertThat(line).doesNotContain("Zzfirstname").doesNotContain("Zzlastname").doesNotContain("1961-07-23").doesNotContain("Patient/");
+        assertThat(ledger.only().procedureCodes()).containsExactly("70553");
+        assertThat(SentOrder.fromBody(body)).extracting(SentOrder::label).containsExactly("70553", "order 2 (no code)");
     }
 
     @Test
@@ -1081,6 +1151,23 @@ class CrdServiceTest {
         });
         assertThat(fromService.additionalFields()).extracting(f -> f.path()).containsExactly("services[0].usageRequirements", "vendorField");
         assertThat(fromService.note()).isNull();
+    }
+
+    @Test
+    void discoveryShowsTheMaskWhereTheServiceRepeatsASecretOfTheRequest() {
+        String token = "placeholder-access-token-ABCDEF";
+        String url = "https://example.org/p32h-placeholder/cds-services";
+        String body = "{\"services\":[{\"hook\":\"order-sign\",\"id\":\"crd-" + token + "\",\"title\":\"T\",\"description\":\"D\","
+                + "\"prefetch\":{\"patient\":\"Patient/{{context.patientId}}\"},\"x-" + token + "\":\"echo " + token + "\"}]}";
+        VendorExchange echoed = Exchanges.fromResponse(new WireRequest("GET", url, url, List.of(), null, true, null,
+                SentSecrets.builder().accessToken(token).build()), 200, List.of(), body, 5L, true);
+        CrdDiscovery discovery = service(stub(echoed), "mock", Map.of()).discover();
+
+        assertThat(discovery.services()).singleElement().satisfies(service ->
+                assertThat(service.id().value()).isEqualTo("crd-" + Secrets.mask("access token")));
+        assertThat(JsonSafe.mapper().writeValueAsString(discovery.services())).doesNotContain(token);
+        assertThat(JsonSafe.mapper().writeValueAsString(discovery.additionalFields())).doesNotContain(token);
+        assertThat(discovery.additionalFields()).anySatisfy(field -> assertThat(field.path()).contains("x-" + Secrets.mask("access token")));
     }
 
     private static OnyxCrdClient stub(VendorExchange exchange) {

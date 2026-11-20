@@ -40,6 +40,14 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
      * the intended use of a questionnaire response from it.
      */
     public static final String CARRY_DOC_PURPOSE = "docPurpose";
+    /**
+     * A reference to a partly completed QuestionnaireResponse that a CRD 2.0.1 coverage information
+     * answer named for DTR to start from (its response sub-extension). It is the reference, never the
+     * response itself, so it stays apart from {@link #CARRY_QUESTIONNAIRE_RESPONSE}, which holds a
+     * completed response as JSON for PAS to submit. A reference is an address and can hold an
+     * identifier, so it is shown on a result and never written to the ledger or a log.
+     */
+    public static final String CARRY_QUESTIONNAIRE_RESPONSE_REF = "questionnaireResponseRef";
     /** A completed QuestionnaireResponse as JSON text, for the prior authorization request to include. */
     public static final String CARRY_QUESTIONNAIRE_RESPONSE = "questionnaireResponse";
     /** The run this step follows from. */

@@ -100,7 +100,7 @@ public class PasService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             return support.blocked(operation, refusal, request, origin, aboutRefused(request, first(request, NextStepView.CARRY_RUN_ID)));
         }
@@ -152,7 +152,7 @@ public class PasService {
 
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, origin));
         } catch (ProdWriteBlockedException refusal) {
             // Linked as an inquiry that was sent would be: to the run the carry names, otherwise to the submission of that claim.
             return support.blocked(operation, refusal, request, origin, aboutRefused(request,
@@ -306,7 +306,7 @@ public class PasService {
         MemberIdForms shown = shown(request);
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, shown);
         }
@@ -325,7 +325,7 @@ public class PasService {
         MemberIdForms shown = shown(request);
         PreparedCall call;
         try {
-            call = gateway.prepare(intent(operation, request, unlock));
+            call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
             return RequestPreview.blocked(operation, refusal, shown);
         }
@@ -351,9 +351,10 @@ public class PasService {
         return memberId.typed().isEmpty() ? null : memberId;
     }
 
-    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock) {
+    /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
+    private static CallIntent intent(EpaOperation operation, RunRequest request, ProdUnlock unlock, RunOrigin origin) {
         return CallIntent.of(operation).withRequest(request.request()).withRunValues(request.variables()).withUnlock(unlock)
-                .withExpectedEpoch(request.configEpoch());
+                .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
     /**

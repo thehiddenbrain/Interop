@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -89,6 +91,72 @@ class DtrRequestBuilderTest {
     }
 
     @Test
+    void thePatientTheCoverageAndTheOrdersAreBuiltAsCrdBuildsThemAndTheGapsLoseNothingButWhatIsNowSent() {
+        // CRD V-11: DTR sends the Patient, the Coverage and the orders CRD sends, from the same variables.
+        String hcpcs = "https://example.org/p32h-placeholder/hcpcs";
+        FakeGateway gateway = new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-7")
+                .variable("patientMrnSystem", "https://example.org/p32h-placeholder/mrn").variable("hcpcsSystem", hcpcs);
+        MemberDetail member = MemberDetail.builder().memberId("S123456789").firstName("Given").lastName("Placeholder").gender("female")
+                .lineOfBusiness("Medicare").coverageStart("2026-01-01").build();
+        DtrRequestBuilder.Package built = builder.buildPackage(twoCodes().member(member).build(), template -> gateway.resolve(template, Map.of()));
+        JsonNode sent = json(built.json());
+
+        JsonNode patient = named(sent, "referenced").get(0).get("resource");
+        assertThat(patient.at("/identifier/1/type/coding/0/code").asString()).isEqualTo("MR");
+        assertThat(patient.at("/identifier/1/system").asString()).isEqualTo("https://example.org/p32h-placeholder/mrn");
+        assertThat(patient.at("/identifier/1/value").asString()).isEqualTo("MRN-PLACEHOLDER-7");
+        assertThat(patient).isEqualTo(new CaseResources(null).crdPatient(member, template -> gateway.resolve(template, Map.of()),
+                new ArrayList<>(), new ArrayList<>()));
+        JsonNode coverage = named(sent, "coverage").get(0).get("resource");
+        assertThat(coverage.at("/period/start").asString()).isEqualTo("2026-01-01");
+        assertThat(coverage.has("status")).isFalse();
+        // HCPCS goes out under the address the variable names, and the note says where it came from. CPT is untouched.
+        assertThat(named(sent, "order")).extracting(order -> order.at("/resource/code/coding/0/system").asString())
+                .containsExactly(CaseResources.CPT, hcpcs);
+        assertThat(built.notes()).contains(CaseResources.hcpcsNote(hcpcs), DtrRequestBuilder.patientNote(List.of(new CaseResources.Required(
+                "Patient.identifier.system (the member ID)", "profile-patient", "the variable memberIdSystem"))));
+        assertThat(built.notes()).filteredOn(note -> note.startsWith("Each order was sent with authoredOn ")).hasSize(1);
+        // The gaps DTR 2.0.1 names on the package request: still the coverage's status and payer, and nothing about the Patient,
+        // which DTR 2.0.1 does not profile.
+        assertThat(DtrProfileCheck.packageRequest(sent)).extracting(DtrProfileCheck.Gap::element).containsExactly("Coverage.status", "Coverage.payor");
+        // With no variable, HCPCS goes out under the address the CRD 2.0.1 ServiceRequest value set names.
+        DtrRequestBuilder.Package plain = builder.buildPackage(twoCodes().build(), template -> new FakeGateway().resolve(template, Map.of()));
+        assertThat(named(json(plain.json()), "order").get(1).at("/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS_CRD_201);
+        assertThat(plain.notes()).contains(CaseResources.hcpcsNote(CaseResources.HCPCS_CRD_201));
+    }
+
+    @Test
+    void whatTheCrdProfilesRequireAndNobodySuppliedIsSaidOnceAndNotAsARequirementThisRequestFails() {
+        // Nothing but the member ID: no name, no gender, no coverage status, no payer, no medical record number, no identifier system.
+        MemberDetail bare = MemberDetail.builder().memberId("S123456789").build();
+        DtrRequestBuilder.Package built = builder.buildPackage(twoCodes().member(bare).build(), template -> new FakeGateway().resolve(template, Map.of()));
+
+        // No sentence of the package request reads as a requirement of a CRD profile: the Patient is not profiled by DTR 2.0.1,
+        // and what the Coverage profile requires is said by the gaps of DtrProfileCheck, once.
+        assertThat(built.notes()).noneSatisfy(note -> assertThat(note).startsWith("CRD 2.0.1 profile-"));
+        assertThat(built.notes()).noneSatisfy(note -> assertThat(note).contains("requires a status"));
+        assertThat(DtrProfileCheck.packageRequest(json(built.json()))).extracting(DtrProfileCheck.Gap::element)
+                .containsExactly("Coverage.status", "Coverage.payor");
+        // The Patient gets one note, naming what was left out of it and what would supply it.
+        assertThat(built.notes()).filteredOn(note -> note.contains("Patient")).singleElement().isEqualTo("DTR 2.0.1 names no profile for "
+                + "the Patient a package request carries among its referenced resources. It is built as CRD 2.0.1 profile-patient has it, "
+                + "so that the payer is sent the Patient CRD sent. Nobody supplied Patient.identifier.system (the member ID) (from the "
+                + "variable memberIdSystem), Patient.identifier:MRIdentifier (from the variables patientMrn and patientMrnSystem), "
+                + "Patient.name (from the member lookup or the member's name on the form), Patient.gender (from the member lookup or the "
+                + "member's gender on the form), which that profile requires, so they were left out. DTR 2.0.1 does not require them here, "
+                + "so they are not counted among what this request leaves out.");
+        assertThat(built.notes()).contains("No date of birth was sent, because none was supplied.");
+
+        // A gender that cannot be mapped is still said, with what was typed.
+        DtrRequestBuilder.Package unmapped = builder.buildPackage(twoCodes().member(MemberDetail.builder().memberId("S123456789").gender("Q")
+                .build()).build(), template -> new FakeGateway().resolve(template, Map.of()));
+        assertThat(unmapped.notes()).contains("The gender \"Q\" is not one this tool can map to a FHIR code (male, female, other or unknown), "
+                + "so none was sent.");
+        // With everything supplied the Patient note is the one sentence alone.
+        assertThat(DtrRequestBuilder.patientNote(List.of())).isEqualTo(DtrRequestBuilder.PATIENT_AS_CRD_SENT);
+    }
+
+    @Test
     void onlyTheOrderCrdsAnswerAppliedToIsSentAndItKeepsTheIdCrdSentItWith() {
         // CRD was asked about two codes and its answer about documentation applied to the second order only.
         DtrRequestBuilder.Package built = builder.buildPackage(twoCodes().carry(Map.of(NextStepView.CARRY_ORDER, List.of(ORDER_TWO))).build(),
@@ -161,7 +229,9 @@ class DtrRequestBuilderTest {
         DtrRequestBuilder.Package unset = builder.buildPackage(DtrFixtures.packageRequest("S123456789").build(),
                 template -> new FakeGateway().resolve(template, Map.of()));
         assertThat(named(json(unset.json()), "coverage").get(0).at("/resource/identifier/0").has("system")).isFalse();
-        assertThat(unset.notes()).anySatisfy(note -> assertThat(note).contains("memberIdSystem is not set"));
+        // The Patient's one note names the identifier system as left out and the variable that supplies it.
+        assertThat(unset.notes()).anySatisfy(note -> assertThat(note).contains("Patient.identifier.system (the member ID) (from the variable "
+                + "memberIdSystem)"));
     }
 
     @Test

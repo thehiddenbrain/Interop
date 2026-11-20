@@ -251,6 +251,25 @@ class DtrGuide201Test {
     }
 
     @Test
+    void aResponseCrdNamedForDtrToStartFromIsQuotedOnThePackageResultHandedOnAndNeverWrittenToTheLedger() {
+        // CRD 2.0.1 coverage information, sub-extension response. The DTR 2.0.1 $questionnaire-package operation has no input for it.
+        String reference = "QuestionnaireResponse/qr-draft-P32H-1";
+        RunEnvelope<DtrDetail> fetched = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR")
+                .carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, List.of(reference))).build(), RunOrigin.manual(), null);
+        String note = "CRD named a partly completed questionnaire response for DTR to start from: " + reference + ". This tool does not "
+                + "fetch it: the DTR 2.0.1 questionnaire package operation has no input for it, and what the package returns is what this "
+                + "tool works from.";
+        assertThat(fetched.detail().requestNotes()).containsOnlyOnce(note);
+        // The request itself does not carry it: there is no parameter to carry it in.
+        assertThat(fetched.wire().request().body()).doesNotContain(reference);
+        assertThat(fetched.nextStep().carry().get(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF)).containsExactly(reference);
+        // An address can hold an identifier, so it stays on the result.
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("qr-draft-P32H-1");
+        // With no reference handed on, nothing is said.
+        assertThat(fetch("P32H-DOC-DTR").detail().requestNotes()).noneMatch(line -> line.contains("partly completed"));
+    }
+
+    @Test
     void aCompleteResponseWithNoItemGoesToPasWithoutTheResponseAndTheNextStepSaysSo() {
         // A static questionnaire whose only question is optional, answered with nothing: complete, and it holds no item.
         String optional = "{\"resourceType\":\"Questionnaire\",\"id\":\"opt\",\"url\":\"https://example.org/p32h-placeholder/Questionnaire/opt\","
@@ -267,7 +286,9 @@ class DtrGuide201Test {
                 + "goes with it.");
         assertThat(result.nextStep().reason()).isEqualTo("Every required question that is enabled has an answer. This response holds no "
                 + "item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does not "
-                + "hand PAS a response that does not conform to it, so the response is shown here and not carried.");
+                + "hand PAS a response that does not conform to it, so the response is shown here and not carried. The questionnaire "
+                + "https://example.org/p32h-placeholder/Questionnaire/opt|1.0.0 is done all the same: it is taken off what this package still "
+                + "lists to answer, so no later step asks for it again.");
     }
 
     @Test

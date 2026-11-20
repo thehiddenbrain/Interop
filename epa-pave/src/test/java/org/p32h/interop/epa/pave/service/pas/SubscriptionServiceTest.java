@@ -43,6 +43,7 @@ import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.Reached;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
@@ -126,6 +127,127 @@ class SubscriptionServiceTest {
 
     private RunEnvelope<SubscriptionDetail> run(EpaOperation operation, SubscriptionRequest request) {
         return service().run(operation, request, RunOrigin.manual(), null);
+    }
+
+    @Test
+    void aSecretInTheAddressToCallBackIsMaskedInWhatIsShownAndSentAsWritten() {
+        // From the PAS follow-up report: a receiver address can carry a token in its query, or a secret variable.
+        gateway.variable("receiverToken", "placeholder-receiver-token-111111");
+        String template = "https://pave.example.invalid/api/pas/notifications/{{receiverToken}}?access_token=placeholder-literal-token-222222&tenant=t1";
+        SubscriptionService service = service(mockClient, "mock", Map.of("subscription.callback-url", template));
+        RunEnvelope<SubscriptionDetail> created = service.run(CREATE, request().build(), RunOrigin.manual(), null);
+
+        String shownEndpoint = "https://pave.example.invalid/api/pas/notifications/" + Secrets.mask("receiverToken")
+                + "?access_token=" + Secrets.mask("access_token") + "&tenant=t1";
+        assertThat(created.wire().request().body()).contains("\"endpoint\" : \"" + shownEndpoint + "\"")
+                .doesNotContain("placeholder-receiver-token-111111").doesNotContain("placeholder-literal-token-222222");
+        assertThat(created.detail().callbackUrl()).isEqualTo(shownEndpoint);
+        // What is sent is the address as written.
+        assertThat(String.join("\n", sentBodies(template))).contains("placeholder-receiver-token-111111").contains("placeholder-literal-token-222222");
+        // A preview shows what a run shows.
+        assertThat(service.preview(CREATE, request().build(), null).body()).contains(shownEndpoint).doesNotContain("placeholder-literal");
+        // A body of the tester's own is masked in the same place, by the same names, and sent as written.
+        String own = "{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":\"" + template + "\"}}";
+        RunEnvelope<SubscriptionDetail> ownRun = service.run(CREATE, request().rawBody(own).build(), RunOrigin.manual(), null);
+        assertThat(ownRun.wire().request().body()).contains(shownEndpoint).doesNotContain("placeholder-literal-token-222222")
+                .doesNotContain("placeholder-receiver-token-111111");
+        assertThat(ownRun.detail().callbackUrl()).isEqualTo(shownEndpoint);
+        // Nothing of it reaches the ledger.
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-token")
+                .doesNotContain("placeholder-receiver-token");
+    }
+
+    @Test
+    void aSecretInTheAddressToCallBackThatTheServiceEchoesInItsSubscriptionIsMaskedInEveryViewOfTheAnswer() {
+        // A service that answers a create with the Subscription it stored repeats the address, secrets and all. The secrets were
+        // learned from the difference between the address as shown and as sent, so the answer is masked by the same names.
+        gateway.variable("receiverToken", "placeholder-receiver-token-111111");
+        String template = "https://pave.example.invalid/api/pas/notifications/{{receiverToken}}?access_token=placeholder-literal-token-222222&tenant=t1";
+        SubscriptionClient echoing = new SubscriptionClient() {
+            private VendorExchange echo(PreparedCall call, ResolvedText body, MockSelection selection) {
+                VendorExchange answered = mockClient.create(call, body, selection);
+                String stored = body.value().replaceFirst("\\{", "{\"id\":\"sub-echo-1\",\"x-stored-" + "placeholder-literal-token-222222"
+                        + "\":\"placeholder-receiver-token-111111\",");
+                return Exchanges.fromResponse(answered.request(), 201, List.of(), stored, 5L, true);
+            }
+
+            @Override
+            public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return echo(call, body, selection);
+            }
+
+            @Override
+            public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return echo(call, body, selection);
+            }
+
+            @Override
+            public VendorExchange get(PreparedCall call, MockSelection selection) {
+                return mockClient.get(call, selection);
+            }
+
+            @Override
+            public VendorExchange delete(PreparedCall call, MockSelection selection) {
+                return mockClient.delete(call, selection);
+            }
+        };
+        RunEnvelope<SubscriptionDetail> created = service(echoing, "mock", Map.of("subscription.callback-url", template))
+                .run(CREATE, request().build(), RunOrigin.manual(), null);
+
+        // The answer was read: its id is the one the service gave.
+        assertThat(created.detail().subscriptionId()).isEqualTo("sub-echo-1");
+        String shown = JsonSafe.mapper().writeValueAsString(created);
+        assertThat(shown).doesNotContain("placeholder-receiver-token-111111").doesNotContain("placeholder-literal-token-222222")
+                .contains(Secrets.mask("receiverToken")).contains(Secrets.mask("access_token"));
+        assertThat(created.wire().response().body()).doesNotContain("placeholder-receiver-token-111111")
+                .doesNotContain("placeholder-literal-token-222222");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-token")
+                .doesNotContain("placeholder-receiver-token");
+    }
+
+    /** The bodies a client was handed to send, as they went on the wire. */
+    private List<String> sentBodies(String template) {
+        List<String> bodies = new java.util.ArrayList<>();
+        SubscriptionClient capturing = new SubscriptionClient() {
+            private VendorExchange keep(PreparedCall call, ResolvedText body, MockSelection selection) {
+                bodies.add(body.value());
+                return mockClient.create(call, body, selection);
+            }
+
+            @Override
+            public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return keep(call, body, selection);
+            }
+
+            @Override
+            public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return keep(call, body, selection);
+            }
+
+            @Override
+            public VendorExchange get(PreparedCall call, MockSelection selection) {
+                return mockClient.get(call, selection);
+            }
+
+            @Override
+            public VendorExchange delete(PreparedCall call, MockSelection selection) {
+                return mockClient.delete(call, selection);
+            }
+        };
+        service(capturing, "mock", Map.of("subscription.callback-url", template)).run(CREATE, request().build(), RunOrigin.manual(), null);
+        return bodies;
+    }
+
+    @Test
+    void whereARunCameFromReachesTheGatewaySoARefusalCanBeWordedForAReplayOrASuite() {
+        RunOrigin suite = new RunOrigin("suite-00000000-0000-4000-8000-000000000009", "case-1", null);
+        service().run(EpaOperation.SUBSCRIPTION_CREATE, request().build(), suite, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(suite);
+        RunOrigin replay = new RunOrigin(null, null, "run-00000000-0000-4000-8000-000000000008");
+        service().run(EpaOperation.SUBSCRIPTION_GET, about("sub-1").build(), replay, null);
+        assertThat(gateway.lastIntent().origin()).isEqualTo(replay);
+        service().preview(EpaOperation.SUBSCRIPTION_CREATE, request().build(), null);
+        assertThat(gateway.lastIntent().origin()).isNull();
     }
 
     /** A client that counts its calls and answers every one of them with a subscription. */

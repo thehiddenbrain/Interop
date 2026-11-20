@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.pas;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import java.util.ArrayList;
@@ -51,17 +52,26 @@ public final class SubscriptionRequestBuilder {
     /**
      * The request body and what a tester should know about it.
      *
-     * @param json            the Subscription as pretty JSON
+     * @param json            the Subscription as pretty JSON, as it is sent
      * @param notes           one plain sentence for each thing left out or worked out
-     * @param callbackUrl     the url the subscription names as its receiver, or null when it names none
+     * @param callbackUrl     the url the subscription names as its receiver, as it may be shown, or null when it names none
      * @param callbackProblem why it names none, in plain words with what to set, or null when it names one
      * @param leftOut         what PAS 2.0.1 requires that the subscription went out without. Empty when nothing
+     * @param shownJson       the Subscription as it may be shown: the same JSON with every secret in the address to call
+     *                        back masked ({@link #shownEndpoint}). Equal to {@code json} when the address holds none
      */
-    public record Built(String json, List<String> notes, String callbackUrl, String callbackProblem, List<String> leftOut) {
+    public record Built(String json, List<String> notes, String callbackUrl, String callbackProblem, List<String> leftOut,
+                        String shownJson) {
 
         public Built {
             notes = notes == null ? List.of() : List.copyOf(notes);
             leftOut = leftOut == null ? List.of() : List.copyOf(leftOut);
+            shownJson = shownJson == null ? json : shownJson;
+        }
+
+        /** The body to hand the client: sent as built, shown with the secrets of the address to call back masked. */
+        public ResolvedText body() {
+            return new ResolvedText(shownJson, shownJson, json, List.of(), List.of());
         }
 
         /** The body is what goes on the wire and the receiver's address is the operator's, so neither is printed. */
@@ -145,6 +155,7 @@ public final class SubscriptionRequestBuilder {
                 notes));
 
         String callbackUrl = null;
+        String shownCallbackUrl = null;
         String callbackProblem = null;
         if (Texts.blank(configuredCallbackUrl)) {
             callbackProblem = "The setting " + CALLBACK_PROPERTY + " is blank. Set it to the address at which the service can reach this "
@@ -153,6 +164,7 @@ public final class SubscriptionRequestBuilder {
             ResolvedText resolved = variables == null ? ResolvedText.plain(configuredCallbackUrl) : variables.apply(configuredCallbackUrl.strip());
             if (resolved != null && resolved.resolved() && Texts.present(resolved.value())) {
                 callbackUrl = resolved.value().strip();
+                shownCallbackUrl = shownEndpoint(Texts.orElse(resolved.display(), callbackUrl).strip());
             } else {
                 callbackProblem = "The setting " + CALLBACK_PROPERTY + " holds placeholders that have no value"
                         + (resolved == null || resolved.unresolved().isEmpty() ? "" : ": " + String.join(", ", resolved.unresolved()))
@@ -174,7 +186,80 @@ public final class SubscriptionRequestBuilder {
             notes.add(0, "This subscription goes out without " + String.join(" and ", leftOut) + ", because nobody supplied what it is "
                     + "built from. The service may refuse it for that alone.");
         }
-        return new Built(JsonSafe.pretty(subscription), notes, callbackUrl, callbackProblem, leftOut);
+        String json = JsonSafe.pretty(subscription);
+        String shownJson = json;
+        if (callbackUrl != null && !shownCallbackUrl.equals(callbackUrl)) {
+            channel.put("endpoint", shownCallbackUrl);
+            shownJson = JsonSafe.pretty(subscription);
+        }
+        return new Built(json, notes, shownCallbackUrl, callbackProblem, leftOut, shownJson);
+    }
+
+    /**
+     * The address a subscription names for notifications, as it may be shown: every query parameter
+     * whose name reads as a credential, such as token or access_token, has its value replaced by the
+     * mask of that name, as a header is masked by its name. A secret variable in the address is
+     * masked already in the form given here, by the variable's name. The address is sent as
+     * written: only what is shown changes. A secret written into the path with no variable has no
+     * name to be recognised by, and is not found.
+     *
+     * @param endpoint the address with its secret variables masked
+     */
+    public static String shownEndpoint(String endpoint) {
+        if (endpoint == null) {
+            return null;
+        }
+        int query = endpoint.indexOf('?');
+        if (query < 0) {
+            return endpoint;
+        }
+        int fragment = endpoint.indexOf('#', query);
+        String head = endpoint.substring(0, query + 1);
+        String parameters = fragment < 0 ? endpoint.substring(query + 1) : endpoint.substring(query + 1, fragment);
+        String tail = fragment < 0 ? "" : endpoint.substring(fragment);
+        List<String> shown = new ArrayList<>();
+        for (String parameter : parameters.split("&", -1)) {
+            int equals = parameter.indexOf('=');
+            String name = equals < 0 ? parameter : parameter.substring(0, equals);
+            String value = equals < 0 ? "" : parameter.substring(equals + 1);
+            String decoded = decodedName(name);
+            boolean masked = !value.isEmpty() && Secrets.looksSecret(decoded) && Secrets.maskedNames(value).isEmpty();
+            shown.add(masked ? name + "=" + Secrets.mask(decoded) : parameter);
+        }
+        return head + String.join("&", shown) + tail;
+    }
+
+    private static String decodedName(String name) {
+        try {
+            return java.net.URLDecoder.decode(name, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            // A name with a broken escape is judged as written: it cannot be a name the service decodes either.
+            return name;
+        }
+    }
+
+    /**
+     * A body the tester supplied, to hand the client: sent exactly as written, and shown with every
+     * secret in its {@code channel.endpoint} masked as {@link #shownEndpoint} masks it. The text
+     * shown is the tester's own with only that value replaced, so their layout is kept. When the
+     * value cannot be found written plainly in the text (it was written with escapes), the body is
+     * shown as resolved, with its secret variables masked and nothing else.
+     */
+    public static ResolvedText ownBody(ResolvedText body) {
+        if (body == null || !body.resolved() || body.display() == null) {
+            return body;
+        }
+        String endpoint = endpointOf(body.display());
+        String shown = shownEndpoint(endpoint);
+        if (endpoint == null || shown.equals(endpoint)) {
+            return body;
+        }
+        String written = JsonSafe.mapper().writeValueAsString(endpoint);
+        if (!body.display().contains(written)) {
+            return body;
+        }
+        return new ResolvedText(body.template(), body.display().replace(written, JsonSafe.mapper().writeValueAsString(shown)), body.value(),
+                body.variables(), body.unresolved());
     }
 
     /**

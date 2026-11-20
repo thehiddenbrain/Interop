@@ -171,7 +171,9 @@ public final class DtrResponseMapper {
      *
      * @param requestedCanonicals the questionnaires the request asked for by canonical url. Empty when it named none
      */
-    public DtrReading readPackage(VendorExchange exchange, List<String> requestedCanonicals) {
+    public DtrReading readPackage(VendorExchange received, List<String> requestedCanonicals) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         List<String> requested = new ArrayList<>();
         if (requestedCanonicals != null) {
             requestedCanonicals.stream().filter(Texts::present).map(String::strip).filter(c -> !requested.contains(c)).forEach(requested::add);
@@ -286,7 +288,9 @@ public final class DtrResponseMapper {
      * @param sent the QuestionnaireResponse that was sent, for saying what changed. Null when what
      *             was sent could not be read as one
      */
-    public DtrReading readNextQuestion(VendorExchange exchange, JsonNode sent) {
+    public DtrReading readNextQuestion(VendorExchange received, JsonNode sent) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         List<IssueView> issues = new ArrayList<>();
         List<PackageResourceView> resources = new ArrayList<>();
@@ -783,8 +787,9 @@ public final class DtrResponseMapper {
         if (exchange.responseBody() == null) {
             return "The response has no body.";
         }
-        return ("The body could not be read as JSON. It is shown exactly as received under the fields that were returned but not "
-                + "interpreted, and in the wire view. " + Texts.orElse(exchange.parseError(), "")).strip();
+        return ("The body could not be read as JSON. It is shown under the fields that were returned but not interpreted, and in "
+                + "the wire view, as received except that a place repeating a secret the request carried is masked. "
+                + Texts.orElse(exchange.parseError(), "")).strip();
     }
 
     private static String otherJson(JsonNode json, String expected) {

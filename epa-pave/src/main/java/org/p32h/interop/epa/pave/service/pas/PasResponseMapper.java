@@ -116,7 +116,7 @@ public final class PasResponseMapper {
      */
     public PasReading read(VendorExchange received, SentClaim sentClaim, boolean inquiry) {
         // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
-        VendorExchange exchange = ReturnedSecrets.masked(received);
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         SentClaim sent = sentClaim == null ? SentClaim.unknown() : sentClaim;
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.

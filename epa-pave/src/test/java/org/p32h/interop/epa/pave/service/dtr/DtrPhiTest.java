@@ -244,11 +244,11 @@ class DtrPhiTest {
         }
         RunRecord packageLine = ledger.records().get(0);
         assertThat(packageLine.coverageCodes()).anySatisfy(code -> assertThat(code).startsWith("questionnaire-status=(not a code, "));
-        assertThat(packageLine.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).startsWith("(not a url, ");
+        assertThat(packageLine.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).matches("\\(not recorded, \\d+ characters\\)");
         assertThat(packageLine.procedureCodes()).singleElement().satisfies(code -> assertThat(code).startsWith("(not a code, "));
         RunRecord stepLine = ledger.records().get(1);
         assertThat(stepLine.coverageCodes()).anySatisfy(code -> assertThat(code).startsWith("response-status=(not a code, "));
-        assertThat(stepLine.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).startsWith("(not a url, ");
+        assertThat(stepLine.correlation().get(RunRecord.CORR_QUESTIONNAIRE)).matches("\\(not recorded, \\d+ characters\\)");
         // The receipt on the result carries the same checked record, not the raw one.
         assertThat(JsonSafe.mapper().writeValueAsString(step.ledger())).doesNotContain("Placeholder-Surname");
     }

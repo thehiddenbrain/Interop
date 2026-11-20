@@ -123,11 +123,13 @@ final class MemberResponseMapping {
      * THE ONE METHOD that turns a member API response into a lookup result. Mock and live both
      * call it.
      *
-     * @param exchange the call as it happened: a response, or the way it failed
+     * @param received the call as it happened: a response, or the way it failed
      * @param memberId the ID as typed and as sent
      * @param today    the date coverage dates are compared with
      */
-    static MemberLookupResult map(VendorExchange exchange, MemberIdForms memberId, LocalDate today) {
+    static MemberLookupResult map(VendorExchange received, MemberIdForms memberId, LocalDate today) {
+        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
         List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
         TrackedJson tracked = TrackedJson.of(exchange.json());

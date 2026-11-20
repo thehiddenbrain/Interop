@@ -127,6 +127,41 @@ public final class DtrRequestBuilder {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
+    /**
+     * Why the Patient of a package request is built to a CRD profile that DTR does not apply to it,
+     * and why what that profile requires is not counted as left out of the request.
+     */
+    static final String PATIENT_AS_CRD_SENT = "DTR 2.0.1 names no profile for the Patient a package request carries among its "
+            + "referenced resources. It is built as CRD 2.0.1 profile-patient has it, so that the payer is sent the Patient CRD sent, and "
+            + "what that profile requires is not counted among what this request leaves out.";
+
+    /**
+     * The one note about the Patient of a package request: {@link #PATIENT_AS_CRD_SENT}, and, when
+     * something CRD 2.0.1 profile-patient requires was not supplied, what was left out of it and
+     * what would supply it, as information.
+     */
+    static String patientNote(List<CaseResources.Required> notSupplied) {
+        if (notSupplied.isEmpty()) {
+            return PATIENT_AS_CRD_SENT;
+        }
+        return "DTR 2.0.1 names no profile for the Patient a package request carries among its referenced resources. It is built as "
+                + "CRD 2.0.1 profile-patient has it, so that the payer is sent the Patient CRD sent. Nobody supplied "
+                + String.join(", ", notSupplied.stream().map(required -> required.element() + " (from " + required.suppliedBy() + ")").toList())
+                + ", which that profile requires, so " + (notSupplied.size() == 1 ? "it was" : "they were") + " left out. DTR 2.0.1 does not "
+                + "require " + (notSupplied.size() == 1 ? "it" : "them") + " here, so " + (notSupplied.size() == 1 ? "it is" : "they are")
+                + " not counted among what this request leaves out.";
+    }
+
+    /**
+     * The builder notes that are not a sentence about what a CRD 2.0.1 profile requires. Those
+     * sentences all start with the version and the word profile, and in a package request each one
+     * is either said by DtrProfileCheck or folded into {@link #patientNote}.
+     */
+    private static List<String> withoutRequirements(List<String> builderNotes) {
+        String requirement = CaseResources.CRD_VERSION + " profile-";
+        return builderNotes.stream().filter(note -> !note.startsWith(requirement)).toList();
+    }
+
     private final CaseResources resources;
 
     /** @param codeList consulted for a code's system when the tester did not state one. May be null */
@@ -159,7 +194,13 @@ public final class DtrRequestBuilder {
         ObjectNode root = JSON.objectNode();
         root.put("resourceType", "Parameters");
         ArrayNode parameters = root.putArray("parameter");
-        parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource", resources.coverage(member, variables, notes));
+        // The coverage CRD sent, in the form CRD 2.0.1 profile-coverage gives it, which DTR 2.0.1 requires of this parameter. What
+        // that profile requires and nobody supplied is counted and explained by DtrProfileCheck on the JSON that goes out, so the
+        // builder's own sentences about those requirements would say it a second time and are left out.
+        List<String> coverageNotes = new ArrayList<>();
+        parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource",
+                resources.crdCoverage(member, variables, coverageNotes, new ArrayList<>()));
+        notes.addAll(withoutRequirements(coverageNotes));
 
         List<CodeInput> codes = codes(request);
         if (request.procedureCodes().isEmpty() && !codes.isEmpty()) {
@@ -185,13 +226,25 @@ public final class DtrRequestBuilder {
             notes.add("The order CRD's answer applied to was sent, under the id CRD sent it with.");
         }
         List<String> sentCodes = new ArrayList<>();
+        // The orders CRD sent, written at one moment and with HCPCS under the address CRD used, the variable hcpcsSystem included.
+        String authoredOn = resources.now();
+        String hcpcs = CaseResources.orderHcpcsSystem(variables);
+        boolean hcpcsSent = false;
         for (int position = 1; position <= codes.size(); position++) {
             if (chosen.isEmpty() || chosen.contains(position)) {
-                parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource",
-                        resources.serviceRequest(CaseResources.serviceRequestId(position), codes.get(position - 1), member,
-                                request.dateOfService(), notes));
-                sentCodes.add(codes.get(position - 1).code().strip());
+                CodeInput code = codes.get(position - 1);
+                ObjectNode order = resources.serviceRequest(CaseResources.serviceRequestId(position), code, member, request.dateOfService(),
+                        authoredOn, hcpcs, notes);
+                hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
+                parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource", order);
+                sentCodes.add(code.code().strip());
             }
+        }
+        if (!sentCodes.isEmpty()) {
+            notes.add(CaseResources.authoredOnNote(authoredOn));
+        }
+        if (hcpcsSent) {
+            notes.add(CaseResources.hcpcsNote(hcpcs));
         }
         List<String> typed = clean(request.questionnaires());
         List<String> canonicals = canonicals(request);
@@ -206,7 +259,19 @@ public final class DtrRequestBuilder {
             notes.add("No order was sent, because the request names no procedure code. " + askedBy);
         }
         // What the orders and the coverage refer to travels with them, so no reference is left pointing at nothing.
-        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resources.patient(member, variables, notes));
+        // DTR 2.0.1 does not profile this Patient, so what CRD 2.0.1 requires of it is said once, as information, and not as a list
+        // of requirements this request fails.
+        List<String> patientNotes = new ArrayList<>();
+        List<CaseResources.Required> notSupplied = new ArrayList<>();
+        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource",
+                resources.crdPatient(member, variables, patientNotes, notSupplied));
+        notes.add(patientNote(notSupplied));
+        String gender = member.gender();
+        if (Texts.present(gender) && notSupplied.stream().anyMatch(required -> required.element().equals("Patient.gender"))) {
+            notes.add("The gender \"" + gender.strip() + "\" is not one this tool can map to a FHIR code (male, female, other or unknown), "
+                    + "so none was sent.");
+        }
+        notes.addAll(withoutRequirements(patientNotes));
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole());
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitioner(request.provider()));
 
@@ -230,11 +295,33 @@ public final class DtrRequestBuilder {
                     + (carriedAssertions.size() > 1 ? " CRD handed on " + carriedAssertions.size()
                     + " of them. The first was sent, because the operation takes one." : ""));
         }
+        String draftNote = namedDraftNote(carry);
+        if (draftNote != null) {
+            notes.add(draftNote);
+        }
         if (!carried(carry, NextStepView.CARRY_DTR_LINK_URL).isEmpty() || !carried(carry, NextStepView.CARRY_DTR_APP_CONTEXT).isEmpty()) {
             notes.add("CRD handed on a SMART link for DTR. This tool does not launch it and does not read its appContext: it hosts no "
                     + "SMART launch. The questionnaire is asked for through the questionnaire package operation.");
         }
         return new Package(JsonSafe.pretty(root), notes, canonicals, codes.stream().map(code -> code.code().strip()).toList(), sentCodes);
+    }
+
+    /**
+     * The one note that says CRD named a partly completed QuestionnaireResponse for DTR to start
+     * from, quoting the reference, and that this tool does not fetch it. Null when CRD named none.
+     * The DTR 2.0.1 questionnaire package operation has no input for such a response (its inputs are
+     * coverage, order, referenced, questionnaire, context and changedsince), so what the package
+     * returns is what the tool works from.
+     */
+    public static String namedDraftNote(Map<String, List<String>> carry) {
+        List<String> named = carried(carry, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
+        if (named.isEmpty()) {
+            return null;
+        }
+        String it = named.size() == 1 ? "it" : "them";
+        return "CRD named " + (named.size() == 1 ? "a partly completed questionnaire response" : "partly completed questionnaire responses")
+                + " for DTR to start from: " + String.join(", ", named) + ". This tool does not fetch " + it + ": the DTR 2.0.1 "
+                + "questionnaire package operation has no input for " + it + ", and what the package returns is what this tool works from.";
     }
 
     /**
