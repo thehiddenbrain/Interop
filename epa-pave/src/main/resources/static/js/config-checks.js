@@ -157,13 +157,22 @@ export function createChecksView(context) {
             ['Active environment', environmentName(environment)],
             ['Writes', access.reason || none('not stated')],
             ['Production writes may be unlocked on this installation', effective
-                ? (effective.allowProdWrites === true ? 'yes, by a tester who types the environment name' : 'no: config-store.allow-prod-writes is false')
+                ? [effective.allowProdWrites === true ? 'yes, by a tester who types the environment name' : 'no', floorSetting(effective)]
                 : none('not read')],
             ['Configuration epoch', code(String(mode.epoch))],
             ['Problems with the configuration', effective
                 ? ((effective.problems || []).length > 0 ? el('strong', null, effective.problems.length + ', listed under In force now') : 'none')
                 : none('not read')]
         ], 'facts--ruled config-facts'));
+    }
+
+    /** The setting behind the answer, as the server reports it, so the words name the real property and its value. */
+    function floorSetting(effective) {
+        const setting = (effective.settings || []).find(candidate => candidate.property === 'config-store.allow-prod-writes');
+        if (!setting) {
+            return null;
+        }
+        return el('div', {class: 'small quiet'}, code(setting.property), ' ', setting.set ? ['is set to ', code(String(setting.value))] : 'is not set');
     }
 
     /* ---------- the lookups ---------- */

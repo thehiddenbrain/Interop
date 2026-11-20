@@ -254,7 +254,7 @@ function resolvedView(resolved) {
                             : [el('strong', null, 'No value. '), variable.reason || ''],
                         sourceWords(variable.source),
                         el('span', {class: 'small'}, (variable.usedIn || []).join(', '))]})), {class: 'config-try__variables'})]
-            : el('p', null, 'The request has no placeholders.'),
+            : el('p', null, url.template || resolved.requestName ? 'The request has no placeholders.' : 'There is no url and no request, so there is no placeholder.'),
         headers.length > 0
             ? [el('h3', {class: 'sub-heading'}, 'Headers'),
                 table([{text: 'Header', class: 'col-18'}, {text: 'As written', class: 'col-30'}, 'As it would be sent'],
