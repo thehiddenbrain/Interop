@@ -201,9 +201,81 @@ class GuardrailOverTheServerTest {
         assertThat(json("GET", "/api/config/environments", null, null).body()).contains("\"productionDestinations\"")
                 .contains("{\"environment\":\"vendor-live-two\",\"destination\":\"" + liveTwo + "\",\"stored\":false}");
 
+        // An address a server treats as production two's, written another way, is production two's: at upload, and at write
+        // from a sandbox and from production one unlocked.
+        String twoPort = String.valueOf(LIVE_TWO.server.getAddress().getPort());
+        for (String form : List.of(LIVE_TWO.url("//live2"), LIVE_TWO.url("/live2;x=1"), LIVE_TWO.url("/LIVE2"),
+                "http://localhost:" + twoPort + "/live2")) {
+            assertThat(upload("/api/config/environments", "copy.json", environment("copy", form), "kind", "sandbox", "acknowledgeNotProd",
+                    "true").statusCode()).as(form).isEqualTo(422);
+        }
+        String literals = "{\"info\": {\"name\": \"Literal forms\", \"schema\": "
+                + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": " + ConfigFixture.items(
+                ConfigFixture.item("literal dslash", "POST", LIVE_TWO.url("//live2/Claim/$submit")),
+                ConfigFixture.item("literal semicolon", "POST", LIVE_TWO.url("/live2;a=b/Claim/$submit")),
+                ConfigFixture.item("literal localhost", "POST", "http://localhost:" + twoPort + "/live2/Claim/$submit")) + "}";
+        assertThat(upload("/api/config/collections", "literals.json", literals.getBytes(StandardCharsets.UTF_8)).statusCode()).isEqualTo(200);
+        String unlockedAgain = json("POST", "/api/config/writes", "{\"action\": \"unlock\", \"environment\": \"vendor-live\"}", null)
+                .headers().firstValue("Set-Cookie").orElseThrow().split(";")[0];
+        for (String request : List.of("literal dslash", "literal semicolon", "literal localhost")) {
+            assertThat(json("POST", "/api/raw", raw("Literal forms", request), unlockedAgain).statusCode()).as(request).isEqualTo(403);
+        }
+        assertThat(json("POST", "/api/config/environments/pave-sandbox/activate", null, null).statusCode()).isEqualTo(200);
+        for (String request : List.of("literal dslash", "literal semicolon", "literal localhost")) {
+            assertThat(json("POST", "/api/raw", raw("Literal forms", request), null).statusCode()).as(request).isEqualTo(403);
+        }
+
+        // A read pointed elsewhere by a value typed for the run does not carry a secret of the environment in a header.
+        String keyedEnvironment = "{\"name\": \"keyed-sandbox\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + sandbox + "\"}, "
+                + "{\"key\": \"apiKey\", \"value\": \"placeholder-api-key\", \"type\": \"secret\"}]}";
+        assertThat(upload("/api/config/environments", "keyed.json", keyedEnvironment.getBytes(StandardCharsets.UTF_8), "kind", "sandbox")
+                .statusCode()).isEqualTo(200);
+        assertThat(json("POST", "/api/config/environments/keyed-sandbox/activate", null, null).statusCode()).isEqualTo(200);
+        String keyed = "{\"info\": {\"name\": \"Keyed\", \"schema\": \"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, "
+                + "\"item\": " + ConfigFixture.items(ConfigFixture.item("subscription-get keyed", "GET", "{{baseUrl}}/Subscription/{{id}}")
+                .header("x-api-key", "{{apiKey}}")) + "}";
+        assertThat(upload("/api/config/collections", "keyed.json", keyed.getBytes(StandardCharsets.UTF_8)).statusCode()).isEqualTo(200);
+        String chosen = "&collectionId=" + collectionId("Keyed") + "&requestId=" + requestId("Keyed", "subscription-get keyed");
+        HttpResponse<String> keyedRead = json("GET", "/api/pas/subscriptions/SUB-1" + var(ELSEWHERE.url("/keyed")) + chosen, null, null);
+        assertThat(keyedRead.statusCode()).isEqualTo(422);
+        assertThat(keyedRead.body()).contains("carries a secret of the configuration in its header x-api-key").doesNotContain("placeholder-api-key");
+        assertThat(json("GET", "/api/pas/subscriptions/SUB-1?" + chosen.substring(1), null, null).statusCode()).isEqualTo(200);
+        assertThat(ELSEWHERE.received).containsExactly("GET /attacker/Subscription/SUB-1");
+
         // Nothing at all reached the production environment that was never unlocked.
         assertThat(LIVE_TWO.received).isEmpty();
         assertThat(LIVE.received).containsExactly("POST /live/Claim/$submit with Bearer placeholder-access-token");
+    }
+
+    private String raw(String collection, String request) throws Exception {
+        return "{\"request\": {\"collectionId\": \"" + collectionId(collection) + "\", \"requestId\": \"" + requestId(collection, request)
+                + "\"}}";
+    }
+
+    private org.p32h.interop.epa.pave.model.JsonSafe.Parsed collections() throws Exception {
+        return org.p32h.interop.epa.pave.model.JsonSafe.parse(json("GET", "/api/config/collections", null, null).body());
+    }
+
+    private String collectionId(String name) throws Exception {
+        for (tools.jackson.databind.JsonNode collection : org.p32h.interop.epa.pave.model.JsonSafe.elements(collections().node(), "collections")) {
+            if (name.equals(org.p32h.interop.epa.pave.model.JsonSafe.presentText(collection, "name"))) {
+                return org.p32h.interop.epa.pave.model.JsonSafe.presentText(collection, "id");
+            }
+        }
+        throw new AssertionError("No collection " + name);
+    }
+
+    private String requestId(String collection, String request) throws Exception {
+        for (tools.jackson.databind.JsonNode each : org.p32h.interop.epa.pave.model.JsonSafe.elements(collections().node(), "collections")) {
+            if (collection.equals(org.p32h.interop.epa.pave.model.JsonSafe.presentText(each, "name"))) {
+                for (tools.jackson.databind.JsonNode item : org.p32h.interop.epa.pave.model.JsonSafe.elements(each, "requests")) {
+                    if (request.equals(org.p32h.interop.epa.pave.model.JsonSafe.presentText(item, "name"))) {
+                        return org.p32h.interop.epa.pave.model.JsonSafe.presentText(item, "id");
+                    }
+                }
+            }
+        }
+        throw new AssertionError("No request " + request);
     }
 
     private long epoch() throws Exception {
