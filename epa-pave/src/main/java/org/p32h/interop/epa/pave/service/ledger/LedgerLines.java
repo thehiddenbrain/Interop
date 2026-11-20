@@ -51,7 +51,7 @@ final class LedgerLines {
     /**
      * What one file holds.
      *
-     * @param lines      the run lines and the note lines, in the order they were written
+     * @param lines      the run lines, the note lines and the case lines, in the order they were written
      * @param unreadable how many lines could not be read as either
      * @param byteCount  the size of the file when it was read
      */
