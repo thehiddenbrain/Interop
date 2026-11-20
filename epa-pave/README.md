@@ -35,9 +35,15 @@ configuration is needed.
 - **The note, the tester reference and the expectation are kept in the ledger as typed.** PAVE
   refuses one that holds the member ID, name, date of birth, subscriber ID or address the same
   request carries, and cannot recognise anything else. A run sent with a request of your own from
-  the CRD, DTR or PAS tab is checked against the member identifiers that body carries, and only
-  against those: a name or a date of birth inside such a body is not looked for. Do not type
-  member data into them.
+  the CRD, DTR or PAS tab is checked against the member identifiers that body carries once its
+  `{{placeholders}}` are filled from the values of the run, the active environment and
+  `application.yml`, and only against those: a name or a date of birth inside such a body is not
+  looked for. Do not type member data into them.
+- **The last fixes were checked by nobody but their authors, and nothing checks them before
+  handover.** Three rounds of independent checking each found something real; the fourth round of
+  fixes (the ledger, completeness on screen, the walkthrough, the guardrail) was merged without a
+  check after it. What is open at this revision is under [Limitations](#limitations), as what a
+  tester meets and what to do about it; `PROGRESS.md` lists every item, the worst first.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -96,7 +102,7 @@ different project; leave it alone. Every command below is run from `epa-pave/`.
 On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
 dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
 mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 2,770 tests and takes a few minutes. Correct output ends with:
+It runs about 2,870 tests and takes a few minutes. Correct output ends with:
 
 ```
 > Task :verifyParametersFlag
@@ -362,9 +368,10 @@ on live. `app.mock-latency-enabled: false` removes it.
 
 Open `http://localhost:8057/`. This section takes you through the page as it is on the revision
 named at the end. Words in quotation marks are what the screen says; a button's name is given as
-it reads. Some sentences the server writes are still being reworded, so a line on your screen may
-read a little differently from one quoted here; the buttons, the order and the colours do not
-change with them.
+it reads. The screens were last walked in a browser on an earlier revision (see the last
+section); a sentence the last fixes changed is quoted here from the source, so a line on your
+screen may read a little differently from one quoted here; the buttons, the order and the colours
+did not change with them.
 
 ### What every tab shows
 
@@ -411,8 +418,11 @@ on the other two.
   "Placeholder code list in use: its tags are synthetic, not P32H's." A code already in the case
   is not added twice, and a chip for text that is not on the list and does not have the shape of a
   CPT or HCPCS code says so; it is still sent as you chose it. Text left in the box and not added
-  stops the send: "Nothing was sent: "MRI" was typed in the procedure code box and not added to the
-  case."
+  stops a call that sends the case: "Nothing was sent: "MRI" was typed in the procedure code box and
+  not added to the case." It does not stop the subscription calls of the PAS tab, a call made while
+  the case is hidden, or a request of your own. It does still stop `Discover the CDS services this
+  environment offers` on the CRD tab, although discovery sends nothing of the case (open at this
+  revision): clear the box, then discover.
 - **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
 - **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
   body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
@@ -434,8 +444,10 @@ on the other two.
   these fields are checked against the member identifiers the body carries (a Patient or Coverage
   identifier, a subscriber ID, a Patient id, `context.patientId` or a `Patient/<id>` reference), and
   refused with "The note holds a member ID the request body carries. ..."; a name or a date of
-  birth in such a body is not looked for, and an ID that reaches the body only through a
-  `{{placeholder}}` is not seen, because the body is checked as typed. A request sent as written
+  birth in such a body is not looked for. The body is read with its `{{placeholders}}` filled from
+  the values typed for the run, the active environment and `application.yml`, so an ID that a
+  placeholder brings in is seen; a value only a collection's variables give is not used for this,
+  and when any placeholder has no value the body is read as typed. A request sent as written
   from the Config tab is checked against the member and subscriber identifiers its body carries.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
@@ -463,7 +475,15 @@ From the top:
    decision. "The flow ends here. Record this result." means there is nothing further to send.
    When the service returned no determination the next step says to record the run and report it:
    "Next: record run run-... as "no determination returned" and report it to the people who look
-   after the service."
+   after the service." CRD says the same for an answer of the wrong kind, an OperationOutcome
+   answered with HTTP 200 among them. PAS, subscriptions and a notification give the same two
+   lines for what they cannot act on: "no decision returned", "decision code not recognised" and
+   "items decided differently" on PAS, "response not recognised" for a subscription call, "type
+   not recognised" for a notification ("this run" in place of the run id while it is not known).
+   Still open at this revision: on CRD, documentation asked for in a way the tool cannot act on,
+   no authorization answer, an unrecognised code or mixed answers, on DTR an answer that asks
+   nothing more and is not complete, or a status the tool does not act on, and a request sent as
+   written still say only that the tool cannot say what should happen next. Record such a run by its run id and report it, as for no determination.
 4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
 5. **Response time**, flagged `slow` above the threshold.
 6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
@@ -493,9 +513,13 @@ production guardrail", "The service rejected the request" or, on mock, "A timeou
 scenario, not a fault in the environment". On mock, every fault a scenario plays (a 500, a 400, an
 unreachable service, an empty or unreadable body) is headed as played by a mock scenario, and its
 action begins "Nothing left this machine: a mock scenario played this answer to show how this tool
-reads it." The next step of a played 500 or unreachable service still reads "Next: check the
-environment, then send again.", which does not fit a played answer; a played timeout's next step
-is already worded as played. A refused form is headed "A problem with what was submitted", and its
+reads it." The DTR package that `P32H-DTR-MALFORMED` plays is headed "An unreadable answer played
+by a mock scenario, not a fault in the environment" in the same way. Open at this revision: the
+next step of a played 500 or unreachable service still reads "Next: check the environment, then
+send again.", and that of the malformed DTR package "Next: read the problems listed with this
+result and report them as a defect in the service.", neither of which fits a played answer; a
+played timeout's next step is already worded as played. On mock, believe the heading and the
+action, not that next step. A refused form is headed "A problem with what was submitted", and its
 action says "Correct the marked fields and send again."
 
 ### The CRD tab
@@ -546,9 +570,14 @@ Choose the call at the top: `Send PAS request`, `Send inquiry`, `Subscriptions` 
 - **Send inquiry.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
 - **Subscriptions.** `Create subscription`, `List subscriptions`, `Read subscription`, `Update
   subscription`, `Delete subscription`, each with a preview. Create, update and delete are writes.
+  Text left in the procedure code box does not stop them, since a subscription carries no code.
 - **Notifications.** What the receiver has received, correlated to runs, `Ask the receiver now`,
-  and, on mock, `Deliver a sample notification`. Read [The notification receiver will very likely
-  not be reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
+  and, on mock, `Deliver a sample notification`. A sample notification is recorded as answered by
+  a mock scenario (`answeredBy` `SCENARIO`, observed on the running tool); so, on mock, is one
+  that somebody posts to the receiver by hand, and ledger lines that the revisions before the fix
+  wrote with `SERVICE` beside a scenario id are read as written (open at this revision). Read [The
+  notification receiver will very likely not be
+  reachable](#the-notification-receiver-will-very-likely-not-be-reachable) first.
 
 On a production environment, a submit and every subscription write are refused until writes are
 unlocked on the Config tab, and the result says "Nothing was sent." with the reason in a purple
@@ -567,9 +596,18 @@ frame. See [The production guardrail](#the-production-guardrail).
   even outside a chain. A run that sent nothing shows its time as "not measured". From there:
   `Save the note`, `Replay this run`, and `Load this case into the form`, which puts its member,
   provider and codes back on the three protocol tabs. Where two protocols word an outcome
-  differently, the Outcome filter gives each wording with the protocols that use it.
+  differently, the Outcome filter gives each wording with the protocols that use it. A coverage
+  code that came as null, empty or with no value reads `pa-needed=(null)`, `(empty)` or `(no
+  value)` under "Codes returned". Open at this revision: a PAS run with no decision is shown in
+  the run view, under the "Next action" filter and in the chain view with the general label "Look
+  at the response detail. The tool cannot say what should happen next.", where the PAS tab itself
+  gives the two lines of next step; and History, a suite row and a chain say nothing of the fields
+  the tool did not interpret. Open the run's own tab, or replay it, to see both.
 - **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
   journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
+  Its total says how many runs were measured: "3 runs, 2 of them measured, taking ... in all",
+  "3 runs, none of them measured" or "1 run, not measured", since a step done inside this tool
+  is not timed.
   The list and the view both draw a step nobody answered with the dotted mark.
 - **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
   before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
@@ -773,26 +811,50 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
   readable address is quoted as PAVE read it (`http://127.0.0.1:18742/fhir`). One the client
   cannot read is quoted as the file writes it, without user information or query, with the
   variable that holds it, and the sentence says that it cannot be read.
-- **A production environment whose own address PAVE cannot read** the way the HTTP client reads it
-  (a port with a plus sign, a backslash in the path, a colon with nothing after it) is refused at
-  upload (422, "... which this tool cannot read the way the HTTP client reads it. It was not
-  stored.") and cannot be made active. Write a production address plainly, as
-  `scheme://host:port/path`. Such an address that an earlier version stored, or that a collection
-  makes, is remembered as its whole host: every port and every path of that host is production
-  until that environment is uploaded again as `prod` with its address written plainly, and writes
-  to it cannot be unlocked meanwhile.
+- **A production environment whose address PAVE does not know exactly is refused** at upload
+  (422), cannot be made active and cannot be unlocked, with a sentence that names the variable and
+  says why. This holds whether the address is in the environment itself or comes from a
+  collection's variables or from `application.yml` (`onyx.variables`), and in three cases: the
+  HTTP client cannot read it (a port with a plus sign, a backslash in the path, a colon with
+  nothing after it: "... which this tool cannot read the way the HTTP client reads it. It was not
+  stored."); a placeholder in it has no value anywhere ("... has no value in this environment, its
+  collections or application.yml, so the address it would send to is not known. It was not
+  stored."); or it is read from an operating system variable (`{{env:PAVE_...}}`), which happens
+  only at the moment of sending ("... is read from an operating system variable only at the moment
+  of sending, so the address it would send to is not known before then. It was not stored."). A
+  secret that is part of such an address is not quoted. The field error says what to do: "Write
+  the address itself into the environment, plainly, as scheme://host:port/path, and upload the
+  environment again." Activation answers "... cannot be made active: it is a production
+  environment, and ...", the unlock "Writes to "..." cannot be unlocked: ...", each followed by
+  "Nothing was changed." and the same advice. The `onyx.<protocol>.url` fallback settings of
+  `application.yml` are the same for every environment and are not read as an address of a
+  production environment; a write to them is judged at sending like any other url.
+- **An unreadable production address that an earlier version stored** is remembered as its whole
+  host (every port and every path of that host is production), or, where its path could be read,
+  as that path and every path beneath it on every port of that host. Writes to it cannot be
+  unlocked meanwhile. It is given up only when that same environment is uploaded again as `prod`,
+  its address written plainly, on the same host; uploaded on another host it adds an address and
+  takes nothing away, because the old host may still be production. Open at this revision: while
+  such an environment is active, `/api/mode` and the Config tab still say "Unlock them by typing
+  the environment name" and offer the unlock field, and every unlock is refused with 422 (the
+  refusal says why). Upload it again with its address written plainly.
 - **Address warnings.** The upload answer, the environment list (`addressWarnings`) and the answer
   of a switch warn about four things, without refusing the file: an address whose scheme, host and
   port PAVE cannot read the way the HTTP client reads them (a port above 65535, a host in a form the
   client refuses), to which no write is sent; an address with an encoded slash, backslash,
-  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), or a percent-escape of a byte above
-  0x7F (`%C0`), to which nothing at all is sent; a non-production environment on the same scheme,
+  semicolon or dot segment in its path (`%2F`, `%5C`, `%3B`), a percent-escape of a byte above
+  0x7F (`%C0`), or a character above 0x7F written as it is, which the client sends as such an
+  escape, to which nothing at all is sent; a non-production environment on the same scheme,
   host and port as a production environment under another base path, which PAVE treats as not
   production because the base path differs ("If that server routes this path to production,
   upload this environment with the kind prod."); and a non-production environment on the host of
-  a production environment one of whose addresses could not be read, to which no write is sent.
-  The first three were observed on mock, in the upload answer and in the environment list; the
-  fourth was read through the API by the fix's author only.
+  a production environment one of whose addresses could not be read, to which no write is sent
+  (on every path of that host, or, where the path could be read, "This tool takes the path ...
+  and every path beneath it, on every port of that host, as production."; once that production
+  environment is deleted the warning ends "... is no longer stored, and an address that was
+  production stays production."). The first three were observed on mock on an earlier revision,
+  in the upload answer and in the environment list; the character above 0x7F and the fourth were
+  seen through the API by the fixes' authors only.
 - **Member data in the file.** A variable whose name reads as member data (a member, patient or
   subscriber identifier or name, a first or last name, a birth date, `mbr`, a Medicare or Medicaid
   number, an MBI, SSN, HICN or MRN, an address, unless a machine word such as `host`, `server` or
@@ -1049,7 +1111,11 @@ A PAS submit against production creates a real prior authorization request again
   order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
   the variable "crdOrderSignServiceId" (typed for this run). ..." A percent-escape of any byte
   above 0x7F in the path (`%c0%af`, `%E2%88%95`, an overlong or look-alike slash) is refused by the
-  same rule with the same 422, since a FHIR path is plain ASCII.
+  same rule with the same 422, since a FHIR path is plain ASCII, and so is a character above 0x7F
+  typed or written as it is, which the client would send as such an escape: "CRD order-sign was
+  not sent: the path of its url holds a character above 0x7F (sent as %E2%88%95), which came from
+  the variable "crdOrderSignServiceId" (typed for this run). ..." (the raw character was seen
+  through the API by the fix's author only).
 - **Lock, from any browser, locks every session** (D-144). Observed on mock: session A unlocked and
   sent a submit; session B posted `{"action":"lock"}`; A's next submit answered 403, "... production
   writes are locked for this session. An earlier unlock no longer applies, because the
@@ -1063,10 +1129,12 @@ A PAS submit against production creates a real prior authorization request again
   addresses only. "Reads as production" means the text `prod` in its name or a url, and nothing
   cleverer.
 
-What the guardrail does not see (D-145): another DNS name for a production host; a production
-address that comes from an operating system variable, once another environment is active; a
-production address built from a secret, after its environment is removed and the tool restarted.
-No endpoint clears the remembered production addresses: with the tool stopped, edit
+What the guardrail does not see (D-145): another DNS name for a production host, and the
+`onyx.<protocol>.url` fallback settings of `application.yml` as an address of a production
+environment. A production address that comes from an operating system variable, or that has no
+value, is no longer a gap: such an environment is refused at upload and cannot be made active or
+unlocked (above, observed on the running tool for an operating system variable at upload). No
+endpoint clears the remembered production addresses: with the tool stopped, edit
 `productionDestinations` in `config-store/store.json`, or remove the store folder.
 
 **Audited twice.** The independent guardrail audit (V3) got writes through to production four ways
@@ -1078,9 +1146,21 @@ was fixed, and an agent that wrote none of the fixes checked them on revision `9
 nine closed; the port written with leading zeros closed in one direction and open in the other
 (the production address PAVE cannot read, above), with three smaller neighbours open (the refusal
 of an invalid url naming the wrong cause, escapes above 0x7F, and the notification's silence about
-short secrets). All four were fixed afterwards, as described above, merged at `6037d2a`; only the fix's author checked that fix when this was written, against stand-ins on this
-machine, and an independent check of it had not reported. The behaviour above was observed on
-mock, where the guardrail behaves as on live (D-021), except where a sentence says otherwise.
+short secrets). All four were fixed afterwards, merged at `6037d2a`. A last independent check of
+that fix, on `428eff5`, closed five of its nine lines and closed four in part, and found nine new
+ones: a production address taken from `application.yml` that was never remembered, an unreadable
+production address forgotten when any production environment of that name was uploaded, the
+heading of the malformed DTR package on mock, and six minor ones. The three major ones and three
+minor ones (a character above 0x7F written as it is; a production address written with three
+slashes or one, now refused as one the client cannot read; the warning for an unreadable address
+that keeps its path) were fixed last (`ca716a1`, merged in `902e0d9`), as described above, and
+**that last fix has been checked by nobody but its author**, who did not try a collection's own
+variable as the address on the running tool, IPv6, or TLS. Recorded and not fixed: the unlock
+offered for an environment that can never be unlocked (above); a member lookup fixture that plays a
+timeout on mock is headed "A fault in the environment: no answer in time", though nothing left the
+machine; and the member data warning at upload misses `MBRID` in capitals, `mobile` and `addr`,
+and catches `webhookAddress` wrongly. The behaviour above was observed on mock, where the guardrail
+behaves as on live (D-021), except where a sentence says otherwise.
 
 ## The test run ledger
 
@@ -1117,23 +1197,32 @@ code list holds is kept as written, whatever its shape (a seven-digit or longer 
 unless it holds the run's member ID. One the list does not hold and that reads like an identifier
 or a date, or holds the run's member ID, is written as `(not a code, N characters)`, and so is the
 subject in front of each coverage code (observed on mock: `S123456789` typed as a procedure code
-was written so, beside `95810`; the long listed code is covered by a test only). A claim id,
+was written so, beside `95810`; the long listed code is covered by a test only). Whether a code
+is on the list is decided once, when the line is written: a line is read as it was written and is
+not judged again by whatever list is loaded later (the check for the run's own member ID stays on
+both sides). A line written before the second member data fix that holds a long code with no
+member ID to compare it with therefore shows that code when read; no such build was handed over.
+A claim id,
 ClaimResponse id or subscription id that a service or a notification supplies is written in clear
 only when it cannot be anybody's data: a UUID, an OID (`urn:uuid:`, `urn:oid:`) or an id this
-tool minted. Every other one, a plain number included, is written as a token, as the
-authorization number is, unless the line's member ID is in clear (`tracking.record-member-id`,
-and on mock for a synthetic member or none); the line does not mark the token otherwise, and
-History says under it "Kept as a token, not as the identifier the service gave ...". A
-notification is matched to its run by comparing tokens, so matching works for a numeric id too.
+tool minted. Every other one, a plain number included and one that holds the run's own member
+ID (`S123-456-789` on a run for `S123456789`), is written as a token, as the authorization number
+is, unless the line's member ID is in clear (`tracking.record-member-id`, and on mock for a
+synthetic member or none); the line does not mark the token otherwise, and History says under it
+"Kept as a token, not as the identifier itself: the ledger cannot tell this identifier from
+somebody's data. A notification that carries the identifier is still matched by it." A
+notification is matched to its run by comparing tokens, so matching works for a numeric id and for
+one that holds the member ID.
 A run whose claim id is a token cannot be replayed, and replay says so. Lines written by an
 earlier version are not rewritten: their clear ids are shown, exported and matched as tokens when
 read. An id that is not one identifier (over 128 characters, or with spaces or other signs) is not
 kept and not looked up, and the notification's result says so. Known gaps: a one-word surname
-written where a code belongs is kept, because a single word cannot be told from a code; a
-ClaimResponse id that holds the member ID with separators (`S123-456-789` on a run for
-`S123456789`) is still written as `(not recorded, N characters)` on the submission line, so a
-notification carrying it is not matched; and lines written by the first fix with `(not recorded,
-N characters)` under a subscription or ClaimResponse id cannot be matched either.
+written where a code belongs is kept, because a single word cannot be told from a code; an id a
+service supplies that is 64 hexadecimal characters, or shaped like a UUID, is taken for the
+ledger's own token or for a UUID and written in clear whatever its digits, even when it ends in a
+member ID (recorded, not changed: telling them apart needs a change of the line's shape); and
+lines written by an earlier fix with `(not recorded, N characters)` under a subscription or
+ClaimResponse id cannot be matched.
 
 **The member ID policy** has two settings:
 
@@ -1177,10 +1266,13 @@ quotes nothing. What PAVE can recognise, it refuses:
 - A run sent with `A request of my own` from the CRD, DTR or PAS tab is checked against the member
   identifiers its body carries: Patient and Coverage identifiers, `subscriberId`, a Patient id,
   `context.patientId` and a `Patient/<id>` reference (not this tool's own `patient-1`), with the
-  same refusal. Only identifiers are read, not a name or a date of birth, and the body is read as
-  typed, before `{{placeholders}}` are filled, so an ID that only a placeholder brings in is not
-  seen. A body with no readable identifier is not refused. The fix's author saw the refusal on the
-  running tool for CRD only; DTR and PAS are covered by tests.
+  same refusal. Only identifiers are read, not a name or a date of birth. The body is read with
+  its `{{placeholders}}` filled from the values typed for the run, the active environment and
+  `application.yml` (not from a collection's variables), so a note naming a member that a
+  placeholder brings in is refused with the same sentence; when any placeholder has no value, the
+  body is read as typed. A body with no readable identifier is not refused. The fix's author saw
+  the refusal on the running tool for CRD only, and the filled placeholders for CRD only; DTR and
+  PAS go through the same code and are covered by tests of the refusal, not of the placeholders.
 - A note added later is refused when it holds the member ID of that run, also where the line keeps
   only the token: "The note holds the member ID of this run. The ledger keeps it as written and may
   not hold member data, so leave it out. The note was not added. Nothing was changed." (observed).
@@ -1204,7 +1296,15 @@ and digits, an address line under five characters. **Do not type member data int
 reference or an expectation.** Old lines that hold a name or a date of birth in a note are still
 shown and exported as written: the files are append-only. In the results of a suite (on screen
 and in `results.csv`), a row refused because its expectation held member data, or was too long,
-carries the refusal sentence in place of the expectation.
+carries the refusal sentence in place of the expectation, for example "The expectation holds the
+member's date of birth. The ledger keeps it as written and may not hold member data, so leave it
+out."; one refused for this run's member ID shows only that sentence. Open at this revision: an
+expectation that holds the date of birth or a name and is also malformed (`Jul. 23rd 1961:
+covered=covered`) is refused for its shape before the member is looked up, and the results file
+still repeats it in the expected column. Three spellings of the run's own date of birth still
+pass and are written in clear (a month abbreviated with a full stop and an ordinal day, the
+compact `MMDDYYYY` form, a two-digit year with an apostrophe), and so does a date written in
+words.
 
 **The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
 run and, through the API, an exact tester reference (`testerRef`) and the run a line follows
@@ -1818,35 +1918,46 @@ Each of these is unknown. PAVE uses an obvious placeholder for it rather than a 
 
 ## Limitations
 
-What is not done, not verified, or known to be wrong on the revision named at the end.
-`PROGRESS.md` is the project's own account and lists each item with the decision behind it; this
-section repeats what a tester or a maintainer needs to know.
+What is not done, not verified, or known to be wrong on the revision named at the end, said as what
+a person who runs the tool meets and what to do about it. `PROGRESS.md` is the project's own
+account: it lists every open item, the worst first, with the finding it comes from, and the
+entries of the last round in `DECISIONS.md` (from D-260) give the reasons. This section does not
+repeat every finding id; it leaves out nothing a tester has to know.
 
-**Gates and checks that have not run**
+**Gates and checks**
 
 - **Nothing has been run against Onyx or any real service.** Every live check used a stand-in on a
   loopback port. The lookups have never met the real member API or provider directory.
-- **The last gate has not run on this revision**: the plain `./gradlew clean build` twice, a build
-  from a fresh clone with the build cache off, and the start. Every build on the machine this
-  README was checked on went through a shared wrapper that adds `--offline`, under a cap on
+- **The integrator's last gates run after this README is written**, on the commit that holds it:
+  the plain `./gradlew clean build` twice, a build from a fresh clone with the build cache off, the
+  start with `GET /api/mode`, and the changed paths. A file cannot hold the result of a build of
+  the commit it is part of, so their results are in the pull request description (part 2). The last
+  whole build this README can name is that of `902e0d9` through the shared wrapper: 2,870 tests, 0
+  failures, 0 errors, 2 skipped, "No house style violations.", BUILD SUCCESSFUL. Every build on the
+  machine this README was checked on went through a wrapper that adds `--offline`, under a cap on
   Gradle's memory, with every Java process run with an option that turns off two base64
   intrinsics (see the last section).
-- **The verification agents of section 27 of the specification all ran, but on earlier revisions
-  than this one.** The member data audit (V2), the guardrail audit (V3) and the fixture audit (V4)
-  ran a second time on `0658a7c`, and their fixes were checked by agents that wrote none of them on
-  `9e5306d`. The build audit from a fresh clone (V1), the house style audit (V5), the completeness
-  audit on screen (V7) and the walkthrough by a business tester ran on `9e285a1`; the honesty audit
-  (V6) on `9e5306d`. The last fixes (for V5, V7 and the walkthrough, then four tasks for what the
-  checks of the V2, V3 and V4 fixes and V6 found: the ledger, the guardrail, the mock scenarios,
-  the screens) were merged after that. An independent check of them in six groups (the ledger, the
-  fixtures, completeness on screen, the walkthrough, the house style gate, the guardrail) was
-  running when this README was written, on `98effa6` (the first five) and `428eff5` (the
-  guardrail). Only the check of the style gate had reported: three findings closed, three closed
-  in part, six new minor findings, none fixed (see `PROGRESS.md`). The other five had not
-  reported, so **those fixes have been checked by nobody but their authors**.
+- **How the checking ended.** The verification agents of section 27 of the specification all ran,
+  on earlier revisions: the member data audit (V2), the guardrail audit (V3) and the fixture audit
+  (V4) a second time on `0658a7c`, with their fixes checked on `9e5306d`; the build audit from a
+  fresh clone (V1), the house style audit (V5), the completeness audit on screen (V7) and the
+  walkthrough by a business tester on `9e285a1`; the honesty audit (V6) on `9e5306d`. The fixes
+  for all of them were then checked once more, in six groups, by agents that wrote none of them:
+  the style gate, the fixtures, the ledger, completeness on screen and the walkthrough on `98effa6`,
+  the guardrail on `428eff5`. Each of the three rounds (an audit, a check of its fixes, a check of
+  those fixes) found something real. The last round of fixes (the ledger, completeness on screen,
+  the walkthrough, the guardrail; merged in `902e0d9`) **was checked by nobody but its authors, and
+  no check follows it**: a check that always finds something has to stop somewhere. What the last
+  check found and was not given to a fix is open, below.
+- **One merge was checked by the build only.** The ledger fix and the completeness fix both changed
+  how the ledger reads a named coverage entry; the integrator kept both changes by hand (`60876fa`).
+- **A test that failed by chance.** A ledger test looked for the four digits of a year anywhere in a
+  line that holds random hexadecimal tokens, and failed about once in a hundred builds; it was
+  corrected (`6b7abba`), and no other test of that kind was found by reading. It was found only
+  because a build happened to fail: two green builds do not prove that no test of that kind is
+  left. If a ledger test fails once and passes when run again, report it.
 - **No business tester has used the tool.** The walkthrough was made by an automated agent on mock,
-  not by a person, and is not a sign-off. The journey under [Using the screens](#using-the-screens)
-  was walked by an automated browser.
+  not by a person, and is not a sign-off.
 - **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
@@ -1855,21 +1966,26 @@ section repeats what a tester or a maintainer needs to know.
 - **STS**: no minimum version is stated, and none was verified. A mirror that needs credentials and
   a token server were not tried.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
-  read-only for root. The same refusals are covered by tests that do run.
+  read-only for root. The same refusals are covered by tests that do run. Two tests of the screens
+  run a script with Node.js and are skipped, without failing, where no `node` is on the path.
 - **The tests write into a temporary folder of their own**: a JUnit extension gives every test JVM
   its own `config-store` and `run-history` and removes them at the end, so after `clean build` the
   project directory holds nothing new but `build/` (checked by the fix's author only). Both folders
   stay in `.gitignore` for the running tool.
-- The house style rules are enforced by the build on every file git tracks or would track under
+- **The house style gate** is enforced by the build on every file git tracks or would track under
   `epa-pave/`, file names included. Commit messages, the pull request description, names of people
-  and comments that only restate the code are not checked by the build. The independent check of
-  the gate found, and nothing has fixed: a file name with a character outside ASCII crashes the gate
-  under a POSIX locale, and the failed build then shows the previous run's "No house style
-  violations."; some dash-like, quote-like and invisible characters, and entities or escapes that
-  render a forbidden character, are not refused; a text file with a binary extension or a NUL byte
-  near its start is skipped unread; one rule has a second, weaker copy in a test; a few invented
-  surnames in tests do not start with `Placeholder`; and empty section banners remain in 16 main
-  source files. The tree itself holds none of the missed characters (that check's own scan).
+  and comments that only restate the code are not checked by the build. The last check of the gate
+  found, and nothing has fixed: a file name with a character outside ASCII crashes the gate under
+  a POSIX locale, and the failed build then shows the previous run's "No house style violations."
+  (if the build is red and says so, delete `build/` and look at the real error); some dash-like,
+  quote-like and invisible characters, and entities or escapes that render a forbidden character,
+  are not refused; a text file with a binary extension or a NUL byte near its start is skipped
+  unread; one rule has a second, weaker copy in a test; a few invented surnames in tests do not
+  start with `Placeholder`; and empty section banners remain in 16 main source files. The tree
+  itself holds none of the missed characters (that check's own scan).
+- **The drawing of the three presences on the page** ("not returned", "null", "empty") is held in
+  the build only by tests that read the scripts' text; the build has no browser, so a page that
+  stops drawing them would pass. They were checked by eye in a browser by the fix's author.
 
 **Not built** (sections 12 and 13 of the specification)
 
@@ -1884,77 +2000,126 @@ section repeats what a tester or a maintainer needs to know.
 - **The wire view carries member data**, and secrets and uploads sit in plain text in
   `config-store/`, the ledger's salt among them.
 
-**Member data and the guardrail: what the fixes and their checks left**
+**Open at this revision: member data and the ledger**
 
 - **A note, a tester reference or an expectation** is refused only for member data the same
   request carries. Somebody else's name or date of birth, a name the request does not carry, a
   member or subscriber ID under six letters and digits and an address line under five characters
-  are written as typed. A suite row is checked at preview for its own member ID only; the rest is
-  checked when the case runs. Old ledger lines that hold a name or a date of birth in a note are
-  still shown and exported as written.
+  are written as typed, and so are three spellings of the run's own date of birth (a month
+  abbreviated with a full stop and an ordinal day, the compact `MMDDYYYY` form, a two-digit year
+  with an apostrophe) and a date written in words. A suite row is checked at preview for its own
+  member ID only; the rest is checked when the case runs. Old ledger lines that hold a name or a
+  date of birth in a note are still shown and exported as written. Type no member data there.
 - A run sent with `A request of my own` from the CRD, DTR or PAS tab is checked against the member
-  identifiers of its body only: a name or a date of birth there is not looked for, and an ID that
-  only a `{{placeholder}}` brings in is not seen. On the running tool this was seen for CRD only.
+  identifiers of its body only, once its `{{placeholders}}` are filled from the values of the run,
+  the active environment and `application.yml`: a name or a date of birth there is not looked for,
+  a value only a collection's variables give is not used, and a body with any placeholder that has
+  no value is read as typed. The filled placeholders were seen on the running tool by the fix's
+  author for CRD only.
 - A note added later on a line that holds only the token cannot be checked for a name or a date of
   birth, and finds the digits of the ID alone only when one or two letters stood in front of them.
-- A ClaimResponse id that holds the member ID with separators (`S123-456-789`) is still written as
-  `(not recorded, N characters)` on the submission line, so a notification carrying it is not
-  matched; lines written by the first fix that way cannot be matched either.
-- A seven-digit or longer procedure code that the code list holds is kept as written; this was not
-  checked on the running tool, because no loaded list held such a code.
+- An expectation of a suite row that holds the date of birth or a name and is also malformed is
+  refused for its shape before the member is looked up, and `results.csv` still repeats it in the
+  expected column. Do not put member data in a suite file.
+- An id a service supplies that is 64 hexadecimal characters, or shaped like a UUID, is written in
+  clear whatever its digits, even when it ends in a member ID. Lines that an earlier fix wrote with
+  `(not recorded, N characters)` under a subscription or ClaimResponse id cannot be matched to a
+  notification.
+- A line is read as it was written and not judged again by the code list loaded later, so a line
+  written before the second member data fix that holds a long code with no member ID beside it
+  shows that code (no such build was handed over).
 - **A one-word surname** written where a code belongs (`covered=Zzlastname`) is kept (D-151).
 - **The configuration store** keeps uploads whole, member data included; the upload warning goes
-  by variable names and by saved examples, not by values.
-- The last guardrail fix was not proved over IPv6, with an explicit default port on the wire, or
-  on a host other than loopback (the forms are unit-tested), and its new sentences were read
-  through the API, not on the Config tab. A sandbox on production's port whose base path ends in
-  an escape such as `%00`, `%2e` or `%20` gets the warning about another base path and is not
-  refused (the decided case of another base path on the same server).
-- **The guardrail** does not see another DNS name for a production host, or a production address
-  that comes from an operating system variable or a secret (see
-  [The production guardrail](#the-production-guardrail)). An IPv6 address was not checked against a
-  listener (the build machine has no IPv6 loopback). How a real server in front of a service decodes
-  an escaped path was not tested: the encoded separator rule refuses rather than finds out. A
-  replay that reaches the gateway against production on live was not exercised.
+  by variable names and by saved examples, not by values. It does not name `MBRID` written in
+  capitals, `mobile` or `addr`, and it names `webhookAddress` as member data, wrongly.
+
+**Open at this revision: the guardrail**
+
+- With a production environment active whose address an earlier version stored and the tool cannot
+  read, `/api/mode` and the Config tab say "Unlock them by typing the environment name" and offer
+  the unlock field, and every unlock is refused with 422, whose sentence says why. Upload that
+  environment again as `prod` with its address written plainly.
+- **The guardrail does not see** another DNS name for a production host, or the
+  `onyx.<protocol>.url` fallback settings of `application.yml` as a production address (a write to
+  them is judged at sending like any other url). A sandbox on production's port whose base path
+  ends in an escape such as `%00`, `%2e` or `%20` gets the warning about another base path and is
+  not refused (the decided case of another base path on the same server).
+- Not proved on the running tool: a production address that only a collection's own variable
+  gives (proved by tests, and for `application.yml` on the running tool, by the fix's author); IPv6,
+  an explicit default port on the wire, a host other than loopback, TLS. How a real server in front
+  of a service decodes an escaped path was not tested: the encoded separator rule refuses rather
+  than finds out. A replay that reaches the gateway against production on live was not exercised.
 - If the process is killed outright, the embedded server's working folder `pave-server-*` is left
   under the temporary directory; a normal stop removes it.
 
-**The screens**
+**Open at this revision: the screens and the next steps**
 
-- Before anything is uploaded on live, the protocol tabs hold back their form; on mock they offer
-  it, because scenario files answer.
-- The heading the server gives a refused form, "A problem with what was submitted", says nothing
-  of what to do; the action under it does ("Correct the marked fields and send again.").
-- On mock, the next step of a played 500 or a played unreachable service still reads "Next: check
-  the environment, then send again.", although its heading and action say the answer was played
-  and nothing left the machine.
+- **On the CRD tab, discovery is refused when text is left in the procedure code box** ("Nothing
+  was sent: "MRI" was typed in the procedure code box and not added to the case."), although
+  discovery sends nothing of the case. Clear the box, then discover.
+- **Some outcomes still give no next step of their own**: on CRD documentation asked for in a way
+  the tool cannot act on, no authorization answer, an unrecognised code and mixed answers; on DTR
+  an answer that asks nothing more and is not complete, and a status the tool does not act on; and
+  a request sent as written. Each says only "Next: read the response detail below. This tool
+  cannot say what should happen next." (or the like). Record the run by its run id as what came
+  back and report it to the people who look after the service, as PAS now says.
+- History, its "Next action" filter and the chain view show a PAS run with no decision under the
+  general label "Look at the response detail. The tool cannot say what should happen next.", where
+  the PAS tab gives the two lines of next step.
+- On mock, the next step of a played 500 or unreachable service still reads "Next: check the
+  environment, then send again.", and that of the malformed DTR package "Next: read the problems
+  listed with this result and report them as a defect in the service.", although their heading and
+  action say the answer was played and nothing left the machine. A mock member lookup that plays a
+  timeout (`P32H-LOOKUP-TIMEOUT`) is headed "A fault in the environment: no answer in time". On
+  mock, nothing of these is a fault in the environment.
+- The label of the CRD outcome for an answer that is not what the operation returns, shown as
+  "Happened" in the test result, in History and in a chain, still speaks of "a body that could not
+  be read", also for a Patient or an OperationOutcome answered with HTTP 200, although the headline
+  says what came. Read the headline.
 - On CRD, the title of the finding for a coverage sub-extension sent with no value reads "... was
   sent with no value" for a value sent as null and one sent empty alike, while its detail tells
-  them apart. The label of the CRD outcome for an answer that is not what the operation returns
-  (shown as "Happened" in the test result, in History and in a chain) still speaks of "a body that
-  could not be read", although its headline now says what came ("The service answered with a FHIR
-  Patient resource, not a CDS Hooks response").
+  them apart.
 - A subscription's "Headers sent with a notification" has no presence of its own, so a list that
   was not returned, null or empty all read "none returned".
 - Next steps that say "read the response detail below" are shown also in the History replay panel
   and the chain view, where no response detail is below.
 - The detail of the finding for a key repeated in one object says "that is the value shown above"
   also for a key the view reads without drawing (`type` of a DTR or PAS Bundle).
+- On mock, a subscription scenario or a sample notification whose body repeats a key is written
+  out again, so it loses the earlier values and nothing on screen says so (the PAS mock now plays
+  such a body as written and says so).
 - History, a suite row and a chain say nothing of fields the tool did not interpret, not even a
-  count (decided not to do on this revision).
-- The last pass over the screens looked at the repeated keys, the audit cases, the journey, the
-  error sections and the chain view at 1366 by 768 and 1920 by 1080, and the Config tab, the replay
-  panel, the presences of a subscription and a notification and the unlock button at 1366 by 768
-  only. The DTR and PAS refusal of a note that names the member of a body of your own, the PAS
-  tab's sentence after a deleted subscription and the new run id refusal were not looked at in a
-  browser.
+  count. Open the run's own tab, or replay it.
+- The heading the server gives a refused form, "A problem with what was submitted", says nothing
+  of what to do; the action under it does ("Correct the marked fields and send again."). The action
+  under a refusal for an operation that is not configured asks for a collection or a fallback url
+  also when the url as filled is not valid; the title says which it is.
 - The DTR change block (appeared, disappeared, dropped) is drawn twice, in the questionnaire pane
-  and in the result detail.
-- History offers no `zone` filter, and says every date is a UTC day.
-- At phone width the History runs table and the CRD elements table run past the edge. No screen
-  reader was used, contrast was never measured, 200% zoom was never tried. Behaviour on screen has
-  no test in the build beyond tests that read the page's source: it was checked by browser scripts
-  kept outside the repository.
+  and in the result detail. History offers no `zone` filter, and says every date is a UTC day.
+- Before anything is uploaded on live, the protocol tabs hold back their form; on mock they offer
+  it, because scenario files answer.
+- What the last fixes changed on screen was looked at by their authors only, at 1366 by 768: the
+  shortened OperationOutcome headline, the History view of a body of your own with placeholders,
+  and the DTR and PAS tabs with such a body were not looked at in a browser. At phone width the
+  History runs table and the CRD elements table run past the edge. No screen reader was used,
+  contrast was never measured, 200% zoom was never tried.
+
+**Open at this revision: notifications, replay and the mock scenarios**
+
+- On mock, a notification somebody posts to the receiver by hand is recorded as answered by a mock
+  scenario; ledger lines written with `SERVICE` beside a scenario id before the fix are read as
+  written.
+- A replay of a run id that does not exist answers with the general action, not the one a `GET` of
+  that id gives. The replay's sentence for a mock scenario has no test at the level of the replay.
+- When two responses were completed from one DTR package, nothing says which answers a PAS
+  submission carried.
+- When `crd-04` is chosen in the Mock scenario field and the DTR sentinel comes only from a pasted
+  body, the CRD note does not say that it was found in the request body. In a scenario folder of
+  your own, the note for a DTR sentinel in CRD says CRD answers documentation required whatever the
+  file that answers it plays. The check of an old scenario folder reads only the bundled wording of
+  a description. The PAS scenario lists for inquiry and for notifications leave out the
+  `crdSentinelMemberIds` mapping, though an inquiry with `P32H-TIMEOUT` still selects `pas-16`
+  through it.
 
 **The protocols**
 
@@ -1968,7 +2133,8 @@ section repeats what a tester or a maintainer needs to know.
   role. A failure of the tool in the response step answers 500 and writes no ledger line.
 - **PAS**: a resubmission reuses the claim id. Mock X12 reason and category codes are placeholders.
 - **The notification receiver** has never been called by a real payer, holds at most 200
-  notifications in memory (each body read whole up to 8 MiB, and its text held to 128 KiB) and
+  notifications in memory (each body read whole up to 8 MiB, and its text held to 128 KiB; for a
+  longer body that is not JSON the note says "The text after them is not shown anywhere.") and
   loses them on restart; the ledger lines remain. Two notifications at the same moment are not
   tested. After the tool deletes its subscription, a notification on it says "A notification
   arrived on a subscription this tool created and then deleted." and is never called still there;
@@ -2024,55 +2190,51 @@ section repeats what a tester or a maintainer needs to know.
 
 ## What this README was checked against
 
-- **Revision:** `428eff5`, the head of `epa-pave`, with this README added. The README was checked
-  against the running tool on `e1d37dc` (branch `docs-4`): everything the earlier pass described
-  on `5763c41`; the server task and the pass over the screens that followed it; six lines those
-  two left for each other; and the fixes for the house style audit, the completeness audit on
-  screen and the walkthrough by a business tester. The four tasks merged after it (the ledger, the
-  guardrail, the mock scenarios, the screens, at `9be24c7`, `6037d2a`, `c413fc0` and `84d52ec`)
-  changed what some sentences describe. Those sentences were then rewritten on `428eff5` from the
-  source of that revision and the reports of the fixes, without starting the tool again: what
-  they say the fixed behaviour does was seen by the fix's author, where the sentence says so, and
-  by nobody else. Everything below this line describes `e1d37dc`.
+- **Revision:** `902e0d9`, the head of `epa-pave` as handed over, with this README added. That is
+  `428eff5` with the last four fixes merged (completeness on screen `fff3bd0`, the walkthrough
+  `10108d4`, the ledger `54f9912`, the guardrail `ca716a1`), the merge `60876fa` that kept both
+  changes to one method of the ledger record, and the test corrected in `6b7abba`. Every sentence
+  that the last fixes made untrue was rewritten on `902e0d9` from the source of that revision (each
+  quoted sentence found in it) and from the reports of the fixes. What a sentence says a fix does
+  was seen by the fix's author where the sentence says so, and by nobody else, unless this section
+  names it below.
+- **Run again on `902e0d9` for this README**, on the jar the integrator built from that revision
+  (`merged-902e0d9.jar`), freshly started on the mock profile on port 8194 (port 8057 was not used
+  on that machine):
+  - **every `curl` example under [Endpoints](#endpoints)**, in order, with `localhost:8194` in place
+    of `localhost:8057`, from a copy of `samples/`: 70 examples, each answered the status in its
+    comment. The three that take a suite run id were run by hand with that id, because the script
+    that runs the examples put the run id in its place; the suite finished "Finished: 6 cases. 4
+    passed, 1 failed, 1 unverified.";
+  - on mock, through the API: the PAS next step for `pas-14-no-decision` ("Next: record run run-...
+    as "no decision returned" and report it to the people who look after the service." with its
+    reason, action `REVIEW`); a sample notification recorded with `answeredBy` `SCENARIO`; and a
+    production environment whose address is `{{env:PAVE_PRODURL}}` refused at upload with the
+    sentence quoted under [Uploading an environment](#uploading-an-environment).
+- **The two proofs of "Prove it before handover"** were run by the integrator through the API (not
+  in a browser) on the same jar on mock: `P32H-NO-AUTH` answered "Prior authorization is not
+  required." (`NO_AUTH_REQUIRED`, pass) and `P32H-EMPTY` "The service answered but returned no
+  determination." (`NO_DETERMINATION`, next step "Next: record run run-... as "no determination
+  returned" ..."), two different ledger lines with no request or response body in them; and the
+  journey with `P32H-DOC-DTR` from CRD through DTR to PAS carried the completed
+  QuestionnaireResponse, its answers the same as those DTR completed (17 among them), in the PAS
+  request as previewed and as sent (wire view), and PAS answered approved.
+- **Not run again on `902e0d9`:** `run.sh` (on this machine it would build the jar with
+  `./gradlew`, which only the shared wrapper may run; it was last run on `e1d37dc`, and no line of
+  it has changed since), the screens in a browser (the journey under [Using the
+  screens](#using-the-screens) was last walked by an automated browser on `e1d37dc`, and what the
+  last fixes changed on screen was looked at by their authors only), `run.cmd`, STS, a mirror (with
+  or without credentials), a token server, Onyx, any behaviour on live against a stand-in, a screen
+  reader, a phone-width screen, 1920 by 1080.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
   Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran
   with `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run
-  for this revision: its Gradle part was run through that wrapper (`bootJar`, then `clean build`).
-  The build in step 3 is that run of `clean build`: 2,767 tests, 2 skipped, 0 failed (it took `compileJava` and `compileTestJava`
-  from the build cache). On `428eff5` the build through the same wrapper ran 2,826 tests: 2,824
-  passed, 2 skipped, none failed. No fresh clone was built for
-  this revision; the build audit (V1) built one of `9e285a1` from the remote.
-- **`run.sh`** was started from another directory with the jar present, as
-  `./run.sh mock --server.port=8191` (port 8057 was not used on that machine), and printed the
-  lines of step 4 with 8191 in place of 8057; `curl -s localhost:8191/api/mode` answered as step 5
-  shows, with that port. With `--codelist.file=` set to the absolute path of the sample list, the
-  self-check answered as [The procedure code list](#the-procedure-code-list) quotes.
-  `./run.sh live --server.port=8191` was run (live, writes refused, member lookup `DISABLED`), and
-  its refusal of an unknown profile. Building the jar from nothing through `run.sh`, and its
-  refusal of a Java older than 21, were checked on an earlier revision and not again (no `run.sh`
-  line changed since).
-- **Every `curl` example under [Endpoints](#endpoints)** was run in order against a freshly started
-  tool on the mock profile, with `localhost:8191` in place of `localhost:8057`, and answered the
-  status in its comment: 70 examples, none different.
-- **The screens** were looked at in headless Chromium at 1366 by 768 for this revision: the journey
-  under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR`, ticked
-  as a chain (every sentence quoted in it, the PAS call names, the chain bar, the answer 17 in the
-  preview and in the wire view, no console error). Every other sentence quoted from a screen was
-  found in the source of this revision or in the report of the fix that wrote it; the dotted frame
-  of a step nobody answered was read from the API (`answeredBy` `NOBODY`), not looked at.
-- **Observed on the running tool on `e1d37dc`, through the API, as quoted above:** on mock,
-  the next step of no determination; the heading of a played timeout and of a played 500 (the
-  second has changed since, see above); the code list sentence on a CRD finding; a note naming
-  the member ID of a pasted body recorded as typed (refused since); a repeated key refused; the statuses 400, 405, 406, 413 and 415; the upload warnings of an
-  address that cannot be read, an encoded separator, a server shared with production and a
-  variable named as member data, in the upload answer and the environment list; an upload refused
-  for a production address with leading zeros, quoting the address as read; with the floor open,
-  the unlock and its sentence, a write let through in the unlocking session and blocked in another,
-  and Lock from a second session refusing the first session's next write; the sample code list said
-  to be synthetic; and on live with nothing configured, the mode and a disabled lookup.
-- **Not checked for this revision:** `run.cmd`, STS, a mirror (with or without credentials), a token
-  server, Onyx, any behaviour on live against a stand-in (the guardrail's refusals on live, a masked
-  notification or lookup field, the 409 at the moment of sending), a screen reader, a phone-width
-  screen, 1920 by 1080.
+  for this revision. The last whole build this README names is that of `902e0d9` through that
+  wrapper (`clean build`): 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
+  violations.", BUILD SUCCESSFUL. No fresh clone was built for this revision by the writer of
+  this README; the integrator's last gates, a fresh clone with the build cache off among them, run
+  after it, and their results are in the pull request description. The build in step 3 of the
+  checklist and the output of `run.sh` in step 4 were pasted from an earlier revision (`e1d37dc`)
+  and were not run again.
