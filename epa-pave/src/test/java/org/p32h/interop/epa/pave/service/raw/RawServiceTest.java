@@ -24,6 +24,8 @@ import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorKind;
+import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
@@ -40,6 +42,8 @@ import org.p32h.interop.epa.pave.service.config.RequestRef;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
+import org.p32h.interop.epa.pave.service.run.MembersInBody;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
@@ -229,6 +233,33 @@ class RawServiceTest {
         RequestPreview preview = service(mockClient).preview(RawRunRequest.of(REF, "{}", Map.of(), null), null);
         assertThat(preview.blocked()).contains("blocked");
         assertThat(preview.url().template()).isEqualTo("{{baseUrl}}/Claim/$submit");
+    }
+
+    @Test
+    void aRefusedWriteWhoseNoteHoldsAnIdentifierOfTheTypedBodyIsRefusedAndNotRecorded() {
+        gateway.failing(new ProdWriteBlockedException(EpaOperation.UNMAPPED, new EnvironmentRef("Onyx Production", EnvironmentKind.PROD),
+                "Blocked on production.", "Unlock writes on the Config tab, or switch environment."));
+        String body = "{\"resourceType\": \"Coverage\", \"identifier\": [{\"value\": \"S123456789\"}]}";
+        RawRunRequest request = new RawRunRequest(REF, body, Map.of(), Map.of(), null, null, "for s123456789", null, null, Map.of());
+
+        assertThatThrownBy(() -> service(mockClient).run(request, RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, refused -> assertThat(refused.fieldErrors())
+                        .extracting(FieldError::field).containsExactly("note"));
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void theIdentifiersOfABodyAreReadWhereverItsPatientsAndCoveragesSit() {
+        String body = "{\"context\": {\"patientId\": \"pat-1\"}, \"prefetch\": {\"coverage\": {\"resourceType\": \"Bundle\", \"entry\": ["
+                + "{\"resource\": {\"resourceType\": \"Coverage\", \"subscriberId\": \"S111222333\","
+                + " \"contained\": [{\"resourceType\": \"Patient\", \"identifier\": [{\"value\": \"S444555666\"}]}]}}]}},"
+                + " \"other\": {\"resourceType\": \"Practitioner\", \"identifier\": [{\"value\": \"1234567893\"}]}}";
+        assertThat(MembersInBody.read(body)).extracting(MemberDetail::memberId).containsExactly("S444555666", null);
+        assertThat(MembersInBody.read(body)).extracting(MemberDetail::subscriberId).containsExactly(null, "S111222333");
+        assertThat(MembersInBody.read("member S123456789")).isEmpty();
+        assertThat(MembersInBody.read(null)).isEmpty();
+        // A practitioner's identifier is not a member's, so a note naming it is not refused.
+        assertThat(MemberInText.problemsInBody("NPI 1234567893", null, null, MembersInBody.read(body), "Nothing was sent.")).isEmpty();
     }
 
     @Test

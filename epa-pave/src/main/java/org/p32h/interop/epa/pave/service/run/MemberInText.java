@@ -68,6 +68,36 @@ public final class MemberInText {
         return problems;
     }
 
+    /**
+     * The same, for a run that names no member of its own and sends a body as written: its free
+     * text is checked against each identifier the body states ({@link MembersInBody}). Empty when
+     * the body states none, since there is then nothing to compare with.
+     */
+    public static Map<String, String> problemsInBody(String note, String testerRef, String expected, List<MemberDetail> inBody,
+                                                     String ending) {
+        Map<String, String> problems = new LinkedHashMap<>();
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("note", note);
+        fields.put("testerRef", testerRef);
+        fields.put("expected", expected);
+        fields.forEach((field, text) -> {
+            if (Texts.blank(text)) {
+                return;
+            }
+            List<String> kinds = new ArrayList<>();
+            if (inBody.stream().anyMatch(member -> holdsId(text, member.memberId()))) {
+                kinds.add("a member ID the request body carries");
+            }
+            if (inBody.stream().anyMatch(member -> holdsId(text, member.subscriberId()))) {
+                kinds.add("a subscriber ID the request body carries");
+            }
+            if (!kinds.isEmpty()) {
+                problems.put(field, message(field, kinds, ending));
+            }
+        });
+        return problems;
+    }
+
     /** The sentence for a field whose text holds the kinds of member data named. It never quotes the text. */
     public static String message(String field, List<String> kinds, String ending) {
         return LABELS.getOrDefault(field, "This text") + " holds " + String.join(" and ", kinds) + ". The ledger keeps it as written and "
