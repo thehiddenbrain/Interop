@@ -16,7 +16,7 @@
 // result are two facts and are drawn as two different things: a strip in a tone, and a stamp.
 
 import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
-import {shown, shownList, presenceMark} from './shown.js';
+import {shown, shownList, presenceMark, noValueMark} from './shown.js';
 import {toneClass, stamp, slowFlag, mockMark, localMark, answeredByNobody} from './marks.js';
 import {runLink} from './history-common.js';
 // lookup.js imports this file as well. The cycle is harmless: idForms is only called while a
@@ -80,7 +80,10 @@ export function renderResult(envelope, options) {
         if (typeof error.action === 'string' && error.action === step.headline) {
             said.action = 'The next step above says what to do.';
         }
-        root.append(section(heading(3, 'What went wrong'), errorPanel(said)));
+        // The server heads every error with what it is (a refusal by the guardrail is not something
+        // that went wrong), so the section is headed by that and the panel does not say it twice.
+        root.append(section(heading(3, error.heading ? error.heading : ['Error kind ', code(error.kind || 'none')]),
+            errorPanel(said, {headed: true})));
     }
     return root;
 }
@@ -382,7 +385,8 @@ function determinationRow(row) {
             row.recognised === false ? [' ', el('span', {class: 'flag'}, 'not a code this tool knows')] : null));
     } else {
         // Nothing was returned for this element, and that is said across both columns: never a blank cell.
-        cells.push(el('td', {colSpan: 2}, presenceMark(row.presence || 'ABSENT')));
+        // An element sent with no value at all is said to be that, as the coverage table says it.
+        cells.push(el('td', {colSpan: 2}, row.sentWithNoValue === true ? noValueMark() : presenceMark(row.presence || 'ABSENT')));
     }
     cells.push(el('td', null, row.system ? code(row.system) : el('span', {class: 'quiet small'}, 'not stated')));
     return el('tr', {class: row.recognised === false ? 'determination--unrecognised' : null}, cells);
@@ -666,13 +670,22 @@ const ERROR_FORMS = {
     INTERNAL: 'fault'
 };
 
-/** The error panel, for the error of a run and for an error answered in place of a result. */
-export function errorPanel(error) {
+/**
+ * The error panel, for the error of a run and for an error answered in place of a result.
+ * options.headed: the section around the panel is already headed by error.heading, so the panel
+ * gives only the HTTP status on that line.
+ */
+export function errorPanel(error, options) {
     const form = error.kind && Object.prototype.hasOwnProperty.call(ERROR_FORMS, error.kind) ? ERROR_FORMS[error.kind] : 'plain';
     const panel = el('div', {class: 'error-panel error-panel--' + form + ' error-panel--' + token(error.kind || 'none')});
-    if (error.kind) {
+    const status = typeof error.httpStatus === 'number' ? el('strong', null, String(error.httpStatus)) : null;
+    if (options && options.headed) {
+        if (status) {
+            panel.append(el('p', {class: 'error-panel__kind'}, 'HTTP ', status));
+        }
+    } else if (error.kind) {
         panel.append(el('p', {class: 'error-panel__kind'}, error.heading ? error.heading : ['Error kind ', code(error.kind)],
-            typeof error.httpStatus === 'number' ? [', HTTP ', el('strong', null, String(error.httpStatus))] : null));
+            status ? [', HTTP ', status] : null));
     }
     panel.append(el('p', {class: 'error-panel__title'}, error.title));
     if (error.action) {

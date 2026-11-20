@@ -512,7 +512,7 @@ function banner(kind, label, name, reason, writes) {
 function notice(message, options) {
     const host = document.getElementById('notices');
     const row = el('div', {class: 'notice' + (options && options.plain ? ' notice--plain' : '')}, el('span', null, message));
-    row.append(button('Dismiss', () => row.remove(), {class: 'button--quiet button--small'}));
+    row.append(button('Dismiss this notice', () => row.remove(), {class: 'button--quiet button--small'}));
     // One notice at a time: a newer statement about the tool replaces the older one.
     fill(host, row);
 }

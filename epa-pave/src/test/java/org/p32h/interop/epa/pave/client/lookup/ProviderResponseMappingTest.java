@@ -485,4 +485,15 @@ class ProviderResponseMappingTest {
             assertThat(result.wire().memberId()).isNull();
         });
     }
+
+    @Test
+    void everyValueOfARepeatedKeyIsListedAfterTheNoteAndBeforeTheFieldsOfTheBody() {
+        ProviderLookupResult result = found("{\"npi\":\"" + NPI + "\",\"lastName\":\"Provider\",\"lastName\":\"Other\",\"extra\":1}");
+        assertThat(result.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.NOTE);
+        assertThat(result.additionalFields().get(0).value()).contains("repeats a key").doesNotContain("Only the last value");
+        assertThat(result.additionalFields().subList(1, 4)).containsExactly(
+                new AdditionalField("lastName (value 1 of 2)", Presence.VALUE, "\"Provider\""),
+                new AdditionalField("lastName (value 2 of 2)", Presence.VALUE, "\"Other\""),
+                new AdditionalField("extra", Presence.VALUE, "1"));
+    }
 }

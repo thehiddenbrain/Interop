@@ -1188,6 +1188,18 @@ class CrdServiceTest {
     }
 
     @Test
+    void discoveryListsEveryValueOfAKeyTheServiceRepeats() {
+        String body = "{\"services\":[{\"hook\":\"order-sign\",\"id\":\"crd-order-sign\",\"title\":\"First\",\"title\":\"Second\","
+                + "\"description\":\"D\"}]}";
+        CrdDiscovery discovery = service(stub(TestExchanges.crd(200, body)), "mock", Map.of()).discover();
+        assertThat(discovery.services().get(0).title().value()).isEqualTo("Second");
+        assertThat(discovery.additionalFields()).extracting(f -> f.path(), f -> f.value()).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("(body)", org.p32h.interop.epa.pave.model.TrackedJson.REPEATED_KEY_NOTE),
+                org.assertj.core.groups.Tuple.tuple("services[0].title (value 1 of 2)", "\"First\""),
+                org.assertj.core.groups.Tuple.tuple("services[0].title (value 2 of 2)", "\"Second\""));
+    }
+
+    @Test
     void discoveryShowsTheMaskWhereTheServiceRepeatsASecretOfTheRequest() {
         String token = "placeholder-access-token-ABCDEF";
         String url = "https://example.org/p32h-placeholder/cds-services";

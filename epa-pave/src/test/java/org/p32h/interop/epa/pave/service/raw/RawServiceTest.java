@@ -34,6 +34,7 @@ import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.model.Tone;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.raw.RawDetail;
 import org.p32h.interop.epa.pave.model.raw.RawOutcome;
@@ -300,5 +301,16 @@ class RawServiceTest {
         mvc.perform(post("/api/raw").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"request\":{\"collectionId\":\"col-1\",\"requestId\":\"req-9\"}}"))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.verdict.outcomeCode").value("BLOCKED"));
+    }
+
+    @Test
+    void everyValueOfARepeatedKeyIsListedAndTheNoteNoLongerSaysOnlyTheLastIsShown() {
+        RunEnvelope<RawDetail> result = run(stub(TestExchanges.of(EpaOperation.UNMAPPED, 200, "{\"status\":\"first\",\"status\":\"second\",\"x\":1}",
+                false)), "{}", null);
+        assertThat(result.additionalFields()).extracting(AdditionalField::path, AdditionalField::value).contains(
+                org.assertj.core.groups.Tuple.tuple("status (value 1 of 2)", "\"first\""),
+                org.assertj.core.groups.Tuple.tuple("status (value 2 of 2)", "\"second\""));
+        assertThat(result.additionalFields()).extracting(AdditionalField::value).containsOnlyOnce(TrackedJson.REPEATED_KEY_NOTE)
+                .noneSatisfy(value -> assertThat(String.valueOf(value)).contains("Only the last value"));
     }
 }

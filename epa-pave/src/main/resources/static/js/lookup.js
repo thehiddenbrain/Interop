@@ -255,7 +255,7 @@ export function createLookup(spec) {
         const section = el('section', {class: 'panel', tabIndex: -1, aria: {label: 'What the ' + spec.subject + ' lookup returned'}},
             el('div', {class: 'panel__head'},
                 heading(2, 'What the ' + spec.subject + ' lookup returned'),
-                button('Close', closePanel, {class: 'button--quiet button--small'})),
+                button('Close what the ' + spec.subject + ' lookup returned', closePanel, {class: 'button--quiet button--small'})),
             el('p', null, answer.message),
             before ? el('p', {class: 'lookup-strip__before'}, before) : null,
             facts([

@@ -21,6 +21,7 @@ import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.pas.PasDetail;
@@ -281,6 +282,8 @@ public class PasService {
             findings.add(PasFindings.requestIncomplete(leftOut));
         }
         findings.addAll(PasFindings.check(reading));
+        // A key the body repeats is said with every value, as on CRD; the values are already among the returned fields.
+        findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 

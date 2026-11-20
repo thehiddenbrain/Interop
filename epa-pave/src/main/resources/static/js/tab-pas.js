@@ -166,7 +166,7 @@ function showMode(id) {
         if (built) {
             built.click();
         }
-        controls.modeSaid.textContent = 'A request of your own applies to a submission only. The text you pasted stays in its box for when you go back to Submit.';
+        controls.modeSaid.textContent = 'A request of your own applies to a submission only. The text you pasted stays in its box for when you go back to Send PAS request.';
     } else {
         controls.modeSaid.textContent = '';
     }
@@ -181,7 +181,7 @@ function showMode(id) {
     }
     controls.noCase.hidden = !noCase;
     controls.noCase.textContent = noCase ? 'A ' + (id === 'subscriptions' ? 'subscription call' : 'notification') + ' carries no member, provider or '
-        + 'procedure code, so the case is not shown. Choose Submit or Inquire to see it again.' : '';
+        + 'procedure code, so the case is not shown. Choose Send PAS request or Send inquiry to see it again.' : '';
     controls.expectation.node.hidden = id === 'notifications';
     const buttons = {
         submit: [controls.submit, controls.preview],
@@ -692,11 +692,11 @@ function showRun(envelope) {
     }
     const row = readoutResult().querySelector('.nextstep__row');
     // After a fault the server's step is to check the environment, and whether to ask for the status first it says in words.
-    // No inquiry is sent from here on the browser's own account; the Inquire call is filled from this submission, and the way to it is offered.
+    // No inquiry is sent from here on the browser's own account; the Send inquiry call is filled from this submission, and the way to it is offered.
     if (step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && hasClaim && row) {
         row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
-            'The Inquire call on the left is already filled with the claim identifier of this submission. ',
-            button('Choose the Inquire call', () => {
+            'Send inquiry, on the left, is already filled with the claim identifier of this submission. ',
+            button('Choose Send inquiry', () => {
                 showMode('inquire');
                 controls.inquiryClaimId.input.focus();
             }, {class: 'button--text'})));

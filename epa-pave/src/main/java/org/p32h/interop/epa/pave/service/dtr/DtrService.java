@@ -25,6 +25,7 @@ import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.dtr.DtrCode;
@@ -410,6 +411,8 @@ public class DtrService {
                                   DtrHandoff handoff, Map<String, String> correlation, Finding requestFinding) {
         Timing timing = support.timing(exchange);
         List<Finding> findings = new ArrayList<>(DtrFindings.check(reading));
+        // A key the body repeats is said with every value, as on CRD; the values are already among the returned fields.
+        findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
         addIfPresent(findings, requestFinding);
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));

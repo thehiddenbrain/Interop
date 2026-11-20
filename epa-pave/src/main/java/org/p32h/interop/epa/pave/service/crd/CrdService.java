@@ -317,7 +317,8 @@ public class CrdService {
         // The services are read through the mask, as a run's response is, so a secret the service repeats is not shown here.
         VendorExchange exchange = client.discover(call).withReturnedSecretsMasked();
         List<CrdDiscovery.Service> services = new ArrayList<>();
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        // Every value of a key the body repeats is listed, as on a run, so an earlier value is not on the wire view alone.
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         if (exchange.json() != null) {
             TrackedJson tracked = TrackedJson.of(exchange.json());
             for (TrackedJson.Node service : tracked.root().children("services")) {
@@ -426,11 +427,18 @@ public class CrdService {
             // Two answers for one code are told apart by where each sat, so their rows do not merge.
             boolean twin = coverage.stream().filter(other -> other.subject().equals(view.subject())).count() > 1;
             String subject = named ? view.subject() + (twin ? " (" + view.foundAt() + ")" : "") : null;
-            rows.add(row(subject, "Covered", CrdCodes.COVERED, view.covered()));
-            rows.add(row(subject, "Prior authorization", CrdCodes.PA_NEEDED, view.paNeeded()));
-            rows.add(row(subject, "Documentation", CrdCodes.DOC_NEEDED, view.docNeeded()));
-            view.docPurpose().forEach(value -> rows.add(row(subject, "Documentation purpose", CrdCodes.DOC_PURPOSE, value)));
-            view.infoNeeded().forEach(value -> rows.add(row(subject, "Information needed", CrdCodes.INFO_NEEDED, value)));
+            // A sub-extension sent with no value[x] is said to be that, as the coverage table says it, and not "empty".
+            rows.add(row(subject, "Covered", CrdCodes.COVERED, view.covered(), view.sentWithNoValue(CrdCodes.COVERED)));
+            rows.add(row(subject, "Prior authorization", CrdCodes.PA_NEEDED, view.paNeeded(), view.sentWithNoValue(CrdCodes.PA_NEEDED)));
+            rows.add(row(subject, "Documentation", CrdCodes.DOC_NEEDED, view.docNeeded(), view.sentWithNoValue(CrdCodes.DOC_NEEDED)));
+            for (int i = 0; i < view.docPurpose().size(); i++) {
+                rows.add(row(subject, "Documentation purpose", CrdCodes.DOC_PURPOSE, view.docPurpose().get(i),
+                        view.sentWithNoValue(CrdCodes.DOC_PURPOSE + "[" + i + "]")));
+            }
+            for (int i = 0; i < view.infoNeeded().size(); i++) {
+                rows.add(row(subject, "Information needed", CrdCodes.INFO_NEEDED, view.infoNeeded().get(i),
+                        view.sentWithNoValue(CrdCodes.INFO_NEEDED + "[" + i + "]")));
+            }
             if (view.satisfiedPaId().presence() != Presence.ABSENT) {
                 rows.add(new DeterminationRow(subject, "Identifier for the requirements already met", view.satisfiedPaId().orNull(), null,
                         CrdCodes.SATISFIED_PA_ID, true, view.satisfiedPaId().presence()));
@@ -447,8 +455,8 @@ public class CrdService {
         return rows;
     }
 
-    private static DeterminationRow row(String subject, String label, String element, CodedValue value) {
-        return new DeterminationRow(subject, label, value.code(), value.display(), element, value.recognised(), value.presence());
+    private static DeterminationRow row(String subject, String label, String element, CodedValue value, boolean noValue) {
+        return new DeterminationRow(subject, label, value.code(), value.display(), element, value.recognised(), value.presence(), noValue);
     }
 
     private static void addIfPresent(List<Finding> findings, Finding finding) {

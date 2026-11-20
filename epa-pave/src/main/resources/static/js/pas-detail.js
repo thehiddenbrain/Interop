@@ -328,7 +328,8 @@ function itemsPart(items, lists) {
         items.map(item => el('div', {class: 'detail__item'},
             el('p', {class: 'detail__item-head'},
                 el('span', {class: 'sub-heading'}, 'Item ', shown(item.itemSequence, {as: 'literal'}),
-                    item.subject ? [' for ', code(item.subject)] : null),
+                    // An item tied to no code is the subject "item n" of itself, which would read "Item 1 for item 1".
+                    item.subject && item.procedureCode ? [' for ', code(item.subject)] : null),
                 el('span', {class: 'small quiet'}, 'at ', code(item.foundAt))),
             item.procedureCode ? null : el('p', {class: 'small quiet'}, 'This item could not be tied to a requested procedure code.'),
             (item.reviewActions || []).length > 0
@@ -372,7 +373,7 @@ function issuesPart(issues, envelope) {
     }
     const alsoInPanel = envelope && envelope.error && envelope.error.issues && envelope.error.issues.length > 0;
     return el('section', {class: 'detail__part'}, heading(4, 'Issues in the OperationOutcome', issues.length),
-        alsoInPanel ? el('p', {class: 'quiet'}, 'They are listed issue by issue under "What went wrong", at the end of this result.')
+        alsoInPanel ? el('p', {class: 'quiet'}, 'They are listed issue by issue in the error panel at the end of this result.')
             : issuesTable(issues));
 }
 

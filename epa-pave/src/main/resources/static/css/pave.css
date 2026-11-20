@@ -1927,6 +1927,11 @@ details.fold > :not(summary) {
     padding-top: 2px;
 }
 
+/* Wide enough for the words "not measured" of a step nobody timed, which 84px clipped at a laptop width. */
+.chain-runs th.col-time {
+    width: 112px;
+}
+
 .chain-view {
     display: flex;
     flex-direction: column;

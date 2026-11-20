@@ -32,7 +32,7 @@ export function dtrDetail(envelope) {
     if (issues.length > 0) {
         const alsoInPanel = envelope.error && envelope.error.issues && envelope.error.issues.length > 0;
         append(node, part(heading(4, 'Issues in the OperationOutcome', issues.length),
-            alsoInPanel ? el('p', {class: 'quiet'}, 'They are listed issue by issue under "What went wrong", at the end of this result.') : issuesTable(issues)));
+            alsoInPanel ? el('p', {class: 'quiet'}, 'They are listed issue by issue in the error panel at the end of this result.') : issuesTable(issues)));
     }
 
     if (detail.form) {

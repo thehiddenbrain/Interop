@@ -72,4 +72,18 @@ class CrdNoValueTest {
                 .doesNotContain("no value[x]");
         assertThat(about(findings("{\"url\":\"covered\",\"valueCode\":null}"), "covered")).contains("its value is null");
     }
+
+    @Test
+    void theDeterminationGridSaysASubExtensionWasSentWithNoValueAndAnEmptyOneIsJustEmpty() {
+        List<org.p32h.interop.epa.pave.model.DeterminationRow> bare = CrdService.determination(mapper.read(TestExchanges.crd(200,
+                body("{\"url\":\"covered\"},{\"url\":\"pa-needed\",\"valueCode\":\"\"},{\"url\":\"doc-purpose\",\"valueCode\":\"withpa\"},"
+                        + "{\"url\":\"doc-purpose\"}"))));
+        assertThat(bare).extracting(org.p32h.interop.epa.pave.model.DeterminationRow::label, org.p32h.interop.epa.pave.model.DeterminationRow::presence,
+                org.p32h.interop.epa.pave.model.DeterminationRow::sentWithNoValue).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("Covered", Presence.EMPTY, true),
+                org.assertj.core.groups.Tuple.tuple("Prior authorization", Presence.EMPTY, null),
+                org.assertj.core.groups.Tuple.tuple("Documentation", Presence.ABSENT, null),
+                org.assertj.core.groups.Tuple.tuple("Documentation purpose", Presence.VALUE, null),
+                org.assertj.core.groups.Tuple.tuple("Documentation purpose", Presence.EMPTY, true));
+    }
 }

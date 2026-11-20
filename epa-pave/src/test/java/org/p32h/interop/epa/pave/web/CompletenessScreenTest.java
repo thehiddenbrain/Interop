@@ -41,7 +41,8 @@ class CompletenessScreenTest {
             new Read("pas-detail.js", "decision.authorizedPeriod", PasDecision.class, "authorizedPeriod"),
             new Read("pas-detail.js", "item.lists", PasItemView.class, "lists"),
             new Read("pas-detail.js", "adjudication.lists", AdjudicationView.class, "lists"),
-            new Read("dtr-items.js", "item.lists", ItemView.class, "lists"));
+            new Read("dtr-items.js", "item.lists", ItemView.class, "lists"),
+            new Read("result.js", "row.sentWithNoValue", org.p32h.interop.epa.pave.model.DeterminationRow.class, "sentWithNoValue"));
 
     @Test
     void everyPresenceAScriptDrawsIsOnTheRecordTheServerSends() throws IOException {

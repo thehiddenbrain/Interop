@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.crd;
 import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Shown;
@@ -22,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Says what a CRD result means in plain language, and what the tester should do next.
@@ -141,9 +143,7 @@ public final class CrdVerdicts {
             case SERVICE_ERROR -> "The service failed" + status(exchange) + ".";
             case TIMEOUT -> "The service did not answer in time.";
             case UNREACHABLE -> "The service could not be reached.";
-            case MALFORMED_RESPONSE -> reading.detail().responseKind() == CrdResponseKind.NO_BODY
-                    ? "The service answered with no body" + status(exchange) + "."
-                    : "The service answered with a body that could not be read" + status(exchange) + ".";
+            case MALFORMED_RESPONSE -> malformedHeadline(reading, exchange);
         };
         // A played timeout is described once, by the error panel beside the verdict.
         if (outcome.fault() && Texts.present(exchange.failureDetail()) && !exchange.playedTimeout()) {
@@ -492,6 +492,27 @@ public final class CrdVerdicts {
             values.add(value);
         }
     }
+
+    /**
+     * What came, for an answer that is not what the hook returns. A Patient reads perfectly well,
+     * so it is not said to be a body that could not be read: it is said to be what it says it is.
+     */
+    private static String malformedHeadline(CrdReading reading, VendorExchange exchange) {
+        CrdResponseKind kind = reading.detail().responseKind();
+        if (kind == CrdResponseKind.NO_BODY) {
+            return "The service answered with no body" + status(exchange) + ".";
+        }
+        if (kind != CrdResponseKind.OTHER_JSON) {
+            return "The service answered with a body that could not be read" + status(exchange) + ".";
+        }
+        String type = exchange.json() == null ? null : JsonSafe.presentText(exchange.json(), "resourceType");
+        // Only a name shaped like a FHIR resource type goes into the headline; any other text stays among the returned fields.
+        return type != null && RESOURCE_TYPE.matcher(type).matches()
+                ? "The service answered with a FHIR " + type + " resource, not a CDS Hooks response" + status(exchange) + "."
+                : "The service answered with JSON that is not a CDS Hooks response" + status(exchange) + ".";
+    }
+
+    private static final Pattern RESOURCE_TYPE = Pattern.compile("[A-Z][A-Za-z]{1,63}");
 
     private static String status(VendorExchange exchange) {
         return exchange.httpStatus() == null ? "" : " (HTTP " + exchange.httpStatus() + ")";
