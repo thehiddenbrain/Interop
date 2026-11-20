@@ -17,7 +17,8 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-136, D-140 | The operator named 2.0.1 as the version of the Da Vinci guides to hold the tool to | All three protocols were compared with 2.0.1 by auditors who wrote none of the code and brought in line under four rules (D-140); what is still open is in `PROGRESS.md`. Which version the vendor sandbox follows is still not known |
 | D-143 | The production guardrail judges where a request goes, not only which environment is active | The guardrail audit got writes through to production four ways before this; how it was closed, and what it still cannot see (D-145) |
 | D-141 | A value nobody supplied is never invented, and a request says what it left out | A service that refuses such a request is not at fault, and the result says so |
-| D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); no business tester has used the tool |
+| D-190, D-206 to D-208 | The frontend is merged and joined into one tool, and the screens read the server's words | The two proofs before handover were seen on the real tabs on mock by browser scripts (D-208); an automated walkthrough by an agent playing a business tester ran on `9e285a1` and is not a sign-off; no person has used the tool |
+| D-236 to D-244 | The fixes for the house style, completeness and walkthrough audits are merged | Checked by nobody but their authors |
 | D-213 | The configuration store keeps uploads exactly as uploaded, and can therefore hold member data an uploaded environment or collection contains | It qualifies section 15's rule that no member data is persisted. The upload warns by the names of variables and saved examples; nothing is stripped |
 | D-210 to D-218, D-245 | The second audits of member data, the guardrail and fixtures found blockers, and their fixes are merged | Each fix was checked by an agent that did not write it (D-245): most closed, and several open one step away, among them a production address the client cannot read. Four tasks are fixing them, decided in D-246 to D-249 and not done at the revision of D-252. What is still open is first in `PROGRESS.md` |
 | D-227, D-252 | Four questions put to the operator have no answer | The guide version of the vendor's sandbox, the NPI's first digit, the bind address, a sample vendor request |
@@ -2957,7 +2958,8 @@ From `TASK_JOIN2`, on revision `0658a7c`, which holds the two server tasks.
   comes back, and pins each field a script now reads.
 - The DTR buttons take their names from the next actions' labels, so the server's next step and the
   button are one name. An issue's expression and location are drawn "not returned" or "empty" from
-  the presence flags. `exactCode`, the `testerRef` filter, the sentinel lists of each scenario,
+  the presence flags. (Since D-236 an expression or location returned null is drawn "null", from a
+  presence the server sends.) `exactCode`, the `testerRef` filter, the sentinel lists of each scenario,
   `urlValues` with a field per url part, and the 422 of an incomplete url at its field are read.
   The comparison shows the caveat once, also on an answer that is not comparable, and drops the
   duplicate in `notes` by its text.
@@ -2996,7 +2998,9 @@ raw resolve note. The body source of a raw send is still undecided at the revisi
   through DTR ("The questionnaire response is complete.") into PAS ("The answers completed in DTR
   will travel with this request."), and the answer typed in DTR (`"valueInteger" : 17`) was seen in
   the PAS preview and, after the send, in the wire view. On mock the wire says the request was not
-  sent, because nothing leaves the machine. A business tester has not done either.
+  sent, because nothing leaves the machine. A business tester has not done either. (Since D-241 a
+  no-determination line has next action `REPORT_NO_DETERMINATION`. The two proofs were seen again by
+  the automated walkthrough on `9e285a1`, which is not a sign-off.)
 - The hand-over between the real tabs was seen by both passes, and a journey was found again as one
   chain in History. One journey was driven with the keyboard alone by the second pass (31 presses of
   Tab to reach the package button, 38 to reach the PAS send).
@@ -3570,8 +3574,8 @@ out again by its author and a named test failed, except line 7, which changed on
    response arrived inside the read timeout", and on PAS no "The payer may have received the
    submission". The next step keeps its action and its carry, so the screens offer what they offer
    after a real timeout, and its words begin "Next, had this been a real service:" (for a PAS
-   submission: "the payer might have received the submission: ask for its status before sending it
-   again"). `service/run/PlayedTimeouts` holds the words for CRD, DTR, PAS, subscriptions and the raw
+   submission the reason reads "Had this been a real service, the payer might have received the
+   submission: choose Send inquiry before sending it again.", in the words D-243 gave the inquiry). `service/run/PlayedTimeouts` holds the words for CRD, DTR, PAS, subscriptions and the raw
    send. Live is unchanged. The sentence `VendorExchange.SIMULATED_TIMEOUT`, which D-204 added, was
    removed: nothing read it any more.
 3. **The resolve note agrees with the raw refusal.** For a request whose url is configured but has a
@@ -3957,7 +3961,7 @@ suite on the unchanged tree, and each relied on the integrator's build.
   and the member ID in fullwidth digits or without its letter, are not recognised; a member ID whose
   digits are split by a separator, supplied by a service as an identifier, is kept in clear; and the
   fix had stopped keeping the plain numbers many FHIR servers mint, so a notification on such a
-  subscription is no longer matched to its run. Four minors more (address parts and name parts, names
+  subscription is no longer matched to its run. Five minors more (address parts and name parts, names
   that are common words, long digit codes, the suite results file, variable names the upload warning
   misses).
 - **Guardrail (V3):** M-ENC, m3, m4, T1, GAP1, m1, F-SCREEN and m2 closed; every route the audit
@@ -3970,7 +3974,14 @@ suite on the unchanged tree, and each relied on the integrator's build.
   wrong cause; an overlong or look-alike encoding of a slash is not refused (the second route: a read
   reshaped with one, and writes to an environment with one in its base path, reached a production
   stand-in, which matters only behind a server that decodes such bytes); a short secret in a
-  notification is shown with no note; a false "same server" warning.
+  notification is shown with no note; a false "same server" warning. The check folded into N3, as
+  depending on the server, neighbours of m3 that are not above 0x7F and that no decision covers: a
+  non-production environment on production's server whose base path holds `%00`, `%20` or `%2e` was
+  accepted with the m4 warning, and its writes reached production's port; and a production
+  environment whose base path holds `%2F` did not protect the decoded spelling, so a sandbox there
+  took a submit. These matter only behind a server that decodes such bytes. Also, a neighbour of m2:
+  the unlocked panel's other sentence ("It ends with any change to the configuration... A restart of
+  the tool ends it too") is incomplete, though no longer untrue. None of these was given to a task.
 - **Fixtures (V4):** F-CHAIN-DTR, F-DUP-CRDSENT, F-PAS-SHADOW, F-SAMPLE-LIST, F-PAS-CRDMAP-HIDDEN,
   F-ORPHAN, F-UNMATCHED-LOOP and F-NPI-TEST closed; F-V4-02-REST recorded as the known limit of D-224.
   F-RAW open one step away: a sentinel NPI in a pasted body is ignored, while the README says it
@@ -4043,7 +4054,9 @@ of each. `PROGRESS.md` marks every line one of them is meant to close.
    run, whose text made it so. Never a secret.
 3. **No request leaves with a percent-escape of a byte above 0x7F in its path** (N3), by the rule and the
    refusal of D-211; an environment whose base address holds one is reported at upload. A FHIR path is
-   plain ASCII. The query is not touched.
+   plain ASCII. The query is not touched. This leaves out the neighbours of m3 that are not above 0x7F
+   (`%00`, `%20` and `%2e` in a base path on production's server, and a production base path holding
+   `%2F` that does not protect its decoded spelling, D-245): no task closes them.
 4. **A short secret in a notification** (N4): the notification's notes say, as the wire view does, that a
    secret was too short to search for.
 5. **The "same server" warning** (N5) for a production environment whose port could not be read says
@@ -4175,8 +4188,8 @@ task (`left3-server` at `c15250c`), the last screens pass (`screens-fix` at `e99
 1. Nothing conflicted in any of these merges. The completeness fix and the walkthrough fix both changed
    `static/js/result.js` and `css/pave.css`, in different places (the issues table and the list helpers
    against the verdict strip and its import line; the issues grid against the verdict section). The
-   style gate's fix and the other two both changed `CrdControllerTest` (renamed fixture surnames against
-   new assertions). Each merged cleanly.
+   style gate's fix and the walkthrough fix both changed `CrdControllerTest` (renamed fixture surnames
+   against new assertions). Each merged cleanly.
 2. The integrator changed no code in this stretch. It kept the note at the top of `PROGRESS.md`
    current as the work was merged and as audits and checks reported, until these records replaced it.
 3. The line was built through the shared build wrapper as it grew: 2714 tests at `9e285a1` (the last
