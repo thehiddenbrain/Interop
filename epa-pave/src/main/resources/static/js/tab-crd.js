@@ -12,10 +12,12 @@ import {textField, selectField, setOptions} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
 import {createWorkbench, requestPreviewPanel} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
+import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
 
 let app = null;
 let bench = null;
+let comparison = null;
 // What the scenarios endpoint serves: the mock scenarios, every outcome with its label and tone,
 // and the element names an expectation may assert on. Nothing of it is kept in this file.
 let vocabulary = {outcomes: new Map(), elements: [], scenarios: null};
@@ -34,6 +36,7 @@ function mount(panel, application) {
     controls.hookSign = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-sign', value: 'order-sign', checked: true});
     controls.hookSelect = el('input', {type: 'radio', name: 'crd-hook', id: 'crd-hook-select', value: 'order-select'});
     controls.date = textField({label: 'Date of service', field: 'dateOfService', placeholder: 'YYYY-MM-DD'});
+    controls.prefetch = el('input', {type: 'checkbox', id: 'crd-prefetch', checked: true});
     controls.scenarioSlot = el('div', {class: 'field--wide'});
     controls.expected = selectField({label: 'Expected outcome (optional)', field: 'expected'});
     controls.assertions = el('div', {class: 'assertions'});
@@ -52,6 +55,10 @@ function mount(panel, application) {
                 el('label', {class: 'choice', htmlFor: 'crd-hook-sign'}, controls.hookSign, code('order-sign')),
                 el('label', {class: 'choice', htmlFor: 'crd-hook-select'}, controls.hookSelect, code('order-select')))),
         el('div', {class: 'field-grid'}, controls.date.node, controls.testerRef.node, controls.scenarioSlot, controls.note.node),
+        el('div', {class: 'field', dataset: {field: 'includePrefetch'}},
+            el('label', {class: 'choice', htmlFor: 'crd-prefetch'}, controls.prefetch, 'Send prefetch'),
+            el('span', {class: 'field__hint'}, 'The Patient, the Coverage and the provider go in the request as prefetch. '
+                + 'Without them the service has to fetch them from a fhirServer, and the request notes say whether one is sent.')),
         el('p', null, controls.discover));
     // What the tester expects is the last thing set before sending, so it sits with the button
     // and is in view however far the case above it has been scrolled.
@@ -62,14 +69,20 @@ function mount(panel, application) {
         bench.problem,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
     bench.track(controls.send, controls.preview, controls.discover);
-    bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request',
+    controls.ownRequest = bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request',
         modeChanged: () => { if (!bench.hasResult()) { drawEmptyState(); } }});
-    bench.useRunValues({operation: () => 'crd-' + (controls.hookSelect.checked ? 'order-select' : 'order-sign')});
+    bench.useRunValues({operation});
     bench.form.addEventListener('input', drawExpectedText);
     bench.form.addEventListener('change', drawExpectedText);
 
     slots.preview = bench.slot('preview');
     slots.discovery = bench.slot('discovery');
+    slots.compare = bench.slot('compare');
+    comparison = createComparison({
+        app, bench, ownRequest: controls.ownRequest, slot: slots.compare,
+        buildRequest, operation, fill: fillFromComparison, useBuilt, useMemberId: value => app.caseContext.setMemberId(value),
+        track: (...list) => bench.track(...list)
+    });
     addAssertionRow();
     drawEmptyState();
     loadVocabulary();
@@ -204,10 +217,17 @@ function drawExpectedText() {
 
 /* ---------- sending ---------- */
 
+/** The operation the hook on the form is sent as, as the configuration names it. */
+function operation() {
+    return 'crd-' + (controls.hookSelect.checked ? 'order-select' : 'order-sign');
+}
+
 function buildRequest() {
     const request = {hook: controls.hookSelect.checked ? 'order-select' : 'order-sign', ...app.caseContext.request(), ...bench.requestFields()};
     const optional = {
         dateOfService: controls.date.value(),
+        // Left out when it is to be sent, which is what the server takes an absent value to mean.
+        includePrefetch: controls.prefetch.checked ? undefined : false,
         scenarioId: controls.scenario ? controls.scenario.value() : '',
         expected: expectedText(),
         testerRef: controls.testerRef.value(),
@@ -228,6 +248,8 @@ function buildRequest() {
 async function send() {
     const answer = await bench.call(() => api.postJson('/api/crd', buildRequest()), {saying: 'Sending the CRD request.', control: controls.send});
     if (answer) {
+        // A comparison on screen is folded away, so the result below it is what is in view.
+        comparison.fold();
         // The request that went out is in the wire view of the result, so the one shown beforehand is put away.
         clear(slots.preview);
         bench.showResult(answer.body, {detailTitle: 'CRD response detail', detail: envelope => crdDetail(envelope, vocabulary)});
@@ -241,6 +263,99 @@ async function showPreview() {
         fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
         bench.say('The request is shown. Nothing was sent.');
     }
+}
+
+/* ---------- filling the form from a pasted request ---------- */
+
+/** Chooses the request this tool builds from the form, as the tester would by choosing it. */
+function useBuilt() {
+    const built = controls.ownRequest.node.querySelector('input[type="radio"][value="built"]');
+    if (built && !built.checked) {
+        built.click();
+    }
+    built.focus();
+}
+
+/**
+ * Puts on the form each value the comparison read out of the pasted request: the hook, the
+ * member, the provider, the codes and the date of service. A value the form already had was used
+ * as it is by the comparison and is left alone. Returns what was filled and what was left, in
+ * words, for the comparison to say.
+ *
+ * A detail of the member or the provider is put in its field as typing would put it, so the case
+ * marks it as typed by hand: a lookup did not give it. The member ID and the NPI are looked up,
+ * as they are when a tester types one and leaves the field.
+ */
+function fillFromComparison(answer) {
+    const filled = [];
+    const leftAlone = [];
+    const codes = new Map();
+    const valueOf = source => (source.value && source.value.presence === 'VALUE' ? String(source.value.value) : null);
+    let memberId = null;
+    let npi = null;
+    const details = [];
+    for (const source of answer.caseSource || []) {
+        const label = source.label || source.field;
+        if (source.source !== 'YOUR_REQUEST') {
+            leftAlone.push(label + ' (the form\'s own value was used)');
+            continue;
+        }
+        const value = valueOf(source);
+        if (value === null) {
+            leftAlone.push(label + ' (no value was read)');
+            continue;
+        }
+        const codePart = /^procedureCodes\[(\d+)\]\.(code|system|description)$/.exec(source.field);
+        if (codePart) {
+            const entry = codes.get(codePart[1]) || {};
+            entry[codePart[2]] = value;
+            codes.set(codePart[1], entry);
+            filled.push(label + ' ' + value);
+        } else if (source.field === 'hook') {
+            (value === 'order-select' ? controls.hookSelect : controls.hookSign).checked = true;
+            filled.push(label + ' ' + value);
+        } else if (source.field === 'dateOfService') {
+            controls.date.set(value);
+            filled.push(label + ' ' + value);
+        } else if (source.field === 'member.memberId') {
+            memberId = value;
+            filled.push(label + ' ' + value + ', looked up');
+        } else if (source.field === 'provider.npi') {
+            npi = value;
+            filled.push(label + ' ' + value + ', looked up');
+        } else {
+            const input = app.caseContext.node.querySelector('[data-field="' + source.field + '"] input');
+            if (input) {
+                details.push([input, value]);
+                filled.push(label);
+            } else {
+                leftAlone.push(label + ' (the form has no field for it)');
+            }
+        }
+    }
+    for (const entry of answer.notFound || []) {
+        leftAlone.push((entry.label || entry.field) + ' (not found in your request)');
+    }
+    if (memberId !== null) {
+        app.caseContext.setMemberId(memberId);
+    }
+    const npiInput = app.caseContext.node.querySelector('[data-field="provider.npi"] input');
+    if (npi !== null && npiInput) {
+        npiInput.value = npi;
+        npiInput.dispatchEvent(new Event('input', {bubbles: true}));
+        // Leaving the field is what looks an NPI up.
+        npiInput.dispatchEvent(new FocusEvent('blur'));
+    }
+    // The details go in after their identifier, so the identifier's lookup keeps them as typed.
+    for (const [input, value] of details) {
+        input.value = value;
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+    if (codes.size > 0) {
+        app.caseContext.setCodes(Array.from(codes.keys()).sort((one, other) => Number(one) - Number(other)).map(key => codes.get(key)));
+    }
+    drawExpectedText();
+    return {filled, leftAlone};
 }
 
 /* ---------- discovery ---------- */
@@ -322,6 +437,7 @@ function onConfigChange() {
     // usually the very answer that said the configuration had changed, and it says what to do.
     clear(slots.preview);
     bench.markStale();
+    comparison.markStale();
     loadVocabulary();
 }
 
