@@ -97,8 +97,9 @@ It runs about 2,700 tests and takes a few minutes. Correct output ends with:
 > Task :check
 > Task :build
 
-BUILD SUCCESSFUL in 3m 2s
+BUILD SUCCESSFUL in 3m 13s
 11 actionable tasks: 9 executed, 2 from cache
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.0/userguide/configuration_cache_enabling.html
 ```
 
 The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
@@ -1800,8 +1801,8 @@ section repeats what a tester or a maintainer needs to know.
   Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
   time, and a file in the home directory caps the memory Gradle may use. `./gradlew` itself was not
   run for this revision: its Gradle part was run through that wrapper (`bootJar`, then
-  `clean build`). The build in step 3 is that run of `clean build`. No fresh clone was built for
-  this revision.
+  `clean build`). The build in step 3 is that run of `clean build`: 2,707 tests, 2 skipped, 0
+  failed. No fresh clone was built for this revision.
 - **`run.sh`** was started from another directory with the jar present, as
   `./run.sh mock --server.port=8153 --codelist.file=samples/codelist/sample-code-list.csv` (port 8057
   was not used on that machine), and printed the lines of step 4 with 8153 in place of 8057, the
