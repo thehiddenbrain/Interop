@@ -4,6 +4,14 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Read this first.** The four tasks this file records as started and not done, and whose lines
+below end with the words "being fixed", are merged in the revision that holds this file. The
+integrator built the line with them through the shared wrapper: 2826 tests, 2824 passed, 2 skipped,
+none failed. The lines below have not yet been settled one by one against what those tasks did, and
+neither have the README's: until they are, read every line marked "being fixed" as "a fix is merged
+and has been checked by nobody but its author". An independent check of these fixes is running and
+had not reported when this note was written.
+
 This describes revision `e1d37dc` on branch `epa-pave`, which is on the remote. It holds the line of
 `5763c41` (the fix wave, the leftover tasks, the five tabs joined into one tool, the server work the
 screens asked for, and the fixes for the second run of V2, V3 and V4), and, merged since: the README
