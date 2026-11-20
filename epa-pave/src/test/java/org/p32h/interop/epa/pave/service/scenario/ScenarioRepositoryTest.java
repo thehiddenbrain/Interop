@@ -267,10 +267,18 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("crd/good.json"), MINIMAL);
         Files.writeString(dir.resolve("crd/broken.json"), "{\"id\": \"oops\"");
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
+        // Its own type, so a suite can tell the tool's files from a row that is not valid; a single run still gets HTTP 422.
         assertThatThrownBy(() -> external.select("crd", MockSelection.of(null, "P32H-PA-REQ", null)))
-                .isInstanceOf(BadInputException.class)
-                .hasMessageStartingWith("The mock scenarios for crd cannot be used, so nothing was answered. broken.json: ");
-        assertThatThrownBy(() -> external.list("crd")).isInstanceOf(BadInputException.class);
+                .isInstanceOf(ScenarioSetUnusableException.class).isInstanceOf(BadInputException.class)
+                .hasMessageStartingWith("The mock scenarios for crd cannot be used, so nothing was answered. broken.json: ")
+                .satisfies(e -> {
+                    ScenarioSetUnusableException unusable = (ScenarioSetUnusableException) e;
+                    assertThat(unusable.protocolDirectory()).isEqualTo("crd");
+                    assertThat(unusable.problems()).singleElement().asString().startsWith("broken.json: ");
+                    assertThat(unusable.action()).isEqualTo("Put the files named right, then run again. The scenario list for crd shows the "
+                            + "same problems.");
+                });
+        assertThatThrownBy(() -> external.list("crd")).isInstanceOf(ScenarioSetUnusableException.class);
         // The listing still shows what is wrong, so the tester can see which file to fix.
         assertThat(external.load("crd").problems()).singleElement().asString().startsWith("broken.json: ");
     }
@@ -303,7 +311,6 @@ class ScenarioRepositoryTest {
     @Test
     void theBundledScenariosPassTheCheckAtStartUp() {
         bundled.checkEveryProtocol();
-        bundled.afterPropertiesSet();
         for (String protocol : ScenarioRepository.PROTOCOLS) {
             assertThat(bundled.load(protocol).problems()).as(protocol).isEmpty();
         }
@@ -334,7 +341,7 @@ class ScenarioRepositoryTest {
         Files.delete(dir.resolve("raw"));
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
 
-        assertThatThrownBy(external::afterPropertiesSet).isInstanceOf(IllegalStateException.class).hasMessage(
+        assertThatThrownBy(external::checkEveryProtocol).isInstanceOf(IllegalStateException.class).hasMessage(
                 "The mock scenarios in " + dir + " (app.scenario-dir) cannot be used, so the tool does not start."
                         + " Mock scenarios for crd: crd-02-truncated.json: The file is not valid JSON (line 1, column 26)."
                         + " crd-05-misspelt.json: it has a key this tool does not know: sentinelMemberID. Check its spelling."
@@ -407,8 +414,11 @@ class ScenarioRepositoryTest {
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":[\"P32H-A\",\"W123456789\"],")))
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
+        // Said in terms a tester editing the file can act on, not as a call into this tool's code.
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpi\":\"9999999999\",")))
-                .hasMessageStartingWith("one of its sentinel NPIs does not pass the NPI check");
+                .hasMessage("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. Use ten digits whose "
+                        + "last digit is the NPI check digit of the first nine, such as 9999999995.");
+        assertThat(Npi.isValid("9999999995")).isTrue();
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":\"P32H-A\",")))
                 .hasMessage("its sentinelMemberIds is not a list.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpis\":[9999999995],")))
@@ -427,5 +437,20 @@ class ScenarioRepositoryTest {
                 .hasMessage("it has keys this tool does not know: respnse, sentinel. Check their spelling.");
         // The sections a protocol reads for itself are known keys.
         ScenarioRepository.parse("x.json", scenario("a", 1, "\"nextQuestion\":{},\"paths\":[],\"responses\":[],\"steps\":{},"));
+    }
+
+    @Test
+    void anUnknownKeyIsQuotedOnlyWhenItLooksLikeAKeyName() {
+        // An ID pasted where a key belongs is data. The refusal is logged at start-up and shown on screen, so it is counted, not quoted.
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"S123456789\":\"x\",")))
+                .hasMessage("it has a key that is not a scenario key and does not look like one, so it is not quoted here. "
+                        + "Check the file's top-level keys.")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("S123456789"));
+        assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"respnse\":{},\"P32H-X 01\":1,\"S1234567801\":2,")))
+                .hasMessage("it has a key this tool does not know: respnse, and 2 keys that are not a scenario key and do not look like one, "
+                        + "so they are not quoted here. Check the file's top-level keys.")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("S1234567801").doesNotContain("P32H-X"));
+        // Every key the loader knows has the shape that is quoted, so a misspelling of one is always named.
+        assertThat(ScenarioRepository.KNOWN_KEYS).allSatisfy(key -> assertThat(ScenarioRepository.unknownKeys(List.of(key))).contains(key));
     }
 }

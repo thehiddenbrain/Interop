@@ -33,11 +33,20 @@ class EveryScenarioDirectoryTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-03-10T15:00:00Z"), ZoneId.of("America/New_York"));
 
     /**
-     * Anything shaped like a member ID or an NPI: up to three letters and then eight or more
-     * digits, standing alone, anywhere in the file including inside a longer text. And the spaced
-     * Medicare form, nine characters, three spaces and two digits.
+     * Anything shaped like a member ID or an NPI: eight or more digits, with up to three letters
+     * before them, anywhere in the file, inside a longer text or a longer run of letters and
+     * digits too. What stands before the digits is not looked at, so a long letter prefix or a
+     * mix of letters and digits cannot hide one. And the spaced Medicare form, nine characters,
+     * three spaces and two digits.
      */
-    private static final Pattern LOOKS_LIKE_AN_IDENTIFIER = Pattern.compile("(?<![A-Za-z0-9])[A-Za-z]{0,3}\\d{8,}(?![0-9])");
+    private static final Pattern LOOKS_LIKE_AN_IDENTIFIER = Pattern.compile("[A-Za-z]{0,3}\\d{8,}(?![0-9])");
+    /**
+     * The Medicare Beneficiary Identifier shape: eleven letters and digits, with digits in the
+     * first, fourth, seventh, tenth and eleventh places, with or without its two dashes. It holds
+     * at most five digits in a row, so the pattern above cannot see it.
+     */
+    private static final Pattern LOOKS_LIKE_AN_MBI = Pattern.compile(
+            "(?<![A-Za-z0-9])\\d[A-Za-z][A-Za-z0-9]\\d-?[A-Za-z][A-Za-z0-9]\\d-?[A-Za-z]{2}\\d{2}(?![A-Za-z0-9])");
     private static final Pattern LOOKS_LIKE_A_SPACED_MEDICARE_ID = Pattern.compile("(?<![A-Za-z0-9])[A-Za-z0-9]{9} {3}\\d{2}(?![0-9])");
     /** A UUID, as a FHIR bundle's fullUrl carries one. Its groups of digits identify nobody. */
     private static final Pattern UUID = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
@@ -65,7 +74,7 @@ class EveryScenarioDirectoryTest {
             text = text.replace("\"" + npi + "\"", "\"\"");
         }
         List<String> found = new ArrayList<>();
-        for (Pattern pattern : List.of(LOOKS_LIKE_AN_IDENTIFIER, LOOKS_LIKE_A_SPACED_MEDICARE_ID)) {
+        for (Pattern pattern : List.of(LOOKS_LIKE_AN_IDENTIFIER, LOOKS_LIKE_AN_MBI, LOOKS_LIKE_A_SPACED_MEDICARE_ID)) {
             Matcher matcher = pattern.matcher(text);
             while (matcher.find()) {
                 found.add(matcher.group());
@@ -89,7 +98,11 @@ class EveryScenarioDirectoryTest {
     void theScanFindsAnIdentifierPlacedAnywhereInAFile() {
         // The two places the audit put one by hand, and the other shapes the scan must see.
         for (String planted : List.of("\"summary\":\"W123456789\"", "\"disposition\":\"Member W123456789 was not found\"",
-                "\"note\":\"NPI 1234567893 sent\"", "\"memberId\":\"ABC123456   01\"", "\"x\":\"S1234567801\"")) {
+                "\"note\":\"NPI 1234567893 sent\"", "\"memberId\":\"ABC123456   01\"", "\"x\":\"S1234567801\"",
+                // A long letter prefix and a letter-digit mix before the digits, which the verification planted in labels.
+                "\"label\":\"Prior authorization required (ref MBRX123456789)\"", "\"label\":\"Approved for subscriber A1B123456789\"",
+                // The Medicare Beneficiary Identifier shape, invented, with and without its dashes.
+                "\"note\":\"MBI 9ZZ9ZZ9ZZ99\"", "\"value\":\"9ZZ9-ZZ9-ZZ99\"")) {
             Scenario scenario = ScenarioRepository.parse("planted.json",
                     "{\"id\":\"p\",\"number\":1,\"label\":\"L\",\"httpStatus\":200,\"response\":{" + planted + "}}");
             assertThat(identifiersIn(scenario)).as(planted).isNotEmpty();

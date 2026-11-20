@@ -7,7 +7,6 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ScenarioBehavior;
 import org.p32h.interop.epa.pave.model.Texts;
-import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
@@ -33,8 +31,9 @@ import tools.jackson.databind.JsonNode;
 /**
  * Loads mock scenario files, one JSON file per scenario, grouped by protocol directory.
  *
- * <p>Every protocol directory is checked once when the application starts, and a damaged set
- * stops the start with each file and its reason named: a file that is not JSON or not a scenario,
+ * <p>On the mock profile every protocol directory is checked once when the application starts
+ * ({@link ScenarioCheckAtStart}), and a damaged set stops the start with each file and its reason
+ * named: a file that is not JSON or not a scenario,
  * an id used twice, a sentinel member ID or NPI claimed by two files of one protocol, a top-level
  * key the loader does not know (which is how a misspelt key shows itself), and a protocol
  * directory that is missing or empty. A damaged file left to be found at request time would turn
@@ -52,7 +51,7 @@ import tools.jackson.databind.JsonNode;
  * it broke and, at most, a key or a sentinel, which are this tool's own identifiers.
  */
 @Component
-public class ScenarioRepository implements InitializingBean {
+public class ScenarioRepository {
 
     /** Every protocol directory the mock clients read. Each must exist and hold at least one scenario. */
     public static final List<String> PROTOCOLS = List.of("crd", "dtr", "pas", "raw");
@@ -84,17 +83,11 @@ public class ScenarioRepository implements InitializingBean {
     /**
      * Every scenario for a protocol directory such as {@code crd}, in numbered order.
      *
-     * @throws BadInputException when any file of the protocol has a problem. {@link #load} lists
-     *                           the problems without refusing
+     * @throws ScenarioSetUnusableException when any file of the protocol has a problem. {@link #load}
+     *                                       lists the problems without refusing
      */
     public List<Scenario> list(String protocolDirectory) {
         return usable(protocolDirectory);
-    }
-
-    /** Refuses to start on a damaged scenario set. Spring calls this once the bean is made. */
-    @Override
-    public void afterPropertiesSet() {
-        checkEveryProtocol();
     }
 
     /**
@@ -173,14 +166,12 @@ public class ScenarioRepository implements InitializingBean {
      * The scenarios of a protocol, refused when any file of it has a problem. Every run comes
      * through here, so a set damaged while the tool runs is never answered from in part.
      *
-     * @throws BadInputException naming each file and its reason
+     * @throws ScenarioSetUnusableException naming each file and its reason
      */
     private List<Scenario> usable(String protocolDirectory) {
         Loaded loaded = load(protocolDirectory);
         if (!loaded.problems().isEmpty()) {
-            throw new BadInputException("The mock scenarios for " + protocolDirectory + " cannot be used, so nothing was answered. "
-                    + String.join(" ", loaded.problems()),
-                    "Put the files named right, then run again. The scenario list for " + protocolDirectory + " shows the same problems.");
+            throw new ScenarioSetUnusableException(protocolDirectory, loaded.problems());
         }
         return loaded.scenarios();
     }
@@ -322,8 +313,7 @@ public class ScenarioRepository implements InitializingBean {
         }
         List<String> unknown = JsonSafe.properties(root).stream().map(Map.Entry::getKey).filter(key -> !KNOWN_KEYS.contains(key)).toList();
         if (!unknown.isEmpty()) {
-            throw new IllegalArgumentException("it has " + (unknown.size() == 1 ? "a key" : "keys") + " this tool does not know: "
-                    + String.join(", ", unknown) + ". Check " + (unknown.size() == 1 ? "its" : "their") + " spelling.");
+            throw new IllegalArgumentException(unknownKeys(unknown));
         }
         List<String> memberSentinels = sentinels(root, "sentinelMemberId", "sentinelMemberIds", "sentinel member ID");
         List<String> npiSentinels = sentinels(root, "sentinelNpi", "sentinelNpis", "sentinel NPI");
@@ -337,7 +327,7 @@ public class ScenarioRepository implements InitializingBean {
         for (String sentinel : npiSentinels) {
             if (!Npi.isValid(sentinel.strip())) {
                 throw new IllegalArgumentException("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. "
-                        + "Make one with Npi.withCheckDigit.");
+                        + "Use ten digits whose last digit is the NPI check digit of the first nine, such as 9999999995.");
             }
         }
         String id = JsonSafe.presentText(root, "id");
@@ -372,6 +362,32 @@ public class ScenarioRepository implements InitializingBean {
                 parseExpect(JsonSafe.child(root, "expect")), JsonSafe.presentText(root, "basis"),
                 JsonSafe.presentText(root, "assumption"), root, source, memberSentinels, npiSentinels);
     }
+
+    /**
+     * The refusal of keys the loader does not know. A key is quoted only when it looks like a key
+     * name of this tool, letters alone and not long: those are the misspellings the refusal is for.
+     * Anything else, such as an ID pasted where a key belongs, could be data, so it is counted and
+     * not quoted, because the refusal is logged at start-up and shown on screen.
+     */
+    static String unknownKeys(List<String> unknown) {
+        List<String> named = unknown.stream().filter(key -> KEY_NAME.matcher(key).matches()).toList();
+        int unnamed = unknown.size() - named.size();
+        if (unnamed == 0) {
+            return "it has " + (named.size() == 1 ? "a key" : "keys") + " this tool does not know: " + String.join(", ", named) + ". Check "
+                    + (named.size() == 1 ? "its" : "their") + " spelling.";
+        }
+        String others = (unnamed == 1 ? "a key" : unnamed + " keys") + " that " + (unnamed == 1 ? "is" : "are")
+                + " not a scenario key and " + (unnamed == 1 ? "does" : "do") + " not look like one, so " + (unnamed == 1 ? "it is" : "they are")
+                + " not quoted here";
+        if (named.isEmpty()) {
+            return "it has " + others + ". Check the file's top-level keys.";
+        }
+        return "it has " + (named.size() == 1 ? "a key" : "keys") + " this tool does not know: " + String.join(", ", named) + ", and "
+                + others + ". Check the file's top-level keys.";
+    }
+
+    /** What a key name of this tool looks like: letters only, as every key in {@link #KNOWN_KEYS} is. */
+    private static final Pattern KEY_NAME = Pattern.compile("[A-Za-z]{1,40}");
 
     /**
      * The sentinels a file names under the single key and the list key, single first. A key that is
