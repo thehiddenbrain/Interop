@@ -290,8 +290,10 @@ class CrdControllerTest {
         assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
         assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
         assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
-        assertThat(answer.at("/notes/0").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
+        // The caveat is said once, as its own component, and not again among the notes.
+        assertThat(answer.at("/caveat").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
                 + "the service expects");
+        assertThat(answer.get("notes").toString()).doesNotContain("This comparison shows where the two requests differ");
         // One difference, in full.
         assertThat(answer.get("differences")).hasSize(34);
         JsonNode first = answer.at("/differences/0");
