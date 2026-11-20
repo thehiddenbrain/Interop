@@ -54,7 +54,8 @@ export async function openLegend(dialog) {
                         'A dashed outline: nothing is there. No answer, nothing declared, nothing returned. The words inside say which.'),
                     row(el('span', {class: 'swatch swatch--fault'}),
                         'A heavy black frame: stop and read this before the next run. A fault to report: the environment failed, the ledger is not '
-                        + 'recording, or a run was not recorded. A field or a form the server refused, with its sentence beneath it. A result made '
+                        + 'recording, or a run was not recorded. On the mock profile no environment fails: a fault of the service there is one a '
+                        + 'scenario played. A field or a form the server refused, with its sentence beneath it. A result made '
                         + 'before the configuration changed. News about the tool itself, under the tabs: the configuration changed, or the server '
                         + 'stopped answering.'),
                     row(el('span', {class: 'swatch swatch--plain'}),
