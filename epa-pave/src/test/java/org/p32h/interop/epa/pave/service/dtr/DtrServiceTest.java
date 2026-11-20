@@ -318,8 +318,8 @@ class DtrServiceTest {
 
         // Two screens.
         assertThat(empty.verdict().headline()).isEqualTo("The service answered but returned no questionnaire.");
-        assertThat(empty.verdict().supporting()).contains("The package holds 1 bundle and no questionnaire in it. The DTR guide does not "
-                + "provide for that: a package bundle starts with its questionnaire.", "This tool reports what arrived. It does not turn an "
+        assertThat(empty.verdict().supporting()).contains("The package holds 1 bundle and no questionnaire in it. DTR 2.0.1 does not "
+                + "provide for that: a package bundle starts with its questionnaire (dtrb-1).", "This tool reports what arrived. It does not turn an "
                 + "empty package into an answer that no documentation is needed.");
         assertThat(empty.verdict().tone()).isEqualTo(Tone.NO_ANSWER);
         assertThat(empty.nextStep().headline()).isEqualTo("Next: read the response detail below, and check it against what CRD said about "

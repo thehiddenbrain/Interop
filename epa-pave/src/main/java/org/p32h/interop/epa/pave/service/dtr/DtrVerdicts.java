@@ -97,7 +97,7 @@ public final class DtrVerdicts {
                 int bundles = detail.bundles().size();
                 if (bundles > 0) {
                     supporting.add("The package holds " + count(bundles, "bundle") + " and no questionnaire in " + (bundles == 1 ? "it" : "them")
-                            + ". The DTR guide does not provide for that: a package bundle starts with its questionnaire.");
+                            + ". DTR 2.0.1 does not provide for that: a package bundle starts with its questionnaire (dtrb-1).");
                 } else if (detail.responseKind() == DtrResponseKind.PARAMETERS) {
                     supporting.add("The DTR guide, from STU 2.1.0 on, has a service return no package bundle when no questionnaire needs to "
                             + "be completed.");
