@@ -271,7 +271,7 @@ With the defaults, **no vendor can reach the receiver at all**.
 
 What to do then:
 
-- Use **polling**: submit, then inquire (the Inquire call on the PAS tab, or
+- Use **polling**: submit, then inquire (`Send inquiry` on the PAS tab, or
   `POST /api/pas/inquire`). Polling needs nothing from the network beyond the outbound call and
   works on its own.
 - Subscription create, read, update and delete still work, because those are calls PAVE makes.
@@ -381,9 +381,11 @@ change with them.
   required, solid orange for something the provider must do, an orange frame for a decision that
   is not final, solid grey for a no, a dashed frame for no answer, cream for a member or provider
   the service does not know, a heavy black frame for an environment that failed, a purple frame
-  for a request the guardrail refused). The test result
-  uses green for Passed and magenta for Failed and nothing else. Cream on a form field means it
-  was typed by hand or taken from a pasted request rather than given by a lookup.
+  for a request the guardrail refused). A dotted frame in the colour of what a step means, never
+  filled, marks a step done inside this tool that nobody answered, such as completing a
+  questionnaire response ("done in this tool, nobody answered"). The test result uses green for
+  Passed and magenta for Failed and nothing else. Cream on a form field means it was typed by hand
+  or taken from a pasted request rather than given by a lookup.
 - **The chain bar.** When a case runs as a chain, a bar under the tabs shows its three stages
   (Coverage requirements (CRD), Documentation (DTR), Prior authorization request (PAS)), what each
   answered, the next step, and the buttons `Open the whole journey` and `Start a new case`.
@@ -400,8 +402,12 @@ on the other two.
 - **Ordering provider.** The NPI, with `Look up provider`. The check digit is checked first.
 - **Procedure codes.** Type a code or words of its description; the arrows choose from the code
   list and Enter adds. Each code shows what the list says about it: `PA`, `No PA`, a vendor name,
-  or nothing when the list does not say. While the bundled list is in use the box says
-  "Placeholder code list in use: its tags are synthetic, not P32H's."
+  or nothing when the list does not say. While a synthetic list is in use the box says
+  "Placeholder code list in use: its tags are synthetic, not P32H's." A code already in the case
+  is not added twice, and a chip for text that is not on the list and does not have the shape of a
+  CPT or HCPCS code says so; it is still sent as you chose it. Text left in the box and not added
+  stops the send: "Nothing was sent: "MRI" was typed in the procedure code box and not added to the
+  case."
 - **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
 - **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
   body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
@@ -418,8 +424,11 @@ on the other two.
   holds this run's member ID. The ledger keeps it as written and may not hold member data, so leave
   it out. Nothing was sent." The sentence names the kind of value, never the value. Member data the
   request does not carry (somebody else's name, say) cannot be recognised and is written as typed:
-  do not type member data into these fields. On this revision the fields carry no hint saying so
-  before you type.
+  do not type member data into these fields. Each of them carries the hint "The ledger keeps this
+  as typed. Do not type member data into it." With `A request of my own` on the CRD, DTR or PAS tab
+  the run carries no member, so these fields are checked against nothing
+  [open at this revision: being fixed]; a request sent as written from the Config tab is checked
+  against the member and subscriber identifiers its body carries.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
 
@@ -435,7 +444,8 @@ From the top:
 
 1. **The verdict strip**: one sentence in plain words, in the colour of the outcome, for example
    "Documentation is required." Beneath it, the lines that support it, and at the foot `mock` when
-   a scenario answered, and the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
+   a scenario answered (or "done in this tool, nobody answered" for a step that sent nothing), and
+   the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
 2. **Test result**, beside the strip: `Passed`, `Failed` or `Unverified`, with `Expected` (what you
    declared, or "nothing declared") and `Happened`. This is the answer to "did it match", and it is
    a different fact from the outcome.
@@ -443,6 +453,9 @@ From the top:
    tab, for example `Continue in DTR` after a CRD answer that asks for documentation, `Continue in
    PAS` after a completed questionnaire, or the PAS tab's own `Send inquiry` after a pended
    decision. "The flow ends here. Record this result." means there is nothing further to send.
+   When the service returned no determination the next step says to record the run and report it:
+   "Next: record run run-... as "no determination returned" and report it to the people who look
+   after the service."
 4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
 5. **Response time**, flagged `slow` above the threshold.
 6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
@@ -456,14 +469,25 @@ From the top:
 9. **The response detail**: cards and coverage information for CRD, the questionnaire for DTR, the
    decision for each item for PAS.
 10. **Returned but not interpreted**: everything the service sent that the tool did not use, so
-    nothing is dropped in silence. "not returned", "null", "empty" and "none returned" are four
-    different statements and none is shown as a blank.
+    nothing is dropped in silence. "not returned", "null" and "empty" are different statements,
+    in this list and in the designed views above it, and none is shown as a blank. A key repeated
+    inside one object is listed with every value, in order ("(value 1 of 2)"); on CRD a finding
+    also names it. A request sent as written and the two lookups still show only the last value
+    of a repeated key, and DTR and PAS raise no finding for it
+    [open at this revision: being fixed].
 11. **The wire view**, collapsed: the request and the response as they went over the wire. On mock
     the request reads "not sent". See [The wire view carries member data](#the-wire-view-carries-member-data).
 
 A result made before the configuration changed is marked as such in a heavy frame. A refusal by
 the server (a field it refused, a 409, a blocked write) is shown with its own sentence, beside the
-field or the button it is about.
+field or the button it is about. A fault or a refusal is shown in an error panel under the
+heading "What went wrong", whatever it is, a refusal by the guardrail included
+[open at this revision: being fixed]; inside the panel the server's own heading says what kind it
+is, for example "Refused by the production guardrail" or, on mock, "A timeout played by a mock
+scenario, not a fault in the environment". On mock, a 500, a 400 or an unreadable body that a
+scenario plays is still headed "A fault in the environment: the service failed" (or "... the
+answer could not be read"), and its action says to report it, although nothing left the machine
+[open at this revision: being fixed].
 
 ### The CRD tab
 
@@ -499,16 +523,18 @@ marked as overridden.
 
 ### The PAS tab
 
-Choose the call at the top: `Submit`, `Inquire`, `Subscriptions` or `Notifications`.
+Choose the call at the top: `Send PAS request`, `Send inquiry`, `Subscriptions` or
+`Notifications`.
 
-- **Submit.** The case, a claim identifier (blank: PAVE mints one, or uses the one handed on),
+- **Send PAS request.** The case, a claim identifier (blank: PAVE creates one, or uses the one handed on),
   diagnosis codes, attachments, then `Send PAS request`. When DTR handed on a completed response,
   the tab says "The answers completed in DTR will travel with this request.", and `Show the
   request` names the QuestionnaireResponse in the bundle. The result lists the answers inside the
-  request under "The questionnaire answers in the request built", with the values you typed, and
+  request under "The questionnaire answers in the request built, which was not sent" (on mock),
+  with the values you typed, and
   shows the decision for each item: one row per item asked about, read from the review action
   code only, never from the payer's wording.
-- **Inquire.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
+- **Send inquiry.** `Send inquiry` and `Show the inquiry`, matched by the claim identifier.
 - **Subscriptions.** `Create subscription`, `List subscriptions`, `Read subscription`, `Update
   subscription`, `Delete subscription`, each with a preview. Create, update and delete are writes.
 - **Notifications.** What the receiver has received, correlated to runs, `Ask the receiver now`,
@@ -527,10 +553,16 @@ frame. See [The production guardrail](#the-production-guardrail).
   `Export runs as CSV` downloads the runs of the chosen days, protocol and result; the tab says
   which filters the export does not take. Open a run to read it from the ledger in four
   parts, "What was expected", "What happened", "Did it match" and "What next", then what the line
-  recorded and how it ties to other runs. From there: `Save the note`, `Replay this run`, and `Load this
-  case into the form`, which puts its member, provider and codes back on the three protocol tabs.
+  recorded and how it ties to other runs: the run it follows and, under "Followed by", the runs
+  that name it, so a PAS submission sent from DTR can be traced back to the questionnaire response
+  even outside a chain. A run that sent nothing shows its time as "not measured". From there:
+  `Save the note`, `Replay this run`, and `Load this case into the form`, which puts its member,
+  provider and codes back on the three protocol tabs. Where two protocols word an outcome
+  differently, the Outcome filter gives each wording with the protocols that use it.
 - **Chains**: one row for each case followed through CRD, DTR and PAS. Open one to see its whole
   journey on one screen: each stage with its runs, and for a stage that did not run, the reason.
+  The list of chains does not yet draw the dotted mark of a step nobody answered
+  [open at this revision: being fixed].
 - **Suite runs**: choose a suite file; PAVE says what it would run and what is wrong with the file
   before anything is sent. `Run suite` runs it, and the result counts the cases by result, for
   example "Finished: 6 cases. 4 passed, 1 failed, 1 unverified." `Download a suite file template
@@ -546,23 +578,21 @@ Five parts, chosen at the top:
   whether writes are blocked), where uploaded files are kept, and for every operation the address
   a run would go to, where it comes from and whether it can be sent now. On a production
   environment this is where writes are unlocked for this browser session: type the active
-  environment's name exactly and choose `Unlock production writes for this session`. With nothing
+  environment's name exactly and choose `Unlock production writes for this browser session`. With nothing
   uploaded it walks you through the three steps: upload the environment, make it active, upload
   the collection.
-- **Environments**: upload a Postman environment, saying whether it is `sandbox`, `uat` or `prod`
+- **Environments**: `Upload an environment`, saying whether it is `sandbox`, `uat` or `prod`
   (the tool never guesses), make one active, remove one. What the server warns about a file is
   shown under the upload as "The tool has one warning about this file" (or the number), among them
   a variable whose name reads as member data, a secret typed into the file, and an address the tool
   cannot read, has an encoded separator in its path, or shares a server with a production
-  environment. On this revision the list of environments and the answer of a switch do not show
-  the address warnings again: read them at upload, or in `addressWarnings` of
-  `GET /api/config/environments`.
-- **Collections and mapping**: upload a collection, see which request each operation uses and how
+  environment. The address warnings stay on the environment in the list and on In force now.
+- **Collections and mapping**: `Upload a collection`, see which request each operation uses and how
   it was mapped, change a mapping (`Choose a request`), remove a collection. The upload warns, as
   for an environment, about a credential typed into the collection and about requests that carry a
   saved example response, which can hold the member data of whoever it was saved for.
-- **Send a request as written**: any request of the collection, sent with its own method, url,
-  headers and body (`Send this request as written`, `Show the request`). A url part in single
+- **Send as written**: any request of the collection, sent with its own method, url,
+  headers and body (`Send as written`, `Show the request`). A url part in single
   braces, such as `{claimId}`, gets a field of its own under "Parts of the url".
 - **Check this installation**: the ledger, the code list self-check, the tool and where it is
   pointed, in one place, with `Copy as text for support`. It holds no member data and no secret.
@@ -583,19 +613,22 @@ quoted.
 4. Choose `Fetch the questionnaire package`. The strip says "The questionnaire package was loaded
    with one questionnaire." Four questions appear, three of them required.
 5. Answer them: Yes to the first, `17` for the Epworth score, a symptom, and a note if you like.
-   Choose `Complete the response`. The strip says "The questionnaire response is complete.", and
-   the next step says "Next: submit the prior authorization request in PAS. The completed
-   questionnaire response goes with it." with the button `Continue in PAS`.
-6. Choose `Continue in PAS`. The Submit call is open with the same case, and the tab says the
+   Choose `Complete the response`. The strip says "The questionnaire response is complete." in a
+   dotted frame, because nothing was sent and nobody answered, and the next step says "Next:
+   choose Continue in PAS, then Send PAS request. The completed questionnaire response goes with
+   it." with the button `Continue in PAS`.
+6. Choose `Continue in PAS`. The `Send PAS request` call is open with the same case, and the tab says the
    answers completed in DTR will travel with the request. `Show the request` shows the bundle: its
    notes say the answers "travel in the bundle as QuestionnaireResponse/sleep-study-criteria-draft
    and are named in the claim's supporting information", and the body holds the score 17.
 7. Choose `Send PAS request`. On mock with this member the default scenario answers: "The prior
    authorization is approved.", with the authorization number, and the next step "The flow ends
-   here. Record this result." Under "The questionnaire answers in the request built" the four
-   answers are listed, 17 among them.
-8. `Open the whole journey` in the chain bar shows the chain in History: CRD, DTR and PAS, each with
-   its run.
+   here. Record this result." Under "The questionnaire answers in the request built, which was not
+   sent" the four answers are listed, 17 among them, and the wire view's request body holds
+   `"valueInteger" : 17`.
+8. The chain bar reads "Done: Documentation is required.", "Done: The questionnaire response is
+   complete." and "Done: The authorization is approved. The journey ends here.", and `Open the
+   whole journey` shows the chain in History: CRD, DTR and PAS, each with its run.
 
 To see the other outcomes, choose a scenario on the PAS tab (for example pended, then `Send
 inquiry` from the next step), or start again with another member ID from the table on the CRD tab.
@@ -755,7 +788,7 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   says why (for example "The name contains "submit", and the url has a $submit segment."). Correct
   a wrong one with `PUT /api/config/collections/{id}/mapping`; the correction is kept across a
   restart. An unmapped request is listed and can be sent with `POST /api/raw`.
-- **Sending a request as it is written** (Config tab, `Send a request as written`, or
+- **Sending a request as it is written** (Config tab, `Send as written`, or
   `POST /api/raw`) sends the request's method, url and headers with placeholders resolved, and a
   body: the one supplied for this run as `rawBody`, or else the one saved with the collection
   request, or none when it has none (D-184). The answer says which, in `bodySource` and a note:
@@ -781,7 +814,7 @@ where it came from ("Typed for this run", "The active environment", "The collect
 "application.yml", "An operating system variable", "No value anywhere"). When a placeholder cannot
 be resolved the request is **not sent**: the answer is 422 (`"kind":"CONFIGURATION"`) and names
 the variable and the active environment. `POST /api/config/resolve` (the Config tab's address
-table, "How it resolves") shows what a request would become without sending it, and marks each
+table, `Show how it resolves`) shows what a request would become without sending it, and marks each
 unresolved variable `UNRESOLVED`.
 
 **On mock the url of a CRD, DTR or PAS run is not resolved**, because nothing is sent: the scenario
