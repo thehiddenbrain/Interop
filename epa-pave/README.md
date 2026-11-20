@@ -1009,7 +1009,8 @@ fails on purpose and one declares no expectation. A test runs it through the rea
   counted apart from failures.
 - A suite is pinned to the configuration it started under. If the configuration changes while it
   runs (an upload, a removal, a switch of environment), it stops and says so, and the cases left
-  are marked as not run. Observed: "The configuration changed while the suite was running."
+  are marked as not run ("The configuration changed while the suite was running.", seen on an
+  earlier revision, not again for this one).
 - Every case writes its own ledger line. The summary counts the cases by result, each group
   labelled ("Passed", "Failed", "Unverified: nothing was declared to compare with", and the groups
   for blocked, not valid, not configured and not run). Results can be exported as CSV, and a run can
