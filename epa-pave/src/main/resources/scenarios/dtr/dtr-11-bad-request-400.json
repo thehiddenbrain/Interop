@@ -1,7 +1,7 @@
 {
   "id": "dtr-11-bad-request-400",
   "number": 11,
-  "label": "Onyx rejects with HTTP 400",
+  "label": "Request rejected with HTTP 400",
   "description": "The service rejects the request as invalid and says why in an OperationOutcome. It models DTR 2.0.1, whose operation answers a failure with an OperationOutcome. The CRD sentinel member ID P32H-BAD400 selects it too, so a case means the same thing in CRD and in DTR.",
   "sentinelMemberId": "P32H-DTR-BAD400",
   "crdSentinelMemberIds": [

@@ -1,7 +1,7 @@
 {
   "id": "crd-12-server-error-500",
   "number": 12,
-  "label": "Onyx fails with HTTP 500",
+  "label": "Server error, HTTP 500",
   "description": "The service fails while handling the request. This is a finding about the environment.",
   "sentinelMemberId": "P32H-ERR500",
   "behavior": "respond",

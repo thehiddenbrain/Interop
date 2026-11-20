@@ -8,7 +8,8 @@ import java.util.Map;
  * export.
  *
  * @param source                 the file that was loaded
- * @param placeholder            true when the bundled placeholder list is in use, not a real export
+ * @param placeholder            true when the list in use is synthetic, not a real export: the bundled
+ *                               placeholder list, or any list whose rows say "Not from a P32H export."
  * @param format                 csv or json
  * @param rowCount               rows read
  * @param statingAuthRequirement rows whose prior authorization requirement is not UNKNOWN
