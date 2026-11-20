@@ -932,9 +932,9 @@ A PAS submit against production creates a real prior authorization request again
   resolve its url (see [Variables](#variables)), so there the run is answered from its scenario
   (observed: a PAS submit with such an environment active answered as its scenario says).
 - **No request leaves with an encoded separator in its path**: an encoded slash, backslash,
-  semicolon or dot segment (`%2F`, `%5C`, `%3B`, `%2e%2e`, in any letter case and however many
-  times encoded), whatever the environment and whatever the method, because a server in front of
-  the service may decode it before it reads the path. The answer is 422, naming the variable, the
+  semicolon (`%2F`, `%5C`, `%3B`, in any letter case and however many times encoded), or a dot
+  segment that appears only once an escape is decoded, whatever the environment and whatever the
+  method, because a server in front of the service may decode it before it reads the path. The answer is 422, naming the variable, the
   url part or the request, never the value. A query string is not touched. Observed on mock:
   `crdOrderSignServiceId` typed for one run as `..%2F..%2FClaim%2F%24submit` answered "CRD
   order-sign was not sent: the path of its url holds an encoded separator (%2F), which came from
@@ -985,7 +985,7 @@ scenario, procedure codes, line of business, outcome, the standard codes returne
 vendor, HTTP status, elapsed time, error type, what was expected and the result (pass, fail or
 unverified), note, tester reference, and where they apply the chain, suite and case ids, the run it
 replays or follows, the hook, the next step the result stated, the collection request used, the
-findings, correlation ids (claim id, ClaimResponse id), and the inputs the line does not hold (a
+findings, correlation ids (claim id, ClaimResponse id, subscription id), and the inputs the line does not hold (a
 hand-edited body, details typed by hand, values typed for one run, answers carried from an earlier
 step), so a replay can refuse what it cannot reproduce. A chain case also writes a line of its own
 with its result.
@@ -994,8 +994,16 @@ with its result.
 gender, subscriber ID, or any request or response body. What the service or a tester can fill is
 checked before it is kept (D-151): a code or a line of business that reads like an identifier or a
 date is not kept; a line of business is written only when the code list knows it, otherwise as its
-length; a questionnaire address is kept only in a strict form. The one known gap: a one-word
-surname written where a code belongs is kept, because a single word cannot be told from a code.
+length; a questionnaire address is kept only in a strict form. A procedure code that reads like an
+identifier or a date, or holds the run's member ID, is written as `(not a code, N characters)`,
+and so is the subject in front of each coverage code (observed on mock: `S123456789` typed as a
+procedure code was written so, beside `95810`). A claim id, ClaimResponse id or subscription id a
+service or a notification supplies is kept only as one token that does not read like an
+identifier or a date and does not hold the member ID, otherwise as `(not recorded, N
+characters)`; the ids PAVE mints itself and the mock's ids are kept. A notification that names an
+id the ledger does not keep is not looked up by it, and its result says so. The one known gap: a
+one-word surname written where a code or an id belongs is kept, because a single word cannot be
+told from a code or an id.
 
 **The member ID policy** has two settings:
 
@@ -1017,16 +1025,36 @@ tracking:
 - A run whose member ID was not recorded cannot be replayed, and replay says so rather than
   skipping it.
 
-**A note is free text that PAVE cannot vet.** `Save the note` on a run in History, or
+**A note is free text, kept as typed.** `Save the note` on a run in History, or
 `POST /api/runs/{runId}/note`, keeps what you type, up to 4,000 characters, and writes it to disk.
-Do not put member data in it. The tester reference (up to 200 characters), the expectation (up to
-1,000) and a suite's case id are written as given too. Over a limit the run is refused with 422,
-which gives the length and quotes nothing.
+The tester reference (up to 200 characters), the expectation (up to 1,000) and a suite's case id
+are written as given too. Over a limit the run is refused with 422, which gives the length and
+quotes nothing. What PAVE can recognise, it refuses:
+
+- A run whose note, tester reference or expectation holds the member ID, first or last name, date
+  of birth (in the usual ways of writing a date), subscriber ID or address that the same request
+  carries is refused with 422 on that field before anything is sent, naming the kind of value and
+  never the value. A suite row whose note, tester reference or expectation holds its own member ID
+  is reported as not valid and not run.
+- A note added later is refused when it holds the member ID of that run, also where the line keeps
+  only the token: "The note holds the member ID of this run. The ledger keeps it as written and may
+  not hold member data, so leave it out. The note was not added. Nothing was changed." (observed).
+- If such text reaches the record all the same, the line keeps `(note not recorded, N characters)`
+  (or the tester reference or expectation likewise) in its place, and lines written by older
+  versions are shown and exported the same way.
+
+What PAVE cannot recognise it writes as typed: somebody else's name or date of birth, a name the
+request does not carry, a member ID or subscriber ID under six letters and digits, an address line
+under five characters. **Do not type member data into a note, a tester reference or an
+expectation.** Old lines that hold a name or a date of birth in a note are still shown and
+exported as written: the files are append-only. A first or last name is matched as a whole word in
+any case, so for a member whose name is an ordinary word, a note holding that word is refused;
+reword the note.
 
 **The list** (`GET /api/runs`) filters by day, protocol, operation, outcome, result, chain, suite
 run and, through the API, an exact tester reference (`testerRef`). An optional `zone` (an IANA
 zone id such as `America/New_York`) makes the days those of that clock; without it every day is a
-UTC day. The History tab does not offer `testerRef` or `zone` yet.
+UTC day. The History tab offers the tester reference filter, not `zone`.
 
 **Export** with `GET /api/runs/export.csv?from=YYYY-MM-DD&to=YYYY-MM-DD` (each optional, with
 `protocol`, `result` and `zone` too): UTF-8 with a byte order mark, newest first, one column per
@@ -1039,7 +1067,8 @@ each run is sent again against the configuration in force now and compared with 
 entry carries the new run's verdict and next step. A replayed submission is a new submission with
 a new claim id. A replay never carries a production unlock. A step of a chain cannot be replayed by
 itself: to run the journey again, run it as a suite row with the protocol `chain`. A run sent with
-a body of your own cannot be replayed, because the body is not kept. At most 1,000 runs per replay.
+a body of your own cannot be replayed, because the body is not kept, and neither can a run whose
+procedure code or expectation was not recorded: replay says so with a sentence and sends nothing. At most 1,000 runs per replay.
 
 ## The procedure code list
 
