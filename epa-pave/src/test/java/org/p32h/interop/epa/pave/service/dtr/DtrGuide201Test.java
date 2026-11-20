@@ -286,7 +286,9 @@ class DtrGuide201Test {
                 + "goes with it.");
         assertThat(result.nextStep().reason()).isEqualTo("Every required question that is enabled has an answer. This response holds no "
                 + "item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). This tool does not "
-                + "hand PAS a response that does not conform to it, so the response is shown here and not carried.");
+                + "hand PAS a response that does not conform to it, so the response is shown here and not carried. The questionnaire "
+                + "https://example.org/p32h-placeholder/Questionnaire/opt|1.0.0 is done all the same: it is taken off what this package still "
+                + "lists to answer, so no later step asks for it again.");
     }
 
     @Test

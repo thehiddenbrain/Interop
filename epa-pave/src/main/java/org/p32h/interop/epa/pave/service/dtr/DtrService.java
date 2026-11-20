@@ -710,11 +710,11 @@ public class DtrService {
             correlation.put(RunRecord.CORR_RUN_ID, followsRunId);
         }
         if (!canonicals.isEmpty()) {
-            // A url is kept. Anything else a response put where a url belongs is replaced by a
-            // statement that something was there, so the fact survives and the text does not.
-            correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", canonicals.stream()
-                    .map(canonical -> CANONICAL.matcher(canonical).matches() ? canonical : "(not a url, " + canonical.length() + " characters)")
-                    .toList()));
+            // The addresses as they came. The record keeps them only when every one is an address,
+            // and otherwise writes its own statement that something was there and was not recorded,
+            // which replay refuses. A statement of this class's own in place of one address would
+            // put text on the line where an address belongs.
+            correlation.put(RunRecord.CORR_QUESTIONNAIRE, String.join(" ", canonicals));
         }
         return correlation;
     }

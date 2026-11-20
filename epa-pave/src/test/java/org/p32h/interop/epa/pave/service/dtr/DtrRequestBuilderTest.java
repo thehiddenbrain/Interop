@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -86,6 +88,40 @@ class DtrRequestBuilderTest {
         assertThat(built.canonicals()).isEmpty();
         assertThat(built.notes()).contains("The coding system for 95810 was taken from its format: CPT.",
                 "The coding system for E0601 was taken from its format: HCPCS Level II.");
+    }
+
+    @Test
+    void thePatientTheCoverageAndTheOrdersAreBuiltAsCrdBuildsThemAndTheGapsLoseNothingButWhatIsNowSent() {
+        // CRD V-11: DTR sends the Patient, the Coverage and the orders CRD sends, from the same variables.
+        String hcpcs = "https://example.org/p32h-placeholder/hcpcs";
+        FakeGateway gateway = new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-7")
+                .variable("patientMrnSystem", "https://example.org/p32h-placeholder/mrn").variable("hcpcsSystem", hcpcs);
+        MemberDetail member = MemberDetail.builder().memberId("S123456789").firstName("Given").lastName("Placeholder").gender("female")
+                .lineOfBusiness("Medicare").coverageStart("2026-01-01").build();
+        DtrRequestBuilder.Package built = builder.buildPackage(twoCodes().member(member).build(), template -> gateway.resolve(template, Map.of()));
+        JsonNode sent = json(built.json());
+
+        JsonNode patient = named(sent, "referenced").get(0).get("resource");
+        assertThat(patient.at("/identifier/1/type/coding/0/code").asString()).isEqualTo("MR");
+        assertThat(patient.at("/identifier/1/system").asString()).isEqualTo("https://example.org/p32h-placeholder/mrn");
+        assertThat(patient.at("/identifier/1/value").asString()).isEqualTo("MRN-PLACEHOLDER-7");
+        assertThat(patient).isEqualTo(new CaseResources(null).crdPatient(member, template -> gateway.resolve(template, Map.of()),
+                new ArrayList<>(), new ArrayList<>()));
+        JsonNode coverage = named(sent, "coverage").get(0).get("resource");
+        assertThat(coverage.at("/period/start").asString()).isEqualTo("2026-01-01");
+        assertThat(coverage.has("status")).isFalse();
+        // HCPCS goes out under the address the variable names, and the note says where it came from. CPT is untouched.
+        assertThat(named(sent, "order")).extracting(order -> order.at("/resource/code/coding/0/system").asString())
+                .containsExactly(CaseResources.CPT, hcpcs);
+        assertThat(built.notes()).contains(CaseResources.hcpcsNote(hcpcs), DtrRequestBuilder.PATIENT_AS_CRD_SENT);
+        assertThat(built.notes()).filteredOn(note -> note.startsWith("Each order was sent with authoredOn ")).hasSize(1);
+        // The gaps DTR 2.0.1 names on the package request: still the coverage's status and payer, and nothing about the Patient,
+        // which DTR 2.0.1 does not profile.
+        assertThat(DtrProfileCheck.packageRequest(sent)).extracting(DtrProfileCheck.Gap::element).containsExactly("Coverage.status", "Coverage.payor");
+        // With no variable, HCPCS goes out under the address the CRD 2.0.1 ServiceRequest value set names.
+        DtrRequestBuilder.Package plain = builder.buildPackage(twoCodes().build(), template -> new FakeGateway().resolve(template, Map.of()));
+        assertThat(named(json(plain.json()), "order").get(1).at("/resource/code/coding/0/system").asString()).isEqualTo(CaseResources.HCPCS_CRD_201);
+        assertThat(plain.notes()).contains(CaseResources.hcpcsNote(CaseResources.HCPCS_CRD_201));
     }
 
     @Test

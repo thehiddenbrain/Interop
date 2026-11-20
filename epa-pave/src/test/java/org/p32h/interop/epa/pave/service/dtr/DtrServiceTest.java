@@ -359,7 +359,9 @@ class DtrServiceTest {
                 + "response goes with it.");
         assertThat(askedNothing.nextStep().reason()).isEqualTo("The service completed this response without asking a question. This "
                 + "response holds no item, and DTR 2.0.1 requires a QuestionnaireResponse to hold at least one (dtr-questionnaireresponse). "
-                + "This tool does not hand PAS a response that does not conform to it, so the response is shown here and not carried.");
+                + "This tool does not hand PAS a response that does not conform to it, so the response is shown here and not carried. The "
+                + "questionnaire https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive|1.0.0 is done all the same: it is taken "
+                + "off what this package still lists to answer, so no later step asks for it again.");
 
         // The same expectation passes for one and fails for the other.
         assertThat(askedNothing.expectation().result()).isEqualTo(TestResult.PASS);

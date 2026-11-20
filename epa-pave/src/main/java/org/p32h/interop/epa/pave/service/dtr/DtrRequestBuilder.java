@@ -127,6 +127,14 @@ public final class DtrRequestBuilder {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
+    /**
+     * Why the Patient of a package request is built to a CRD profile that DTR does not apply to it,
+     * and why what that profile requires is not counted as left out of the request.
+     */
+    static final String PATIENT_AS_CRD_SENT = "DTR 2.0.1 names no profile for the Patient a package request carries among its "
+            + "referenced resources. It is built as CRD 2.0.1 profile-patient has it, so that the payer is sent the Patient CRD sent, and "
+            + "what that profile requires is not counted among what this request leaves out.";
+
     private final CaseResources resources;
 
     /** @param codeList consulted for a code's system when the tester did not state one. May be null */
@@ -159,7 +167,10 @@ public final class DtrRequestBuilder {
         ObjectNode root = JSON.objectNode();
         root.put("resourceType", "Parameters");
         ArrayNode parameters = root.putArray("parameter");
-        parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource", resources.coverage(member, variables, notes));
+        // The coverage CRD sent, in the form CRD 2.0.1 profile-coverage gives it, which DTR 2.0.1 requires of this parameter. What
+        // that profile requires and nobody supplied is counted by DtrProfileCheck on the JSON that goes out, so it is not counted here.
+        parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource",
+                resources.crdCoverage(member, variables, notes, new ArrayList<>()));
 
         List<CodeInput> codes = codes(request);
         if (request.procedureCodes().isEmpty() && !codes.isEmpty()) {
@@ -185,13 +196,25 @@ public final class DtrRequestBuilder {
             notes.add("The order CRD's answer applied to was sent, under the id CRD sent it with.");
         }
         List<String> sentCodes = new ArrayList<>();
+        // The orders CRD sent, written at one moment and with HCPCS under the address CRD used, the variable hcpcsSystem included.
+        String authoredOn = resources.now();
+        String hcpcs = CaseResources.orderHcpcsSystem(variables);
+        boolean hcpcsSent = false;
         for (int position = 1; position <= codes.size(); position++) {
             if (chosen.isEmpty() || chosen.contains(position)) {
-                parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource",
-                        resources.serviceRequest(CaseResources.serviceRequestId(position), codes.get(position - 1), member,
-                                request.dateOfService(), notes));
-                sentCodes.add(codes.get(position - 1).code().strip());
+                CodeInput code = codes.get(position - 1);
+                ObjectNode order = resources.serviceRequest(CaseResources.serviceRequestId(position), code, member, request.dateOfService(),
+                        authoredOn, hcpcs, notes);
+                hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
+                parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource", order);
+                sentCodes.add(code.code().strip());
             }
+        }
+        if (!sentCodes.isEmpty()) {
+            notes.add(CaseResources.authoredOnNote(authoredOn));
+        }
+        if (hcpcsSent) {
+            notes.add(CaseResources.hcpcsNote(hcpcs));
         }
         List<String> typed = clean(request.questionnaires());
         List<String> canonicals = canonicals(request);
@@ -206,7 +229,9 @@ public final class DtrRequestBuilder {
             notes.add("No order was sent, because the request names no procedure code. " + askedBy);
         }
         // What the orders and the coverage refer to travels with them, so no reference is left pointing at nothing.
-        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resources.patient(member, variables, notes));
+        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource",
+                resources.crdPatient(member, variables, notes, new ArrayList<>()));
+        notes.add(PATIENT_AS_CRD_SENT);
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole());
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitioner(request.provider()));
 

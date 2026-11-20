@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import tools.jackson.databind.JsonNode;
 
@@ -850,6 +851,20 @@ class CrdServiceTest {
         // The form still held another code. What went out is what is recorded.
         assertThat(ledger.only().procedureCodes()).containsExactly("70553");
         assertThat(result.detail().coverageInformation().get(0).procedureCodes()).containsExactly("70553");
+    }
+
+    @Test
+    void anOrderInATestersOwnBodyIsNamedByItsCodeOrItsPositionAndNeverByAnIdAndAPatientIsNoOrder() {
+        // Ledger m6: ids in a body the tester wrote are free text, and a Patient in draftOrders is not an order CRD 2.0.1 profiles.
+        String body = "{\"hook\":\"order-sign\",\"context\":{\"patientId\":\"P32H-NO-AUTH\",\"draftOrders\":{\"resourceType\":\"Bundle\","
+                + "\"entry\":[{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"Zzlastname-1961-07-23\",\"code\":{\"coding\":"
+                + "[{\"code\":\"70553\"}]}}},{\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"Zzfirstname.Zzlastname\"}},"
+                + "{\"resource\":{\"resourceType\":\"Patient\",\"id\":\"p1\",\"identifier\":[{\"value\":\"S123456789\"}]}}]}}}";
+        service().run(CrdRunRequest.builder().rawBody(body).build(), RunOrigin.manual(), null);
+        String line = JsonSafe.mapper().writeValueAsString(ledger.only());
+        assertThat(line).doesNotContain("Zzfirstname").doesNotContain("Zzlastname").doesNotContain("1961-07-23").doesNotContain("Patient/");
+        assertThat(ledger.only().procedureCodes()).containsExactly("70553");
+        assertThat(SentOrder.fromBody(body)).extracting(SentOrder::label).containsExactly("70553", "order 2 (no code)");
     }
 
     @Test

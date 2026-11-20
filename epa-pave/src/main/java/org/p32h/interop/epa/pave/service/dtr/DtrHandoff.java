@@ -88,12 +88,28 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      *                          prior authorization request
      */
     public Map<String, List<String>> carry(String completedResponse) {
+        return carry(completedResponse, List.of());
+    }
+
+    /**
+     * What the next step starts from, with questionnaires that are done although nothing of them
+     * is handed on taken off the list of the package's questionnaires, so that no later step asks
+     * for them again.
+     *
+     * @param done the questionnaires of the package that are done and have no completed response
+     *             handed on, as {@link #named} gives them
+     */
+    public Map<String, List<String>> carry(String completedResponse, List<String> done) {
         Map<String, List<String>> carry = new LinkedHashMap<>();
         for (String key : PASSED_ON) {
             carry.put(key, values(given, key));
         }
         carry.put(NextStepView.CARRY_PROCEDURE_CODES, procedureCodes);
-        carry.put(NextStepView.CARRY_QUESTIONNAIRE, questionnaires);
+        List<String> left = new ArrayList<>(questionnaires);
+        if (done != null) {
+            left.removeAll(done);
+        }
+        carry.put(NextStepView.CARRY_QUESTIONNAIRE, left);
         carry.put(NextStepView.CARRY_RUN_ID, Texts.present(followsRunId) ? List.of(followsRunId) : List.of());
         carry.put(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, completedResponses(completedResponse));
         return carry;
@@ -140,6 +156,15 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
             }
         }
         return remaining;
+    }
+
+    /**
+     * The questionnaires of the package a response names, as the package lists them. Empty when it
+     * names none of them.
+     */
+    public List<String> named(String response) {
+        List<String> names = answeredBy(response);
+        return questionnaires.stream().filter(wanted -> names(names, wanted)).toList();
     }
 
     /**

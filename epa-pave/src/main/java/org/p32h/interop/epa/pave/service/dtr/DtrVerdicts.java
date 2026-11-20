@@ -251,10 +251,12 @@ public final class DtrVerdicts {
         boolean complete = outcome == DtrOutcome.RESPONSE_COMPLETED || outcome == DtrOutcome.NOTHING_REQUIRED;
         // Only a response this tool reports as complete is handed to the prior authorization request.
         String completed = complete && !detail.questionnaireResponses().isEmpty() ? detail.questionnaireResponses().get(0).json() : null;
-        // DTR 2.0.1 requires a QuestionnaireResponse to hold at least one item. One the service completed with none still counts
-        // towards its questionnaire, so PAS is offered, but it is not handed to PAS.
+        // DTR 2.0.1 requires a QuestionnaireResponse to hold at least one item. One the service completed with none means its
+        // questionnaire is done, so it is taken off what is still to answer and PAS is offered once the others are answered,
+        // but it is not handed to PAS.
         boolean itemless = completed != null && itemless(completed);
-        Map<String, List<String>> carry = handoff.carry(itemless ? null : completed);
+        List<String> done = itemless ? handoff.named(completed) : List.of();
+        Map<String, List<String>> carry = handoff.carry(itemless ? null : completed, done);
         // A package can hold several questionnaires. PAS is the next step only when each of them has a completed response.
         List<String> remaining = complete ? handoff.stillToAnswer(completed) : List.of();
         boolean local = operation == EpaOperation.DTR_RESPONSE;
@@ -281,11 +283,11 @@ public final class DtrVerdicts {
                             ? "The service asked nothing more and did not report the response as complete, so the loop can neither continue "
                             + "nor end."
                             : "The status of the response is not one this tool acts on, so it cannot tell whether the loop continues.", carry);
-            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless)
-                    : toPas(carry, itemless, adaptive ? "The service reported the response as completed, and every required question that is "
-                    + "enabled has an answer." : "Every required question that is enabled has an answer.");
-            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless)
-                    : toPas(carry, itemless, itemless ? "The service completed this response without asking a question."
+            case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless, done)
+                    : toPas(carry, itemless, done, adaptive ? "The service reported the response as completed, and every required question "
+                    + "that is enabled has an answer." : "Every required question that is enabled has an answer.");
+            case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless, done)
+                    : toPas(carry, itemless, done, itemless ? "The service completed this response without asking a question."
                     : "The response is complete without a question having been asked, so there is no documentation to collect first.");
             case RESPONSE_NOT_COMPLETE -> adaptive
                     ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION, "Next: continue the adaptive questionnaire with next-question.",
@@ -326,7 +328,7 @@ public final class DtrVerdicts {
      * finding, and is worded as one: nothing more may need answering, but this tool cannot tell.
      */
     private static NextStepView anotherRemains(DtrHandoff handoff, String completed, List<String> remaining,
-                                               Map<String, List<String>> carry, boolean itemless) {
+                                               Map<String, List<String>> carry, boolean itemless, List<String> done) {
         if (completed != null && !handoff.counts(completed)) {
             List<String> named = DtrHandoff.answeredBy(completed);
             String says = named.isEmpty() ? "it does not say which questionnaire it answers"
@@ -342,7 +344,7 @@ public final class DtrVerdicts {
                         + String.join(", ", remaining) + ".",
                 "This response is complete. The package holds " + handoff.questionnaires().size() + " questionnaires and "
                         + (one ? "one of them has" : remaining.size() + " of them have") + " no completed response yet."
-                        + (itemless ? " " + NOT_CARRIED : ""), carry);
+                        + (itemless ? " " + NOT_CARRIED + done(done) : ""), carry);
     }
 
     /**
@@ -361,7 +363,7 @@ public final class DtrVerdicts {
      * @param itemless true when the response this step completed holds no item and is therefore not carried
      * @param why      why the response is complete
      */
-    private static NextStepView toPas(Map<String, List<String>> carry, boolean itemless, String why) {
+    private static NextStepView toPas(Map<String, List<String>> carry, boolean itemless, List<String> done, String why) {
         List<String> going = carry.getOrDefault(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of());
         String headline;
         if (!itemless) {
@@ -373,7 +375,22 @@ public final class DtrVerdicts {
             headline = "Next: submit the prior authorization request in PAS. The completed responses of the other questionnaires go with it, "
                     + "and this one does not.";
         }
-        return new NextStepView(NextAction.START_PAS, headline, itemless ? why + " " + NOT_CARRIED : why, carry);
+        return new NextStepView(NextAction.START_PAS, headline, itemless ? why + " " + NOT_CARRIED + done(done) : why, carry);
+    }
+
+    /**
+     * The sentence that names the questionnaires a response completed with no item, and says they
+     * are done: taken off what this package still lists to answer, so no later step asks for them
+     * again. Empty when the response names none of the package's questionnaires.
+     */
+    private static String done(List<String> done) {
+        if (done.isEmpty()) {
+            return "";
+        }
+        boolean one = done.size() == 1;
+        return " The questionnaire" + (one ? " " : "s ") + String.join(", ", done) + (one ? " is" : " are") + " done all the same: "
+                + (one ? "it is" : "they are") + " taken off what this package still lists to answer, so no later step asks for "
+                + (one ? "it" : "them") + " again.";
     }
 
     /** True when a QuestionnaireResponse, as compact JSON, holds no item. */
