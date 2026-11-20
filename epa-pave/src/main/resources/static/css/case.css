@@ -479,3 +479,8 @@
 .mode-slot:empty, .values-slot:empty {
     display: none;
 }
+
+/* A code typed in another case than the list writes it: the difference is read before sending. */
+.picker__chip-sentence--strong {
+    color: var(--ink-strong);
+}

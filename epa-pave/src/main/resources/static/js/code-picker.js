@@ -96,7 +96,9 @@ export function createCodePicker(spec) {
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             if (popup.hidden) {
-                searchNow();
+                // The list opens with its first option under the arrows, so the next Enter adds that
+                // option and never the words typed to find it.
+                searchNow(true);
                 return;
             }
             move(event.key === 'ArrowDown' ? 1 : -1);
@@ -105,6 +107,20 @@ export function createCodePicker(spec) {
             event.preventDefault();
             if (!popup.hidden && active >= 0) {
                 choose(options[active]);
+            } else if (!popup.hidden && options.length > 0) {
+                // The list is open with matches and none is chosen. The text may be words of a
+                // description, which are not a code: the same text is added only from a closed
+                // list. Unless it is one of the codes offered, written the same way, the first
+                // option is put under the arrows, and the foot says how to add the text as typed.
+                const typed = input.value.trim();
+                const same = options.findIndex(option => option.code === typed);
+                if (same >= 0) {
+                    choose(options[same]);
+                } else {
+                    active = 0;
+                    markActive();
+                    status.textContent = 'Enter again adds ' + options[0].code + '. To add the text as typed, press Escape, then Enter.';
+                }
             } else {
                 commitTyped();
             }
@@ -155,7 +171,7 @@ export function createCodePicker(spec) {
         pause = setTimeout(searchNow, PAUSE_MS);
     }
 
-    async function searchNow() {
+    async function searchNow(activateFirst) {
         clearTimeout(pause);
         const query = input.value.trim();
         const line = spec.lineOfBusiness();
@@ -168,18 +184,25 @@ export function createCodePicker(spec) {
         }
         if (answer.kind !== 'ok') {
             close();
-            fill(failNote, 'The code list could not be searched: ' + answer.body.title + ' A code can still be typed and added by hand.');
+            fill(failNote, 'The code list could not be searched: ' + answer.body.title + ' A code can still be typed and added by hand.',
+                reference(answer.body));
             return;
         }
         clear(failNote);
-        open(answer.body, line);
+        open(answer.body, line, activateFirst === true);
     }
 
-    function open(found, line) {
+    function open(found, line, activateFirst) {
         const rows = found.codes || [];
         options = groupByCode(rows);
-        active = -1;
+        active = activateFirst && options.length > 0 ? 0 : -1;
+        const typed = input.value.trim();
         fill(head,
+            // Said first, where it is seen before the options: the text typed may be words, and Enter does not add words.
+            options.length > 0 && typed !== '' && !options.some(option => option.code === typed)
+                ? el('p', {class: 'picker__sentence'}, 'Enter adds the code under the arrows. To add ', code(typed),
+                    ' as typed instead, press Escape, then Enter.')
+                : null,
             found.notice ? el('p', {class: 'picker__sentence'}, found.notice) : null,
             found.otherLines ? el('p', {class: 'picker__sentence'}, found.otherLines) : null,
             line === '' && options.length > 0
@@ -188,7 +211,7 @@ export function createCodePicker(spec) {
         listbox.replaceChildren(...options.map((option, index) => optionNode(option, index, line)));
         const more = typeof found.matched === 'number' && found.matched > rows.length;
         fill(foot, options.length === 0
-            ? el('p', null, 'No code on the list matches. Press Enter to add ', input.value.trim() === '' ? 'a code' : code(input.value.trim()),
+            ? el('p', null, 'No code on the list matches. Press Enter to add ', typed === '' ? 'a code' : code(typed),
                 ' as typed: it will be marked as not on the list.')
             : more ? el('p', null, 'Showing the first ' + rows.length + ' of ' + found.matched + ' matching rows. Type more to narrow them.') : null);
         popup.hidden = false;
@@ -284,12 +307,19 @@ export function createCodePicker(spec) {
             entry.line = line;
             if (answer.kind !== 'ok') {
                 entry.check = 'failed';
-                entry.sentence = answer.body.title;
+                entry.sentence = answer.body.title + (answer.body.reference ? ' Reference ' + answer.body.reference + '.' : '');
             } else {
-                const rows = (answer.body.codes || []).filter(row => row.code === entry.input.code);
-                entry.rows = rows;
-                entry.check = rows.length > 0 ? 'listed' : answer.body.otherLines ? 'other-lines' : 'not-listed';
-                entry.sentence = rows.length > 0 ? null : answer.body.otherLines || null;
+                const returned = answer.body.codes || [];
+                const rows = returned.filter(row => row.code === entry.input.code);
+                // The list is searched without regard to case, so e0601 finds E0601. That is the same
+                // code on the list, written another way: it is not "not on the list", and the code
+                // is still sent as typed, which the chip says.
+                const otherCase = rows.length > 0 ? []
+                    : returned.filter(row => String(row.code).toUpperCase() === entry.input.code.toUpperCase());
+                entry.rows = rows.length > 0 ? rows : otherCase;
+                entry.check = rows.length > 0 ? 'listed' : otherCase.length > 0 ? 'other-case'
+                    : answer.body.otherLines ? 'other-lines' : 'not-listed';
+                entry.sentence = rows.length > 0 || otherCase.length > 0 ? null : answer.body.otherLines || null;
             }
             draw();
         }
@@ -313,6 +343,18 @@ export function createCodePicker(spec) {
             draw();
             checkPending();
         }
+    }
+
+    /** Puts the list's own spelling of a code in place of the one typed, at the tester's request. */
+    function respell(entry, listed) {
+        if (entries.some(other => other !== entry && other.input.code === listed)) {
+            entries = entries.filter(other => other !== entry);
+        } else {
+            entry.input = {...entry.input, code: listed};
+            entry.check = 'listed';
+        }
+        draw();
+        input.focus();
     }
 
     function draw() {
@@ -341,7 +383,18 @@ export function createCodePicker(spec) {
             return el('span', {class: 'quiet small'}, 'checking the code list');
         }
         if (entry.check === 'failed') {
-            return el('span', {class: 'quiet small', title: entry.sentence || ''}, 'not checked: the code list did not answer');
+            return el('span', {class: 'quiet small'}, 'not checked: the code list did not answer',
+                entry.sentence ? el('span', {class: 'picker__chip-sentence'}, entry.sentence) : null);
+        }
+        if (entry.check === 'other-case') {
+            const listed = entry.rows[0].code;
+            return el('span', null,
+                el('span', {class: 'picker__chip-sentence picker__chip-sentence--strong'}, 'On the list as ', code(listed),
+                    '. It will be sent as typed, ', code(entry.input.code), '. ',
+                    button('Use ' + listed, () => respell(entry, listed), {
+                        class: 'button--text', aria: {label: 'Send ' + listed + ' as the list writes it, in place of ' + entry.input.code}
+                    })),
+                listSays(entry.rows, entry.line || ''));
         }
         if (entry.check === 'not-listed') {
             return el('span', {class: 'presence presence--none'}, 'not on the list');
@@ -393,6 +446,11 @@ export function createCodePicker(spec) {
             }
         }
     };
+}
+
+/** The reference a failure of this tool carries, so it can be found in the server's log. Nothing when there is none. */
+function reference(error) {
+    return error && error.reference ? [' Reference ', code(error.reference), '.'] : null;
 }
 
 /** One option per code: the list has a row per code and line of business, and a code is chosen once. */
