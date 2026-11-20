@@ -27,6 +27,8 @@ import java.util.List;
  *                          when its items are not known
  * @param attachments       each request for supporting documentation the response refers to
  * @param extensions        every other extension on the ClaimResponse
+ * @param subsetted         true when the ClaimResponse declares the security tag SUBSETTED, by which
+ *                          PAS 2.0.1 says it answers only some of the items of the request
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ClaimResponseView(
@@ -55,7 +57,8 @@ public record ClaimResponseView(
         List<PasErrorView> errors,
         List<AttachmentRefView> attachments,
         List<ProcessNoteView> processNotes,
-        List<ExtensionView> extensions) {
+        List<ExtensionView> extensions,
+        boolean subsetted) {
 
     public ClaimResponseView {
         identifiers = identifiers == null ? List.of() : List.copyOf(identifiers);

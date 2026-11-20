@@ -281,7 +281,21 @@ public final class PasResponseMapper {
                 resource.shown("created"), FhirViews.reference(resource.child("insurer")), FhirViews.reference(resource.child("requestor")),
                 outcome, resource.shown("disposition"), resource.shown("preAuthRef"), periodStart, periodEnd, requestShown,
                 requestIdentifier, identifiers, responseActions.stream().map(Action::view).toList(), decision, decisions, itemViews,
-                errors, attachments, notes, extensions);
+                errors, attachments, notes, extensions, subsetted(resource.raw()));
+    }
+
+    /**
+     * True when the resource declares the security tag SUBSETTED. PAS 2.0.1 requires it of a
+     * ClaimResponse that leaves out items of a revised request. Read without consuming, so the
+     * meta element is still listed with everything else it holds.
+     */
+    static boolean subsetted(JsonNode resource) {
+        for (JsonNode tag : JsonSafe.elements(JsonSafe.child(resource, "meta"), "security")) {
+            if ("SUBSETTED".equals(JsonSafe.presentText(tag, "code"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

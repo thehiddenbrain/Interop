@@ -344,14 +344,14 @@ class PasServiceTest {
         assertThat(approvedRow.display()).isEqualTo("Certified in total");
         assertThat(emptyRow.code()).isNull();
         assertThat(emptyRow.presence()).isEqualTo(Presence.ABSENT);
-        assertThat(noDecision.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUIRED_ELEMENT_MISSING);
+        assertThat(noDecision.findings()).extracting(Finding::kind).containsExactly(FindingKind.NOT_STATED);
 
         // Two ledger rows.
         assertThat(ledger.records().get(0).outcome()).isEqualTo("APPROVED");
         assertThat(ledger.records().get(1).outcome()).isEqualTo("NO_DECISION");
         assertThat(ledger.records().get(0).result()).isEqualTo(TestResult.PASS);
         assertThat(ledger.records().get(1).result()).isEqualTo(TestResult.FAIL);
-        assertThat(ledger.records().get(1).findings()).containsExactly("REQUIRED_ELEMENT_MISSING");
+        assertThat(ledger.records().get(1).findings()).containsExactly("NOT_STATED");
         // A code assertion cannot pass on it either, and neither can "pended" or "denied".
         for (String expected : List.of("review-action=A1", "PENDED", "DENIED")) {
             assertThat(service().runSubmit(submission("P32H-PAS-NO-DECISION").expected(expected).build(), RunOrigin.manual(), null)

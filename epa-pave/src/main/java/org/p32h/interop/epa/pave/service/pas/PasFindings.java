@@ -11,12 +11,21 @@ import java.util.List;
 
 /**
  * What a person should look at on a PAS response, apart from its outcome: a code outside the codes
- * this tool knows, and an item for which no review action was returned. A finding is not a failure
+ * this tool knows, and an item for which no decision is stated. A finding is not a failure
  * of the call. It is kept on the ledger line by its kind, so history can be searched for it.
  */
 final class PasFindings {
 
     private PasFindings() {
+    }
+
+    /**
+     * True when PAS 2.0.1 itself explains why items carry no decision: the response is an error
+     * response that lists its errors, as the guide's own error example does with no item at all,
+     * or it is tagged SUBSETTED, which the guide requires of a response that answers only some items.
+     */
+    static boolean explainedByTheGuide(ClaimResponseView response) {
+        return response.subsetted() || (response.outcome().is("error") && !response.errors().isEmpty());
     }
 
     static List<Finding> check(PasReading reading) {
@@ -38,11 +47,14 @@ final class PasFindings {
                                 decision.subject(), null, code.code()));
                     }
                 }
-                if (decision.outcome() == PasOutcome.NO_DECISION) {
-                    findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING, "No review action was returned"
+                if (decision.outcome() == PasOutcome.NO_DECISION && !explainedByTheGuide(response)) {
+                    // PAS 2.0.1 makes the review action optional (0..1 on item.adjudication), so its
+                    // absence is information and never a claim that the response breaks the guide.
+                    findings.add(new Finding(FindingKind.NOT_STATED, "No decision is stated"
                             + (decision.subject() == null ? "" : " for " + decision.subject()),
-                            "A ClaimResponse states its decision in a review action. None applies here, so nothing was decided: "
-                                    + "this is not an approval, a denial or a pended request.", decision.subject(), null, null));
+                            "The response states no review action that applies here, so nothing was decided: this is not an approval, "
+                                    + "a denial or a pended request. PAS 2.0.1 does not require a review action on every item.",
+                            decision.subject(), null, null));
                 }
             }
         }
