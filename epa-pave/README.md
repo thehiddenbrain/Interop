@@ -1107,8 +1107,8 @@ recognises as vendors (D-081), so a made-up name would be treated as an unknown 
 are real CPT and HCPCS codes. **Which code goes to which vendor, and every flag and date, is
 invented**: it follows the specialties the specification lists (sleep, imaging, genetic testing,
 post-acute) and says nothing about P32H's actual assignments. The bundled placeholder list is built
-the same way. A test loads it through the real loader, and the command above was run (with the
-file's full path): the self-check then answered `"placeholder":true`, `"rowCount":11`,
+the same way. A test loads it through the real loader, and the command above was run (as
+`./run.sh mock --server.port=8153 ...` from another directory): the self-check then answered `"placeholder":true`, `"rowCount":11`,
 `"statingAuthRequirement":10`, `"namingVendor":7` and `"unrecognisedColumns":[]`, with each column
 found under the sample's own header (`"code":"CPT/HCPCS"`, `"authRequired":"Prior Auth Required"`,
 `"lineOfBusiness":"LOB"` and so on), and the warning "This code list says of itself that it is
@@ -1789,39 +1789,46 @@ section repeats what a tester or a maintainer needs to know.
 
 ## What this README was checked against
 
-- **Revision:** branch `docs-2` at the base commit `acfb340` (the server with every audit fix, the
-  five tabs and the pass that joined them), with this README added. Two further server tasks that
-  reword some sentences on screen were in progress elsewhere and were not on it.
+- **Revision:** branch `docs-3` at the base commit `5763c41`, the head of `epa-pave` (the server
+  with the fixes for the second run of the member data, guardrail and fixture audits, the five tabs
+  after two passes that joined them, and the two server tasks those passes asked for), with this
+  README added. Two further tasks, one on the server and one on the screens, were in progress
+  elsewhere and are not on it: they reword a played timeout on mock, the refusal of a write at the
+  moment of sending, the code list sentences of a synthetic list, and add a hint beside the note
+  fields. Where this README describes those, it describes `5763c41`.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
   Gradle command went through a shared wrapper that adds `--offline` and lets two builds run at a
   time, and a file in the home directory caps the memory Gradle may use. `./gradlew` itself was not
-  run for this revision: its Gradle part was run through that wrapper. The build in step 3 is that
-  run of `clean build`: 2,603 tests, 2 skipped, 0 failed. No fresh clone was built for this
-  revision; `git clone --branch epa-pave` from GitHub was run on 2026-11-20 and gave a checkout
-  that holds `run.sh` (commit `f6f366d`, older than this revision).
+  run for this revision: its Gradle part was run through that wrapper (`bootJar`, then
+  `clean build`). The build in step 3 is that run of `clean build`. No fresh clone was built for
+  this revision.
 - **`run.sh`** was started from another directory with the jar present, as
-  `./run.sh mock --server.port=8091` (port 8057 was not used on that machine), and printed the
-  lines of step 4 with 8091 in place of 8057; `curl -s localhost:8091/api/mode` answered as step 5
-  shows, with that port. `./run.sh live --server.port=8091` and `./run.sh mock --server.port=8091
-  --codelist.file=samples/codelist/sample-code-list.csv` were run too, and its refusal of an
-  unknown profile. Building the jar from nothing through `run.sh`, and its refusal of a Java older
-  than 21, were checked on an earlier revision and not again (no `run.sh` line changed since).
+  `./run.sh mock --server.port=8153 --codelist.file=samples/codelist/sample-code-list.csv` (port 8057
+  was not used on that machine), and printed the lines of step 4 with 8153 in place of 8057, the
+  sample list in place of the placeholder; `curl -s localhost:8153/api/mode` answered as step 5
+  shows, with that port and another epoch. `./run.sh live --server.port=8153` was run (live, writes
+  refused, member lookup `DISABLED`), and its refusal of an unknown profile. Building the jar from
+  nothing through `run.sh`, and its refusal of a Java older than 21, were checked on an earlier
+  revision and not again (no `run.sh` line changed since).
 - **Every `curl` example under [Endpoints](#endpoints)** was run in order against a freshly started
-  tool on the mock profile, with `localhost:8091` in place of `localhost:8057`, and answered the
+  tool on the mock profile, with `localhost:8153` in place of `localhost:8057`, and answered the
   status in its comment: 70 examples, none different.
-- **The screens** were looked at in headless Chromium at 1366 by 768: every tab on arrival, the
-  journey under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR`,
-  the colour key, every part of the Config tab, History's runs, a run, chains and suite runs, and on
-  live with nothing configured the three protocol tabs. What is quoted from them is what they
-  showed. The production banner, the ledger indicator's fault states and the suite summary are
-  described from the report of the pass that joined the tabs, which saw them on the same revision.
-- **Observed on the running tool for this revision, as quoted above:** the production guardrail on
-  mock (the floor, a wrong and a right unlock, a second session, an upload that locks again, a
-  replay refused with `SEND_ON_ITS_OWN`), the host and cross-site checks, the receiver with a
-  foreign host, the lookups in both forms, a request sent as it is written with its saved body, a
-  `{part}` with no value and `{{$randomInt}}` refused, an unresolved url ignored on mock and refused
-  on live, a key in a url shown as written, the code list self-check with the sample file, and on
-  live with nothing configured and against a stand-in CRD service on a loopback port (a pass,
-  `CODE_LIST_NOT_COMPARED`, an extra field shown, the member ID tokenised in the ledger).
-- **Not checked:** `run.cmd`, STS, a mirror (with or without credentials) for this revision, a
-  token server, Onyx, a screen reader, a phone-width screen.
+- **The screens** were looked at in headless Chromium at 1366 by 768 for this revision: the journey
+  under [Using the screens](#using-the-screens) from CRD to DTR to PAS with `P32H-DOC-DTR` (every
+  sentence quoted in it, the answer 17 in the preview and in the wire view), and a note refused on
+  the CRD tab. Every other sentence quoted from a screen was found in the source of this revision;
+  the tabs as a whole were looked at on the revision before (`acfb340`), and the production banner,
+  the ledger indicator's fault states and the suite summary come from the report of the pass that
+  joined the tabs.
+- **Observed on the running tool for this revision, as quoted above:** on mock, the upload warnings
+  of the sample collection, of a variable named as member data, of an address that cannot be read,
+  of an encoded separator and of an environment beside a production one; an upload refused for a
+  production address written with leading zeros; a value typed with an encoded slash refused; Lock
+  from a second session refusing the first session's next write; a submit to an address that cannot
+  be read answered from its scenario on mock; a note, a later note and a last name in a note
+  refused; a member ID typed as a procedure code written as its length; the scenario lists and their
+  notes; the sample code list said to be synthetic; and on live with nothing configured, the mode
+  and a disabled lookup.
+- **Not checked for this revision:** `run.cmd`, STS, a mirror (with or without credentials), a token
+  server, Onyx, any behaviour on live against a stand-in (the guardrail's refusals on live, a masked
+  notification), a screen reader, a phone-width screen.
