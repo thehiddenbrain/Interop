@@ -2066,9 +2066,12 @@ that label can be stale, and `GET /api/mode` says which profile runs. Or start f
 `./run.sh live` (`run.cmd live`), which leaves the file alone.
 
 **7. Tests from the IDE.** Run the whole suite with Gradle (`./gradlew test`, or step 3): only five
-test classes have been started from the IDE. From STS's JUnit launcher, `HandlerArgumentNamesTest`
-passed 2 of 2, `HouseStyleTest` 8 with 2 skipped and `PaveApplicationTest` 6 with 1 skipped
-(`RunControllerTest` and `MemberInTextFormsTest` passed on `e70a873`). The three skipped,
+test classes have been started from the IDE. On `ace5914`, from STS's JUnit launcher,
+`HandlerArgumentNamesTest` passed 2 of 2, `HouseStyleTest` 8 with 2 skipped and
+`PaveApplicationTest` 6 with 1 skipped; on a checkout older than that change the three fail
+(`RunControllerTest` and `MemberInTextFormsTest` passed on `e70a873`). Every JUnit launch from the
+IDE also prints `WARNING: Type implements CloseableResource but not AutoCloseable` for a helper of
+the tests; it needs no action. The three skipped,
 `HouseStyleTest.theRealProjectListsItsDotFilesAndBreaksNoRule`,
 `HouseStyleTest.theBuildRunsThisGateAsPartOfCheck` and
 `PaveApplicationTest.theVersionOnScreenIsTheVersionThatWasBuilt`, check the Gradle build's own wiring
@@ -2414,7 +2417,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
 - **Run for the STS section**, on Linux, by agents that wrote neither this README nor the tool nor
   the changes: Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, Buildship 3.1.11), driven through a
   virtual display with keyboard and mouse with a screenshot after every step, on `e70a873` and, on a
-  new workspace, on `ace5914`; and the plain Eclipse IDE for Java Developers 2026-09 on `e70a873`.
+  new workspace, on `ace5914`; and the plain Eclipse IDE for Java Developers 2026-09 on `e70a873`,
+  and again on `ace5914` to see what it does with the launch file.
   `GET /api/mode` after each start, and the two proofs of "Prove it before handover" through the API
   by script after the first start of each run; on `e70a873` also the History list, one run, the note, the export, the notifications, a
   subscription read, the page and one stylesheet. What each run saw is under [STS (Spring Tools for
