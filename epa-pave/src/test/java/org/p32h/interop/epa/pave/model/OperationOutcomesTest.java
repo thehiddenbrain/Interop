@@ -35,6 +35,34 @@ class OperationOutcomesTest {
     }
 
     @Test
+    void notReturnedNullEmptyAndAValueAreFourThingsAndEachIsSaid() {
+        List<IssueView> read = issues("{\"resourceType\": \"OperationOutcome\", \"issue\": ["
+                + "{\"severity\": \"error\", \"code\": \"required\", \"expression\": null, \"location\": null},"
+                + "{\"severity\": \"warning\", \"code\": \"informational\", \"expression\": [], \"location\": []},"
+                + "{\"severity\": \"error\", \"code\": \"invalid\", \"expression\": [\"Claim.item[0]\"]}]}");
+        assertThat(read).extracting(IssueView::expressionPresence)
+                .containsExactly(Presence.NULL, Presence.EMPTY, Presence.VALUE);
+        assertThat(read).extracting(IssueView::locationPresence)
+                .containsExactly(Presence.NULL, Presence.EMPTY, Presence.ABSENT);
+        // The flags still say only whether the element was there.
+        assertThat(read).extracting(IssueView::expressionPresent).containsExactly(true, true, true);
+        assertThat(read).extracting(IssueView::locationPresent).containsExactly(true, true, false);
+
+        tools.jackson.databind.JsonNode json = JsonSafe.mapper().valueToTree(read.get(0));
+        assertThat(json.get("expressionPresence").asString()).isEqualTo("NULL");
+        assertThat(json.get("locationPresence").asString()).isEqualTo("NULL");
+    }
+
+    @Test
+    void anIssueTheToolBuildsHoldsAListExactlyWhenItHasEntries() {
+        IssueView built = new IssueView(Shown.of("error"), Shown.of("invalid"), Shown.absent(), Shown.absent(), List.of(),
+                List.of(Shown.of("Claim.item[0]")), List.of());
+        assertThat(built.expressionPresence()).isEqualTo(Presence.VALUE);
+        assertThat(built.locationPresence()).isEqualTo(Presence.ABSENT);
+        assertThat(built.locationPresent()).isFalse();
+    }
+
+    @Test
     void anEmptyListTheIssueShowsIsNotShownAgainAmongTheFieldsReturnedButNotInterpreted() {
         TrackedJson tracked = TrackedJson.of(JsonSafe.parse("{\"resourceType\": \"OperationOutcome\", \"issue\": ["
                 + "{\"severity\": \"error\", \"code\": \"processing\", \"expression\": [], \"location\": []},"

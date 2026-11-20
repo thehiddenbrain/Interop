@@ -19,6 +19,7 @@
 
 import {el, append, button, code} from './dom.js';
 import {shown, shownList, presenceMark, hasValue} from './shown.js';
+import {listState} from './result.js';
 
 let sequence = 0;
 
@@ -97,7 +98,16 @@ function groupItem(item, ctx) {
             idMeta(item), repeatsWords(item), enabledLine(item)),
         undeterminedLine(item, ctx),
         conditions(item), extensions(item),
-        itemList(item.items, ctx));
+        (item.items || []).length === 0 ? listState(item.lists, 'item', 0) || itemList(item.items, ctx) : itemList(item.items, ctx));
+}
+
+/**
+ * A list of the item the view leaves out when it holds nothing, said when it was nonetheless
+ * sent as null or empty. Not returned is the usual case for these and is not said on every item.
+ */
+function sentEmpty(item, name) {
+    const lists = item.lists || {};
+    return lists[name] === 'NULL' || lists[name] === 'EMPTY' ? listState(lists, name, 0) : null;
 }
 
 function enabledClass(item) {
@@ -149,7 +159,7 @@ function undeterminedLine(item, ctx) {
 function conditions(item) {
     const list = item.enableWhen || [];
     if (list.length === 0) {
-        return null;
+        return sentEmpty(item, 'enableWhen');
     }
     const behaviour = item.enableBehavior && item.enableBehavior.presence === 'VALUE'
         ? ['enableBehavior ', code(item.enableBehavior.code), item.enableBehavior.display ? ' (' + item.enableBehavior.display + ')' : null, '. ']
@@ -174,7 +184,7 @@ function conditions(item) {
 function extensions(item) {
     const list = item.extensions || [];
     if (list.length === 0) {
-        return null;
+        return sentEmpty(item, 'extension');
     }
     return el('details', {class: 'fold'},
         el('summary', null, 'Extensions on this item', el('span', {class: 'quiet'}, String(list.length))),
@@ -244,6 +254,10 @@ function stated(item) {
         parts.push(el('p', {class: 'small'}, 'Answers from the value set ', shown(item.answerValueSet, {as: 'literal'}),
             (item.answerOptions || []).length === 0 ? '. This tool does not expand a value set, so it lists no options for it.' : '.'));
     }
+    const initialSent = (item.initial || []).length === 0 ? sentEmpty(item, 'initial') : null;
+    if (initialSent) {
+        parts.push(initialSent);
+    }
     if ((item.initial || []).length > 0) {
         parts.push(el('p', {class: 'small'}, 'Initial value stated by the questionnaire: ', shownList(item.initial, {as: 'literal'}),
             '. It is not an answer until it is given as one.'));
@@ -255,7 +269,13 @@ function stated(item) {
 function optionsList(item) {
     const options = item.answerOptions || [];
     if (options.length === 0) {
-        return null;
+        // A choice question with no options reads the same whether answerOption was not returned,
+        // null or empty, so which one it was is said. On another kind of question an option list
+        // that was not returned is the usual case, and only one that was sent is said.
+        const type = item.type || {};
+        const choice = type.code === 'choice' || type.code === 'open-choice';
+        const lists = item.lists || {};
+        return choice || (lists.answerOption && lists.answerOption !== 'ABSENT') ? listState(lists, 'answerOption', 0) : null;
     }
     return el('details', {class: 'fold'},
         el('summary', null, 'Options as returned', el('span', {class: 'quiet'}, String(options.length))),

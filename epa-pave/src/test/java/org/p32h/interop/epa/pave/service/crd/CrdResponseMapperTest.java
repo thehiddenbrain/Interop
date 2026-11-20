@@ -514,11 +514,16 @@ class CrdResponseMapperTest {
     void aKeyThatAppearsTwiceInTheBodyIsPointedOut() {
         CrdReading reading = read("{\"cards\":[{\"summary\":\"s\",\"indicator\":\"info\",\"indicator\":\"warning\"}]}");
         assertThat(reading.detail().cards().get(0).indicator().value()).isEqualTo("warning");
-        assertThat(reading.additionalFields()).singleElement().satisfies(note -> {
+        // The note, then every value of the repeated key in the order sent: none is on the wire view alone.
+        assertThat(reading.additionalFields()).hasSize(3);
+        assertThat(reading.additionalFields().get(0)).satisfies(note -> {
             assertThat(note.kind()).isEqualTo(AdditionalField.Kind.NOTE);
             assertThat(note.path()).isEqualTo("(body)");
-            assertThat(note.value()).contains("repeats a key").contains("wire view");
+            assertThat(note.value()).contains("repeats a key").contains("Every value of each repeated key is listed");
         });
+        assertThat(reading.additionalFields().subList(1, 3)).extracting(AdditionalField::path, AdditionalField::value).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("cards[0].indicator (value 1 of 2)", "\"info\""),
+                org.assertj.core.groups.Tuple.tuple("cards[0].indicator (value 2 of 2)", "\"warning\""));
     }
 
     @Test
@@ -574,7 +579,8 @@ class CrdResponseMapperTest {
         CrdReading truncated = mapper.read(TestExchanges.crd(200, "{\"cards\": ["));
         assertThat(truncated.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(truncated.detail().responseKind()).isEqualTo(CrdResponseKind.NOT_JSON);
-        assertThat(truncated.detail().responseNote()).contains("wire view").contains("not valid JSON");
+        // Where the body is shown is said by the screen for every body of this kind; the note adds where the parser stopped.
+        assertThat(truncated.detail().responseNote()).contains("not valid JSON").doesNotContain("masked");
         // The text as received is on the result itself, not only in the wire view, which is collapsed by default.
         assertThat(truncated.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"cards\": ["));
         assertThat(truncated.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
@@ -597,7 +603,8 @@ class CrdResponseMapperTest {
     void jsonThatIsNotAnObjectIsListedInFullAndInterpretsNothing() {
         CrdReading reading = read("[{\"summary\":\"array at the root\"}]");
         assertThat(reading.detail().responseKind()).isEqualTo(CrdResponseKind.OTHER_JSON);
-        assertThat(reading.outcome()).isEqualTo(CrdOutcome.NO_DETERMINATION);
+        // Not a CDS Hooks response, so not one that answered and said nothing.
+        assertThat(reading.outcome()).isEqualTo(CrdOutcome.MALFORMED_RESPONSE);
         assertThat(paths(reading)).containsExactly("[0].summary");
     }
 

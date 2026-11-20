@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.crd;
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.Expectations;
+import org.p32h.interop.epa.pave.model.Presence;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
@@ -100,9 +101,22 @@ public record CrdReading(CrdDetail detail, CrdOutcome outcome, List<String> requ
                     values.forEach(value -> out.add(prefix + name + "=" + value));
                 }
             });
+            // A code sent with nothing in it is written as what it was, as an unanswered order is,
+            // so History tells it apart from one that was not returned, which has no pair at all.
+            sentEmpty(out, prefix, CrdCodes.COVERED, view.covered(), view);
+            sentEmpty(out, prefix, CrdCodes.PA_NEEDED, view.paNeeded(), view);
+            sentEmpty(out, prefix, CrdCodes.DOC_NEEDED, view.docNeeded(), view);
         }
         unanswered.forEach(label -> out.add(label + ": (no answer)"));
         return out;
+    }
+
+    private static void sentEmpty(List<String> out, String prefix, String element, CodedValue value, CoverageInformationView view) {
+        if (value == null || (value.presence() != Presence.NULL && value.presence() != Presence.EMPTY)) {
+            return;
+        }
+        String what = value.presence() == Presence.NULL ? "(null)" : view.sentWithNoValue(element) ? "(no value)" : "(empty)";
+        out.add(prefix + element + "=" + what);
     }
 
     private static void add(Map<String, List<String>> codes, String element, CodedValue value) {

@@ -329,6 +329,24 @@ class CrdConformanceCheckerTest {
     }
 
     @Test
+    void aPaNeededReturnedAsNullOrEmptyIsNeverSaidNotToHaveBeenReturned() {
+        codeList.row("95810", AuthRequirement.REQUIRED, "Medicare", null);
+        String nullCode = "{\"url\":\"pa-needed\",\"valueCode\":null}";
+        assertThat(codeListFinding(check(200, response(action(1, nullCode)), "Medicare", "95810")).detail())
+                .contains("(pa-needed was returned as null)").doesNotContain("not returned");
+        assertThat(codeListFinding(check(200, response(action(1, code("pa-needed", ""))), "Medicare", "95810")).detail())
+                .contains("(pa-needed was returned empty)").doesNotContain("not returned");
+        assertThat(codeListFinding(check(200, response(action(1, "{\"url\":\"pa-needed\"}")), "Medicare", "95810")).detail())
+                .contains("(pa-needed was sent with no value)").doesNotContain("not returned");
+    }
+
+    /** The one finding about the code list, beside the finding that the answer is missing a required value. */
+    private static Finding codeListFinding(List<Finding> findings) {
+        assertThat(kinds(findings)).containsExactlyInAnyOrder(FindingKind.REQUIRED_ELEMENT_MISSING, FindingKind.CODE_LIST_NOT_COMPARED);
+        return findings.stream().filter(f -> f.kind() == FindingKind.CODE_LIST_NOT_COMPARED).findFirst().orElseThrow();
+    }
+
+    @Test
     void aCodeNoAnswerCouldBeTiedToIsNotComparedWithSomeOtherAnswer() {
         codeList.row("95810", AuthRequirement.REQUIRED, null, null);
         // The only answer is for an order that was not sent, so it is not the answer for 95810.

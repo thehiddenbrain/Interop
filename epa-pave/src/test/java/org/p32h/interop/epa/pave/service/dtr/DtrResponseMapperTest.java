@@ -384,10 +384,13 @@ class DtrResponseMapperTest {
     @Test
     void aKeyThatAppearsTwiceInTheBodyIsPointedOut() {
         DtrReading reading = readPackage("{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"type\":\"searchset\",\"entry\":[]}");
-        assertThat(reading.additionalFields()).singleElement().satisfies(note -> {
-            assertThat(note.kind()).isEqualTo(AdditionalField.Kind.NOTE);
-            assertThat(note.value()).contains("repeats a key");
-        });
+        // The note, then every value of the repeated key in the order sent.
+        assertThat(reading.additionalFields()).extracting(AdditionalField::kind)
+                .containsExactly(AdditionalField.Kind.NOTE, AdditionalField.Kind.FIELD, AdditionalField.Kind.FIELD);
+        assertThat(reading.additionalFields().get(0).value()).contains("repeats a key");
+        assertThat(reading.additionalFields().subList(1, 3)).extracting(AdditionalField::path, AdditionalField::value).containsExactly(
+                org.assertj.core.groups.Tuple.tuple("type (value 1 of 2)", "\"collection\""),
+                org.assertj.core.groups.Tuple.tuple("type (value 2 of 2)", "\"searchset\""));
     }
 
     // ---- both shapes of package, and several questionnaires ----

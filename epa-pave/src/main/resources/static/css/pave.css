@@ -1094,10 +1094,12 @@ legend, .case-legend {
 .grid.card-links th:nth-child(1) { width: 26%; }
 .grid.card-links th:nth-child(2) { width: 12%; }
 .grid.card-links th:nth-child(3) { width: 36%; }
-.grid.issues th:nth-child(1) { width: 10%; }
+.grid.issues th:nth-child(1) { width: 13%; }
 .grid.issues th:nth-child(2) { width: 15%; }
-.grid.issues th:nth-child(3) { width: 19%; }
-.grid.issues th:nth-child(4) { width: 23%; }
+.grid.issues th:nth-child(3) { width: 17%; }
+.grid.issues th:nth-child(4) { width: 22%; }
+/* A severity is one short code; broken in the middle it reads as two words. */
+.grid.issues td:first-child code { white-space: nowrap; overflow-wrap: normal; }
 .grid.issues th:nth-child(5) { width: 17%; }
 .grid.timing__buckets th:nth-child(1) { width: 34%; }
 .grid.timing__buckets th:nth-child(2) { width: 14%; }

@@ -670,7 +670,8 @@ class PasResponseMapperTest {
         PasReading malformed = mapper.read(response(200, "{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.outcome()).isEqualTo(PasOutcome.MALFORMED_RESPONSE);
         assertThat(malformed.detail().responseKind()).isEqualTo(PasResponseKind.NOT_JSON);
-        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("shown as received, but for any place that repeats a secret the request carried");
+        // The screen says the body is not JSON; the note adds where the parser stopped, and a mask only when there is one.
+        assertThat(malformed.detail().responseNote()).startsWith("The body is not valid JSON").doesNotContain("masked");
         // The raw bytes are on screen outside the wire view, first in the list and marked for what they are.
         assertThat(malformed.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"resourceType\": \"Bundle\", \"entry\": ["));
         assertThat(malformed.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.RAW_BODY);
@@ -722,10 +723,13 @@ class PasResponseMapperTest {
     void somethingWorthKnowingAboutTheBodyAsAWholeComesFirst() {
         PasReading reading = read("{\"resourceType\":\"Bundle\",\"type\":\"collection\",\"type\":\"batch\",\"vendorField\":1,\"entry\":[{\"resource\":"
                 + claimResponse(items(decided(1, "A1"))) + "}]}", sent("95810"));
-        assertThat(reading.additionalFields()).hasSize(2);
+        // The note and every value of the repeated key come before the fields of the body.
+        assertThat(reading.additionalFields()).hasSize(4);
         assertThat(reading.additionalFields().get(0).kind()).isEqualTo(AdditionalField.Kind.NOTE);
         assertThat(reading.additionalFields().get(0).value()).contains("repeats a key");
-        assertThat(reading.additionalFields().get(1).path()).isEqualTo("vendorField");
+        assertThat(reading.additionalFields().get(1).path()).isEqualTo("type (value 1 of 2)");
+        assertThat(reading.additionalFields().get(2).path()).isEqualTo("type (value 2 of 2)");
+        assertThat(reading.additionalFields().get(3).path()).isEqualTo("vendorField");
     }
 
     // ---- not found is not a fault ----

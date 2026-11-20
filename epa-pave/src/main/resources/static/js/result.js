@@ -689,19 +689,27 @@ export function issuesTable(issues) {
         [shown(issue.detailsText), issue.detailsCodes && issue.detailsCodes.length > 0
             ? el('div', {class: 'small'}, shownList(issue.detailsCodes, {as: 'literal'})) : null],
         shown(issue.diagnostics),
-        issueList(issue.expression, issue.expressionPresent),
-        issueList(issue.location, issue.locationPresent)
+        issueList(issue.expression, issue.expressionPresence, issue.expressionPresent),
+        issueList(issue.location, issue.locationPresence, issue.locationPresent)
     ]), {class: 'issues'});
 }
 
 /**
- * An expression or a location of an issue. The list alone is empty both when the issue did not
- * hold the element and when it held it empty, so the server sends whether it was held beside it.
- * An answer that does not say is shown as a list, as before.
+ * An expression or a location of an issue. The list alone is empty when the issue did not hold
+ * the element, when it held null and when it held an empty array, so the server sends what the
+ * element was beside it and the cell says that in words. A value that is not a list cannot be
+ * drawn as one, and the cell says where it is shown instead. The flag is read only from an answer
+ * that carries no presence.
  */
-function issueList(values, present) {
+function issueList(values, presence, present) {
     if (Array.isArray(values) && values.length > 0) {
         return shownList(values, {as: 'literal'});
+    }
+    if (presence === 'VALUE') {
+        return el('span', {class: 'small'}, 'not a list: shown among the fields returned but not interpreted');
+    }
+    if (presence) {
+        return presenceMark(presence);
     }
     if (present === false) {
         return presenceMark('ABSENT');
@@ -710,4 +718,45 @@ function issueList(values, present) {
         return presenceMark('EMPTY');
     }
     return shownList(values, {as: 'literal'});
+}
+
+/* ---------- a repeating element with nothing in it ---------- */
+
+/**
+ * What a repeating element of a designed view was, when the view has no entry of it to show.
+ * An empty list on screen cannot say whether the element was not returned, returned as null or
+ * returned empty, so each view sends the presence of its lists beside them (lists, keyed by the
+ * element's name as the response spells it) and this says it in words: "links not returned",
+ * "links null", "links empty". Null when there are entries to show, and when the answer carries
+ * no presence for the element, so the caller keeps its own words for an older answer.
+ */
+export function listState(lists, name, count) {
+    if (count > 0 || !lists || !lists[name]) {
+        return null;
+    }
+    return el('p', null, listWords(lists[name], name));
+}
+
+/**
+ * The same words inside a row of facts, for a list drawn as the value of the row. A list with
+ * entries is drawn as it was; one with none says what it was, and only an answer with no
+ * presence for it falls back to the mark that claims nothing more than "none returned".
+ */
+export function listValue(lists, name, values, options) {
+    if (Array.isArray(values) && values.length > 0) {
+        return shownList(values, options);
+    }
+    if (!lists || !lists[name]) {
+        return shownList(values, options);
+    }
+    return listWords(lists[name], name);
+}
+
+function listWords(presence, name) {
+    if (presence === 'VALUE') {
+        // Something that is not a list, or a list none of whose entries is the shape the view
+        // reads. Either way it stays among the fields returned but not interpreted.
+        return [code(name), ' was returned, and none of its entries could be read as one.'];
+    }
+    return [code(name), ' ', presenceMark(presence)];
 }

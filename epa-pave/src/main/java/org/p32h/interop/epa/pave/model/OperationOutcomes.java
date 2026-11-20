@@ -37,14 +37,15 @@ public final class OperationOutcomes {
             for (TrackedJson.Node element : issue.children("location")) {
                 location.add(element.shown());
             }
-            // An empty list is shown by the issue as "returned empty" through the presence flag, so
+            // An empty list is shown by the issue as "returned empty" through its presence, so
             // it is consumed: what the designed view shows does not appear again among the fields
             // returned but not interpreted. Anything else that is not a list stays there.
             consumeIfEmptyList(issue.child("expression"));
             consumeIfEmptyList(issue.child("location"));
             issues.add(new IssueView(issue.shown("severity"), issue.shown("code"), issue.shown("diagnostics"),
                     details.exists() ? details.shown("text") : Shown.absent(), detailsCodes, expression, location,
-                    issue.child("expression").exists(), issue.child("location").exists()));
+                    issue.child("expression").exists(), issue.child("location").exists(),
+                    issue.child("expression").presence(), issue.child("location").presence()));
         }
         return issues;
     }

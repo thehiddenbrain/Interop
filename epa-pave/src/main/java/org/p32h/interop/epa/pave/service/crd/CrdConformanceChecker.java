@@ -8,6 +8,7 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.crd.ConformanceScope;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.crd.CodedValue;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
@@ -89,6 +90,10 @@ public final class CrdConformanceChecker {
             CrdGuideRules.check(findings, view);
         }
 
+        // A key sent twice where the view read it: the answer shown is the last value, and the
+        // others are said here so the contradiction is on screen and not in the wire view alone.
+        findings.addAll(TrackedJson.repeatedKeyFindings(exchange, reading.additionalFields()));
+
         if (exchange.ok() && coverage.isEmpty()) {
             // CRD 2.0.1 makes the extension optional on every order profile and ships no response
             // model, so its absence is information. The outcome stays "no determination returned".
@@ -169,6 +174,22 @@ public final class CrdConformanceChecker {
         return unnamed;
     }
 
+    /**
+     * What came back for pa-needed, worded from its presence. A null and an empty string are
+     * answers the service sent, and are never described as an answer it did not send.
+     */
+    static String asReturned(CodedValue paNeeded, boolean noValueAtAll) {
+        if (paNeeded == null) {
+            return "pa-needed was not returned";
+        }
+        return switch (paNeeded.presence()) {
+            case ABSENT -> "pa-needed was not returned";
+            case NULL -> "pa-needed was returned as null";
+            case EMPTY -> noValueAtAll ? "pa-needed was sent with no value" : "pa-needed was returned empty";
+            case VALUE -> "pa-needed=" + paNeeded.code();
+        };
+    }
+
     private void compareWithCodeList(List<Finding> findings, String code, CoverageInformationView view, List<ProcedureCode> rows) {
         List<String> rowLines = lines(rows);
         String line = rowLines.isEmpty() ? " (rows that state no line of business)" : " (rows for " + String.join(", ", rowLines) + ")";
@@ -189,7 +210,7 @@ public final class CrdConformanceChecker {
                     + ", so the list has no single position to compare.");
         } else if (serviceRequires == null) {
             notCompared(findings, code, "The service's answer for " + code + " does not say whether prior authorization is needed ("
-                    + (view.paNeeded().code() == null ? "pa-needed was not returned" : "pa-needed=" + view.paNeeded().code())
+                    + asReturned(view.paNeeded(), view.sentWithNoValue(CrdCodes.PA_NEEDED))
                     + "), so there is nothing to compare with the code list.");
         } else {
             boolean listRequires = stated.contains(AuthRequirement.REQUIRED);

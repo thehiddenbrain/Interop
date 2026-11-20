@@ -104,16 +104,25 @@ public class NotificationReceiver {
      * @param kept          the bytes that are held: the start of the body, up to {@link #MAX_KEPT_BYTES}
      * @param bytesReceived how many bytes were read off the connection
      * @param complete      false when reading stopped before the end of the body, so its true size is not known
+     * @param whole         every byte of a body that was read to its end, for reading it once and
+     *                      letting it go: it is not held. Null when reading stopped before the end
      */
-    public record Inbound(byte[] kept, long bytesReceived, boolean complete) {
+    public record Inbound(byte[] kept, long bytesReceived, boolean complete, byte[] whole) {
+
+        /** A body of which only these bytes are known. */
+        public Inbound(byte[] kept, long bytesReceived, boolean complete) {
+            this(kept, bytesReceived, complete, complete && bytesReceived == (kept == null ? 0 : kept.length) ? kept : null);
+        }
 
         /**
-         * Reads a body without ever holding more of it than the receiver keeps. The rest is read
-         * and counted, up to a limit, and thrown away. A connection that ends early, or a stream
-         * that fails, yields what arrived until then: the receiver records that too.
+         * Reads a body to its end, up to a limit. Only its start is held once the notification has
+         * been read; the whole is read, mapped and matched first, so a body longer than what is held
+         * still gets its designed view, its run and every field it carries. A connection that ends
+         * early, or a stream that fails, yields what arrived until then: the receiver records that too.
          */
         public static Inbound read(InputStream in) {
             ByteArrayOutputStream kept = new ByteArrayOutputStream();
+            ByteArrayOutputStream all = new ByteArrayOutputStream();
             long received = 0;
             boolean complete = false;
             if (in == null) {
@@ -131,6 +140,7 @@ public class NotificationReceiver {
                     if (room > 0) {
                         kept.write(chunk, 0, Math.min(room, read));
                     }
+                    all.write(chunk, 0, read);
                     received += read;
                 }
                 // A body that is exactly as long as the limit is complete, and one byte more says it is not.
@@ -141,14 +151,19 @@ public class NotificationReceiver {
                 // The sender went away part way through. What arrived is what there is.
                 complete = false;
             }
-            return new Inbound(kept.toByteArray(), received, complete);
+            return new Inbound(kept.toByteArray(), received, complete, complete ? all.toByteArray() : null);
         }
 
         /** A body that is already text in this process, as a sample is. */
         public static Inbound of(String text) {
             byte[] bytes = text == null ? new byte[0] : text.getBytes(StandardCharsets.UTF_8);
             byte[] kept = bytes.length > MAX_KEPT_BYTES ? java.util.Arrays.copyOf(bytes, MAX_KEPT_BYTES) : bytes;
-            return new Inbound(kept, bytes.length, true);
+            return new Inbound(kept, bytes.length, true, bytes);
+        }
+
+        /** True when the whole body was read, so it can be read as a notification even where only its start is held. */
+        public boolean readWhole() {
+            return whole != null;
         }
 
         /** True when what is held is not all that was sent. */
@@ -384,10 +399,21 @@ public class NotificationReceiver {
     private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes, String toSeeAMatch) {
         List<String> payloadNotes = new ArrayList<>(sampleNotes);
         String text = decode(inbound.kept(), inbound.cut(), payloadNotes);
-        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = givenToServices().mask(text);
+        // What is read is the whole body when it was read to its end, and what is held is its start.
+        // A body longer than what is held is then still read as JSON, mapped and matched.
+        boolean readWhole = inbound.cut() && inbound.readWhole();
+        String whole = readWhole ? decode(inbound.whole(), false, new ArrayList<>()) : text;
+        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = givenToServices().mask(readWhole ? whole : text);
+        if (readWhole) {
+            whole = masked.text();
+            text = givenToServices().mask(text).text();
+        }
         if (masked.places() > 0) {
             // Masked before anything reads it, so the designed view, the payload and the ledger line see the mask alone.
-            text = masked.text();
+            if (!readWhole) {
+                text = masked.text();
+                whole = text;
+            }
             payloadNotes.add(masked.places() == 1
                     ? "1 place in this payload is masked because it repeats a secret this tool could have sent to the service: a secret "
                             + "variable, the access token, the client secret or a credential of the address to call back. What is shown is "
@@ -397,7 +423,11 @@ public class NotificationReceiver {
                             + "What is shown is therefore not exactly what was received.");
         }
         String cut = null;
-        if (inbound.cut()) {
+        if (readWhole) {
+            cut = "The body was " + inbound.bytesReceived() + " bytes long. All of it was read, and everything above comes from all of it. "
+                    + "Only its first " + inbound.kept().length + " bytes are held, so the payload text below is cut there.";
+            payloadNotes.add(cut);
+        } else if (inbound.cut()) {
             cut = (inbound.complete() ? "The body was " + inbound.bytesReceived() + " bytes long."
                     : "The body was longer than the " + inbound.bytesReceived() + " bytes that were read, and reading stopped there.")
                     + " Only its first " + inbound.kept().length + " bytes are held and shown, so what is read here is not all that was sent.";
@@ -413,7 +443,7 @@ public class NotificationReceiver {
         try {
             // Only the reading, the matching and the wording are inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one notification.
-            Interpreted read = interpret(text, inbound.cut(), sampleScenarioId, cut, toSeeAMatch);
+            Interpreted read = interpret(whole, inbound.cut(), sampleScenarioId, cut, toSeeAMatch);
             outcome = read.outcome();
             draft.outcome(outcome).coverageCodes(read.codes()).correlation(read.correlation()).nextAction(read.nextStep().action())
                     .findings(read.findings().stream().map(f -> f.kind().name()).distinct().toList());
@@ -442,7 +472,7 @@ public class NotificationReceiver {
                                     + ". The server log holds the detail under the same reference.", "The payload is shown below as it arrived.")))
                     .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the payload below as it arrived, and report the reference.",
                             "This tool failed before it could say what the notification is."))
-                    .kind(Texts.blank(text) ? NotificationKind.NO_BODY : JsonSafe.parse(text).ok() ? NotificationKind.OTHER_JSON : NotificationKind.NOT_JSON);
+                    .kind(Texts.blank(whole) ? NotificationKind.NO_BODY : JsonSafe.parse(whole).ok() ? NotificationKind.OTHER_JSON : NotificationKind.NOT_JSON);
         }
 
         RunRecord record = draft.build();

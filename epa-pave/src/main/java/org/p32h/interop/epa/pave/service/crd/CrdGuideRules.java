@@ -72,11 +72,17 @@ final class CrdGuideRules {
         required(findings, where, at, CrdCodes.DATE, view.date().presence());
         required(findings, where, at, CrdCodes.COVERAGE_ASSERTION_ID, view.coverageAssertionId().presence());
 
-        noValue(findings, where, CrdCodes.COVERED, view.covered().presence());
-        noValue(findings, where, CrdCodes.PA_NEEDED, view.paNeeded().presence());
-        noValue(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded().presence());
-        view.docPurpose().forEach(value -> noValue(findings, where, CrdCodes.DOC_PURPOSE, value.presence()));
-        view.infoNeeded().forEach(value -> noValue(findings, where, CrdCodes.INFO_NEEDED, value.presence()));
+        noValue(findings, where, CrdCodes.COVERED, view.covered().presence(), view.sentWithNoValue(CrdCodes.COVERED));
+        noValue(findings, where, CrdCodes.PA_NEEDED, view.paNeeded().presence(), view.sentWithNoValue(CrdCodes.PA_NEEDED));
+        noValue(findings, where, CrdCodes.DOC_NEEDED, view.docNeeded().presence(), view.sentWithNoValue(CrdCodes.DOC_NEEDED));
+        for (int i = 0; i < view.docPurpose().size(); i++) {
+            noValue(findings, where, CrdCodes.DOC_PURPOSE, view.docPurpose().get(i).presence(),
+                    view.sentWithNoValue(CrdCodes.DOC_PURPOSE + "[" + i + "]"));
+        }
+        for (int i = 0; i < view.infoNeeded().size(); i++) {
+            noValue(findings, where, CrdCodes.INFO_NEEDED, view.infoNeeded().get(i).presence(),
+                    view.sentWithNoValue(CrdCodes.INFO_NEEDED + "[" + i + "]"));
+        }
 
         for (SubExtensionView other : view.otherSubExtensions()) {
             if (other.url().endsWith(CrdResponseMapper.REPEATED)) {
@@ -170,11 +176,17 @@ final class CrdGuideRules {
         }
     }
 
-    private static void noValue(List<Finding> findings, String where, String element, Presence presence) {
+    /**
+     * @param noValueAtAll true when the sub-extension carried no value[x] at all, which the view
+     *                     shows as empty, as it does a value of "": the finding says which it was
+     */
+    private static void noValue(List<Finding> findings, String where, String element, Presence presence, boolean noValueAtAll) {
         if (presence == Presence.NULL || presence == Presence.EMPTY) {
+            String what = noValueAtAll ? "it carries no value[x] at all"
+                    : presence == Presence.NULL ? "its value is null" : "its value is empty";
             findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
                     element + " was sent with no value",
-                    "The sub-extension " + element + " is present but " + (presence == Presence.NULL ? "its value is null" : "it is empty")
+                    "The sub-extension " + element + " is present but " + what
                             + ". " + V + " requires a value on it (value[x] 1..1). It is not treated as an answer.", where, null, null));
         }
     }

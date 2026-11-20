@@ -87,7 +87,7 @@ public final class CrdResponseMapper {
         List<IssueView> issues = List.of();
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
-        List<AdditionalField> additional = new ArrayList<>(exchange.bodyFields());
+        List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         Presence cardsPresence = Presence.ABSENT;
         Presence actionsPresence = Presence.ABSENT;
         CrdResponseKind kind;
@@ -103,9 +103,7 @@ public final class CrdResponseMapper {
                 note = "The response has no body.";
             } else {
                 kind = CrdResponseKind.NOT_JSON;
-                note = ("The body could not be read as JSON. It is shown under the fields that were returned but not interpreted, "
-                        + "and in the wire view, as received except that a place repeating a secret the request carried is masked. "
-                        + Texts.orElse(exchange.parseError(), "")).strip();
+                note = TrackedJson.notJsonNote(received);
             }
         } else {
             TrackedJson tracked = TrackedJson.of(json);
@@ -114,6 +112,11 @@ public final class CrdResponseMapper {
                 kind = CrdResponseKind.OPERATION_OUTCOME;
                 root.text("resourceType");
                 issues = OperationOutcomes.issues(root);
+            } else if (root.isObject() && JsonSafe.presentText(json, "resourceType") != null) {
+                // A CDS Hooks response is not a FHIR resource. A body that says of itself that it is
+                // one, of any type but OperationOutcome, is not an answer with no cards in it.
+                kind = CrdResponseKind.OTHER_JSON;
+                note = "The body says it is a " + JsonSafe.presentText(json, "resourceType") + " resource.";
             } else if (root.isObject()) {
                 kind = CrdResponseKind.CDS_HOOKS;
                 TrackedJson.Node cardsNode = root.child("cards");
@@ -138,7 +141,7 @@ public final class CrdResponseMapper {
                 }
             } else {
                 kind = CrdResponseKind.OTHER_JSON;
-                note = "The body is JSON but is not an object, so none of it could be interpreted. All of it is listed below.";
+                note = json.isArray() ? "The body is a JSON array, not an object." : "The body is a single JSON value, not an object.";
             }
             additional.addAll(tracked.unconsumed());
         }
@@ -196,7 +199,13 @@ public final class CrdResponseMapper {
         }
         CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
                 List.of(), true, CrdConformanceChecker.SCOPE);
-        return new CrdReading(detail, CrdOutcomeRules.overall(exchange, outcomes, unanswered.size()), requested, unanswered,
+        CrdOutcome overall = CrdOutcomeRules.overall(exchange, outcomes, unanswered.size());
+        // JSON that is not a CDS Hooks response answered nothing, and must never pass as a service
+        // that answered and said nothing: that is NO_DETERMINATION, and a test expecting it would pass.
+        if (kind == CrdResponseKind.OTHER_JSON && overall == CrdOutcome.NO_DETERMINATION) {
+            overall = CrdOutcome.MALFORMED_RESPONSE;
+        }
+        return new CrdReading(detail, overall, requested, unanswered,
                 vendors.isEmpty() ? null : String.join("; ", vendors), additional);
     }
 
@@ -298,7 +307,7 @@ public final class CrdResponseMapper {
                     actionIndex++;
                 }
                 suggestions.add(new SuggestionView(suggestion.shown("label"), suggestion.shown("uuid"),
-                        suggestion.shown("isRecommended"), actions));
+                        suggestion.shown("isRecommended"), actions, suggestion.presences("actions")));
             }
             suggestionIndex++;
         }
@@ -314,7 +323,8 @@ public final class CrdResponseMapper {
                 source.exists() ? source.shown("label") : Shown.absent(),
                 source.exists() ? source.shown("url") : Shown.absent(),
                 source.exists() ? source.shown("icon") : Shown.absent(),
-                topic, card.shown("selectionBehavior"), links, suggestions, overrideReasons);
+                topic, card.shown("selectionBehavior"), links, suggestions, overrideReasons, source.presence(),
+                card.presences("links", "suggestions", "overrideReasons"));
     }
 
     private ActionView action(TrackedJson.Node action, String path, List<Found> coverage) {
@@ -418,6 +428,7 @@ public final class CrdResponseMapper {
         List<String> laterReasons = new ArrayList<>();
         List<CoverageDetailView> details = new ArrayList<>();
         List<SubExtensionView> other = new ArrayList<>();
+        List<String> noValue = new ArrayList<>();
         // The sub-extensions CRD 2.0.1 allows at most once. A second one is never allowed to replace
         // the first in silence: it is listed beside the others as repeated, and the checker reports it.
         Set<String> seenOnce = new LinkedHashSet<>();
@@ -438,6 +449,17 @@ public final class CrdResponseMapper {
             if (SINGLE.contains(url) && !seenOnce.add(url)) {
                 other.add(new SubExtensionView(url + REPEATED, FhirViews.extensionValueShown(sub), CrdCodes.definedIn(url)));
                 continue;
+            }
+            if (FhirViews.extensionValue(sub) == null) {
+                // Shown as empty below, like a value of "", and named here so the two are not one.
+                noValue.add(switch (url) {
+                    case CrdCodes.DOC_PURPOSE -> url + "[" + docPurpose.size() + "]";
+                    case CrdCodes.INFO_NEEDED -> url + "[" + infoNeeded.size() + "]";
+                    case CrdCodes.QUESTIONNAIRE -> url + "[" + questionnaires.size() + "]";
+                    case CrdCodes.RESPONSE -> url + "[" + responses.size() + "]";
+                    case CrdCodes.REASON -> url + "[" + reasons.size() + "]";
+                    default -> url;
+                });
             }
             switch (url) {
                 case CrdCodes.COVERED -> covered = CrdCodes.coded(url, presentCode(sub));
@@ -518,7 +540,7 @@ public final class CrdResponseMapper {
         // Which requested codes the answer is for is worked out afterwards, once every answer is known.
         return new CoverageInformationView(foundAt, appliesTo, List.of(), null, outcome, covered, paNeeded, docNeeded, docPurpose,
                 infoNeeded, satisfiedPaId, coverageRef, assertionId, date, questionnaires, responses, reasons, laterReasons, details,
-                authOutOfNetworkOnly, vendor, vendorBasis, other);
+                authOutOfNetworkOnly, vendor, vendorBasis, other, noValue);
     }
 
     /**
