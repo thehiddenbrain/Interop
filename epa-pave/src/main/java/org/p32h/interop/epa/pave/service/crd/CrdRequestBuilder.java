@@ -137,9 +137,9 @@ public final class CrdRequestBuilder {
         }
         if (!missing.isEmpty()) {
             // First, so a refusal by the service is read beside it and not taken for a fault of the service.
-            notes.add(0, "This request was sent without " + missing.size() + (missing.size() == 1 ? " element" : " elements") + " that the "
+            notes.add(0, "This request leaves out " + missing.size() + (missing.size() == 1 ? " element" : " elements") + " that the "
                     + CaseResources.CRD_VERSION + " profiles require, because nobody supplied " + (missing.size() == 1 ? "it" : "them")
-                    + ". The notes below say which, and what would supply each.");
+                    + ". It goes all the same. The notes below say which, and what would supply each.");
         }
         return new Built(JsonSafe.pretty(root), notes, orders, missing);
     }

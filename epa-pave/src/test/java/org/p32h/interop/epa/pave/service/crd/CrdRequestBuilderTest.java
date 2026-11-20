@@ -126,8 +126,8 @@ class CrdRequestBuilderTest {
         assertThat(json.has("fhirServer")).isFalse();
         // Rule 3 of the 2.0.1 work: the first note says how many required elements went out missing,
         // and each one is listed with the profile that requires it and what would supply it.
-        assertThat(built.notes().get(0)).isEqualTo("This request was sent without 7 elements that the CRD 2.0.1 profiles require, "
-                + "because nobody supplied them. The notes below say which, and what would supply each.");
+        assertThat(built.notes().get(0)).isEqualTo("This request leaves out 7 elements that the CRD 2.0.1 profiles require, "
+                + "because nobody supplied them. It goes all the same. The notes below say which, and what would supply each.");
         assertThat(built.incomplete()).extracting(CaseResources.Required::element).containsExactly(
                 "Patient.identifier.system (the member ID)", "Patient.identifier:MRIdentifier", "Patient.name", "Patient.gender",
                 "Coverage.status", "Coverage.payor", "Practitioner.name");

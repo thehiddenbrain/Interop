@@ -996,6 +996,46 @@ class CrdServiceTest {
     }
 
     @Test
+    void aPreviewCarriesARealHookInstanceAndSaysANewOneIsMadeWhenTheRequestIsSent() {
+        // CRD201-22: the preview may be sent as the tester's own body, so its hookInstance must be a real id, not a sentence.
+        RequestPreview preview = service().preview(request("S123456789").build(), null);
+        String hookInstance = JsonSafe.parse(preview.body()).node().get("hookInstance").asString();
+        assertThat(java.util.UUID.fromString(hookInstance).toString()).isEqualTo(hookInstance);
+        assertThat(preview.notes()).contains("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time "
+                + "the request is sent.");
+        // What CRD 2.0.1 requires and was not supplied is counted first, as on a run.
+        assertThat(preview.notes().get(0)).startsWith("This request leaves out ").contains("that the CRD 2.0.1 profiles require");
+    }
+
+    @Test
+    void aHookThisToolDoesNotBuildIsRefusedWithWhatItDoesBuild() {
+        // CRD201-22: say plainly which hooks and order types are not built.
+        assertThatThrownBy(() -> service().run(request("S123456789").hook("order-dispatch").build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("hook");
+                    assertThat(error.message()).isEqualTo("This tool builds order-sign and order-select requests only. CRD 2.0.1 also "
+                            + "lists the hooks appointment-book, encounter-start, encounter-discharge and order-dispatch, and this tool "
+                            + "builds none of them. Its orders are ServiceRequests only: it does not build a DeviceRequest, "
+                            + "MedicationRequest, NutritionOrder, CommunicationRequest, Appointment or VisionPrescription.");
+                }));
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aRunWhoseRequestLeftOutWhatCrd201RequiresCarriesOneFindingThatNamesIt() {
+        RunEnvelope<CrdDetail> result = service().run(request("P32H-NO-AUTH").build(), RunOrigin.manual(), null);
+        assertThat(result.findings()).filteredOn(f -> f.kind() == FindingKind.REQUEST_INCOMPLETE).singleElement().satisfies(f -> {
+            assertThat(f.title()).startsWith("The request was sent without ").endsWith(" CRD 2.0.1 requires");
+            assertThat(f.detail()).contains("Patient.identifier:MRIdentifier (CRD 2.0.1 profile-patient), supplied by the variables "
+                    + "patientMrn and patientMrnSystem");
+        });
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request leaves out ");
+        // A body of the tester's own was not built by this tool, so nothing is said about what it left out.
+        RunEnvelope<CrdDetail> own = service().run(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\"}").build(), RunOrigin.manual(), null);
+        assertThat(own.findings()).extracting(Finding::kind).doesNotContain(FindingKind.REQUEST_INCOMPLETE);
+    }
+
+    @Test
     void aPreviewOfABlockedWriteStillShowsWhereItWouldGoAndSaysItIsBlocked() {
         gateway.failing(blockedWrite());
         RequestPreview preview = service().preview(request("P32H-PA-REQ").build(), null);
