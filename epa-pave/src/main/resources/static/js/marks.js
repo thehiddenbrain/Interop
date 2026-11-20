@@ -111,5 +111,5 @@ export function mockMark() {
 
 /** The mark that says nobody answered: the step was done inside this tool and nothing was sent. */
 export function localMark() {
-    return el('span', {class: 'local-mark'}, 'done inside this tool, nobody answered');
+    return el('span', {class: 'local-mark'}, 'done in this tool, nobody answered');
 }

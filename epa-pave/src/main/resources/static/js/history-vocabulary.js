@@ -85,8 +85,10 @@ export async function loadVocabulary() {
             }
             return Array.from(seen.values()).map(entry => {
                 const labels = [...new Set(entry.words.map(word => word.label).filter(Boolean))];
-                return {code: entry.code, label: labels.length === 0 ? null : labels.length === 1 ? labels[0]
-                    : entry.words.filter(word => word.label).map(word => word.protocol + ': ' + word.label).join('; ')};
+                // Each set of words once, after every protocol that uses it.
+                const byWords = labels.map(label => entry.words.filter(word => word.label === label).map(word => word.protocol).join(' and ')
+                    + ': ' + label);
+                return {code: entry.code, label: labels.length === 0 ? null : labels.length === 1 ? labels[0] : byWords.join('; ')};
             });
         }
     };

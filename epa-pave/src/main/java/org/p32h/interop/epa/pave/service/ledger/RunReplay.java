@@ -374,11 +374,12 @@ public class RunReplay {
         if (found == null || Texts.blank(original.scenarioId())) {
             return found;
         }
+        // The line can go on to say what the scenario does with the request; that part is kept.
         String chosen = "Mock scenario " + original.scenarioId().strip() + " answered: " + ScenarioRepository.CHOSEN_BY_ID + ".";
-        List<String> supporting = found.supporting().stream().map(line -> !chosen.equals(line) ? line
+        List<String> supporting = found.supporting().stream().map(line -> !line.startsWith(chosen) ? line
                 : "Mock scenario " + original.scenarioId().strip() + " answered: the scenario the original run recorded, sent again by its id. "
                         + "On the mock profile a replay is therefore answered as the original run was, by construction, whatever its "
-                        + "member ID would select today.").toList();
+                        + "member ID would select today." + line.substring(chosen.length())).toList();
         return new VerdictView(found.headline(), found.outcomeCode(), found.outcomeLabel(), found.tone(), supporting);
     }
 

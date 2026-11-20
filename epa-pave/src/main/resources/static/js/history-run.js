@@ -138,7 +138,7 @@ export function createRunView(app, context) {
 
             el('section', {class: 'history-run__section'},
                 el('h3', {class: 'sub-heading'}, 'How it ties to other runs'),
-                ties(run), followers(run)),
+                ties(run)),
 
             el('section', {class: 'history-run__section'},
                 el('h3', {class: 'sub-heading'}, 'Not in the ledger'),
@@ -181,7 +181,7 @@ export function createRunView(app, context) {
      */
     function followers(run) {
         const slot = el('div', {class: 'history-run__followers', aria: {live: 'polite'}},
-            el('p', {class: 'small quiet'}, 'Reading the runs that follow this one.'));
+            el('span', {class: 'small quiet'}, 'Reading the runs that follow this one.'));
         api.get('/api/runs?follows=' + encodeURIComponent(run.runId) + '&limit=' + FOLLOWERS_SHOWN).then(answer => {
             if (openId !== run.runId) {
                 return;
@@ -191,11 +191,10 @@ export function createRunView(app, context) {
                 return;
             }
             const runs = answer.body.runs || [];
-            fill(slot, facts([['Followed by', runs.length === 0 ? none('no run names this one as the run it follows')
+            fill(slot, runs.length === 0 ? none('no run names this one as the run it follows')
                 : [el('ul', {class: 'plain-list'}, runs.map(each => el('li', null, runLink(each.runId), ' ',
                     whatRan(context.vocabulary(), each), ', ', outcomeOf(context.vocabulary(), each)))),
-                answer.body.truncated ? el('p', {class: 'small'}, 'Only the newest ' + FOLLOWERS_SHOWN + ' are listed.') : null]]],
-            'facts--ruled'));
+                answer.body.truncated ? el('p', {class: 'small'}, 'Only the newest ' + FOLLOWERS_SHOWN + ' are listed.') : null]);
         });
         return slot;
     }
@@ -213,6 +212,7 @@ export function createRunView(app, context) {
             const label = Object.prototype.hasOwnProperty.call(CORRELATION, key) ? CORRELATION[key] : key;
             rows.push([label, RUN_KEYS.has(key) && /^run-/.test(value) ? runLink(value) : code(value)]);
         }
+        rows.push(['Followed by', followers(run)]);
         return facts(rows, 'facts--ruled');
     }
 

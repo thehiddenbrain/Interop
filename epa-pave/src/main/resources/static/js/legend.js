@@ -24,9 +24,9 @@ export async function openLegend(dialog) {
                     'The verdict strip at the top of a result, and the square in front of an outcome in a table. '
                     + 'A solid colour is an answer from the payer. A hollow frame is no answer from the payer, and the frame says why.',
                     [TONES.map(([tone, meaning]) => row(toneMark(tone), meaning)),
-                        row([toneMark('ACTION', 'NOBODY'), ' ', localMark()],
-                            'Nobody answered: a step done inside this tool, such as completing a questionnaire response. Nothing was sent. '
-                            + 'The dotted frame is in the colour of what the step means, and is never filled, because no payer answered.')]),
+                        row(toneMark('ACTION', 'NOBODY'),
+                            [localMark(), ' A step done inside this tool, such as completing a questionnaire response: nothing was sent and '
+                            + 'nobody answered. The dotted frame is in the colour of what the step means, and is never filled, because no payer answered.'])]),
 
                 group('The test result',
                     'Whether the outcome matched what the tester declared. It is a different fact from what the service said, '

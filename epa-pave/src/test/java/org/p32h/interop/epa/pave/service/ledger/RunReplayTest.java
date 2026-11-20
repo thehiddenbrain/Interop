@@ -805,10 +805,12 @@ class RunReplayTest {
     void aReplayOnMockSaysTheScenarioWasTheOneTheOriginalRecordedAndNotChosen() {
         RunRecord original = draft("run-1", clock).scenarioId("crd-02-no-auth").build();
         VerdictView found = new VerdictView("Prior authorization is not required.", "NO_AUTH_REQUIRED", "Prior authorization is not required",
-                Tone.CLEAR, List.of("Mock scenario crd-02-no-auth answered: chosen in the scenario selector.", "Another line."));
+                Tone.CLEAR, List.of("Mock scenario crd-02-no-auth answered: chosen in the scenario selector. What it does with the order.",
+                "Another line."));
         assertThat(RunReplay.replayedScenarioSaid(original, found).supporting()).containsExactly(
                 "Mock scenario crd-02-no-auth answered: the scenario the original run recorded, sent again by its id. On the mock profile a "
-                        + "replay is therefore answered as the original run was, by construction, whatever its member ID would select today.",
+                        + "replay is therefore answered as the original run was, by construction, whatever its member ID would select today. "
+                        + "What it does with the order.",
                 "Another line.");
         // A live replay names no scenario, and its lines are left as they are.
         assertThat(RunReplay.replayedScenarioSaid(draft("run-2", clock).profile("live").scenarioId(null).build(), found)).isSameAs(found);
