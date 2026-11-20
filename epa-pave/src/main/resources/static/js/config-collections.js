@@ -255,7 +255,8 @@ export function createCollectionsView(context) {
         return [
             request.correctedOperation
                 ? el('div', null, flag('chosen by hand', 'Someone mapped this request by hand. The tool keeps the choice until it is changed again.'),
-                    ' Detection proposed ', el('strong', null, context.operationLabel(request.detectedOperation)), '.')
+                    request.detectedOperation === 'UNMAPPED' ? ' Detection did not map it to any operation.'
+                        : [' Detection proposed ', el('strong', null, context.operationLabel(request.detectedOperation)), '.'])
                 : null,
             el('div', {class: 'small'}, request.detectionBasis || none('no reason given')),
             sentences(request.notes, 'small')
