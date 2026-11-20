@@ -21,11 +21,15 @@ class MemberDataUploadTest {
     @Test
     void namesThatReadAsMemberDataAreCaughtAndOrdinaryNamesAreNot() {
         for (String caught : List.of("memberId", "member_id", "MemberID", "patientLastName", "patientBirthDate", "subscriberId", "dob",
-                "dateOfBirth", "firstName", "last-name", "PATIENT_IDENTIFIER", "beneficiaryNumber", "birthDate")) {
+                "dateOfBirth", "firstName", "last-name", "PATIENT_IDENTIFIER", "beneficiaryNumber", "birthDate",
+                // N9 of the member data check: the names its upload was not warned for.
+                "mbrId", "ssn", "MBI", "mrn", "medicaidId", "medicareNumber", "zip", "address", "streetAddress", "phone",
+                "memberPhone", "patient_zip_code", "socialSecurityNumber", "medicalRecordNumber", "telephone", "mbrNum")) {
             assertThat(MemberDataNames.readsAsMemberData(caught)).as(caught).isTrue();
         }
         for (String ordinary : List.of("baseUrl", "crdUrl", "crdOrderSignServiceId", "memberIdSystem", "memberIdType", "subscriptionId",
-                "callbackUrl", "clientId", "clientSecret", "tenant", "claimId", "npi", "providerNpi", "lineOfBusiness", "apiKey", "patientUrl")) {
+                "callbackUrl", "clientId", "clientSecret", "tenant", "claimId", "npi", "providerNpi", "lineOfBusiness", "apiKey", "patientUrl",
+                "serverAddress", "ipAddress", "callbackAddress", "hostAddress", "medicareUrl", "medicaidPlanType", "telemetry", "zipkinUrl")) {
             assertThat(MemberDataNames.readsAsMemberData(ordinary)).as(ordinary).isFalse();
         }
     }
@@ -40,7 +44,7 @@ class MemberDataUploadTest {
         ConfigStore.EnvironmentUpload upload = fixture.store.uploadEnvironment("zz.json", file, EnvironmentKind.SANDBOX, false);
         String warning = upload.warnings().stream().filter(each -> each.contains("member data")).findFirst().orElseThrow();
         assertThat(warning).startsWith("The variables \"memberId\", \"patientLastName\", \"patientBirthDate\" read as member data: an "
-                + "identifier, a name or a birth date. The environment is kept on disk exactly as it was uploaded, values included, in "
+                + "identifier, a name, a birth date, an address or a telephone number. The environment is kept on disk exactly as it was uploaded, values included, in "
                 + "the file ").endsWith(". An environment or a collection that holds real member data must not be uploaded: use "
                 + "placeholders such as S123456789 in its place.").doesNotContain("Zzlastname").doesNotContain("1961")
                 .doesNotContain("memberIdSystem");

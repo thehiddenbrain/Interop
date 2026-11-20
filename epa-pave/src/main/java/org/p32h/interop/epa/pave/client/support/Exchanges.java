@@ -312,8 +312,10 @@ public final class Exchanges {
         }
         List<String> notes = new ArrayList<>(decodeNotes);
         if (parsed != null && parsed.ok() && parsed.repeatedKeys()) {
-            notes.add("The body repeats a key inside one object. Only the last value of a repeated key is shown here. "
-                    + "The body as received is in the wire view.");
+            // A designed view puts every value of each repeated key in place of this note; a view
+            // that does not has read the last value alone, which is what this says.
+            notes.add("The body repeats a key inside one object. This tool reads only the last value of a repeated key, as JSON "
+                    + "readers do. The body as received, with every value, is in the wire view.");
         }
         return new VendorExchange(request, status, responseHeaders, text, responseBytes, parsed != null && parsed.ok() ? parsed.node() : null,
                 parseError, elapsedMillis, failure, detail, Set.of(), null, null, notes);

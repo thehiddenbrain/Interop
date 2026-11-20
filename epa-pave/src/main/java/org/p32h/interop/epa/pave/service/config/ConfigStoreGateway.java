@@ -144,6 +144,12 @@ public class ConfigStoreGateway implements OperationGateway {
         if (encoded != null) {
             throw encodedSeparator(plan, encoded);
         }
+        // A url whose address reads well and which is not a valid url after it is refused for what
+        // it is, naming the value whose text made it so. On mock a read is never sent, so only a
+        // write, which the guardrail would refuse, is refused there.
+        if ((!epa.mock() || plan.write()) && invalidAfterItsAddress(plan.filled())) {
+            throw notAValidUrl(plan.intent().operation().label() + " was not sent", plan.urlVariables(), plan.target());
+        }
         if (plan.refusal() != null) {
             throw new ProdWriteBlockedException(intent.operation(), plan.environment(), plan.refusal().reason(), plan.refusal().action(),
                     plan.url(), plan.method(), plan.target().requestName());
@@ -229,13 +235,51 @@ public class ConfigStoreGateway implements OperationGateway {
                         + "whose values point there, with its own credentials, and activate it.");
     }
 
+    /** True for a complete url whose scheme, host and port the client reads, and which as a whole is still not a url it can send. */
+    private static boolean invalidAfterItsAddress(UrlForms.Filled filled) {
+        return filled != null && filled.complete() && UrlNormal.authorityReadable(filled.send()) && UrlNormal.sendable(filled.send()) == null;
+    }
+
+    /** The refusal of a url that is whole up to its path and not valid after it. It names what made it so, never the value. */
+    private static BadInputException notAValidUrl(String what, Resolution resolution, Target target) {
+        return new BadInputException(what + ": the url as filled is not a valid url, because the text of " + invalidFrom(resolution, target)
+                + " holds a character that cannot stand in a url as it is, such as a space, a percent sign that starts no escape or a "
+                + "vertical bar. Its scheme, host and port are not the problem.", "Nothing was sent. Correct that value: write a space as "
+                + "%20 and a percent sign as %25, or leave the character out, then send it again.");
+    }
+
+    /** What put text into a url that cannot stand in it: the variables with their layers, or the request or setting that wrote it. */
+    private static String invalidFrom(Resolution resolution, Target target) {
+        List<String> found = new ArrayList<>();
+        if (resolution != null) {
+            Map<String, VariableSource> sources = sources(resolution);
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (piece.name() != null && piece.send() != null && !UrlNormal.validInPath(piece.send())) {
+                    VariableSource source = sources.get(piece.name());
+                    String named = "the variable \"" + ConfigStore.oneLine(piece.name()) + "\""
+                            + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
+                    if (!found.contains(named)) {
+                        found.add(named);
+                    }
+                }
+            }
+        }
+        if (!found.isEmpty()) {
+            return String.join(" and ", found);
+        }
+        return target == null || target.described() == null ? "the url as it is written" : target.described();
+    }
+
     /** The refusal of a call whose path holds an encoded separator. It names what supplied it, never the value. */
     private static BadInputException encodedSeparator(CallPlan plan, String encoded) {
-        String what = encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
+        String what = UrlNormal.aboveAscii(encoded) ? "a percent-escape of a byte above 0x7F (" + encoded + "), the form an overlong or "
+                + "look-alike separator is written in and one a FHIR path never needs"
+                : encoded.startsWith("%") ? "an encoded separator (" + encoded + ")" : encoded;
         return new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds " + what + ", which "
                 + "came from " + encodedFrom(plan) + ". A server in front of the service can decode it before it reads the path, and "
                 + "then the request addresses something other than what this tool judged it to be.",
-                "Nothing was sent. Remove the encoded slash, backslash, semicolon or dot segment from that value. A value that needs "
+                "Nothing was sent. Remove the encoded slash, backslash, semicolon, dot segment or escape above 0x7F from that value. "
+                        + "A value that needs "
                         + "such a character belongs in the query, after the question mark, where it is sent as it is.");
     }
 
@@ -491,6 +535,10 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "only whoever owns this installation can change that, with a restart. To test without production, switch to a "
                     + "sandbox or uat environment.");
         }
+        // A production environment whose address cannot be read is never made active; one that was
+        // active before that rule, or became unreadable when a collection made another of its
+        // variables an address, is not opened either.
+        ConfigStore.refuseUnreadableProduction(active.content(), ProductionDestinations.urlForming(snapshot.collections()), "unlock");
         if (typedEnvironmentName == null || !typedEnvironmentName.equals(active.name())) {
             // The outcome only. What was typed is not logged.
             log.info("An unlock of production writes was refused on \"{}\": the name typed did not match", ConfigStore.oneLine(active.name()));
@@ -1303,6 +1351,10 @@ public class ConfigStoreGateway implements OperationGateway {
         // An address this tool cannot read as the HTTP client reads it is never taken as "not
         // production": what the client would connect to is not known here.
         if (complete && (destination == null || !destination.readable())) {
+            if (invalidAfterItsAddress(filled)) {
+                BadInputException invalid = notAValidUrl(what + " is blocked", origin.resolution(), target);
+                return new Refusal("Blocked: the url as filled is not a valid url.", invalid.getMessage() + why, invalid.action());
+            }
             return unreadable(what, why, addressFrom(origin.resolution(), filled.send(), target));
         }
 

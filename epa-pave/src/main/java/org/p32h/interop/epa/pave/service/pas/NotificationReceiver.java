@@ -256,7 +256,8 @@ public class NotificationReceiver {
             // A configuration that cannot be read now leaves the payload as it arrived; the run's
             // own call would report the configuration. The exception type only, never its message.
             log.warn("The secrets to mask a notification with could not be worked out ({})", e.getClass().getSimpleName());
-            return org.p32h.interop.epa.pave.model.SentSecrets.none();
+            // Said in the payload's notes: nothing was searched for.
+            return org.p32h.interop.epa.pave.model.SentSecrets.builder().incomplete().build();
         }
     }
 
@@ -408,10 +409,11 @@ public class NotificationReceiver {
         // A body longer than what is held is then still read as JSON, mapped and matched.
         boolean readWhole = inbound.cut() && inbound.readWhole();
         String whole = readWhole ? decode(inbound.whole(), false, new ArrayList<>()) : text;
-        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = givenToServices().mask(readWhole ? whole : text);
+        org.p32h.interop.epa.pave.model.SentSecrets secrets = givenToServices();
+        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = secrets.mask(readWhole ? whole : text);
         if (readWhole) {
             whole = masked.text();
-            text = givenToServices().mask(text).text();
+            text = secrets.mask(text).text();
         }
         if (masked.places() > 0) {
             // Masked before anything reads it, so the designed view, the payload and the ledger line see the mask alone.
@@ -426,6 +428,18 @@ public class NotificationReceiver {
                     : masked.places() + " places in this payload are masked because they repeat secrets this tool could have sent to the "
                             + "service: a secret variable, the access token, the client secret or a credential of the address to call back. "
                             + "What is shown is therefore not exactly what was received.");
+        }
+        // As the wire view of a call says it: a payload shown with a secret in it and no word about
+        // it would pass for one that was searched and found clean.
+        if (secrets.tooShort() > 0) {
+            payloadNotes.add("This tool could have sent the service " + (secrets.tooShort() == 1 ? "1 secret" : secrets.tooShort() + " secrets")
+                    + " shorter than " + org.p32h.interop.epa.pave.model.SentSecrets.SHORTEST_SEARCHED + " characters. A secret that "
+                    + "short is not searched for, because it would be found by accident, so this payload is not masked where it repeats "
+                    + (secrets.tooShort() == 1 ? "that one." : "one of those."));
+        }
+        if (secrets.incomplete()) {
+            payloadNotes.add("At least one secret this tool could have sent to the service could not be worked out, so this payload was "
+                    + "not searched for it. Check what is shown here before you share it.");
         }
         String cut = null;
         if (readWhole) {

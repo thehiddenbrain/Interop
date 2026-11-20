@@ -23,7 +23,8 @@ import org.p32h.interop.epa.pave.postman.UrlNormal;
  *                     production environment it belonged to. A deletion does not shorten it, so
  *                     an address that was production stays production after its environment is
  *                     gone. The destinations of the production environments stored now are added
- *                     to it, so it is never short of them
+ *                     to it, so it is never short of them. An address of one of them that cannot
+ *                     be read is there as its whole host, see {@link ProductionDestinations#production}
  */
 record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String activeName, List<StoredCollection> collections,
                       List<KnownDestination> remembered) {
@@ -35,7 +36,7 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
         Set<String> urlForming = ProductionDestinations.urlForming(collections);
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                for (ProductionDestinations.Found found : ProductionDestinations.of(environment.content(), urlForming)) {
+                for (ProductionDestinations.Found found : ProductionDestinations.production(environment.content(), urlForming)) {
                     all.add(new KnownDestination(environment.name(), found.destination(), found.secret()));
                 }
             }
