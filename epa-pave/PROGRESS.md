@@ -4,6 +4,33 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Read this first.** The revision that holds this file is later than `5763c41`, which the rest of
+this section describes. Three pieces of work that the text below records as started and not done
+(D-226) are merged since, and the integrator built the line with them through the shared wrapper:
+2714 tests, 2712 passed, 2 skipped as explained below, none failed.
+
+- The server task: a write refused at the moment of sending says what happened; a played timeout on
+  mock is said once; the resolve note and the refusal of an incomplete raw url agree; a lookup field
+  whose value holds masked text is marked; an empty element of an issue is shown once; the comparison
+  no longer repeats its caveat in its notes; the test of a replay on a chain view was brought into
+  line with the tool (a replay never joins a chain); a list that says it is synthetic is described
+  as that. Checked by nobody but its author.
+- The pass over the screens: every place that says whether writes are unlocked is redrawn when
+  another browser locks, and the tester is told; the note, tester reference and expectation fields
+  carry the hint that the ledger keeps the text, and a refusal marks its field; the Config tab shows
+  the address warnings and the upload warnings; the scenario tables show the notes; a masked lookup
+  field is not taken into the case. Checked by nobody but its author, and the sweep of the older
+  states was driven at 1366 by 768 only.
+- The README after the audits and their fixes. It was written before the two items above, so the few
+  sentences they reworded (a played timeout, the refusal at the moment of sending, the synthetic code
+  list, the hint beside a note) have not been checked again.
+
+**Known and open at this revision, beyond what is listed below:** a note typed with a request sent
+as written from the Config tab is not checked for the member ID its body carries; the answer of an
+unlock does not say that a lock from any browser ends it (the page says so in its own words); the
+heading of the error panel calls a played timeout on mock a fault in the environment. The decisions
+of these three pieces of work are not in `DECISIONS.md` yet.
+
 This describes revision `5763c41` on branch `epa-pave`, which is on the remote. It holds the line of
 `7dade28` (the fix wave, the two leftover tasks and the five tabs), the pass that joined the tabs
 into one tool, the README brought up to the tool as built, the two server tasks of what the reviews
