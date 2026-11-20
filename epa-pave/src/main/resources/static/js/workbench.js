@@ -33,6 +33,24 @@ import {createRunValues} from './run-values.js';
 import {sourceWords} from './config-parts.js';
 
 /**
+ * The text a send is refused for, or empty when it may go: what was typed in the procedure code box
+ * and not added, when the call sends the case. Nothing the tester did not see as part of the case is
+ * ever sent, so such text is not sent quietly, and not dropped quietly either. A call that sends
+ * nothing of the case is not held up by a box it does not read: a subscription call, a request of
+ * the tester's own, any call made while the case is put out of the way.
+ *
+ * facts: typed (the text in the box), caseShown (the case is on this tab and not hidden),
+ * ownRequest (a request of the tester's own is chosen, which carries nothing of the case), and
+ * sendsCase (what the tab said of this call: false when it carries nothing of the case; left out,
+ * the case is sent whenever it is shown and no request of the tester's own is chosen).
+ */
+export function textLeftToRefuse(facts) {
+    const typed = typeof facts.typed === 'string' ? facts.typed.trim() : '';
+    const sendsCase = facts.sendsCase === false ? false : facts.caseShown === true && facts.ownRequest !== true;
+    return sendsCase ? typed : '';
+}
+
+/**
  * Builds the two panes into a tab panel.
  *
  * spec: formLabel and readoutLabel (for assistive technology), onSubmit (called when the form is
@@ -213,14 +231,16 @@ export function createWorkbench(app, panel, spec) {
     }
 
     /**
-     * The text typed in the procedure code box of the case and not added, when the case is on this
-     * tab. The case is one, moved to whichever protocol tab is open, so on any other tab, the
-     * Config tab among them, nothing typed there is this call's business.
+     * What the screen says of the procedure code box for one call: the text typed there and not
+     * added, whether the case is shown on this tab, whether a request of the tester's own is chosen,
+     * and what the tab said of the call. The case is one, moved to whichever protocol tab is open,
+     * so on any other tab, the Config tab among them, it is not shown here.
      */
-    function typedNotAdded() {
-        const box = panel.contains(app.caseContext.node)
-            ? app.caseContext.node.querySelector('[data-field="procedureCodes"] input[role="combobox"]') : null;
-        return box ? box.value.trim() : '';
+    function codeBoxFacts(options) {
+        const node = app.caseContext.node;
+        const shown = panel.contains(node) && node.closest('[hidden]') === null;
+        const box = shown ? node.querySelector('[data-field="procedureCodes"] input[role="combobox"]') : null;
+        return {typed: box ? box.value : '', caseShown: shown, ownRequest: Boolean(ownRequest && ownRequest.active()), sendsCase: options.sendsCase};
     }
 
     /** Returns the focus to the control that started a call, when the focus fell to the page meanwhile. */
@@ -320,6 +340,9 @@ export function createWorkbench(app, panel, spec) {
          *
          * send: a function that returns the promise of an api call. options.saying: the status line
          * while waiting. options.control: the control that was used, marked busy meanwhile.
+         * options.sendsCase, optional: false for a call that carries nothing of the case, so text
+         * left in the procedure code box does not hold it up; left out, the call is taken to send
+         * the case whenever the case is shown on this tab.
          * Returns the answer when it is a completed call or a result, otherwise null: by then the
          * form has been marked or the refusal shown, and there is nothing left for the tab to do.
          */
@@ -341,7 +364,7 @@ export function createWorkbench(app, panel, spec) {
                 status.textContent = nothing.title;
                 return null;
             }
-            const typed = typedNotAdded();
+            const typed = textLeftToRefuse(codeBoxFacts(options));
             if (typed !== '') {
                 // Text left in the code box is not part of the case on screen, so it is never sent,
                 // and the send is refused rather than made without it: the tester decides which.

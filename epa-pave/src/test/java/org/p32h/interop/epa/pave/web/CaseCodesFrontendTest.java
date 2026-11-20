@@ -59,7 +59,7 @@ class CaseCodesFrontendTest {
     @Test
     void aSendWithTextLeftInTheCodeBoxIsRefusedBeforeAnythingIsAsked() throws IOException {
         String call = body(read("workbench.js"), "async call(send, options) {");
-        int refusal = call.indexOf("typedNotAdded()");
+        int refusal = call.indexOf("textLeftToRefuse(codeBoxFacts(options))");
         int sending = call.indexOf("send()");
         assertThat(refusal).isGreaterThanOrEqualTo(0);
         assertThat(sending).isGreaterThan(refusal);
