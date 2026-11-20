@@ -332,8 +332,9 @@ public class ApiExceptionHandler {
     }
 
     private static ResponseEntity<ErrorView> respond(HttpStatus status, ErrorView body) {
-        // Every refusal of what was submitted is worded for the call that was made, in one place.
-        ErrorView worded = status == HttpStatus.UNPROCESSABLE_CONTENT ? CallWording.word(body, CallWording.current()) : body;
+        // Every refusal is worded for the call that was made, in one place: a 422 of the form, and as
+        // much a 403 of an unlock or a 409 of a preview, which would otherwise speak of a send.
+        ErrorView worded = status.is4xxClientError() ? CallWording.word(body, CallWording.current()) : body;
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(worded);
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * <p>A service throws the same refusal whether it was asked to send, to show what it would send,
  * or to compare: the check is the same. But "Nothing was sent" and "send again" belong to a send,
  * and a tester who pressed "Show the request", "Compare" or "Unlock" and reads them looks for a
- * send that never was. So the exception handler hands every 422 here, and the sentence that says
+ * send that never was. So the exception handler hands every refusal (a 4xx) here, and the sentence that says
  * what did not happen, and the step that says what to do again, are chosen from what the endpoint
  * does, never by the code that threw.
  */

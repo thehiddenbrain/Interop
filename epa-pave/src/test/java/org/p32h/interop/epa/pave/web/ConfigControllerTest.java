@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -575,6 +576,8 @@ class ConfigControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.kind").value("BLOCKED"))
                 .andExpect(jsonPath("$.title", startsWith("Production writes cannot be unlocked: an owner has locked this installation against them.")))
+                // An unlock sends nothing, so its refusal says what did not happen to it.
+                .andExpect(jsonPath("$.title", endsWith(" Nothing was changed.")))
                 .andExpect(jsonPath("$.action", startsWith("No unlock is possible from this screen.")));
 
         mvc.perform(get("/api/config/effective").session(session))
