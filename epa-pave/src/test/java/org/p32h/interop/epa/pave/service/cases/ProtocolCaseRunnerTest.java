@@ -258,4 +258,24 @@ class ProtocolCaseRunnerTest {
         assertThat(outcome.reason()).doesNotContain(SURNAME).doesNotContain("S123456789");
         assertThat(output.getAll()).contains("A case failed inside this tool").doesNotContain(SURNAME).doesNotContain("S123456789");
     }
+
+    @Test
+    void aCaseThatWasNotSentNeverSaysItWasSentWithTheIdAlone() {
+        memberStatus = LookupStatus.NOT_FOUND;
+        providerStatus = LookupStatus.DISABLED;
+        gateway.failing(new EndpointNotConfiguredException(EpaOperation.CRD_ORDER_SIGN, "There is no url for CRD order-sign."));
+        CaseOutcome notConfigured = runner().run(crdCase("S000000001").build());
+        assertThat(notConfigured.status()).isEqualTo(CaseStatus.NOT_CONFIGURED);
+        assertThat(notConfigured.notes()).containsExactly("The member lookup does not know this member ID.",
+                "The provider lookup is not configured.");
+        gateway.failing(null);
+        CaseOutcome invalid = runner().run(crdCase("S000000001").procedureCodes(List.of()).build());
+        assertThat(invalid.status()).isEqualTo(CaseStatus.INVALID);
+        assertThat(invalid.notes()).noneMatch(note -> note.contains("was sent"));
+        // Sent, the same lookups say how it went out, and the default mock scenario that answered is named after them.
+        assertThat(runner().run(crdCase("S000000001").build()).notes()).containsExactly(
+                "The member lookup does not know this member ID. The request was sent with the member ID alone.",
+                "The provider lookup is not configured. The request was sent with the NPI alone.",
+                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no sentinel matched.");
+    }
 }

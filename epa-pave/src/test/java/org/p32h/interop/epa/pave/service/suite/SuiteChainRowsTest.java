@@ -114,7 +114,7 @@ class SuiteChainRowsTest {
         SuiteRunView run = run("C6,crd,P32H-ERR500," + NPI + ",95810,NO_AUTH_REQUIRED", "C7,crd,P32H-PA-REQ," + NPI + ",95810,NO_AUTH_REQUIRED");
         assertThat(run.counts().failed()).isEqualTo(2);
         assertThat(run.counts().failedByFault()).isEqualTo(1);
-        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 failed, 1 of them because the service failed or did not answer.");
+        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 failed (1 of them because the service failed or did not answer).");
         assertThat(run.results().get(0).outcomeFault()).isTrue();
         assertThat(run.results().get(1).outcomeFault()).isFalse();
     }

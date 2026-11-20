@@ -770,7 +770,7 @@ public class SuiteService implements AutoCloseable {
                 // A service that was down is a finding about the environment, not a determination, so the two are told apart.
                 parts.add(c.failedByFault() == c.failed()
                         ? c.failed() + " failed " + (c.failed() == 1 ? "" : "(all of them) ") + "because the service failed or did not answer"
-                        : c.failed() + " failed, " + c.failedByFault() + " of them because the service failed or did not answer");
+                        : c.failed() + " failed (" + c.failedByFault() + " of them because the service failed or did not answer)");
             } else {
                 add(parts, c.failed(), "failed");
             }

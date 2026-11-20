@@ -56,4 +56,19 @@ class OutcomeCatalogueTest {
         assertThat(catalogue.expectationProblems(Protocol.PAS, "APPROVED")).isEmpty();
         assertThat(catalogue.expectationProblems(null, "APPROVED")).isEmpty();
     }
+
+    @Test
+    void anExpectationThatCanNeverHoldIsAProblemForAnyProtocol() {
+        OutcomeCatalogue outcomes = new org.p32h.interop.epa.pave.config.CaseWiring().outcomeCatalogue();
+        assertThat(outcomes.expectationProblems(Protocol.CRD, "AUTH_REQUIRED; no auth required")).containsExactly("The expectation names "
+                + "more than one outcome: AUTH_REQUIRED and NO_AUTH_REQUIRED. A run has exactly one outcome and every term must hold, so "
+                + "this could never pass. Keep the one you expect.");
+        // The same outcome written twice is one outcome.
+        assertThat(outcomes.expectationProblems(Protocol.CRD, "AUTH_REQUIRED; auth required")).isEmpty();
+        // A misspelt term is said to be no outcome, and not counted as a second one.
+        assertThat(outcomes.expectationProblems(Protocol.CRD, "AUTH_REQUIRED; AUTH_REQIURED")).singleElement().asString()
+                .startsWith("\"AUTH_REQIURED\" is not an outcome this operation can produce.");
+        assertThat(outcomes.expectationProblems(Protocol.PAS, " ; ;")).containsExactly(OutcomeCatalogue.NO_TERMS);
+        assertThat(outcomes.expectationProblems(Protocol.PAS, null)).isEmpty();
+    }
 }

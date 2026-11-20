@@ -96,9 +96,11 @@ public final class OutcomeCatalogue {
                 return problems;
             }
             Set<String> bare = new LinkedHashSet<>();
+            Entry known = protocol == null ? null : entries.get(protocol);
             for (String term : terms) {
                 String code = bareOutcome(term);
-                if (code != null) {
+                // A misspelt term is reported as not an outcome below, and is not counted as a second outcome here.
+                if (code != null && (known == null || find(protocol, code) != null)) {
                     bare.add(code);
                 }
             }
