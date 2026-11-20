@@ -35,7 +35,8 @@ D-227 after the pull request was opened, and D-270 the operator's later word tha
 as a real service one day, with what an independent check of that entry found; the commits that record
 them change this file, `DECISIONS.md` and the README only, and no code. D-271 records the operator's
 question whether the tool was ready to load into STS, the first answer that was wrong in part, the
-code change it led to and what an emulation of STS showed.
+code change it led to and what an emulation of STS showed, with what an independent check of that
+entry and the README's STS section found.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and one code change:
