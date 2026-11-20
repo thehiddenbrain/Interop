@@ -646,7 +646,7 @@ curl -s -X POST localhost:8057/api/config/environments/pave-sample-sandbox-977ed
 - Several environments can be held at once. The path takes the environment's name, url-encoded, or
   its id from the upload answer. The id is derived from the name, so the sample's id is always
   `pave-sample-sandbox-977ed8ee`.
-- The active environment is remembered across a restart (observed). `config-store.active-environment`
+- The active environment is remembered across a restart. `config-store.active-environment`
   names one to activate at every start.
 
 ### Uploading a collection
@@ -671,8 +671,8 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   "The body is the one saved with the collection request, with its placeholders filled in,
   because none was supplied for this run." (observed with the sample's `submit Happy Path`). A url
   part in single braces, such as `{claimId}`, takes its value from `urlValues`; without one the
-  request is refused with 422 and nothing is sent, on mock and on live, and so is a url part of
-  `.` or `..`. The vendor's access token goes with it only to a scheme, host and port the
+  request is refused with 422 and nothing is sent, on both profiles (observed on mock), and so is
+  a url part of `.` or `..`. The vendor's access token goes with it only to a scheme, host and port the
   configuration names for a vendor operation. PAVE does not interpret the answer: it shows
   everything that came back and records the run.
 - **Pre-request scripts are never run.** A request that has one is flagged, and every run that
