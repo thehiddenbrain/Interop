@@ -54,6 +54,14 @@ agents of section 27 audit the integrated code. An independent review of the cod
 wrote alone (the case runner, suites, the chain view, the HTTP guard) was started, stopped by the
 same limit before it read anything, and is still owed.
 
+**And a second time.** Late in the build the machine itself restarted, most likely because too
+many builds were running at once and it ran out of memory: the project's Gradle setting gives
+each build daemon two gigabytes, and nine were running. Every agent stopped. Nothing on disk was
+lost. What each agent had not yet committed was committed as it stood, each task was handed to
+a new agent in the same worktree, and the number of agents running at once was halved. From
+that point the work not yet merged here is also kept on the remote, on the session's own
+branch, as commits that change no file and only hold the other branches' heads.
+
 Nothing has been run against Onyx. Every result above is on mock.
 
 **Added by the operator during the build (D-118, D-119):** paste a request of your own and send
