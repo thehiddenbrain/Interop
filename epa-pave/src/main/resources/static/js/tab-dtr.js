@@ -358,6 +358,12 @@ async function sendStep(entry, kind) {
     // The tester is answering questions, and the next ones are where they work, not at the top of
     // the result. The line at the head of the questionnaire repeats what the step answered.
     session.node.scrollIntoView({block: 'start'});
+    // The button that was pressed is redrawn with the result, so the focus is put on the line that
+    // says what the step answered, from where the questions are the next stops of the Tab key.
+    const said = session.node.querySelector('.dtr-laststep');
+    if (said) {
+        said.focus({preventScroll: true});
+    }
 }
 
 function show(envelope) {

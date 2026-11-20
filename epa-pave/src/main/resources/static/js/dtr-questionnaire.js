@@ -237,9 +237,9 @@ export function createSession(packageEnvelope, hooks) {
         const changes = entry.form ? entry.form.changes : null;
         const items = view.items || [];
         if (items.length === 0) {
-            parts.push(el('p', {class: 'dtr-q__empty'}, adaptive
-                ? 'The service has asked nothing yet. The first step goes with no answers, and the service answers with its first question.'
-                : 'This questionnaire holds no items to answer.'));
+            parts.push(el('p', {class: 'dtr-q__empty'}, !adaptive ? 'This questionnaire holds no items to answer.'
+                : entry.form ? 'The service asked no question at the last step that worked.'
+                    : 'The service has asked nothing yet. The first step goes with no answers, and the service answers with its first question.'));
         } else {
             parts.push(el('div', {class: 'dtr-q__items', dataset: {field: 'answers'}}, itemList(items, {
                 interactive: true,
@@ -296,7 +296,7 @@ export function createSession(packageEnvelope, hooks) {
         if (last) {
             // The verdict of the step is at the top of the result. It is repeated here in one quiet
             // line, because this is where the tester is working when the answer arrives.
-            parts.push(el('p', {class: 'dtr-laststep'}, toneMark(last.tone), ' ',
+            parts.push(el('p', {class: 'dtr-laststep', tabIndex: -1}, toneMark(last.tone), ' ',
                 el('span', {class: 'quiet'}, (last.kind === 'loop' ? 'Step ' + last.number + ' answered: ' : 'The response step answered: ')),
                 last.headline, ' ', el('span', {class: 'quiet small'}, 'The whole result is above.')));
         }
@@ -316,19 +316,17 @@ export function createSession(packageEnvelope, hooks) {
         if (form) {
             const status = form.status || {};
             parts.push(el('p', {class: 'dtr-standing'},
-                'After the last step: ', el('strong', null, String(form.questionCount)), form.questionCount === 1 ? ' question, ' : ' questions, ',
+                entry.lastFailed ? 'After the last step that worked: ' : 'After the last step: ', el('strong', null, String(form.questionCount)), form.questionCount === 1 ? ' question, ' : ' questions, ',
                 el('strong', null, String(form.answeredCount)), ' answered, completion status ',
                 status.presence === 'VALUE' ? code(status.code) : el('span', {class: 'presence presence--absent'}, 'not returned'), '. ',
                 form.complete ? el('strong', null, 'The server judged the response complete.') : 'The server did not judge the response complete.'));
             if ((form.requiredUnanswered || []).length > 0) {
-                parts.push(el('p', {class: 'dtr-mark dtr-mark--required'}, el('strong', null, 'Required and unanswered: '),
-                    form.requiredUnanswered.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null]),
-                    '. Each is marked at its question.'));
+                parts.push(el('p', {class: 'dtr-mark dtr-mark--required'}, el('strong', null, 'Required and unanswered, each marked at its question: '),
+                    form.requiredUnanswered.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null])));
             }
             if ((form.undetermined || []).length > 0) {
-                parts.push(el('p', {class: 'dtr-mark dtr-mark--undetermined'}, el('strong', null, 'Not judged: '),
-                    form.undetermined.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null]),
-                    '. A rule this tool does not apply decides whether they still need an answer.'));
+                parts.push(el('p', {class: 'dtr-mark dtr-mark--undetermined'}, el('strong', null, 'Not judged, because a rule this tool does not apply decides whether they still need an answer: '),
+                    form.undetermined.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null])));
             }
             if (form.changes) {
                 parts.push(changesBlock(form.changes));
