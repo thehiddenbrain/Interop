@@ -527,7 +527,45 @@ public class RunSupport {
         if (view == null) {
             return null;
         }
+        // On the mock profile nothing leaves this machine: every fault of the service is one a
+        // scenario played, so it is headed as played and its action reports no environment. A
+        // played timeout is worded above, with the scenario's own delay.
+        if (epa.mock() && failure != OnyxFailureType.TIMEOUT) {
+            view = played(view, failure, code, exchange);
+        }
         return view.withHttpStatus(exchange.httpStatus()).withIssues(issues == null ? List.of() : issues);
+    }
+
+    /** The heading of a rejection a mock scenario played. */
+    public static final String PLAYED_REJECTION_HEADING = "A rejection played by a mock scenario, not by a service";
+    /** The heading of a failure of the service a mock scenario played. */
+    public static final String PLAYED_FAILURE_HEADING = "A failure played by a mock scenario, not a fault in the environment";
+    /** The heading of an unreachable service a mock scenario played. */
+    public static final String PLAYED_UNREACHABLE_HEADING = "An unreachable service played by a mock scenario, not a fault in the environment";
+    /** The heading of an answer a mock scenario played that cannot be read. */
+    public static final String PLAYED_UNREADABLE_HEADING = "An unreadable answer played by a mock scenario, not a fault in the environment";
+
+    /** The same fault, headed as played by a mock scenario, with an action that says what it would mean from a real service. */
+    private static ErrorView played(ErrorView view, OnyxFailureType failure, int code, VendorExchange exchange) {
+        String nothingLeft = "Nothing left this machine: a mock scenario played this answer to show how this tool reads it. ";
+        return switch (failure) {
+            case BAD_REQUEST -> new ErrorView(view.kind(), view.title(), nothingLeft + (code == 401 || code == 403
+                    ? "From a real service this status would mean the credentials were not accepted, or none were sent."
+                    : code == 404 ? "From a real service this status would usually mean the url or the service id is wrong."
+                    : "From a real service, read the issues it returned and correct the request."), view.httpStatus(), view.fieldErrors(),
+                    view.issues(), view.reference(), PLAYED_REJECTION_HEADING);
+            case SERVER_ERROR -> new ErrorView(view.kind(), view.title(), nothingLeft + "From a real service it would be a fault in the "
+                    + "environment, to report with the time and the run id.", view.httpStatus(), view.fieldErrors(), view.issues(),
+                    view.reference(), PLAYED_FAILURE_HEADING);
+            case UNAVAILABLE -> new ErrorView(view.kind(), view.title(), nothingLeft + "With a real service, check the url on the Config "
+                    + "tab, the network and any proxy or trust store settings.", view.httpStatus(), view.fieldErrors(), view.issues(),
+                    view.reference(), PLAYED_UNREACHABLE_HEADING);
+            case MALFORMED_RESPONSE -> new ErrorView(view.kind(), view.title(), nothingLeft + (exchange.responseBody() == null
+                    ? "From a real service, a success with nothing in it would be a defect in the service to report."
+                    : "The body is shown " + asReceived(exchange) + ". From a real service it would be a defect in the service to report."),
+                    view.httpStatus(), view.fieldErrors(), view.issues(), view.reference(), PLAYED_UNREADABLE_HEADING);
+            default -> view;
+        };
     }
 
     /**

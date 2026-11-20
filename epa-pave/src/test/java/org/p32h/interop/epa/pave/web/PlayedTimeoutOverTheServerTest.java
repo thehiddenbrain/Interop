@@ -114,9 +114,20 @@ class PlayedTimeoutOverTheServerTest {
 
     @Test
     void everyOtherErrorIsHeadedByTheServerAsItsKindIs() throws Exception {
-        JsonNode failed = post("/api/crd", "P32H-ERR500");
-        assertThat(failed.at("/error/kind").asString()).isEqualTo("VENDOR_ERROR");
-        assertThat(failed.at("/error/heading").asString()).isEqualTo("A fault in the environment: the service failed");
+        // On mock a fault of the service is one a scenario played (F-MOCK-500-HEADING): headed so, and nothing to report.
+        for (String[] played : List.of(new String[] {"/api/crd", "P32H-ERR500", "VENDOR_ERROR", "A failure played by a mock scenario, not a "
+                + "fault in the environment"}, new String[] {"/api/crd", "P32H-BAD400", "VENDOR_REJECTED", "A rejection played by a mock "
+                + "scenario, not by a service"}, new String[] {"/api/dtr/package", "P32H-DTR-ERR500", "VENDOR_ERROR", "A failure played by a "
+                + "mock scenario, not a fault in the environment"}, new String[] {"/api/pas/submit", "P32H-PAS-ERR500", "VENDOR_ERROR",
+                "A failure played by a mock scenario, not a fault in the environment"}, new String[] {"/api/pas/submit", "P32H-PAS-BAD400",
+                "VENDOR_REJECTED", "A rejection played by a mock scenario, not by a service"}, new String[] {"/api/pas/submit",
+                "P32H-PAS-DOWN", "UNREACHABLE", "An unreachable service played by a mock scenario, not a fault in the environment"})) {
+            JsonNode failed = post(played[0], played[1]);
+            assertThat(failed.at("/error/kind").asString()).as(played[1]).isEqualTo(played[2]);
+            assertThat(failed.at("/error/heading").asString()).as(played[1]).isEqualTo(played[3]);
+            assertThat(failed.at("/error/action").asString()).as(played[1]).startsWith("Nothing left this machine: a mock scenario played "
+                    + "this answer").doesNotContain("Note the time and the run id and report it");
+        }
 
         // An error answered in place of a result is headed too.
         HttpResponse<String> refused = HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/crd"))
