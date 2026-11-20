@@ -148,7 +148,8 @@ class PlaceholderOnTheLiveProfileTest {
 
         // The ledger line of that run says the same, so history and a suite count cannot say otherwise.
         JsonNode line = json(get("/api/runs/" + result.get("runId").stringValue()));
-        assertThat(JsonSafe.compact(line.get("findings"))).isEqualTo("[\"CODE_LIST_NOT_COMPARED\"]");
+        // The member ID alone was sent, so the request also went without what CRD 2.0.1 requires of a Patient, and says so.
+        assertThat(JsonSafe.compact(line.get("findings"))).isEqualTo("[\"CODE_LIST_NOT_COMPARED\",\"REQUEST_INCOMPLETE\"]");
     }
 
     @Test

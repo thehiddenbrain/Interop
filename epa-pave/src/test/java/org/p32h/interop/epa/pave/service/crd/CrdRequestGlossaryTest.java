@@ -30,6 +30,9 @@ import tools.jackson.databind.JsonNode;
  */
 class CrdRequestGlossaryTest {
 
+    /** When the request is built, fixed so that two builds of one case are the same request, authoredOn included. */
+    private static final java.time.Clock BUILT_AT = java.time.Clock.fixed(java.time.Instant.parse("2026-03-18T14:05:09Z"), java.time.ZoneOffset.UTC);
+
     private final CrdRequestGlossary glossary = new CrdRequestGlossary();
 
     private Glossary.Entry fhir(String path) {
@@ -143,7 +146,7 @@ class CrdRequestGlossaryTest {
     }
 
     private static JsonNode build(CrdRunRequest request, FakeGateway gateway) {
-        return JsonSafe.parse(new CrdRequestBuilder(null).build(request, "h", template -> gateway.resolve(template, Map.of())).json()).node();
+        return JsonSafe.parse(new CrdRequestBuilder(null, BUILT_AT).build(request, "h", template -> gateway.resolve(template, Map.of())).json()).node();
     }
 
     /** Every element of a document, under the two paths the engine asks the glossary with. */
@@ -240,7 +243,13 @@ class CrdRequestGlossaryTest {
         assertThat(configured.has("fhirServer")).isTrue();
 
         assertThat(glossary.remark(new ElementPath("prefetch.*.identifier", "Patient.identifier"), DifferenceKind.ONLY_IN_TOOL))
+                .isEqualTo("This tool writes the member ID as an identifier typed MB, with a system only when the variable memberIdSystem has a "
+                        + "value, and a medical record number typed MR only when the variable patientMrn has a value.");
+        assertThat(glossary.remark(new ElementPath("prefetch.*.identifier", "Coverage.identifier"), DifferenceKind.ONLY_IN_TOOL))
                 .isEqualTo("This tool writes the member ID as an identifier typed MB, with a system only when the variable memberIdSystem has a value.");
+        assertThat(bare.at("/prefetch/patient/identifier")).hasSize(1);
+        assertThat(build(everything().build(), new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-1"))
+                .at("/prefetch/patient/identifier/1/type/coding/0/code").asString()).isEqualTo("MR");
         for (String resource : List.of("patient", "coverage")) {
             assertThat(bare.at("/prefetch/" + resource + "/identifier/0/type/coding/0/code").asString()).isEqualTo("MB");
             assertThat(bare.at("/prefetch/" + resource + "/identifier/0").has("system")).isFalse();
@@ -305,7 +314,32 @@ class CrdRequestGlossaryTest {
         assertThat(glossary.remark(new ElementPath("x", "ServiceRequest.code.coding"), DifferenceKind.ONLY_IN_TOOL))
                 .isEqualTo("When a code comes without a system, this tool takes one from the code list, or else from the format of the code.");
         assertThat(built.at("/context/draftOrders/entry/1/resource/code/coding/0/system").asString())
-                .isEqualTo("https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets");
+                .isEqualTo("urn:oid:2.16.840.1.113883.6.285");
+        assertThat(glossary.remark(new ElementPath("x", "ServiceRequest.code.coding.system"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo("For a HCPCS Level II code this tool writes urn:oid:2.16.840.1.113883.6.285, the address the CRD 2.0.1 "
+                        + "ServiceRequest value set gives HCPCS, unless the variable hcpcsSystem names another.");
+        assertThat(build(everything().build(), new FakeGateway().variable("hcpcsSystem", "urn:another-hcpcs-address"))
+                .at("/context/draftOrders/entry/1/resource/code/coding/0/system").asString()).isEqualTo("urn:another-hcpcs-address");
+
+        // authoredOn is the moment of building, so a pasted order's own is a difference on every call.
+        assertThat(glossary.remark(new ElementPath("x", "ServiceRequest.authoredOn"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo("This tool writes the moment it builds the request as authoredOn, so its value is new on every call.");
+        assertThat(built.at("/context/draftOrders/entry/0/resource/authoredOn").asString()).isEqualTo("2026-03-18T14:05:09Z");
+
+        // A provider known only by an organization name is an Organization that the PractitionerRole names.
+        assertThat(glossary.remark(new ElementPath("x", "PractitionerRole.organization"), DifferenceKind.ONLY_IN_TOOL))
+                .isEqualTo("This tool sends a provider known only by an organization name as an Organization, which the PractitionerRole names.");
+        JsonNode organization = build(everything().provider(org.p32h.interop.epa.pave.model.ProviderDetail.builder().npi("1234567893")
+                .organizationName("Placeholder Clinic").build()).build(), NOTHING_SET);
+        assertThat(organization.at("/prefetch/practitionerRole/organization/reference").asString()).isEqualTo("Organization/organization-1");
+        assertThat(organization.at("/prefetch").has("practitioner")).isFalse();
+
+        // The period is sent from the lookup's dates.
+        assertThat(glossary.remark(new ElementPath("x", "Coverage.period"), DifferenceKind.ONLY_IN_YOURS))
+                .isEqualTo("This tool sends the coverage period only when the member lookup gives the coverage dates.");
+        assertThat(built.at("/prefetch/coverage").has("period")).isFalse();
+        assertThat(build(everything().member(MemberDetail.builder().memberId("S123456789").coverageStart("2026-01-01").build()).build(),
+                NOTHING_SET).at("/prefetch/coverage/period/start").asString()).isEqualTo("2026-01-01");
 
         assertThat(glossary.remark(new ElementPath("x", "Patient.gender"), DifferenceKind.ONLY_IN_YOURS))
                 .isEqualTo("This tool sends a gender only when the case gives one it can read as male, female, other or unknown.");

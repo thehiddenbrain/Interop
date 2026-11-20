@@ -224,10 +224,11 @@ class CrdServiceTest {
         assertThat(noAuthRecord.httpStatus()).isEqualTo(200);
         assertThat(emptyRecord.httpStatus()).isEqualTo(200);
         // CRD 2.0.1 does not require coverage information, so its absence is information (CRD201-15).
-        assertThat(emptyRecord.findings()).containsExactly("NOT_STATED");
+        // The form here gives the member ID alone, so the request went without what CRD 2.0.1 requires of a Patient (REQUEST_INCOMPLETE).
+        assertThat(emptyRecord.findings()).containsExactly("NOT_STATED", "REQUEST_INCOMPLETE");
         // The code list in this test has no row for the code, and the result says the two were not
         // compared. No finding at all would have read as agreement.
-        assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(noAuthRecord.findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -943,7 +944,7 @@ class CrdServiceTest {
                 .doesNotContain(FindingKind.CODE_LIST_DISAGREES_ON_AUTH, FindingKind.CODE_LIST_DISAGREES_ON_VENDOR);
         // The ledger line says the same, so a history row or a suite count cannot report a disagreement either.
         assertThat(ledger.only().profile()).isEqualTo("live");
-        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_NOT_COMPARED");
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test
@@ -960,7 +961,7 @@ class CrdServiceTest {
         assertThat(aboutTheCodeList(result).get(0).detail()).isEqualTo("One of them is wrong, and this tool cannot tell which. " + PLACEHOLDER_NOTE);
         assertThat(aboutTheCodeList(result).get(0).codeListSays()).isEqualTo("The code list says prior authorization is required (rows for Medicare).");
         assertThat(aboutTheCodeList(result).get(1).detail()).isEqualTo("The code list has no row for 99999 on 2026-03-20. " + PLACEHOLDER_NOTE);
-        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "CODE_LIST_NOT_COMPARED");
+        assertThat(ledger.only().findings()).containsExactly("CODE_LIST_DISAGREES_ON_AUTH", "CODE_LIST_NOT_COMPARED", "REQUEST_INCOMPLETE");
     }
 
     @Test

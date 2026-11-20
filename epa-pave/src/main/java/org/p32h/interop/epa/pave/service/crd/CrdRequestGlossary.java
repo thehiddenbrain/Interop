@@ -100,7 +100,8 @@ public final class CrdRequestGlossary implements Glossary {
 
         // ---- the member ----
         fhir(BUILD, "Patient", "The member, as a FHIR Patient resource.");
-        fhir(BUILD, "Patient.identifier", "One identifier of the member, such as the member ID.");
+        fhir(BUILD, "Patient.identifier", "One identifier of the member, such as the member ID or a medical record number, which CRD 2.0.1 "
+                + "profile-patient has as a slice typed MR with a minimum of one.");
         fhir(CASE, "Patient.identifier.value", "The value of one identifier of the patient, such as a member ID or a record number.");
         fhir(CASE, "Patient.name", "One name of the member.");
         fhir(CASE, "Patient.birthDate", "The member's date of birth.");
@@ -109,7 +110,8 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(BUILD, "Patient.managingOrganization", "The organization that keeps the patient record, as a reference.");
 
         fhir(BUILD, "Coverage", "The member's coverage with a payer, as a FHIR Coverage resource.");
-        fhir(CASE, "Coverage.status", "The status of the Coverage record: active, cancelled, draft or entered-in-error.");
+        fhir(CASE, "Coverage.status", "The status of the Coverage record, active, cancelled, draft or entered-in-error, which CRD 2.0.1 "
+                + "profile-coverage has with a minimum of one.");
         fhir(null, "Coverage.type", "The kind of coverage, as a code.");
         fhir(BUILD, "Coverage.identifier", "One identifier the payer gave the coverage, such as the member ID.");
         fhir(CASE, "Coverage.identifier.value", "The coverage identifier itself, which can be the member ID.");
@@ -122,7 +124,8 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(CASE, "Coverage.period", "The dates between which the coverage is in force.");
         fhir(CASE, "Coverage.period.start", "The date the coverage starts.");
         fhir(CASE, "Coverage.period.end", "The date the coverage ends.");
-        fhir(BUILD, "Coverage.payor", "The payer of the coverage, as a reference or an identifier.");
+        fhir(BUILD, "Coverage.payor", "The payer of the coverage, as a reference or an identifier, which CRD 2.0.1 profile-coverage has "
+                + "with a minimum of one.");
         fhir(null, "Coverage.payor.display", "The payer's name.");
         fhir(BUILD, "Coverage.class", "One classification of the coverage, such as its plan or its group.");
         fhir(BUILD, "Coverage.class.type", "Which kind of classification this is, such as plan or group.");
@@ -136,7 +139,7 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(BUILD, "Practitioner", "A person who provides care, as a FHIR Practitioner resource.");
         fhir(BUILD, "Practitioner.identifier", "One identifier of the practitioner, such as the NPI.");
         fhir(CASE, "Practitioner.identifier.value", "The value of one identifier of the practitioner, such as an NPI.");
-        fhir(CASE, "Practitioner.name", "One name of the practitioner.");
+        fhir(CASE, "Practitioner.name", "One name of the practitioner, which in CRD 2.0.1 profile-practitioner has a family name.");
         fhir(CASE, "Practitioner.qualification", "A qualification the practitioner holds, such as a licence.");
         fhir(null, "Practitioner.active", "Whether the practitioner record is in active use.");
 
@@ -151,7 +154,8 @@ public final class CrdRequestGlossary implements Glossary {
         fhir(BUILD, "Organization", "An organization, such as a provider group or a payer, as a FHIR Organization resource.");
         fhir(null, "Organization.name", "The organization's name.");
         fhir(null, "Organization.type", "The kind of organization, as a code.");
-        fhir(null, "Organization.active", "Whether the organization record is in active use.");
+        fhir(null, "Organization.active", "Whether the organization record is in active use, which CRD 2.0.1 profile-organization has with "
+                + "a minimum of one.");
         fhir(BUILD, "Organization.partOf", "The larger organization this one belongs to, as a reference.");
 
         fhir(BUILD, "Location", "A place where care is given, as a FHIR Location resource.");
@@ -195,7 +199,7 @@ public final class CrdRequestGlossary implements Glossary {
         for (String type : List.of("ServiceRequest", "DeviceRequest", "MedicationRequest", "CommunicationRequest")) {
             fhir(BUILD, type + ".subject", "The patient the order is for, as a reference.");
             fhir(BUILD, type + ".requester", "Who made the order, as a reference.");
-            fhir(CASE, type + ".authoredOn", "When the order was written.");
+            fhir(type.equals("ServiceRequest") ? EVERY_CALL : CASE, type + ".authoredOn", "When the order was written.");
             fhir(CASE, type + ".priority", "How urgent the order is: routine, urgent, asap or stat.");
             fhir(CASE, type + ".reasonCode", "Why the order was made, as a code such as a diagnosis.");
             fhir(CASE, type + ".reasonCode.coding", "One code for the reason, with the code system it comes from.");
@@ -553,9 +557,29 @@ public final class CrdRequestGlossary implements Glossary {
                 break;
         }
         switch (fhir) {
-            case "Patient.identifier", "Coverage.identifier":
+            case "Patient.identifier":
+                return onlyInTool || onlyInYours ? "This tool writes the member ID as an identifier typed MB, with a system only when the "
+                        + "variable " + CaseResources.VAR_MEMBER_ID_SYSTEM + " has a value, and a medical record number typed MR only when the "
+                        + "variable " + CaseResources.VAR_PATIENT_MRN + " has a value." : null;
+            case "Coverage.identifier":
                 return onlyInTool || onlyInYours ? "This tool writes the member ID as an identifier typed MB, with a system only when the "
                         + "variable " + CaseResources.VAR_MEMBER_ID_SYSTEM + " has a value." : null;
+            case "Coverage.period":
+                return onlyInYours ? "This tool sends the coverage period only when the member lookup gives the coverage dates." : null;
+            case "ServiceRequest.authoredOn":
+                return onlyInYours || differentValue ? "This tool writes the moment it builds the request as authoredOn, so its value is new "
+                        + "on every call." : null;
+            case "ServiceRequest.code.coding.system":
+                return differentValue ? "For a HCPCS Level II code this tool writes " + CaseResources.HCPCS_CRD_201 + ", the address the CRD "
+                        + "2.0.1 ServiceRequest value set gives HCPCS, unless the variable " + CaseResources.VAR_HCPCS_SYSTEM + " names another."
+                        : null;
+            case "PractitionerRole.organization", "Organization":
+                return onlyInTool ? "This tool sends a provider known only by an organization name as an Organization, which the "
+                        + "PractitionerRole names." : null;
+            case "PractitionerRole.practitioner", "Practitioner":
+                return onlyInTool ? "This tool sends a provider with a person's name as a Practitioner, which the PractitionerRole names."
+                        : onlyInYours ? "This tool sends a provider known only by an organization name as an Organization, which the "
+                        + "PractitionerRole names." : null;
             case "Patient.gender":
                 return onlyInYours ? "This tool sends a gender only when the case gives one it can read as male, female, other or unknown." : null;
             case "Coverage.status":

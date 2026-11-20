@@ -131,7 +131,9 @@ public final class CrdRequestReader {
      * @param orders  the orders in {@code context.draftOrders}, in their order
      * @param notes   facts about the request that bear on reading it
      * @param patient      the JSON Pointer of the Patient the member was read from, or null when none was
-     * @param practitioner the JSON Pointer of the Practitioner the provider was read from, or null when none was
+     * @param practitioner the JSON Pointer of the resource the provider was read from, or null when none was: the
+     *                     Practitioner, or the Organization when the PractitionerRole names an organization and no
+     *                     practitioner, which is how this tool sends a provider known only by an organization name
      */
     public record Reading(Map<CaseField, Found> found, Map<CaseField, Missing> missing, List<Order> orders, List<String> notes,
                           String patient, String practitioner) {
@@ -351,6 +353,7 @@ public final class CrdRequestReader {
         String lookedIn = "the Practitioner that context.userId leads to";
         String why = null;
         ResourceIndex.Resource practitioner = null;
+        ResourceIndex.Resource organization = null;
         JsonNode userId = JsonSafe.at(root, "context", "userId");
         if (!userId.isString() || userId.stringValue().isBlank()) {
             why = "Your request has no context.userId.";
@@ -367,8 +370,18 @@ public final class CrdRequestReader {
             } else if (user.type().equals("PractitionerRole")) {
                 ResourceIndex.Resource role = index.resolve(user).stream().findFirst().orElse(null);
                 JsonNode reference = role == null ? null : JsonSafe.at(role.node(), "practitioner", "reference");
+                JsonNode organizationReference = role == null ? null : JsonSafe.at(role.node(), "organization", "reference");
                 if (role == null) {
                     why = "context.userId names a PractitionerRole that your request does not carry.";
+                } else if (!reference.isString() && organizationReference.isString()) {
+                    // A role that names an organization and no person: the provider is the organization.
+                    List<ResourceIndex.Resource> named = index.resolve(ReferenceText.parse(organizationReference.stringValue(), null)).stream()
+                            .filter(resource -> resource.type().equals("Organization")).toList();
+                    organization = named.size() == 1 ? named.get(0) : null;
+                    why = named.isEmpty() ? "The PractitionerRole that context.userId names has no practitioner and points at an Organization "
+                            + "that your request does not carry." : named.size() > 1 ? "The PractitionerRole that context.userId names points "
+                            + "at " + named.size() + " Organization resources in your request, which carry the same id, so which one is meant "
+                            + "cannot be told." : null;
                 } else if (!reference.isString()) {
                     why = "The PractitionerRole that context.userId names has no reference to a practitioner.";
                 } else {
@@ -382,6 +395,10 @@ public final class CrdRequestReader {
             } else {
                 why = "context.userId names a resource that is neither a Practitioner nor a PractitionerRole.";
             }
+        }
+        if (organization != null) {
+            organizationProvider(organization);
+            return;
         }
         practitionerPointer = practitioner == null ? null : practitioner.pointer();
         if (practitioner == null) {
@@ -405,6 +422,26 @@ public final class CrdRequestReader {
         take(CaseField.PROVIDER_LAST_NAME, text(name, "family", namePath, namePointer), "name[0].family of " + lookedIn);
         take(CaseField.PROVIDER_FIRST_NAME, first(name, "given", namePath, namePointer), "name[0].given[0] of " + lookedIn);
         take(CaseField.PROVIDER_NAME_TEXT, text(name, "text", namePath, namePointer), "name[0].text of " + lookedIn);
+    }
+
+    /** The provider read from an Organization: its NPI and its name. It has no person's name to read. */
+    private void organizationProvider(ResourceIndex.Resource organization) {
+        practitionerPointer = organization.pointer();
+        String lookedIn = "the Organization that the PractitionerRole of context.userId names";
+        List<Found> npis = new ArrayList<>();
+        List<JsonNode> identifiers = JsonSafe.elements(organization.node(), "identifier");
+        for (int i = 0; i < identifiers.size(); i++) {
+            if (CaseResources.NPI_SYSTEM.equals(JsonSafe.presentText(identifiers.get(i), "system"))) {
+                add(npis, text(identifiers.get(i), "value", organization.path() + ".identifier[" + i + "]",
+                        Paths.element(Paths.member(organization.pointer(), "identifier"), i)));
+            }
+        }
+        agree(CaseField.NPI, npis, "an identifier with the NPI system on " + lookedIn, Function.identity(), "NPIs");
+        take(CaseField.PROVIDER_NAME_TEXT, text(organization.node(), "name", organization.path(), organization.pointer()),
+                "Organization.name of " + lookedIn);
+        for (CaseField field : List.of(CaseField.PROVIDER_LAST_NAME, CaseField.PROVIDER_FIRST_NAME)) {
+            missing.put(field, new Missing(lookedIn, "The provider is an Organization, which has no person's name.", List.of()));
+        }
     }
 
     // ---- the orders ----

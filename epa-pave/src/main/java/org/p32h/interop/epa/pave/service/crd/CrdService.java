@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.ExpectationView;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.Finding;
+import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
@@ -40,6 +41,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
@@ -85,7 +87,7 @@ public class CrdService {
         this.gateway = gateway;
         this.client = client;
         this.support = support;
-        this.builder = new CrdRequestBuilder(codeList);
+        this.builder = new CrdRequestBuilder(codeList, support.clock());
         this.conformance = new CrdConformanceChecker(codeList, epa);
     }
 
@@ -111,6 +113,7 @@ public class CrdService {
         ResolvedText body;
         List<String> requestNotes = new ArrayList<>();
         List<SentOrder> orders;
+        List<CaseResources.Required> incomplete = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
             orders = SentOrder.fromBody(body.value());
@@ -126,6 +129,7 @@ public class CrdService {
             body = ResolvedText.plain(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
+            incomplete = built.incomplete();
         }
 
         VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
@@ -140,7 +144,7 @@ public class CrdService {
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one run.
-            read = interpret(request, call, exchange, orders);
+            read = interpret(request, call, exchange, orders, incomplete);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -184,13 +188,15 @@ public class CrdService {
                                NextStepView nextStep, ErrorView error, Timing timing, Map<String, String> correlation) {
     }
 
-    private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders) {
+    private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders,
+                                  List<CaseResources.Required> incomplete) {
         CrdReading reading = mapper.read(exchange, orders);
         CrdOutcome outcome = reading.outcome();
         Timing timing = support.timing(exchange);
 
         List<Finding> findings = new ArrayList<>(conformance.check(reading, exchange,
                 request.member() == null ? null : request.member().lineOfBusiness(), IsoDates.parse(request.dateOfService())));
+        addIfPresent(findings, incompleteRequest(incomplete));
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
@@ -233,9 +239,12 @@ public class CrdService {
             notes = resolved.resolved() ? List.of()
                     : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + ".");
         } else {
-            CrdRequestBuilder.Built built = builder.build(request, "(a new id is generated when the request is sent)", call::resolve);
+            // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
+            String hookInstance = UUID.randomUUID().toString();
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, call::resolve);
             body = built.json();
-            notes = built.notes();
+            notes = new ArrayList<>(built.notes());
+            notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");
         }
         return RequestPreview.of(operation, call, body, notes, shown);
     }
@@ -295,8 +304,7 @@ public class CrdService {
     private void validate(CrdRunRequest request) {
         RunInputs inputs = new RunInputs(support.clock()).common(request);
         String hook = CrdRequestBuilder.hook(request);
-        inputs.require(CrdRunRequest.ORDER_SIGN.equals(hook) || CrdRunRequest.ORDER_SELECT.equals(hook), "hook",
-                "The hook must be order-sign or order-select.");
+        inputs.require(CrdRunRequest.ORDER_SIGN.equals(hook) || CrdRunRequest.ORDER_SELECT.equals(hook), "hook", NOT_BUILT);
         if (RunSupport.ownBody(request)) {
             // The tester's own body carries the member, the provider and the codes, so the form's
             // copies are optional. Whatever the form does hold is still checked. The body itself is
@@ -314,6 +322,34 @@ public class CrdService {
                 .expectation(request.expected(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
                 .scenario(request.scenarioId(), epa)
                 .throwIfInvalid();
+    }
+
+    /**
+     * What this tool does not build, said where a tester asks for it. CRD 2.0.1 lists six hooks
+     * (cdsHookType) and profiles several kinds of order; this tool builds two hooks and one kind.
+     */
+    static final String NOT_BUILT = "This tool builds order-sign and order-select requests only. CRD 2.0.1 also lists the hooks "
+            + "appointment-book, encounter-start, encounter-discharge and order-dispatch, and this tool builds none of them. Its orders "
+            + "are ServiceRequests only: it does not build a DeviceRequest, MedicationRequest, NutritionOrder, CommunicationRequest, "
+            + "Appointment or VisionPrescription.";
+
+    /**
+     * One finding for everything a CRD 2.0.1 profile requires that the built request went without,
+     * or null when nothing is missing. It is about what was sent, so that a refusal by the service
+     * is not read as a fault of the service.
+     */
+    static Finding incompleteRequest(List<CaseResources.Required> incomplete) {
+        if (incomplete == null || incomplete.isEmpty()) {
+            return null;
+        }
+        int count = incomplete.size();
+        return new Finding(FindingKind.REQUEST_INCOMPLETE,
+                "The request was sent without " + count + (count == 1 ? " element " : " elements ") + CaseResources.CRD_VERSION
+                        + " requires",
+                "Nobody supplied " + (count == 1 ? "it" : "them") + ", and this tool does not invent values. A service that validates "
+                        + "against " + CaseResources.CRD_VERSION + " may refuse the request for this, which is then not a fault of the "
+                        + "service. Left out: " + String.join("; ", incomplete.stream().map(CaseResources.Required::line).toList()) + ".",
+                null, null, null);
     }
 
     private static EpaOperation operation(String hook) {
@@ -345,7 +381,7 @@ public class CrdService {
             view.docPurpose().forEach(value -> rows.add(row(subject, "Documentation purpose", CrdCodes.DOC_PURPOSE, value)));
             view.infoNeeded().forEach(value -> rows.add(row(subject, "Information needed", CrdCodes.INFO_NEEDED, value)));
             if (view.satisfiedPaId().presence() != Presence.ABSENT) {
-                rows.add(new DeterminationRow(subject, "Existing authorization", view.satisfiedPaId().orNull(), null,
+                rows.add(new DeterminationRow(subject, "Identifier for the requirements already met", view.satisfiedPaId().orNull(), null,
                         CrdCodes.SATISFIED_PA_ID, true, view.satisfiedPaId().presence()));
             }
             if (Texts.present(view.delegatedVendor())) {
