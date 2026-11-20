@@ -2,7 +2,7 @@
   "id": "pas-17-server-error-500",
   "number": 17,
   "label": "The service fails with HTTP 500",
-  "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome.",
+  "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome, which PAS 2.0.1 allows in place of a bundle. The CRD sentinel P32H-ERR500 selects it too.",
   "sentinelMemberId": "P32H-PAS-ERR500",
   "behavior": "respond",
   "httpStatus": 500,
@@ -12,7 +12,7 @@
     "errorType": "SERVER_ERROR",
     "httpStatus": 500
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci PAS and the FHIR subscriptions backport. It has not been observed from the live service.",
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, each decision in a review action on item.adjudication with its authorization number and the item's itemPreAuthPeriod, and an item trace number on each item. Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
   "response": {
     "resourceType": "OperationOutcome",
     "issue": [

@@ -158,7 +158,8 @@ class PasControllerTest {
         // Tier 1, the grid and the wire view are there to read.
         assertThat(result.at("/detail/responseKind").asString()).isEqualTo("BUNDLE");
         assertThat(result.at("/detail/claimResponses/0/decision").asString()).isEqualTo("APPROVED");
-        assertThat(result.at("/detail/claimResponses/0/preAuthRef/value").asString()).isEqualTo("PA-PLACEHOLDER-0001");
+        // The authorization number travels where PAS 2.0.1 puts it: on the decision of the item, not in preAuthRef.
+        assertThat(result.at("/detail/claimResponses/0/decisions/0/authorizationNumbers/0").asString()).isEqualTo("PA-PLACEHOLDER-0001");
         assertThat(result.at("/detail/claimResponses/0/items/0/adjudications/0/reviewActions/0/code/code").asString()).isEqualTo("A1");
         assertThat(result.at("/determination/0/code").asString()).isEqualTo("A1");
         assertThat(result.at("/wire/request/sent").asBoolean()).isFalse();
@@ -376,7 +377,7 @@ class PasControllerTest {
         JsonNode view = created.at("/detail/subscriptions/0");
         assertThat(view.at("/id/value").asString()).isEqualTo(ID);
         assertThat(view.at("/status/code").asString()).isEqualTo("requested");
-        assertThat(view.at("/criteria/value").asString()).contains("p32h-placeholder");
+        assertThat(view.at("/criteria/value").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic");
         assertThat(view.at("/channelType/value").asString()).isEqualTo("rest-hook");
         assertThat(view.at("/endpoint/value").asString()).isEqualTo("https://pave.example.invalid/api/pas/notifications");
         assertThat(view.at("/heartbeat/value").asString()).isEqualTo("86400");
@@ -692,7 +693,7 @@ class PasControllerTest {
         MockMvc mvc = mvc("mock");
         JsonNode all = send(mvc, get("/api/pas/scenarios"), 200);
         assertThat(all.get("available").asBoolean()).isTrue();
-        assertThat(all.get("scenarios")).hasSize(20);
+        assertThat(all.get("scenarios")).hasSize(21);
         assertThat(all.at("/scenarios/0/sentinelMemberId").asString()).isEqualTo("P32H-PAS-APPROVED");
         assertThat(all.at("/scenarios/0/expectedOutcome").asString()).isEqualTo("APPROVED");
         assertThat(all.get("problems")).isEmpty();
@@ -712,7 +713,7 @@ class PasControllerTest {
                 "subscription-status", "channel-type", "payload-content");
 
         JsonNode submit = send(mvc, get("/api/pas/scenarios").param("for", "submit"), 200);
-        assertThat(submit.get("scenarios")).hasSize(15);
+        assertThat(submit.get("scenarios")).hasSize(16);
         assertThat(submit.get("outcomes")).hasSize(24);
         assertThat(submit.get("elements")).extracting(JsonNode::asString).containsExactly("review-action", "review-reason", "claim-outcome", "error-code");
 

@@ -8,10 +8,13 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioSelection;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -52,6 +55,19 @@ public class MockOnyxPasClient implements OnyxPasClient {
     /** What the token becomes when the request carried no claim identifier. */
     static final String UNIDENTIFIED_CLAIM = "unidentified-claim";
 
+    /**
+     * The CRD sentinel member IDs for a case PAS has a scenario of its own for, each mapped to the
+     * sentinel of that scenario. A tester who carries one member from CRD into PAS gets the same
+     * case in both, not the PAS default, which is an approval. The sentinel NPI for a provider the
+     * payer does not know needs no entry: the PAS scenario for that case answers it directly.
+     */
+    static final Map<String, String> SAME_CASE_AS_CRD = Map.of(
+            "P32H-NOMEM", "P32H-PAS-NOMEM",
+            "P32H-NOPROV", "P32H-PAS-NOPROV",
+            "P32H-ERR500", "P32H-PAS-ERR500",
+            "P32H-TIMEOUT", "P32H-PAS-TIMEOUT",
+            "P32H-BAD400", "P32H-PAS-BAD400");
+
     private final ScenarioRepository scenarios;
     private final MockExchanges exchanges;
 
@@ -72,11 +88,41 @@ public class MockOnyxPasClient implements OnyxPasClient {
 
     private VendorExchange answer(PreparedCall call, ResolvedText body, MockSelection selection, String step) {
         String text = body == null ? null : body.value();
-        ScenarioSelection chosen = scenarios.select(SCENARIOS, selection, text);
+        ScenarioSelection chosen = select(selection, text);
+        if (step != null && chosen.scenario().step(step) == null && Texts.blank(selection.scenarioId())) {
+            // Nobody chose this scenario: a sentinel typed on the form chose it. The refusal names
+            // that field, so the tester is not told to change a choice they never made.
+            refuseBySentinel(chosen, step);
+        }
         VendorExchange exchange = asAnswerTo(SentClaim.fromBody(text),
                 exchanges.answer(call, body, HttpOnyxPasClient.FHIR_OPTIONS, chosen, step));
         // The same recognition rules the live client applies, so mock cannot disagree with live about them.
         return exchange.withSignals(OnyxPasConventions.signals(exchange));
+    }
+
+    /** The scenario that answers, with a CRD sentinel for a case PAS also has answered by the PAS scenario for that case. */
+    private ScenarioSelection select(MockSelection selection, String text) {
+        String typed = selection == null || Texts.blank(selection.memberId()) ? null : selection.memberId().strip().toUpperCase(Locale.ROOT);
+        String same = typed == null ? null : SAME_CASE_AS_CRD.get(typed);
+        if (same == null || Texts.present(selection.scenarioId())) {
+            return scenarios.select(SCENARIOS, selection, text);
+        }
+        ScenarioSelection chosen = scenarios.select(SCENARIOS, new MockSelection(null, same, selection.npi(), selection.hints()), text);
+        return new ScenarioSelection(chosen.scenario(), "selected by the sentinel member ID " + typed + ", which means the same case in "
+                + "CRD as " + same + " does here");
+    }
+
+    private static void refuseBySentinel(ScenarioSelection chosen, String step) {
+        String how = Texts.orElse(chosen.how(), "");
+        String call = STEP_INQUIRE.equals(step) ? "an inquiry" : "the step \"" + step + "\"";
+        if (how.startsWith("selected by the sentinel member ID")) {
+            throw ValidationException.of("member.memberId", "The member ID is the sentinel of scenario " + chosen.scenario().id()
+                    + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");
+        }
+        if (how.startsWith("selected by the sentinel NPI")) {
+            throw ValidationException.of("provider.npi", "The NPI is the sentinel of scenario " + chosen.scenario().id()
+                    + ", which has no answer for " + call + ". Use another NPI, or choose a scenario.");
+        }
     }
 
     /**
@@ -131,6 +177,17 @@ public class MockOnyxPasClient implements OnyxPasClient {
         return changed;
     }
 
+    private static void retrace(ObjectNode item, String claimId, Integer from, Integer to) {
+        String was = Texts.orElse(claimId, UNIDENTIFIED_CLAIM) + "-" + from;
+        for (JsonNode extension : JsonSafe.elements(item, "extension")) {
+            if (OnyxPasConventions.pasExtension(JsonSafe.presentText(extension, "url"), OnyxPasConventions.ITEM_TRACE_NUMBER)
+                    && extension.get("valueIdentifier") instanceof ObjectNode identifier
+                    && was.equals(JsonSafe.presentText(identifier, "value"))) {
+                identifier.put("value", Texts.orElse(claimId, UNIDENTIFIED_CLAIM) + "-" + to);
+            }
+        }
+    }
+
     /**
      * When the first ClaimResponse answers exactly one item, and that item is the first one sent,
      * copies its answer for every further item sent. A file that answers several items is left as
@@ -154,6 +211,9 @@ public class MockOnyxPasClient implements OnyxPasClient {
                 if (further.sequence() != null && items.get(0) instanceof ObjectNode first) {
                     ObjectNode again = first.deepCopy();
                     again.put("itemSequence", further.sequence().intValue());
+                    // An item trace number the file echoes for the first item is echoed for this one as
+                    // the request numbered it, so the copy does not claim to answer the first item.
+                    retrace(again, sent.claimId(), sent.items().get(0).sequence(), further.sequence());
                     array.add(again);
                     repeated = true;
                 }
