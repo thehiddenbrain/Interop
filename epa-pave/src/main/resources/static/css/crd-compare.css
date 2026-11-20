@@ -157,13 +157,17 @@
 
 /* The two documents stay in view while the list beneath them is read, so choosing a difference
    shows its place without losing the place in the list. */
+/* They are pinned at the very edge of the readout, above its padding: pinned inside the padding,
+   the list would show through the strip above them as it scrolls. */
 .crd-docs {
     position: sticky;
-    top: 0;
+    top: calc(-1 * var(--gap-4));
     z-index: 2;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-top: calc(-1 * var(--gap-4));
+    padding-top: var(--gap-4);
     padding-bottom: var(--gap-2);
     background: var(--white);
     border-bottom: 1px solid var(--ink-strong);

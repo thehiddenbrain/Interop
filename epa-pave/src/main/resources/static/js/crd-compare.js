@@ -247,7 +247,7 @@ export function drawComparison(answer, about, actions) {
     const docs = documents(answer);
     if (answer.comparable) {
         const list = differenceList(answer, docs);
-        docs.onChoose(index => list.reveal(index));
+        docs.onChoose((index, from) => list.reveal(index, from));
         body.append(el('section', {class: 'crd-cmp__part crd-cmp__workspace'}, docs.node, list.node));
     } else {
         body.append(el('section', {class: 'crd-cmp__part'}, docs.node));
@@ -278,7 +278,8 @@ function casePart(answer, actions) {
     const outcome = el('div', {class: 'crd-cmp__filled', role: 'status', aria: {live: 'polite'}});
 
     part.append(el('div', {class: 'crd-cmp__part-head'},
-        el('h3', {class: 'sub-heading'}, 'The case this tool built its request for'),
+        el('h3', {class: 'sub-heading'}, typeof answer.toolBody === 'string'
+            ? 'The case this tool built its request for' : 'The case as far as it could be put together: this tool built no request from it'),
         fromYours.length > 0 ? button('Fill the form from this request', () => {
             const report = actions.fill();
             fill(outcome,
@@ -405,8 +406,12 @@ function differenceList(answer, docs) {
 
     return {
         node,
-        /** Opens the group of a difference and brings its row into view, as when its line is chosen in a document. */
-        reveal(index) {
+        /**
+         * Opens the group of a difference and marks its row as chosen. Chosen in a document, the
+         * row is brought into view below the documents; chosen in the list, it stays where the
+         * tester chose it, unless the documents had to be brought into view instead.
+         */
+        reveal(index, from) {
             const row = rows.get(index);
             if (!row) {
                 return;
@@ -419,9 +424,52 @@ function differenceList(answer, docs) {
                 other.classList.toggle('crd-diff--chosen', other === row);
                 other.querySelector('.crd-diff__go').setAttribute('aria-current', other === row ? 'true' : 'false');
             }
-            row.scrollIntoView({block: 'nearest'});
+            if (from === 'list' && !docs.pinned()) {
+                return;
+            }
+            keepInView(row, docs.pinned() ? docs.node : null);
         }
     };
+}
+
+/** The nearest ancestor that scrolls, or the page. */
+function scrollerOf(node) {
+    for (let at = node.parentElement; at; at = at.parentElement) {
+        const style = getComputedStyle(at);
+        if (/(auto|scroll)/.test(style.overflowY) && at.scrollHeight > at.clientHeight) {
+            return at;
+        }
+    }
+    return document.scrollingElement;
+}
+
+/**
+ * Scrolls as little as it can so that a row is in view and not under what is pinned above it.
+ * scrollIntoView knows nothing of a pinned element, and leaves a row it brings down from above
+ * hidden behind the documents.
+ */
+function keepInView(row, pinnedAbove) {
+    const scroller = scrollerOf(row);
+    const page = scroller === document.scrollingElement;
+    const box = page ? {top: 0, bottom: window.innerHeight} : scroller.getBoundingClientRect();
+    const margin = 8;
+    const top = Math.max(box.top, pinnedAbove ? pinnedAbove.getBoundingClientRect().bottom : box.top) + margin;
+    const bottom = box.bottom - margin;
+    const at = row.getBoundingClientRect();
+    let delta = 0;
+    if (at.top < top) {
+        delta = at.top - top;
+    } else if (at.bottom > bottom) {
+        // A row taller than the room left is shown from its top.
+        delta = Math.min(at.bottom - bottom, at.top - top);
+    }
+    if (delta !== 0) {
+        if (page) {
+            window.scrollBy(0, delta);
+        } else {
+            scroller.scrollTop += delta;
+        }
+    }
 }
 
 /** Says which resource a path is in, from the resource type the path itself names in brackets. */
@@ -433,7 +481,7 @@ function resourceOf(path) {
 function differenceRow(difference, index, docs) {
     const resource = resourceOf(difference.path);
     const go = el('button', {type: 'button', class: 'crd-diff__go', aria: {current: 'false'}, dataset: {diff: String(index)},
-        on: {click: () => docs.choose(index)}},
+        on: {click: () => docs.chooseFromList(index)}},
         el('span', {class: 'crd-diff__number'}, String(index + 1)),
         el('span', {class: 'crd-diff__where'}, code(difference.path),
             resource ? el('span', {class: 'small quiet crd-diff__in'}, 'in the ' + resource) : null),
@@ -497,11 +545,11 @@ function documents(answer) {
             return;
         }
         const next = chosen === null ? (delta > 0 ? 0 : differences.length - 1) : (chosen + delta + differences.length) % differences.length;
-        choose(next);
-        chooseListener(next);
+        choose(next, 'documents');
+        chooseListener(next, 'documents');
     };
 
-    function choose(index) {
+    function choose(index, from) {
         chosen = index;
         const difference = differences[index];
         tool.choose(index);
@@ -513,8 +561,15 @@ function documents(answer) {
         fill(where, el('strong', null, 'Difference ' + (index + 1) + ' of ' + differences.length + ': '), code(difference.path),
             toolAt.exact ? null : el('span', null, ' Not in this tool\'s request: its pane shows the nearest element both requests have.'),
             yoursAt.exact ? null : el('span', null, ' Not in your request: its pane shows the nearest element both requests have.'));
-        // When the documents are not held in view beside the list, they are brought into view.
-        node.scrollIntoView({block: 'nearest'});
+        // Pinned, the documents are in view whenever the list is. Where they are not pinned, a
+        // difference chosen in the list brings them into view, which is what choosing it is for.
+        if (from === 'list' && !pinned()) {
+            node.scrollIntoView({block: 'nearest'});
+        }
+    }
+
+    function pinned() {
+        return getComputedStyle(node).position === 'sticky';
     }
 
     const node = el('div', {class: 'crd-docs'},
@@ -536,15 +591,20 @@ function documents(answer) {
             const line = event.target.closest('.crd-line[data-diffs]');
             if (line) {
                 const index = Number(line.dataset.diffs.split(' ')[0]);
-                choose(index);
-                chooseListener(index);
+                choose(index, 'documents');
+                chooseListener(index, 'documents');
             }
         });
     }
 
     return {
         node,
-        choose,
+        pinned,
+        /** Chooses a difference from its row in the list. */
+        chooseFromList(index) {
+            choose(index, 'list');
+            chooseListener(index, 'list');
+        },
         onChoose(listener) {
             chooseListener = listener;
         }
