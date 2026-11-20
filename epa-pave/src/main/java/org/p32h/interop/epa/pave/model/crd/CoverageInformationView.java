@@ -31,6 +31,11 @@ import java.util.List;
  * @param delegatedVendor      the delegated utilization management vendor it names, or null
  * @param delegatedVendorBasis how the vendor was recognised, so the rule is visible
  * @param otherSubExtensions   every sub-extension without a dedicated slot above
+ * @param sentWithNoValue      the sub-extensions that were sent with no value[x] at all, by their
+ *                             url, and for one that can repeat by its url and its position among
+ *                             those with that url, as {@code doc-purpose[1]}. Each is shown as
+ *                             empty above, as a valueCode of "" is, and this list is what tells
+ *                             the two apart
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CoverageInformationView(
@@ -56,9 +61,11 @@ public record CoverageInformationView(
         Boolean authOutOfNetworkOnly,
         String delegatedVendor,
         String delegatedVendorBasis,
-        List<SubExtensionView> otherSubExtensions) {
+        List<SubExtensionView> otherSubExtensions,
+        List<String> sentWithNoValue) {
 
     public CoverageInformationView {
+        sentWithNoValue = sentWithNoValue == null ? List.of() : List.copyOf(sentWithNoValue);
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
         docPurpose = docPurpose == null ? List.of() : List.copyOf(docPurpose);
         infoNeeded = infoNeeded == null ? List.of() : List.copyOf(infoNeeded);
@@ -74,7 +81,12 @@ public record CoverageInformationView(
     public CoverageInformationView attributedTo(List<String> codes, String name) {
         return new CoverageInformationView(foundAt, appliesTo, codes, name, outcome, covered, paNeeded, docNeeded, docPurpose,
                 infoNeeded, satisfiedPaId, coverage, coverageAssertionId, date, questionnaires, responses, reasons, laterReasonCodes,
-                details, authOutOfNetworkOnly, delegatedVendor, delegatedVendorBasis, otherSubExtensions);
+                details, authOutOfNetworkOnly, delegatedVendor, delegatedVendorBasis, otherSubExtensions, sentWithNoValue);
+    }
+
+    /** True when the sub-extension so named, or at that position, was sent with no value[x] at all. */
+    public boolean sentWithNoValue(String element) {
+        return sentWithNoValue.contains(element);
     }
 
     /** True when the extension sat on a CDS Hooks card itself, a place CRD 2.0.1 does not allow it. */

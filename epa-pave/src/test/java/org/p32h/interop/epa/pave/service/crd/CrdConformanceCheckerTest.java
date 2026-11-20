@@ -336,6 +336,8 @@ class CrdConformanceCheckerTest {
                 .contains("(pa-needed was returned as null)").doesNotContain("not returned");
         assertThat(codeListFinding(check(200, response(action(1, code("pa-needed", ""))), "Medicare", "95810")).detail())
                 .contains("(pa-needed was returned empty)").doesNotContain("not returned");
+        assertThat(codeListFinding(check(200, response(action(1, "{\"url\":\"pa-needed\"}")), "Medicare", "95810")).detail())
+                .contains("(pa-needed was sent with no value)").doesNotContain("not returned");
     }
 
     /** The one finding about the code list, beside the finding that the answer is missing a required value. */

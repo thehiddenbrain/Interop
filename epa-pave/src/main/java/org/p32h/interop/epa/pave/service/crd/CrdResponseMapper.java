@@ -419,6 +419,7 @@ public final class CrdResponseMapper {
         List<String> laterReasons = new ArrayList<>();
         List<CoverageDetailView> details = new ArrayList<>();
         List<SubExtensionView> other = new ArrayList<>();
+        List<String> noValue = new ArrayList<>();
         // The sub-extensions CRD 2.0.1 allows at most once. A second one is never allowed to replace
         // the first in silence: it is listed beside the others as repeated, and the checker reports it.
         Set<String> seenOnce = new LinkedHashSet<>();
@@ -439,6 +440,17 @@ public final class CrdResponseMapper {
             if (SINGLE.contains(url) && !seenOnce.add(url)) {
                 other.add(new SubExtensionView(url + REPEATED, FhirViews.extensionValueShown(sub), CrdCodes.definedIn(url)));
                 continue;
+            }
+            if (FhirViews.extensionValue(sub) == null) {
+                // Shown as empty below, like a value of "", and named here so the two are not one.
+                noValue.add(switch (url) {
+                    case CrdCodes.DOC_PURPOSE -> url + "[" + docPurpose.size() + "]";
+                    case CrdCodes.INFO_NEEDED -> url + "[" + infoNeeded.size() + "]";
+                    case CrdCodes.QUESTIONNAIRE -> url + "[" + questionnaires.size() + "]";
+                    case CrdCodes.RESPONSE -> url + "[" + responses.size() + "]";
+                    case CrdCodes.REASON -> url + "[" + reasons.size() + "]";
+                    default -> url;
+                });
             }
             switch (url) {
                 case CrdCodes.COVERED -> covered = CrdCodes.coded(url, presentCode(sub));
@@ -519,7 +531,7 @@ public final class CrdResponseMapper {
         // Which requested codes the answer is for is worked out afterwards, once every answer is known.
         return new CoverageInformationView(foundAt, appliesTo, List.of(), null, outcome, covered, paNeeded, docNeeded, docPurpose,
                 infoNeeded, satisfiedPaId, coverageRef, assertionId, date, questionnaires, responses, reasons, laterReasons, details,
-                authOutOfNetworkOnly, vendor, vendorBasis, other);
+                authOutOfNetworkOnly, vendor, vendorBasis, other, noValue);
     }
 
     /**
