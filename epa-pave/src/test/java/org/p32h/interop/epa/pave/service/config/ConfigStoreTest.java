@@ -454,14 +454,24 @@ class ConfigStoreTest {
         fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.PROD, false);
         fixture.store.activate("Payer Live");
 
-        assertThatThrownBy(() -> fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.SANDBOX, false))
-                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
-                        .contains("an environment named \"Payer Live\" is already stored here as prod, and this upload would replace it"));
+        // With the same address it is production whatever is confirmed: the address stays production.
+        for (boolean acknowledged : new boolean[] {false, true}) {
+            assertThatThrownBy(() -> fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.SANDBOX, acknowledged))
+                    .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.getMessage()).isEqualTo("This environment was "
+                            + "declared as sandbox, and one of its addresses belongs to the production environment \"Payer Live\". It was "
+                            + "not stored."));
+        }
         assertThat(fixture.store.snapshot().active().kind()).isEqualTo(EnvironmentKind.PROD);
 
         // Replacing it as production again asks nothing.
         assertThat(fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.PROD, false).replaced()).isTrue();
-        ConfigStore.EnvironmentUpload downgraded = fixture.store.uploadEnvironment("live.json", file, EnvironmentKind.SANDBOX, true);
+        // Pointed somewhere else, the name it shares with production still has to be confirmed.
+        byte[] elsewhere = "{\"name\": \"Payer Live\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"https://test.example.invalid/fhir\"}]}"
+                .getBytes(StandardCharsets.UTF_8);
+        assertThatThrownBy(() -> fixture.store.uploadEnvironment("live.json", elsewhere, EnvironmentKind.SANDBOX, false))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
+                        .contains("an environment named \"Payer Live\" is already stored here as prod, and this upload would replace it"));
+        ConfigStore.EnvironmentUpload downgraded = fixture.store.uploadEnvironment("live.json", elsewhere, EnvironmentKind.SANDBOX, true);
         assertThat(downgraded.environment().kind()).isEqualTo(EnvironmentKind.SANDBOX);
         assertThat(downgraded.environment().acknowledgedNotProd()).isTrue();
     }

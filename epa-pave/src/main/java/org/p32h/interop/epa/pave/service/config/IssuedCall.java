@@ -7,6 +7,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /** The only implementation of {@link PreparedCall}. Package-private, so only the gateway in this package mints one. */
 final class IssuedCall implements PreparedCall {
@@ -18,11 +19,22 @@ final class IssuedCall implements PreparedCall {
     private final EnvironmentRef environment;
     private final String requestName;
     private final boolean scripted;
-    private final long epoch;
+    private final LongSupplier epoch;
     private final Function<String, ResolvedText> resolver;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
+        this(operation, method, url, headers, environment, requestName, scripted, () -> epoch, resolver);
+    }
+
+    /**
+     * @param epoch the epoch the call belongs to, asked each time. For a write that an unlock let
+     *              through it stops answering the epoch it was prepared in once that unlock is no
+     *              longer held, so a relock makes the call stale without moving the epoch that
+     *              suites and screens are pinned to
+     */
+    IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
+               String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver) {
         this.operation = operation;
         this.method = method;
         this.url = url;
@@ -71,7 +83,7 @@ final class IssuedCall implements PreparedCall {
 
     @Override
     public long epoch() {
-        return epoch;
+        return epoch.getAsLong();
     }
 
     @Override

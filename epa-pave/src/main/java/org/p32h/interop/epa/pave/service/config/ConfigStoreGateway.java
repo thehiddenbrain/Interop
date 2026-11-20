@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.LookupProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
@@ -23,6 +24,7 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
@@ -32,6 +34,7 @@ import org.p32h.interop.epa.pave.postman.PostmanHeader;
 import org.p32h.interop.epa.pave.postman.PostmanRequest;
 import org.p32h.interop.epa.pave.postman.Resolution;
 import org.p32h.interop.epa.pave.postman.UrlForms;
+import org.p32h.interop.epa.pave.postman.UrlNormal;
 import org.p32h.interop.epa.pave.postman.VariableLayer;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
 import org.p32h.interop.epa.pave.service.config.CallPlan.Refusal;
@@ -149,8 +152,14 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         Function<String, Resolution> resolve = plan.resolver();
+        long epoch = snapshot.epoch();
+        // A write the unlock let through belongs to that unlock as well as to the configuration.
+        // Once the unlock is no longer held the call answers an epoch that is never current, so the
+        // sending layer refuses it, and a relock does not have to move the epoch everyone else is pinned to.
+        ProdUnlock authorisedBy = plan.write() && holds(intent.unlock(), snapshot) ? intent.unlock() : null;
+        LongSupplier belongsTo = authorisedBy == null ? () -> epoch : () -> stillHeld(authorisedBy, epoch) ? epoch : Long.MIN_VALUE;
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
-                plan.target().requestName(), plan.target().scripted(), snapshot.epoch(), template -> resolve.apply(template).text());
+                plan.target().requestName(), plan.target().scripted(), belongsTo, template -> resolve.apply(template).text());
     }
 
     @Override
@@ -255,8 +264,10 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     /**
-     * Locks production writes again, for every session. Every unlock is forgotten, and the epoch
-     * moves on so that a call prepared while writes were unlocked can no longer be sent.
+     * Locks production writes again, for every session. Every unlock is forgotten. A call prepared
+     * while writes were unlocked rests on its unlock, so it can no longer be sent. The epoch does not
+     * move: nothing stored changed, and a suite or a screen pinned to the configuration has no
+     * reason to stop or reload because a session locked writes.
      */
     public void relock() {
         boolean any;
@@ -265,11 +276,17 @@ public class ConfigStoreGateway implements OperationGateway {
             any = !minted.isEmpty();
             minted.clear();
         }
-        // With no unlock held no prepared call can rest on one, so there is nothing to invalidate
-        // and no reason to make every open tab reload.
         if (any) {
-            store.advanceEpoch();
+            // The outcome only.
             log.info("Production writes were locked again");
+        }
+    }
+
+    /** True while the unlock is still one this gateway holds for the epoch it was used in. */
+    private boolean stillHeld(ProdUnlock unlock, long epoch) {
+        synchronized (minted) {
+            forgetEarlierEpochs(store.epoch());
+            return mintedEpoch == epoch && minted.contains(unlock);
         }
     }
 
@@ -338,6 +355,7 @@ public class ConfigStoreGateway implements OperationGateway {
         Map<String, String> reasons = new LinkedHashMap<>();
         Map<String, String> bound = Map.of();
         ResolvedUrl url = null;
+        boolean climbed = false;
 
         if (target.configured()) {
             String template = target.template();
@@ -373,6 +391,9 @@ public class ConfigStoreGateway implements OperationGateway {
                     }
                 }
                 filled = skeleton.fill(intent.urlValues());
+                // Judged and sent in one normal form, so that what is judged is what a server acts on.
+                climbed = UrlNormal.of(filled.probe()).climbed();
+                filled = normalised(filled);
                 tokens = skeleton.tokenNames();
                 // A variable that only matters beyond the cut is not needed by the cut url.
                 boolean nothingMissing = cutInsideAVariable && !skeleton.hasMissing();
@@ -415,7 +436,7 @@ public class ConfigStoreGateway implements OperationGateway {
 
         String because = writeBecause(intent, target, method, url, filled, headers);
         boolean write = operation.write() || because != null;
-        Refusal refusal = write ? guard(snapshot, intent, target, because, filled) : null;
+        Refusal refusal = write ? guard(snapshot, intent, target, because, filled, new Origin(urlVariables, climbed)) : null;
         return new CallPlan(snapshot, intent, target, method, url, filled, tokens, missingPlaceholders, urlVariables, reasons, headers, write,
                 because, refusal, callResolver);
     }
@@ -735,6 +756,7 @@ public class ConfigStoreGateway implements OperationGateway {
         // The request's own name, its url as written, and its url as it resolved. A url such as
         // {{baseUrl}}/Claim/{{op}} says nothing until its variables are filled in.
         Set<EpaOperation> signals = new LinkedHashSet<>(OperationDetector.signals(name, method, url.template()));
+        signals.addAll(OperationDetector.signals(null, method, UrlNormal.text(url.template())));
         if (filled != null) {
             signals.addAll(OperationDetector.signals(null, method, filled.probe()));
         }
@@ -757,19 +779,80 @@ public class ConfigStoreGateway implements OperationGateway {
         // it will be sent has to read as the read it is named for. This is asked only of a url
         // that is complete: one with a placeholder still in it is never sent, and saying "blocked"
         // there would hide the real problem, which is the missing value.
-        if (target.source() == Source.REQUEST && filled != null && filled.complete() && EpaOperation.UNMAPPED.writesWith(method)
-                && OperationDetector.signals(null, method, url.template()).isEmpty()
+        // The url as it will be sent is asked on its own as well, in its normal form: a value that
+        // puts a question mark or dot segments into it can leave the read in the template while the
+        // server is sent a create.
+        if (filled != null && filled.complete() && EpaOperation.UNMAPPED.writesWith(method)
                 && OperationDetector.signals(null, method, filled.probe()).isEmpty()) {
-            return "only the name of the request \"" + name + "\" says what it does, its url says nothing, and it would be sent with "
-                    + method;
+            if (target.source() == Source.REQUEST && OperationDetector.signals(null, method, url.template()).isEmpty()
+                    && OperationDetector.signals(null, method, UrlNormal.text(url.template())).isEmpty()) {
+                return "only the name of the request \"" + name + "\" says what it does, its url says nothing, and it would be sent with "
+                        + method;
+            }
+            return "the url as it would be sent, with dot segments removed and the query set aside, does not read as "
+                    + operation.label() + ", and it would be sent with " + method;
         }
         return null;
     }
 
-    private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because, UrlForms.Filled filled) {
+    /**
+     * What the gateway knows about where a url's text came from, for the guardrail.
+     *
+     * @param resolution how the placeholders of the url resolved, piece by piece. Null when there is no url
+     * @param climbed    true when a {@code ..} in the url reached above the root of its path
+     */
+    private record Origin(Resolution resolution, boolean climbed) {
+    }
+
+    /** A url in the one normal form in which it is judged, shown and sent. */
+    private static UrlForms.Filled normalised(UrlForms.Filled filled) {
+        return new UrlForms.Filled(UrlNormal.text(filled.send()), UrlNormal.text(filled.display()), UrlNormal.text(filled.shown()),
+                UrlNormal.text(filled.probe()), filled.missingTokens());
+    }
+
+    private Refusal guard(ConfigSnapshot snapshot, CallIntent intent, Target target, String because, UrlForms.Filled filled, Origin origin) {
         StoredEnvironment active = snapshot.active();
         String what = intent.operation().label() + (target.requestName() == null ? "" : " with the request \"" + target.requestName() + "\"");
         String why = because == null ? "" : " It counts as a write because " + because + ".";
+        boolean complete = filled != null && filled.complete();
+
+        if (complete && origin.climbed()) {
+            return new Refusal(what + " is blocked: its url climbs above the start of its path with \"..\", so it would address "
+                    + "something other than what it says." + why, "Nothing was sent. Correct the url, or the value that put \"..\" "
+                    + "into it, so that it names the address directly.");
+        }
+        String movedBy = complete ? movedByRunValue(origin.resolution(), filled.send()) : null;
+        if (movedBy != null) {
+            // The name of the value. Never the value: it can be a member ID or a typed secret.
+            return new Refusal(what + " is blocked: the value typed for this run for " + movedBy + " would change where it goes, "
+                    + "its scheme, host, port or base path. A value typed for one run may fill a claim id, a topic, a path segment "
+                    + "after the base or a query value, and never the address of a write." + why, "Nothing was sent. To send a write "
+                    + "somewhere else, change the environment: upload one whose values point there, with its kind, and activate it.");
+        }
+
+        // The destination decides. An address that belongs to a production environment, stored
+        // here or remembered after it was deleted, is production whatever is active and wherever
+        // the url came from.
+        UrlNormal.Destination destination = filled == null ? null : UrlNormal.destination(complete ? filled.send() : filled.probe());
+        List<String> owners = snapshot.productionOwners(destination);
+        boolean activeOwns = active != null && active.kind() == EnvironmentKind.PROD && owners.contains(active.name());
+        // A write to the active production environment's own address is judged below, as every
+        // write to the active production environment is.
+        if (!owners.isEmpty() && !activeOwns) {
+            String belongs = "the address it would go to belongs to the production environment " + quotedAll(owners);
+            if (!store.allowProdWrites()) {
+                return new Refusal(what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
+                        + "writes." + why, "An owner has locked this installation against production writes (config-store.allow-prod-writes "
+                        + "is false), so no unlock is possible. Only whoever owns the installation can change that. To test without "
+                        + "production, switch to a sandbox or uat environment.");
+            }
+            String activeNow = active == null ? "no environment is active" : "the active environment is \"" + active.name() + "\"";
+            return new Refusal(what + " is blocked: " + belongs + ", and " + activeNow + ". A write goes to a production address "
+                    + "only from that production environment, active and unlocked." + why, "Nothing was sent. To write to "
+                    + quotedAll(owners) + ", activate it on the Config tab and unlock writes there. A value typed for one run, "
+                    + "application.yml or another environment cannot send a write to it.");
+        }
+
         if (active == null) {
             // On the mock profile nothing is sent, so the out-of-the-box install can run a write
             // with nothing configured. On live there is no kind to go by, and a fallback url cannot
@@ -783,14 +866,28 @@ public class ConfigStoreGateway implements OperationGateway {
             // value typed for this one run, or a literal in application.yml. The upload asks about
             // an environment that reads as production. This asks the same about the url a write
             // is about to go to, so that a production url cannot ride in under a sandbox's name.
-            if (!active.acknowledgedNotProd() && filled != null && filled.complete() && ProductionSigns.saysProd(filled.send())) {
-                return new Refusal(what + " is blocked: the url it would go to contains \"prod\", and the active environment \""
-                        + active.name() + "\" is declared as " + active.kind().wire() + " and has not been confirmed as not production. "
-                        + "This tool cannot tell whether that url is production." + why,
+            // The confirmation that the environment is not production covers its own addresses
+            // only: a url application.yml contributed to is judged whole, and what a value typed
+            // for this run put into it is judged on its own.
+            if (!complete) {
+                return null;
+            }
+            boolean ownAddress = active.acknowledgedNotProd() && target.source() == Source.REQUEST
+                    && !contributed(origin.resolution(), VariableSource.APPLICATION_YML);
+            boolean saysProd = ownAddress ? ProductionSigns.saysProd(UrlNormal.decodedForReading(runText(origin.resolution())))
+                    : readsAsProduction(filled.send());
+            if (saysProd) {
+                String confirmed = active.acknowledgedNotProd()
+                        ? ", and the confirmation that \"" + active.name() + "\" is not production covers that environment's own addresses "
+                        + "only, while part of this url came from " + (ownAddress ? "a value typed for this run" : "application.yml") + "."
+                        : ", and the active environment \"" + active.name() + "\" is declared as " + active.kind().wire() + " and has not "
+                        + "been confirmed as not production.";
+                return new Refusal(what + " is blocked: the url it would go to contains \"prod\"" + confirmed + " This tool cannot tell "
+                        + "whether that url is production." + why,
                         "If the target is production, upload its environment with the kind prod, activate it and unlock writes "
                                 + "there. If it is not, upload the environment \"" + active.name() + "\" again with the confirmation "
-                                + "that it is not production, then send again. A url typed for one run, or set in application.yml, is "
-                                + "not enough to send a write to something that reads as production.");
+                                + "that it is not production, with the url in its own variables, then send again. A url typed for one "
+                                + "run, or set in application.yml, is not enough to send a write to something that reads as production.");
             }
             return null;
         }
@@ -803,10 +900,131 @@ public class ConfigStoreGateway implements OperationGateway {
         if (holds(intent.unlock(), snapshot)) {
             return null;
         }
+        return locked(snapshot, intent, active, what, why);
+    }
+
+    /**
+     * The refusal of a write to the active production environment by a call that holds no unlock
+     * for it. It says what is true for the caller: a replay and a suite never carry the unlock, so
+     * telling them to unlock would send the tester round in a circle.
+     */
+    private Refusal locked(ConfigSnapshot snapshot, CallIntent intent, StoredEnvironment active, String what, String why) {
+        RunOrigin origin = intent.origin();
+        String carrier = origin == null ? null : Texts.present(origin.replayOfRunId()) ? "a replay"
+                : Texts.present(origin.suiteRunId()) ? "a suite" : null;
+        if (carrier != null && intent.unlock() == null) {
+            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and " + carrier + " never "
+                    + "carries the production unlock, so its writes to production are always blocked." + why, "Nothing was sent, and "
+                    + "unlocking does not change this. To send this write to production, send it on its own from the PAS tab, with "
+                    + "writes unlocked there.");
+        }
+        if (intent.unlock() == null && unlockedElsewhere(snapshot, active)) {
+            return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment, and this call carries no "
+                    + "production unlock. Writes are unlocked in a browser session, and a replay, a suite and every other browser "
+                    + "session never carry that unlock." + why, "Nothing was sent. To send this write to production, send it on its own "
+                    + "from the PAS tab of the browser session where writes are unlocked.");
+        }
         String stale = intent.unlock() == null ? "" : " An earlier unlock no longer applies, because the configuration has changed "
                 + "or writes were locked again since.";
         return new Refusal(what + " is blocked: \"" + active.name() + "\" is a production environment and production writes are "
                 + "locked for this session." + stale + why, "To send it, unlock production writes on the Config tab by typing the "
                 + "environment name. To test without production, switch to a sandbox or uat environment.");
+    }
+
+    /** True when some session holds an unlock for the active production environment in the snapshot's epoch. */
+    private boolean unlockedElsewhere(ConfigSnapshot snapshot, StoredEnvironment active) {
+        synchronized (minted) {
+            forgetEarlierEpochs(snapshot.epoch());
+            return mintedEpoch == snapshot.epoch() && minted.stream().anyMatch(unlock -> active.name().equals(unlock.environmentName()));
+        }
+    }
+
+    private static String quotedAll(List<String> names) {
+        return String.join(" and ", names.stream().map(name -> "\"" + ConfigStore.oneLine(name) + "\"").toList());
+    }
+
+    /** True when the url reads as production: the word "prod" in it once escapes are decoded, or in its host. */
+    private static boolean readsAsProduction(String url) {
+        UrlNormal.Destination destination = UrlNormal.destination(url);
+        return ProductionSigns.saysProd(UrlNormal.decodedForReading(url))
+                || (destination != null && ProductionSigns.saysProd(UrlNormal.decodedForReading(destination.host())));
+    }
+
+    /** The layer each variable of a resolution came from. */
+    private static Map<String, VariableSource> sources(Resolution resolution) {
+        Map<String, VariableSource> sources = new LinkedHashMap<>();
+        if (resolution != null) {
+            resolution.variables().forEach(use -> sources.putIfAbsent(use.name(), use.source()));
+        }
+        return sources;
+    }
+
+    private static boolean contributed(Resolution resolution, VariableSource source) {
+        return resolution != null && resolution.variables().stream().anyMatch(use -> use.source() == source);
+    }
+
+    /** The text of the url that values typed for this run put there, each piece followed by a space. */
+    private static String runText(Resolution resolution) {
+        Map<String, VariableSource> sources = sources(resolution);
+        StringBuilder text = new StringBuilder();
+        if (resolution != null) {
+            for (Resolution.Piece piece : resolution.pieces()) {
+                if (piece.name() != null && sources.get(piece.name()) == VariableSource.RUN_VALUE && piece.send() != null) {
+                    text.append(piece.send()).append(' ');
+                }
+            }
+        }
+        return text.toString();
+    }
+
+    /**
+     * The name of the run value that would move a write, or null when none does. The scheme, host,
+     * port and base path must be written by the configuration in force on its own: a run value may
+     * start only after a slash that follows the host, or in the query or the fragment. The url as it
+     * will be sent, in its normal form, must still start with what the configuration wrote, so a
+     * value cannot climb back out of the place it was given with {@code ..}.
+     */
+    private static String movedByRunValue(Resolution resolution, String sent) {
+        if (resolution == null) {
+            return null;
+        }
+        Map<String, VariableSource> sources = sources(resolution);
+        StringBuilder prefix = new StringBuilder();
+        for (Resolution.Piece piece : resolution.pieces()) {
+            if (piece.name() != null && sources.get(piece.name()) == VariableSource.RUN_VALUE) {
+                String before = prefix.toString();
+                int scheme = before.indexOf("://");
+                if (scheme <= 0) {
+                    return piece.name();
+                }
+                int pathStart = scheme + 3;
+                while (pathStart < before.length() && "/?#".indexOf(before.charAt(pathStart)) < 0) {
+                    pathStart++;
+                }
+                String rest = before.substring(pathStart);
+                int query = firstOf(rest, "?#");
+                if (query < 0 && !rest.endsWith("/")) {
+                    return piece.name();
+                }
+                String fixed = query >= 0 ? before.substring(0, pathStart + query) : before;
+                String base = UrlNormal.text(fixed);
+                String normal = UrlNormal.text(sent);
+                return normal != null && normal.startsWith(base) ? null : piece.name();
+            }
+            if (piece.send() == null) {
+                return null;
+            }
+            prefix.append(piece.send());
+        }
+        return null;
+    }
+
+    private static int firstOf(String text, String characters) {
+        for (int i = 0; i < text.length(); i++) {
+            if (characters.indexOf(text.charAt(i)) >= 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
