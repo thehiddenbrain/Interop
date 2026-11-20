@@ -61,7 +61,8 @@ Lines that one of the four tasks started from this revision is meant to close en
   three majors are fixed and not checked (below). The two proofs of part 2 were seen on the real tabs,
   on mock, by the second pass over the screens on `0658a7c` (D-208), and again by the walkthrough on
   `9e285a1`: `P32H-NO-AUTH` and `P32H-EMPTY` apart on screen, in the ledger, in History and in the
-  export, on mock and on live; the answers completed in DTR in the PAS preview and in the wire view.
+  export, on mock and on live; the answers completed in DTR in the PAS result and in the wire view (the
+  second pass also saw them in the PAS preview).
   Neither was looked at on this revision, on which the next step of `P32H-EMPTY` (D-241) and the mark
   of the DTR response step (D-240) changed. `P32H-NO-AUTH` and `P32H-EMPTY` were seen as suite rows by
   V7, and not in a chain on screen.
@@ -110,8 +111,13 @@ None of it is done here.
   the guardrail refuses is checked against the body as typed, not the saved body (D-231). The
   configuration store keeps uploads exactly as uploaded and can hold member data an uploaded file
   contains; the upload warns by the names of variables and saved examples, and nothing is stripped
-  (D-213); the names it knows miss `mbrId`, `ssn`, `MBI`, `mrn`, Medicaid and Medicare numbers,
+  (D-213).
+- The upload warning does not know `mbrId`, `ssn`, `MBI`, `mrn`, Medicaid and Medicare numbers,
   addresses and telephones (N9). [open at this revision: being fixed]
+- The member data check found 70 or more `pave-server-*` folders in `/tmp`, 37 of them empty, left by
+  processes it could not attribute and did not look into. The tool removes its own at a clean stop and
+  a hard kill leaves it (F7, D-216); whether any of these came from a clean stop of this tool is not
+  known.
 - The installation salt sits in plain text in `config-store/`; with it a member ID is recovered from
   its token at once (D-234). The README does not say so yet (D-250).
 - The ledger record holds no count of the fields an answer carried that the tool did not interpret, so
@@ -130,6 +136,14 @@ None of it is done here.
   goes to a locked production, and an environment on production's server with one in its base path
   takes writes (N3; harmful only behind a server that decodes such bytes).
   [open at this revision: being fixed]
+- Not covered by any decision: a non-production environment on production's server whose base path
+  holds `%00`, `%20` or `%2e` is accepted with the m4 warning, and its writes reached production's port
+  in the check. A production environment whose base path holds `%2F` does not protect the decoded
+  spelling, and a sandbox there took a submit. These matter only behind a server that decodes such
+  bytes. D-247 item 3 covers escapes above 0x7F only.
+- The unlocked panel's other sentence ("It ends with any change to the configuration... A restart of
+  the tool ends it too") is incomplete, though no longer untrue (a neighbour of m2 in the guardrail
+  check). Given to no task.
 - A received notification that repeats a secret shorter than six characters shows it in clear with no
   note, where the wire view says such a secret was not searched for (N4).
   [open at this revision: being fixed]
@@ -171,6 +185,8 @@ None of it is done here.
   body that is not JSON or is empty) is headed "A fault in the environment: ..." and its action tells
   the tester to note the time and report it, although nothing left the machine (V6's
   F-MOCK-500-HEADING, V7's F7). [open at this revision: being fixed]
+- An unknown folder at the scenario root (`other/`) is ignored without a word; the fixture check saw it
+  and judged it too small to report as a finding. Given to no task.
 - An `expect` block whose outcome contradicts what its own file produces, with the same HTTP status, is
   not detected, and its outcome is still advertised (D-224, a known limit). Any new top-level key in a
   scenario file stops the mock start until the loader knows it.
@@ -213,7 +229,8 @@ source). What is still wrong, or not seen:
   undetermined kind, a wrapped next-question step, a DTR package request of the tester's own, DTR
   "could not be reached" on live, History's view and replay of a DTR run, PAS on live with an
   unreachable sandbox, the masking of a channel header, a PAS payload over the 131072-byte cut, a chain
-  joined from the PAS tab, a PAS replay that is sent, and the PAS "Show the request" preview on live.
+  joined from the PAS tab, PAS inquiry scenarios other than the pended one (the timeout and server
+  error ones were followed by an inquiry through the API only), a PAS replay that is sent, and the PAS "Show the request" preview on live.
   Whether every protocol's determination grid writes "no meaning to state" was not checked. The Config
   tab's files were never reread against the Config review's CFG-01 to CFG-22.
 - *Older, still true.* The body source of a raw send is served as a code only and the page shows the
@@ -221,12 +238,15 @@ source). What is still wrong, or not seen:
   is not carried to the next. The PAS detail and the notifications list rely on the server's masking,
   with no page stopgap. The member and provider detail records of a lookup still hold the mask text of
   a masked field; the page fills the case only from the marked field list, and no build test pins it.
-  When a pasted request and the case disagree, only a member ID gets a button. The vendor's sample on
+  When a pasted request and the case disagree, only a member ID gets a button; two dates of service
+  that disagree are listed with no button. The vendor's sample on
   the CRD tab passes through the browser, and the tool's own hook instance is always one difference.
-  The slow-response flag was seen only on mock with a lowered threshold. A run-value field for a builder
-  variable says where the request uses it was not reported. A DTR quantity's unit is free text, and an
-  answer the response holds is never put back into a control. Nothing shows how an inquiry's answer
-  differs from the last one seen. A ledger that cannot write can be reached only by renaming its folder
+  The slow-response flag was seen only on mock with a lowered threshold. Whether a run-value field for a
+  builder variable (such as `subscriptionHeartbeatSeconds`) says where the request uses it was not
+  reported, because `/api/config/resolve` does not describe builder variables. A DTR quantity's unit
+  is free text, and an answer the response holds is never put back into a control. Nothing shows how
+  an inquiry's answer differs from the last one seen. The blank "Meaning" cell a review saw on a
+  subscription status row was never reproduced. A ledger that cannot write can be reached only by renaming its folder
   after start: a folder that cannot be created stops the tool at start.
 
 **The server, by endpoint.**
@@ -271,7 +291,10 @@ draft, outside the repository, says the tool was built "with nothing stubbed" (V
 F-PR-LIMITS), and its list of decisions stops at D-201. The last pass over both is started and not
 merged (D-250). The draft's attribution footer holds a non-ASCII character and names the generating
 tool, which conflicts with the house style and the rule against naming a tool as an author; which wins
-is undecided (D-209).
+is undecided (D-209). The README says "The house style rules are enforced by the build on every file"
+(about line 1665); the style gate's fix asks that it name the files git lists and say that commit
+messages and the pull request description are not checked (D-244). Not checked by anyone: `run.sh`
+refusing a Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
 
 **Limits each part reports that are still true.**
 - Level 1 is described with its limits (D-235): in the X12 275 attachment mode the tool names the
@@ -302,13 +325,17 @@ is undecided (D-209).
   ledger does not apply case lines as the real one does.
 - The code list: no real P32H export was available, so its header row, flag spellings, date format, time
   zone, vendor names, encoding and columns per line of business are unknown. A real export whose notes
-  column held the marker "Not from a P32H export." would be taken as synthetic.
+  column held the marker "Not from a P32H export." would be taken as synthetic. The first-row message
+  still shows cells of letters alone.
 - Lookups: neither has met the real member API or provider directory; both response mappings are
   assumptions (section 26). A name returned in one piece cannot prefill first and last name.
 - Notifications: the receiver does not authenticate its caller and has never been called over a socket
   by a real service; with the default bind address no vendor can reach it, and `GET /api/mode` says so.
+  Two notifications at the same moment are not tested.
 - Postman: no real vendor export was available; every collection the tests use is hand-written.
-- The request comparison: no real vendor request was available (D-227). Codes in NutritionOrder,
+  Concurrency in the store is reasoned about, not tested.
+- The request comparison: no real vendor request was available (D-227). A placeholder whose value
+  exists only in a collection's variables is reported as having no value. Codes in NutritionOrder,
   VisionPrescription, CommunicationRequest and Appointment are not read.
 - The wire view carries member data. It and every masking that follows its rule miss a secret sent back
   re-encoded (percent, base64, another case) or shorter than six characters.
@@ -321,7 +348,7 @@ is undecided (D-209).
 **Checked only by unit tests, by reading the source, or at the gateway, never in the running tool.** A
 chain interrupted part way writing its case line, and the write note of a suite on a production
 target; a failure of the tool inside a step; the replay paths for a refused claim id and an
-authorization number in several groups; the split of TLS failures into reached and not reached; a step
+authorization number in several groups; the split of TLS failures into reached and not reached; a secret sent back as a JSON number; a step
 done inside the tool on the live profile marked as answered by nobody (`RunRecordTest`); the refusal of
 text left in the code box (`CaseCodesFrontendTest` reads the source; the behaviour was seen in a
 browser); the style gate's planted violations (`HouseStyleTest`). Not checked at all: whether a chain's
@@ -341,7 +368,8 @@ DTR step can produce each fault outcome a suite file may expect of it.
   record; PAS inquiry, DTR conditions and CRD suggestions for absent, null and empty.
 - *The walkthrough:* the chain box and the History chains view; DTR and PAS on live; the adaptive
   questionnaire, PAS inquiry, subscriptions and notifications on screen; timeouts on DTR and PAS;
-  production and the guardrail; layout below 1366 wide.
+  production and the guardrail; layout below 1366 wide; any mock member ID other than the fixtures, so
+  whether an ID that is not in the fixtures is found on mock remains open.
 - *The member data check:* DTR on live end to end; PAS inquiry and subscription read, update and delete
   on live; DTR and PAS in a browser (the own-body finding was confirmed on CRD and read from the shared
   page code); Windows; the full suite on the unchanged tree.
@@ -350,10 +378,30 @@ DTR step can produce each fault outcome a suite file may expect of it.
 - *The fixture check:* the DTR loop with a required question left empty; `crd-04` chosen by hand in a
   browser; a step-level `expect` mismatch; damaged lookup fixtures; History, suite and chain screens;
   other window sizes; the full suite.
-- *The second run of V2, V3 and V4* (on `0658a7c`): as recorded before, among them DTR on live, a log
-  file appender, heap dumps and swap, Windows file modes, the `postman` package line by line, the race
-  between preparing and sending by a timed run, a real front server, the rest of the DTR loop, and each
-  scenario file's `basis` against the guides.
+- *What the second member data audit did not examine.* DTR on live (its stand-in had no DTR
+  endpoints, so the package, the next question and the response were not run there); PAS inquiry and
+  subscription read, update and delete on live (judged by reading the code); a raw send on live and
+  the Config tab's "send as written" path; a log file appender, heap or thread dumps and swap; file
+  modes and the temporary folder on Windows. It did not read the `postman` package,
+  `ConfigStoreGateway` or the CRD and PAS request builders line by line, only the changes since
+  `7dade28` in the files that touch member data.
+- *What the second guardrail audit did not examine.* A replay that reaches the gateway against
+  production (its replays were refused earlier for want of a recorded member); a chain whose PAS step
+  runs on production (checked in the code only); a real nginx, Tomcat or HAPI server in front of a
+  service; the race between preparing and sending, by a timed run (read in the code only); a
+  production address taken from an operating system variable; proxy settings and redirects (the
+  client is built never to follow a redirect, read in the code; neither was run); the PAS form's own
+  send button (writes from the page were sent with a fetch from the tab, and the CRD, DTR and History
+  tabs were not driven in a browser); the findings F2, F6 to F9 and F11 to F15 of the first
+  guardrail fix's verification, not repeated; the whole test suite under each of its mutations (only
+  the packages concerned were run); Windows.
+- *What the second fixture audit did not examine.* The rest of the DTR loop (the branch change of
+  `dtr-02`, the HTTP 500 on step 2 of `dtr-14`, the two questionnaires of `dtr-13`, the prepopulated
+  answers of `dtr-03`); each scenario file's `basis`, its claim about which guide text it follows,
+  not checked against the guides; the History, chain, suite and notification screens and the DTR loop
+  on screen (it looked at the CRD tab for 14 scenarios, 5 DTR and 7 PAS, at one size); VF-01 and VF-02
+  of the first fixture verification, not run again; lookup fixtures loaded from a damaged directory of
+  the tester's own (a test of two files claiming one identifier exists since D-204).
 
 ### What the audits found and what was done
 
@@ -431,7 +479,7 @@ yes, with three gaps. 3 majors, 6 minors.
 
 **Honesty audit (V6)**, on `9e5306d`. Answer: yes, the documents claimed more than the code bears out,
 mostly by leaving limits out; every test count, the README's 70 examples, the build and the fresh
-clone held. 1 blocker, 5 majors, 9 minors.
+clone held. 1 blocker, 5 majors, 10 minors.
 
 | Finding | Grade | What it found | What was done | State | Entry |
 | --- | --- | --- | --- | --- | --- |
@@ -499,7 +547,7 @@ locked production as a read. The check's answer: eight closed, B1 partly.
 | GAP1 | major | The gap of F0 | As F0 | Closed; seen failing; N4 found | Fixed and verified | D-215 |
 | m1 | minor | A raw send of a mapped request refused with an untrue reason | The reason names the mapping | Closed; seen failing (`ProductionGuardrailTest`) | Fixed and verified | D-216 |
 | m2 | minor | The unlock panel does not say what Lock does | The server's reason says it and the panel shows it | Closed, seen in a browser | Fixed and verified | D-231 |
-| m3 | minor | An environment at `/pa%2Ffhir` took writes on a production server | Nothing is sent to it, and it is warned about | Closed (through M-ENC); its overlong neighbours are N3 | Fixed and verified | D-211 |
+| m3 | minor | An environment at `/pa%2Ffhir` took writes on a production server | Nothing is sent to it, and it is warned about | Closed (through M-ENC); its overlong neighbours are N3; its neighbours `%00`, `%20`, `%2e` and, the other way round, a production base path with `%2F` let writes through and are covered by no decision (open) | Fixed and verified for `%2F`, `%5C`, `%3B` and encoded dot segments | D-211 |
 | m4 | minor | A non-production environment on a production server, with no word | Warned wherever it is listed, shown on screen since the screens pass | Closed; seen failing; N5 found | Fixed in another form (warned) and verified | D-212, D-230 |
 | N1 | major (check) | A production address the client cannot read is not remembered; a sandbox at its plain spelling takes writes | | New; writes arrived at a stand-in | Being fixed | D-247 [open at this revision: being fixed]
 | N2 | major (check) | An unreadable path refused with a false cause | | New; nothing is sent | Being fixed | D-247 [open at this revision: being fixed]
@@ -891,7 +939,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
   A resource of another kind sent to a CRD hook is not "no determination" (D-238). A notification read
   whole (D-239). Who answered each run (`answeredBy`: the service, a scenario, nobody, or not sent) on
   the result, the ledger line, the export and the chain, and "not measured" for a time nobody measured
-  (D-240). Every error headed by the server (D-231). On mock a played timeout said once and headed as
+  (D-240). Every error carries a heading from the server (D-231), shown under the page's own heading
+  "What went wrong", which is being removed (D-249). On mock a played timeout said once and headed as
   played (D-229, D-231).
 - **Configuration.** Postman environments and collections uploaded and stored as uploaded, the
   operation mapping (changed and removed from the Config tab), which request a run uses stated by the
@@ -941,7 +990,8 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
     the check). The note and tester reference of every form carry the hint that the ledger keeps them
     as typed, and a refusal marks its field (seen at 1366 on CRD, DTR, PAS, the raw send, a suite and
     History). Text left in the code box refuses the send (seen at 1366 on all three tabs). The error
-    panel headed by the server (a played timeout seen at 1366 on all three tabs).
+    panel shows the server's heading under the page's own "What went wrong", which is being removed
+    (D-249) (a played timeout seen at 1366 on all three tabs).
   - *CRD tab and the comparison.* Every scenario through the real form; the comparison with the caveat,
     the masked note and the server's source labels, a pasted token nowhere on the page but in the
     tester's own box (seen); fill without typing over a lookup, marked "from the pasted request" (seen);
