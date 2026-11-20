@@ -263,7 +263,8 @@ class CrdVerdictsTest {
                 + "\"no-active-coverage\"}]}}"));
         assertThat(mapper.read(inactive).outcome()).isEqualTo(CrdOutcome.COVERAGE_INACTIVE);
         assertThat(CrdVerdicts.verdict(mapper.read(inactive), inactive).supporting())
-                .contains("Reason the payer gives: http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|no-active-coverage.");
+                .contains("Reason the payer gives: http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp|no-active-coverage (a CRD 2.2.0 ballot code, "
+                        + "not in CRD 2.0.1: the coverage named is not active, so no coverage information can be given).");
         VendorExchange noMember = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"not-covered\"},{\"url\":\"reason\","
                 + "\"valueCodeableConcept\":{\"coding\":[{\"system\":\"http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp\",\"code\":"
                 + "\"no-member-found\"}]}}"));

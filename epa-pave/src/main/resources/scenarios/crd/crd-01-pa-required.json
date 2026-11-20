@@ -2,7 +2,7 @@
   "id": "crd-01-pa-required",
   "number": 1,
   "label": "Prior authorization required",
-  "description": "The payer answers that prior authorization is needed for the service and that no documentation is wanted.",
+  "description": "The payer answers that prior authorization is needed for the service. It says nothing about documentation, which in CRD 2.0.1 is how an answer says none is needed. Models CRD 2.0.1. The bundled placeholder code list routes 95810 to eviCore for Medicare and Medicaid, so a run with 95810 for such a member also shows the code list naming a vendor where this answer names none.",
   "sentinelMemberId": "P32H-PA-REQ",
   "behavior": "respond",
   "httpStatus": 200,
@@ -16,7 +16,7 @@
       "pa-needed": "auth-needed"
     }
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
   "response": {
     "cards": [
       {

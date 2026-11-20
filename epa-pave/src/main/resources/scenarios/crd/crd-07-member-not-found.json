@@ -2,7 +2,7 @@
   "id": "crd-07-member-not-found",
   "number": 7,
   "label": "Member not found",
-  "description": "The service does not recognise the member. This is a finding about the test data, not about the environment.",
+  "description": "The service does not recognise the member. This is a finding about the test data, not about the environment. CRD 2.0.1 has no code for this.",
   "sentinelMemberId": "P32H-NOMEM",
   "behavior": "respond",
   "httpStatus": 404,
@@ -12,7 +12,7 @@
     "errorType": "BAD_REQUEST",
     "httpStatus": 404
   },
-  "basis": "Synthetic. Built from this tool's reading of Da Vinci CRD and CDS Hooks. It has not been observed from the live service.",
+  "basis": "Synthetic. CRD 2.0.1 defines no body for a failed call, so this models a FHIR OperationOutcome. It has not been observed from the live service.",
   "assumption": "How the live service signals an unknown member is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the Patient.",
   "response": {
     "resourceType": "OperationOutcome",

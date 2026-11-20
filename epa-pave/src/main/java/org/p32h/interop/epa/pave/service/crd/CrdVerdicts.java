@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -182,12 +183,24 @@ public final class CrdVerdicts {
                 out.add(prefix + "A partly completed questionnaire response is named for DTR to start from: "
                         + String.join(", ", view.responses().stream().filter(Shown::hasValue).map(Shown::value).toList()) + ".");
             }
-            List<String> reasons = view.reasons().stream().filter(Shown::hasValue).map(Shown::value).toList();
+            List<String> reasons = view.reasons().stream().filter(Shown::hasValue).map(CrdVerdicts::reason).toList();
             if (!reasons.isEmpty()) {
                 out.add(prefix + "Reason the payer gives: " + String.join("; ", reasons) + ".");
             }
         }
         return out;
+    }
+
+    /** A reason as the verdict states it: as returned, and for a later version's code, with that version's meaning. */
+    private static String reason(Shown reason) {
+        String value = reason.value();
+        for (String later : List.of(OnyxCrdConventions.LATER_NO_MEMBER_FOUND, OnyxCrdConventions.LATER_NO_ACTIVE_COVERAGE,
+                OnyxCrdConventions.LATER_AUTH_OUT_NETWORK)) {
+            if (value.contains(later)) {
+                return value + " (a " + CrdCodes.LATER + " code, not in " + CrdCodes.JUDGED_BY + ": " + CrdGuideRules.laterReasonMeaning(later) + ")";
+            }
+        }
+        return value;
     }
 
     /** Puts one element of an answer under definite or conditional. An element not returned, or not recognised, goes under neither. */

@@ -14,7 +14,9 @@ import java.util.List;
 /**
  * The rules of the CRD 2.0.1 coverage information extension other than its value sets, applied to
  * one extension as read: the cardinalities of its sub-extensions, its invariants crd-ci-q1, q3 and
- * q5, and the places it may sit. Each finding names the rule and the version.
+ * q5, and the places it may sit. Each finding names the rule and the version. A broken rule is
+ * filed as {@link FindingKind#REQUIRED_ELEMENT_MISSING}, whose title then names the rule: the
+ * shared finding kinds have none for a broken invariant or a misplaced extension.
  *
  * <p>Two invariants of 2.0.1 are not applied, and {@link #SCOPE} says so on every result:
  * <ul>
@@ -96,6 +98,13 @@ final class CrdGuideRules {
         for (CoverageDetailView detail : view.details()) {
             required(findings, where, at, "detail[" + index + "].code", detail.code().presence());
             required(findings, where, at, "detail[" + index + "].value", detail.value().presence());
+            if (detail.category().presence() != Presence.ABSENT) {
+                findings.add(new Finding(FindingKind.OTHER_VERSION_CONTENT,
+                        "detail.category is defined in " + CrdCodes.LATER + ", not in " + V,
+                        at + " gives detail[" + index + "] a category. " + V + " defines a detail as code, value and qualification; "
+                                + CrdCodes.LATER + " adds category. It is shown as returned and not called wrong, because which version "
+                                + "the service follows is not known.", where, null, null));
+            }
             index++;
         }
 
@@ -141,7 +150,9 @@ final class CrdGuideRules {
         }
 
         if (view.onACard()) {
-            findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET,
+            // Filed with the other broken rules of the extension. No finding kind names a rule
+            // about where an element sits, and a value set has nothing to do with it.
+            findings.add(new Finding(FindingKind.REQUIRED_ELEMENT_MISSING,
                     "Coverage information sits on a card, which " + V + " does not allow",
                     at + " is on a CDS Hooks card. " + V + " defines ext-coverage-information for these resources only: "
                             + "QuestionnaireResponse, Encounter, NutritionOrder, CommunicationRequest, DeviceRequest, ServiceRequest and "
