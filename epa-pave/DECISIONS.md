@@ -2129,3 +2129,147 @@ From the suites verification's VS-11, and a finding of the verification that was
   call they prepare. A preview passes none. What the gateway and the result then say is D-183.
 - The sample endpoint of the notification receiver no longer repeats the run id in its two "not
   found" sentences (D-185).
+
+### The leftovers outside the three protocols
+
+**D-183. A replay or a suite row refused on production is told what it can do, not to unlock.**
+From the guardrail verification's F4 (D-143, rule 8), decided before the work, and the verification.
+- The next action `SEND_ON_ITS_OWN` ("Send this write on its own from its tab, with production
+  writes unlocked there, or point the tool at an environment that is not production. A replay or a
+  suite never carries the production unlock.") is what a blocked replay or suite row gets, on the
+  result, on its ledger line, on the chain view and on the suite row. A manual run that is blocked
+  keeps `UNLOCK_OR_SWITCH`.
+- The headline of its next step is that label, whatever step the gateway's refusal names. The
+  verification found the headline still opening with "unlock production writes on the Config tab"
+  beside the new next action, because the gateway's step was preferred. The gateway's step stays in
+  `error.action` and its reason in the verdict.
+- Once the services pass where a run came from (D-182), the gateway words the refusal itself ("a
+  replay never carries the production unlock, so its writes to production are always blocked").
+  Until then the verdict gains one supporting line that says so, and that line is left out when the
+  refusal already says it, so it is never said twice.
+- The gateway names the tab a write can be sent from as a noun phrase only ("the Config tab" for a
+  request sent from the collection as it is). The verification found the sentence for another
+  session holding the unlock garbled by the old phrase; it is now pinned by a gateway test.
+- The two halves were built on two branches at the same time: the origin in the protocol services on
+  one, the next action, the headline and the supporting line on the other. Each was checked on the
+  live profile against a stand-in playing production, which received nothing, but the gateway's own
+  sentence for a replay could not appear on either branch. The two are merged and nobody has seen
+  them together. Corrects D-023 and D-131 as noted there.
+
+**D-184. A request sent from the collection as it is: what goes, and to whom the token goes.**
+From the guardrail verification's F8, D-139, and the Config tab review's CFG-06 and CFG-21, decided
+before the work, and the verification.
+- The vendor's access token is attached only to the scheme, host and port the configuration in force
+  names for a vendor operation (`OnyxHosts.admits`), as for every protocol call (D-143, rule 7).
+  Proven on the wire against two stand-ins on two ports of one host: only the configured one
+  received it.
+- When the caller supplies no body, the body saved with the collection request is sent, resolved
+  through the variables like the url and the headers. A credential typed into it is masked wherever
+  it is shown and sent as written (D-147). A supplied body is sent instead. The preview and the result
+  say which went (`bodySource`: saved, supplied or none). A placeholder in a saved body that nothing
+  fills is a 422 naming it, as for a url. Closes D-139.
+- `urlValues` fill the single-brace parts of a url (`{claimId}`), percent-encoded. A url that is not
+  complete when it is to be sent is refused on both profiles, for a send and a preview alike, with one
+  422 that names each single-brace part under `urlValues.<name>` and each placeholder beside it under
+  `variables.<name>`; nothing is sent or recorded. The verification found that on mock a url with an
+  empty placeholder beside a filled part was recorded as a run, and that the two profiles answered
+  one request differently; both are closed. The guardrail's rule against a value typed for one run
+  moving a write applies to these values.
+- A url-part value of exactly `.` or `..` is refused for every method: it is the one value
+  percent-encoding leaves as it is, and it moves the request to another path. The verification sent
+  a read with `..` to the parent path with the token on it. The gateway's rule for writes stays as a
+  second line.
+- On mock nothing is sent. The headline names the mock scenario as what answered ("A mock scenario,
+  standing in for the service, answered (HTTP 200).") and a supporting line says nothing was sent.
+- After a send that got no usable answer, the next step is chosen by the method and by whether the
+  request may have reached the service (D-163): a write that may have arrived is to be checked on
+  before it is sent again.
+The README still describes the body and the 422s as they were; correcting it is open work.
+
+**D-185. A "not found" answer repeats nothing taken from the request.**
+From the edge verification's V3 (E13), decided before the work. The sentences of `RunIds`,
+`ConfigStore` (environment, collection, a request of a collection), `RunReplay` and the notification
+receiver now say "There is no run with that id.", "There is no uploaded environment with that
+name.", "N of the run ids given are not in the ledger. Nothing was sent." and the like. A name the
+store itself holds may be repeated (an uploaded collection's own name); text from the address or the
+body of the request never is, even an id that has already passed the run id pattern. Closes D-150's
+open item.
+
+**D-186. Words the server now serves, so that a screen keeps no copy of them.**
+From the Config, History and case reviews (CFG-16, CFG-17, H-03, H-13, CASE-02, CASE-14) and the
+fixture leftovers, all decided as additions: no component a screen reads was removed or renamed.
+- `sourceLabel` beside every `VariableSource` code served (the resolve answer and every variable use).
+- On `/api/config/effective`, `lookupEnabled` on the lookup rows, so no screen builds a setting key
+  from an operation name, and for a blocked row `blockedShort`, a short sentence of its own, with the
+  full reason kept once in `writeAccess.reason`.
+- `nextActions`, a list of code and label for every `NextAction`, on every scenarios endpoint (where
+  the outcome vocabulary is already served), from `NextAction.label()`, the same source the chain
+  view words them from, so the two cannot differ. The ledger line is not given a next step sentence,
+  because a next step headline can hold what a response sent.
+- On a suite answer, `countGroups` (each count group with its label and count, derived from the
+  counts so the two cannot differ) and on each row `countedIn`, the name of the count it is in, which
+  is the name of the `SuiteCounts` component, so a screen can filter rows by the key it reads the
+  count from. The labels live in the new enum `SuiteCountGroup`.
+- `statusLabel` on lookup answers, `authRequiredLabel` on a procedure code row ("PA", "No PA", absent
+  when the list does not say), and `exactCode` on the picker answer, which says whether the list holds
+  the code at all, written as the list writes it, ignoring line of business and dates.
+- `ScenarioSummary` names every sentinel member ID and NPI of a scenario, and lists apart, as
+  `crdSentinelMemberIds`, the CRD sentinels a DTR file answers for. `sentinelMemberId` stays the
+  first, for screens that show one. Closes D-153's open item.
+At the revision of D-201 no screen reads any of these yet: the screens were built on a base without
+them, and reading them is the work of the pass that joins the tabs (D-200).
+
+**D-187. History: replay says what the new run found, and the list and the export take more filters.**
+From the History review (H-01, H-09), decided before the work.
+- Each entry of the replay answer carries the new run's verdict and next step as the protocol
+  endpoints return them, never its wire view, which stays behind `GET /api/runs/{runId}`.
+- `GET /api/runs` takes `testerRef`, an exact match on the tester reference as it stands after the
+  run's latest note, and gives `matched` when the list is cut short. The export takes the `protocol`
+  and `result` filters of the list. Each is optional and changes nothing when absent.
+- An optional `zone`, an IANA zone id, on the list, the export, the date-range replay and the chains
+  list, makes `from` and `to` days on that clock. An unknown zone, an offset such as `+05:00` and a
+  short name such as `EST` are a 422 at `zone`. The ledger reads one day either side of the range,
+  which covers every zone's offset from UTC (UTC+14 and UTC-12 each move a local day by at most one
+  UTC day). The History tab does not offer it yet and still says every date is a UTC day.
+
+**D-188. Fixtures and the live profile.**
+From the fixture leftovers and the chain review's F15, decided before the work.
+- A mock scenario set found broken while the tool runs makes a suite row or a replay
+  `NOT_CONFIGURED`, not not valid: the row is not at fault, the tool's own setup is. Its sentence names
+  only the protocol directory, never a file or what a file holds; the scenario list names each file
+  and its problem. A chain row is reported the same way.
+- `MockExchanges` was the one bean only mock uses that was created on live; it is now on the mock
+  profile only. `LiveProfileContextTest` starts the application on live and fails if any mock bean or
+  the lookup fixtures exist there. `ScenarioRepository` and the start-up check of the scenario set
+  stay on both profiles, because the scenario lists are served on live as well.
+- A lookup fixture set in which two files claim one identifier stops the start, naming both files.
+  The refusal was already in the code. A test proves it for member fixtures
+  (`LookupFixturesTest.aFileThatCannotBeUsedStopsTheStartAndIsNamed`); there is none for provider
+  fixtures, and none of the three agents added one, because `client/lookup` belonged to the other
+  task. A fixture file that repeats a key is still read: `LookupFixtures` does not refuse it.
+
+**D-189. The ledger, suites, replay and lookups: the smaller decisions.**
+From the ledger leftovers, the suites and chain verifications (F7, VS-4) and the case review (CASE-09).
+- A suite row whose expectation is over the limit (1000 characters) is reported by its length alone,
+  for every kind of row, and none of its terms is read, because a term problem quotes the term. A
+  short mistyped term is still quoted back (D-175, item 7).
+- The code list's CSV records print counts only in `toString`. `RunController` uses the limits
+  `RunRecord` defines, not copies. The `RunLedger` Javadoc says what the policy does to a line of
+  business, to a member ID on mock and to case lines.
+- A DTR ledger line whose questionnaire list holds a statement in place of an address cannot be run
+  as a case (`NOT_RUNNABLE`, in the suite preview too). The statement is never cut into addresses.
+- The refusal to replay a step that used what an earlier step handed on ends: "This run is one step
+  of a chain, and cannot be replayed by itself. To run the journey again, run it as a suite row with
+  the protocol chain."
+- Ledger health names the day files that hold lines it cannot read, with a count for each
+  (`unreadableFiles`), and the chain view's note names them. A directory that cannot be listed still
+  counts in `unreadableLines` with no file name.
+- A member ID or NPI holding `/` or `\` is looked up through the query form (`GET
+  /api/members?memberId=`, `GET /api/providers?npi=`). The server's handling of an encoded slash in a
+  path was not relaxed, which would have widened what every path accepts; the path form still ends as
+  a bare 400. Without the parameter the answer is the 422 a blank identifier gets, so nothing can be
+  listed. `LookupControllerTest` had pinned a 404 for `GET /api/members`; it now pins that 422 and that
+  no lookup was asked, which the integrator accepted by merging it.
+- The frozen test helper `testsupport/InMemoryLedger` was given the new filters by the fix. The
+  verification objected that it is frozen and that a second copy of the filters can drift; the
+  finisher restored it. The `zone` and `testerRef` filters are tested on `JsonlRunLedger` only.
