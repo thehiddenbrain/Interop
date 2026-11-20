@@ -2690,8 +2690,8 @@ puts into a notification, which went to the fix of the second guardrail audit (D
 done, with two differences from the decision: the effective configuration counts the url and the
 headers and not the body, because only a raw send sends a collection body and it refuses an
 unresolved placeholder itself (D-205), and a 404 for a removed environment does not name it. Item
-3 was done by two passes (D-206, D-207); the date-range replay was driven by the first and not the
-second, and the zone filter was decided not to be offered (D-207).)
+3 was done by two passes (D-206, D-207). Neither drove a replay of a date range, and the zone filter
+was decided not to be offered (D-207).)
 
 ### Joining the parts
 
@@ -2707,6 +2707,8 @@ at `94edbc8`; the CRD tab at `6d7303a`; the DTR tab at `81e9092`; the PAS tab at
 3. The other task's half of D-183, which the platform finisher handed on as a change still needed in
    the four protocol services, was already on the protocol branch; the merge holds both halves.
    Nobody has seen them together.
+   (Seen together since: by a test over the running server, and a refused PAS replay on screen by
+   the pass that joined the tabs (D-205, D-206).)
 4. Accepted by merging: the platform task's one change in a file of the other task (the receiver's
    sentence, given to it by its task file), and its changed `LookupControllerTest` (D-189).
 5. The merged line built once through the shared build wrapper: 2597 tests, 2595 passed, 2 skipped
@@ -2719,8 +2721,16 @@ After the revision of D-201, eight branches were merged: the pass that joined th
 tool, the two server tasks that did what the reviews of the screens asked of the server (D-200),
 the README brought up to the tool as built, a second pass that made the screens read what the
 server then said, and the fixes for what the second run of three audits of section 27 found
-(member data, the production guardrail, fixtures). Each was done by one agent. The two server
-tasks had no verifier of their own: the audits were their first independent readers. The fixes for
+(member data, the production guardrail, fixtures). The two server tasks for the screens were begun
+by agents the restarts of the build machine cut off, and each was taken over and finished by a
+second agent working from the checkpoints left behind. The platform task's second agent read the
+six inherited checkpoints line by line but did not run their tests against the code without them,
+nor its own new tests; the protocol task's second agent ran one mutation pass of 24 mutations over
+the inherited and its own code, and two of them, which no test caught at first, were not run again
+after the tests that catch them were added. Much of D-202 to D-205 was therefore written by an
+agent that was cut off, and the platform half has no mutation evidence at all. The other branches
+were each done by one agent. The two server tasks had no verifier of their own: the audits were
+their first independent readers. The fixes for
 the audits have been checked by nobody but their authors. The entries below record what was
 decided, in this order: the server work for the screens, the two passes over the screens and the
 README, the second audits and their fixes, what was decided not to do, the work decided and not
@@ -2826,7 +2836,8 @@ From the frame review (FR-01, FR-03, FR-04, FR-07, FR-08, FR-11, FR-13, FR-16, F
   `ProductionRefusalOverTheServerTest` drives a refused PAS replay and a refused suite row through the
   real endpoints on live against a stand-in playing production: each carries the sentence of its
   origin exactly once, and only the original unlocked submission arrived. That is how the two halves
-  of D-183 were seen together; nobody drove them by hand on the merged line.
+  of D-183 were seen together; the pass that joined the tabs saw a refused PAS replay on screen
+  (D-206), and a refused suite row was never driven by hand.
 - A configuration item another window removed is answered 404 saying it is no longer held and may
   have been removed or uploaded again in another window, with the action to read the list again
   (FR-07). The removed environment is not named: the store no longer holds its name, and the id in
@@ -2932,7 +2943,8 @@ From `TASK_JOIN2`, on revision `0658a7c`, which holds the two server tasks.
 - Found and handed to the server: a lookup answer holding a masked value fills the case field with
   the mask text, which a following run would send as data (decided, D-226); the raw resolve says a
   run is still answered from a scenario where the raw send refuses the same request (decided,
-  D-226); the body source is served as a code only and the page shows the server's sentence instead.
+  D-226); the body source is served as a code only and the page shows the server's sentence instead
+  (no decision has been made about this one).
 
 **D-208. What the passes proved on the real tabs, and a replay never joins a chain.**
 - The two proofs of "Prove it before handover" were seen on the real tabs, on mock, by the second pass,
@@ -2976,8 +2988,9 @@ From `TASK_DOCS2`, on the line with the join and before the server tasks for the
 ### The second audits, and their fixes
 
 The second run of the member data (V2), guardrail (V3) and fixture (V4) audits ran on revision
-`0658a7c`, each in a worktree of its own, each by an agent that wrote none of the tool. The
-integrator decided what to do with each finding before the work (`TASK_AUDITFIX_V2`, `_V3`,
+`0658a7c`, each in a worktree of its own, each by an agent that wrote none of the tool, in about 29
+minutes (member data, guardrail) and about 27 minutes (fixtures). What each did not examine is listed
+in `PROGRESS.md`. The integrator decided what to do with each finding before the work (`TASK_AUDITFIX_V2`, `_V3`,
 `_V4`), and one agent fixed each audit's findings. **No fix below has been checked by an agent
 that did not write it.** Where an entry says a test fails without the fix, the fix's author ran it
 against the code with the fix taken out; where it does not, nobody did.
@@ -3027,7 +3040,8 @@ the value. The query is not read: a FHIR search carries encoded characters there
 singly escaped `%2e%2e` is already decoded by the normal form and judged as the dot segment it is.
 An environment whose base address holds one is reported at upload and nothing at all is sent to
 it. Consequence: an id or a single-brace url part that holds `/`, `\` or `;` is now refused, where
-it used to be sent percent-encoded inside one segment (D-184); four existing tests that expected
+it used to be sent percent-encoded inside one segment (D-184); six existing tests (three in
+`ConfigStoreGatewayTest`, one in `UrlPartGuardrailTest`, two in `RawSavedBodyTest`) that expected
 `a/b` to go out as `a%2Fb` now expect the refusal. Covered by `EncodedSeparatorGuardrailTest`; a
 search with `%2F` in its query arrived at a sandbox stand-in unchanged in
 `SecondGuardrailAuditOverTheServerTest`, and was not tried by hand. How a real nginx or Tomcat in
@@ -3183,7 +3197,9 @@ into one of them got it into the ledger.
   single word cannot be told from an id or a code by its shape, and a notification line names no
   member to compare with.
 Tests that failed with the fix removed: `LedgerMemberTextTest`, `LedgerPhiTest`,
-`NotificationIdsNotKeptTest`. `RunRecord` gained `keepsIdentifier` and `withoutMemberText`; no
+`NotificationIdsNotKeptTest`. They failed in a run that took all eight fixes of the member data audit
+out at once; only the cleaning on the read path and the receiver's check of an id not kept were
+also taken out alone, and the not-kept wording of `NotificationVerdicts` was not taken out alone. `RunRecord` gained `keepsIdentifier` and `withoutMemberText`; no
 component was renamed or removed, and the eight lines the audit's live run wrote read through the
 new code with none unreadable. One test of replay was changed because a 64-hex claim id holding a
 run of ten digits is no longer kept; it now asserts the statement and that replay never passes it
@@ -3266,10 +3282,11 @@ of the sample or of a tester's own marked list; and the README presents the samp
 without the warning. Each is decided and not done (D-226).
 
 **D-224. The fixtures' smaller decisions.**
-- **Test NPIs.** `1987654328` passes the NPI check and is outside the placeholder set, so it could be
-  a real provider's; whether it is issued could not be checked, as there is no access to the national
-  register here. It was in a test resource and in four test classes (three made it with
-  `Npi.withCheckDigit`, which the audit's scan did not see) and is replaced by `1000000087`.
+- **Test NPIs.** A ten-digit number in a test resource and in four test classes passed the NPI check
+  and is outside the placeholder set, so it could be a real provider's; whether it is issued could
+  not be checked, as there is no access to the national register here. Three of the classes made it
+  with `Npi.withCheckDigit`, which the audit's scan did not see. It is replaced by `1000000087`
+  everywhere, and these records do not repeat it.
   `NoNpiOutsideThePlaceholderSetTest` scans `src/main`, `src/test` and `samples` and fails on any
   ten-digit number starting with 1 or 2 that passes the check and is not `1234567893`, `99999999xx`
   or `10000000xx`, and on any `withCheckDigit` whose result lies outside that set.
@@ -3295,7 +3312,8 @@ without the warning. Each is decided and not done (D-226).
 ### Decided not to do, and known limits
 
 **D-225. Decided otherwise after the second audits and the passes over the screens, and the limits the fixes report.**
-Decided by the integrator, each with its reason:
+Decided, each with its reason: by the integrator in its task files, or by the agent that did the
+work where marked so.
 - Lock from any browser locks every session, and a lock does not move the epoch (D-144, D-143 rule 9).
   The audit's F-SCREEN and m2 are the page's, not the server's (D-214).
 - An environment on a production environment's server under another base path is warned about, not
@@ -3304,13 +3322,16 @@ Decided by the integrator, each with its reason:
   It warns (D-213).
 - A name, a date of birth or an address the request does not carry is not looked for in free text:
   no rule could tell it from an honest note (D-217).
-- History stays worded in UTC days; the server's `zone` is not offered on screen (D-207).
-- The Config buttons that only open a view keep their names (D-207).
+- History stays worded in UTC days; the server's `zone` is not offered on screen (D-207). Deferred by
+  the second pass over the screens, then adopted by the integrator for the next pass.
+- The Config buttons that only open a view keep their names (D-207). The second pass's own decision.
 - The tester's own pasted box on the comparison keeps what was typed, a credential included: it is the
-  tester's input, and every other text on that screen is masked (D-207).
+  tester's input, and every other text on that screen is masked (D-207). The second pass's own
+  decision.
 - A replay never joins a chain (D-208).
 - The effective configuration does not count a placeholder in a collection body (D-205), and a 404
-  for a removed environment does not name it (D-205).
+  for a removed environment does not name it (D-205). Both are the platform server task's own
+  decisions; the first goes against D-200.
 Known limits the fixes report, not closed:
 - A one-word surname written where a code or an id belongs is kept (D-151, D-218).
 - Short values are not looked for in free text, and older ledger lines that hold a name or a date are
@@ -3412,7 +3433,11 @@ at `fd61e6e`, `audit-fix-v3` at `1557e5c`, `audit-fix-v2` at `d542405`).
    three separate places (the correlation by the ledger fix, the masking by the guardrail fix, the
    next step of the sample that matches nothing by the fixture fix) and merged cleanly.
 2. Accepted by merging, each needed for the build to stay green and reported by its author: one count
-   in `PasControllerTest` (scenarios answering an inquiry, 9 to 11, D-204); one assertion of
+   in `PasControllerTest` (scenarios answering an inquiry, 9 to 11, D-204). The integrator's account of
+   the join gives this count to the fixture fix; the history says otherwise: it was changed by the
+   protocol server task for the screens, in its commit `5873027`, and its report says so. The fixture
+   fix changed one assertion of `PasScenarioFilesTest` (the words of a scenario note), which is no
+   count; one assertion of
    `PlaceholderOnTheLiveProfileTest` (a finding always carries its group, D-205); one assertion of
    `SamplePostmanFilesTest` (the upload of the sample collection now warns that it carries saved
    examples, D-213).
@@ -3423,5 +3448,6 @@ at `fd61e6e`, `audit-fix-v3` at `1557e5c`, `audit-fix-v2` at `d542405`).
    the two server tasks, 2667 with the second pass over the screens and the fixture fix, and on the
    merged line 2707 tests, 2705 passed, 2 skipped, none failed. The two skipped tests need a folder
    that cannot be written, which a build running as root cannot make.
-5. The build machine restarted three times while this tool was built, each time cutting off every
+5. The build machine restarted three times while this tool was built (at about 00:17, 03:02 and 06:00
+   UTC), each time cutting off every
    agent then at work. Nothing committed was lost; each piece of work was taken over in its worktree.
