@@ -38,6 +38,7 @@ export function createNotifications(spec) {
     let failed = null;
     let counts = null;
     let scenarios = [];
+    let fillRun = () => {};
     const shownItems = [];
 
     const status = el('span', {class: 'pas-notifications__status', role: 'status', aria: {live: 'polite'}});
@@ -192,8 +193,8 @@ export function createNotifications(spec) {
             when(item.receivedAt),
             fresh ? el('span', {class: 'flag'}, 'new') : null,
             item.sample ? mockMark() : null,
-            item.type && item.type.code ? code(item.type.code) : null,
-            code(verdict.outcomeCode));
+            el('span', {class: 'outcome'}, toneMark(tone), code(verdict.outcomeCode)),
+            item.type && item.type.code ? ['type ', code(item.type.code)] : null);
         const links = el('p', {class: 'small'},
             'Subscription ', item.subscriptionId ? code(item.subscriptionId) : el('span', {class: 'presence presence--none'}, 'none named'),
             item.subscriptionRunId ? [', created by ', runLink(item.subscriptionRunId)] : null,
@@ -212,7 +213,7 @@ export function createNotifications(spec) {
         });
         return el('li', {class: 'pas-note' + (fresh ? ' pas-note--fresh' : '')},
             head,
-            el('p', {class: 'pas-note__headline'}, toneMark(tone), ' ', verdict.headline),
+            el('p', {class: 'pas-note__headline'}, verdict.headline),
             links,
             unmatched.length > 0 ? el('ul', {class: 'note-list small'}, unmatched.map(note => el('li', null, note))) : null,
             el('div', {class: 'pas-note__next'},
@@ -307,9 +308,12 @@ export function createNotifications(spec) {
             hint: 'Needed for a notification about a request. A handshake and a heartbeat are about no request.'});
         const subscriptionId = textField({label: 'On the subscription (optional)', field: 'sample.subscriptionId', literal: true,
             hint: 'Blank uses the subscription this tool created most recently.'});
-        const fillRun = () => {
-            if (runId.value() === '' && spec.lastRunId()) {
+        // The field follows the latest submission on this tab until the tester types a run of their own into it.
+        let filled = '';
+        fillRun = () => {
+            if ((runId.value() === '' || runId.value() === filled) && spec.lastRunId()) {
                 runId.set(spec.lastRunId());
+                filled = runId.value();
             }
         };
         const deliver = button('Deliver a sample notification', async () => {
@@ -348,6 +352,7 @@ export function createNotifications(spec) {
                 + 'so the whole loop can be learned without a vendor. It is marked as a sample wherever it shows.'),
             scenario.node, runId.node, subscriptionId.node, problem,
             el('div', {class: 'button-row'}, deliver, button('Use the latest submission', () => { runId.set(''); fillRun(); }, {class: 'button--text'}))));
+        runId.input.addEventListener('input', () => { filled = ''; });
         fillRun();
     }
 
@@ -357,6 +362,10 @@ export function createNotifications(spec) {
         sampleNode: sampleSlot,
         start,
         poll,
+        /** Call when a submission has been sent from the tab, so the sample can be about it. */
+        submitted() {
+            fillRun();
+        },
         /** Opens or folds the list. */
         setOpen(open) {
             body.open = open;

@@ -78,7 +78,8 @@ export function createHandover(spec) {
                     el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'A completed questionnaire response'}}, pretty(text))))));
         }
         if (others.length > 0) {
-            parts.push(facts(others.map(([key, values]) => [key, valuesOf(key, values)]), 'facts--ruled pas-handover__facts'));
+            parts.push(el('p', {class: 'small'}, changed ? 'What was handed on:' : 'What goes with the next request, unchanged:'),
+                facts(others.map(([key, values]) => [key, valuesOf(key, values)]), 'facts--ruled pas-handover__facts'));
         }
         parts.push(el('p', null, button('Set this hand-over aside', () => { dismissed = true; draw(); spec.changed(); }, {class: 'button--text'})));
         fill(node, parts);
@@ -92,7 +93,11 @@ export function createHandover(spec) {
         if (key === 'runId') {
             return list.map((value, index) => [index > 0 ? ', ' : null, runLink(String(value))]);
         }
-        return list.map((value, index) => [index > 0 ? ', ' : null, code(String(value))]);
+        // A long value, such as a whole questionnaire, would fill the pane. It is folded, and shown whole when asked for.
+        return list.map((value, index) => [index > 0 ? ', ' : null, String(value).length > 160
+            ? el('details', {class: 'fold'}, el('summary', null, 'Look at it', el('span', {class: 'quiet'}, String(value).length + ' characters')),
+                el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'The value handed on as ' + key}}, pretty(String(value))))
+            : code(String(value))]);
     }
 
     return {

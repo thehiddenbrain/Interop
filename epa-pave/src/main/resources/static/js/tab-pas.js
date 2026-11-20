@@ -21,6 +21,7 @@ import {createAttachments} from './pas-attachments.js';
 import {createHandover} from './pas-handover.js';
 import {createNotifications} from './pas-notifications.js';
 import {runLink} from './history-common.js';
+import {bringIntoPane} from './case-context.js';
 
 const MODES = [
     {id: 'submit', label: 'Submit', use: 'submit'},
@@ -237,6 +238,8 @@ function takeHandover() {
     if (mode !== 'submit') {
         showMode('submit');
     }
+    // What was handed on is read before sending, so it is brought into view below the case it belongs to.
+    window.requestAnimationFrame(() => bringIntoPane(controls.handover.node));
 }
 
 function submitRequest() {
@@ -571,6 +574,7 @@ function showRun(envelope) {
         following = {claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId, codes: carry.procedureCodes || [],
             carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the submission ', runLink(envelope.runId)]};
         controls.inquiryClaimId.set(following.claimId);
+        notifications.submitted();
     }
     if (envelope.protocol === 'SUBSCRIPTION' && envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.detail && envelope.detail.subscriptionId) {
         controls.subscriptionId.set(envelope.detail.subscriptionId);
