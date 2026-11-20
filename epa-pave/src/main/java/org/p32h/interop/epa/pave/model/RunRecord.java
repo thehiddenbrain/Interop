@@ -45,7 +45,10 @@ import java.util.Map;
  *       the id of a resource in a body that may be the tester's own</li>
  *   <li>a procedure code, a coverage code or its subject, a line of business, a correlation value,
  *       a note, a tester reference or an expectation that holds this run's own member ID is not
- *       kept, whatever its shape and however it is punctuated</li>
+ *       kept, whatever its shape and however it is punctuated. The one exception is a claim id, a
+ *       ClaimResponse id or a subscription id: it is kept for the ledger to write as a token, which
+ *       is what lets a notification about the run be matched, and it is in clear only on a line
+ *       whose member ID is in clear as well</li>
  *   <li>{@code note}, {@code testerRef} and {@code expected}: kept up to {@link #LONGEST_NOTE},
  *       {@link #LONGEST_TESTER_REF} and {@link #LONGEST_EXPECTED} characters. Every way in refuses
  *       a longer one, and one that holds member data the request carries, with a message to the
@@ -637,10 +640,17 @@ public record RunRecord(
             }
             if (statement("not recorded", value)) {
                 out.put(key, value);
-            } else if ((SUPPLIED_ID_KEYS.contains(key) || CORR_AUTHORIZATION_REF.equals(key)) && token(value)) {
+            } else if (CORR_AUTHORIZATION_REF.equals(key) && token(value)) {
                 // The ledger's token: hex digits made from the identifier, which name nobody, so a
                 // run of them that happens to spell digits of the member ID is not the ID.
                 out.put(key, value);
+            } else if (SUPPLIED_ID_KEYS.contains(key)) {
+                // Kept as one identifier whatever it reads like, the run's own member ID included:
+                // the ledger writes it as a token unless it cannot be anybody's data, and keeps a
+                // token it wrote as it is. Where it is written in clear, the line's member ID is in
+                // clear as well. Dropping it instead would leave a notification about this run
+                // with nothing to be matched by.
+                out.put(key, IDENTIFIER.matcher(value).matches() ? value : notKept("not recorded", value));
             } else if (holdsMember(value, sought)) {
                 out.put(key, notKept("not recorded", value));
             } else if (CORR_QUESTIONNAIRE.equals(key)) {
@@ -654,10 +664,6 @@ public record RunRecord(
                 // break or more groups than that is not one identifier.
                 out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
                         ? value : notKept("not recorded", value));
-            } else if (SUPPLIED_ID_KEYS.contains(key)) {
-                // Kept as one token whatever it reads like: the ledger writes it as a token unless it
-                // cannot be anybody's data, and a token it wrote is kept as it is.
-                out.put(key, IDENTIFIER.matcher(value).matches() ? value : notKept("not recorded", value));
             } else {
                 out.put(key, IDENTIFIER.matcher(value).matches() && !identifyingPlace(value, sought) ? value : notKept("not recorded", value));
             }

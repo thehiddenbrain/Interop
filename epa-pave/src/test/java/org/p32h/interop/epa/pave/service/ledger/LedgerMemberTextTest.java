@@ -148,6 +148,30 @@ class LedgerMemberTextTest {
     }
 
     @Test
+    void anIdentifierAServiceSuppliesThatHoldsTheRunsOwnMemberIdIsATokenAndStillMatched() {
+        // Found by the last check of the ledger fixes (NF1): such an id was written as "not
+        // recorded", so a notification about the submission matched nothing.
+        JsonlRunLedger ledger = ledger(home, CLOCK);
+        Map<String, String> correlation = new LinkedHashMap<>();
+        correlation.put(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789-19610723");
+        correlation.put(RunRecord.CORR_CLAIM_ID, "S123-456-789");
+        ledger.record(draft("run-1", CLOCK).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).correlation(correlation).build());
+
+        JsonNode kept = onlyLine().get("correlation");
+        assertThat(text(kept, "claimResponseId")).isEqualTo(ledger.tokenFor("S123456789-19610723"));
+        assertThat(text(kept, "claimId")).isEqualTo(ledger.tokenFor("S123-456-789"));
+        assertThat(ledger.query(org.p32h.interop.epa.pave.model.RunQuery.builder().correlation(RunRecord.CORR_CLAIM_RESPONSE_ID,
+                "S123456789-19610723").build())).extracting(RunRecord::runId).containsExactly("run-1");
+
+        // Where member IDs are recorded, the id is in clear beside the member ID it holds.
+        JsonlRunLedger recording = recordingIds(home.resolve("recording"), CLOCK);
+        recording.record(draft("run-2", CLOCK).protocol(Protocol.PAS).operation(EpaOperation.PAS_SUBMIT).correlation(correlation).build());
+        RunRecord read = recording.find("run-2").orElseThrow();
+        assertThat(read.memberId()).isEqualTo(MEMBER_ID);
+        assertThat(read.correlation()).containsEntry(RunRecord.CORR_CLAIM_RESPONSE_ID, "S123456789-19610723");
+    }
+
+    @Test
     void theIdentifiersThisToolMintsAUuidAndAnOidAreKeptInClear() {
         JsonlRunLedger ledger = ledger(home, CLOCK);
         Map<String, String> correlation = new LinkedHashMap<>();
