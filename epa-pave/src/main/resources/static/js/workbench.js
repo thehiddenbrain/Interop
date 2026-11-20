@@ -55,8 +55,10 @@ export function createWorkbench(app, panel, spec) {
         'A request of your own is chosen: the member, provider and codes below are not used to build the body, and may be left empty.');
     let ownRequest = null;
     let runValues = null;
-    // What the lookups said that a tester should see before sending. It sits with the send button,
-    // which stays in view however far the case above it has been scrolled.
+    // That the lookups said something a tester should read before sending. It sits with the send
+    // button, which stays in view however far the case above it has been scrolled. It takes one line
+    // per lookup there, because the box it sits in is fixed and a laptop screen has little height to
+    // spare; the sentences themselves are under the identifier, and its button goes to them.
     const beforeSending = el('div', {class: 'before-sending', hidden: true});
     const actions = el('div', {class: 'case-pane__actions'}, beforeSending);
     const problem = el('div', {class: 'form-problem-slot'});
@@ -98,10 +100,28 @@ export function createWorkbench(app, panel, spec) {
     function drawBeforeSending() {
         const items = app.caseContext.attention();
         beforeSending.hidden = items.length === 0;
-        fill(beforeSending, items.length === 0 ? null : [
-            el('p', {class: 'before-sending__title'}, 'Check before sending'),
-            el('ul', {class: 'plain-list'}, items.map(item => el('li', null, el('span', {class: 'quiet'}, item.about + ': '), item.text)))
-        ]);
+        if (items.length === 0) {
+            clear(beforeSending);
+            return;
+        }
+        const byLookup = new Map();
+        for (const item of items) {
+            if (!byLookup.has(item.about)) {
+                byLookup.set(item.about, []);
+            }
+            byLookup.get(item.about).push(item);
+        }
+        // Once the case on screen has been sent, the sentences are no longer a step still to take:
+        // they are what the lookups said about the case the result is for.
+        const sent = result.querySelector('.result') !== null && sentCase !== null && JSON.stringify(app.caseContext.summary()) === JSON.stringify(sentCase);
+        fill(beforeSending,
+            el('p', {class: 'before-sending__title'}, sent ? 'What the lookups said about the case sent' : 'Check before sending'),
+            el('ul', {class: 'plain-list'}, Array.from(byLookup, ([about, said]) => el('li', {class: 'before-sending__line'},
+                el('span', {class: 'before-sending__text', title: said.map(item => item.text).join(' ')},
+                    about + ': ', said[0].text),
+                button(said.length > 1 ? 'Read all ' + said.length : 'Read it', said[0].reveal, {
+                    class: 'button--text', aria: {label: 'Read what the ' + about.toLowerCase() + ' said, under its identifier'}
+                })))));
     }
     app.caseContext.onChange(drawBeforeSending);
     // The configuration this workbench starts under. A lookup made under it says so once it has changed.
@@ -249,6 +269,7 @@ export function createWorkbench(app, panel, spec) {
         showResult(envelope, options) {
             fill(result, renderResult(envelope, {...options, nextStepControl: nextStepControl(app, sentCase)}));
             markOwnBody(envelope);
+            drawBeforeSending();
             readout.scrollTop = 0;
             status.textContent = 'Result received. ' + envelope.verdict.headline + ' Test result: ' + resultWord(envelope.expectation.result) + '.';
             // A result has arrived under the configuration now in force, so a notice about the change has done its work.

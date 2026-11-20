@@ -85,7 +85,8 @@ export function createLookup(spec) {
     // screen reader hears one sentence and not the whole strip.
     const said = el('p', {class: 'lookup-strip__state', role: 'status', aria: {live: 'polite'}});
     const rest = el('div', {class: 'lookup-strip__rest'});
-    const strip = el('div', {class: 'lookup-strip', hidden: true}, said, rest);
+    // It can be given the focus, so that a tester sent to it from the send button lands on what it says.
+    const strip = el('div', {class: 'lookup-strip', hidden: true, tabIndex: -1}, said, rest);
     const panel = el('div', {class: 'lookup-panel'});
 
     /**

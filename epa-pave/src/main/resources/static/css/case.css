@@ -68,8 +68,6 @@
 }
 
 .before-sending {
-    max-height: 7.5rem;
-    overflow-y: auto;
     padding-left: var(--gap-2);
     border-left: 4px solid var(--ink-strong);
     font-size: var(--text-small);
@@ -80,7 +78,51 @@
     font-weight: 600;
 }
 
+/*
+ * One line per lookup, whatever it said: the box sits in the fixed foot of the pane, and on a
+ * laptop screen every line it takes is a line of the case that cannot be seen. The first sentence
+ * is cut at the edge, its whole text is in its title, and the button goes to all of it.
+ */
+.before-sending__line {
+    display: flex;
+    align-items: baseline;
+    column-gap: 0.4em;
+    min-width: 0;
+}
+
+.before-sending__text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.before-sending__line > :not(.before-sending__text) {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* The strip takes the focus when a tester is sent to it from the send button. */
+.lookup-strip:focus {
+    outline: none;
+}
+
+.lookup-strip:focus-visible {
+    outline: 3px solid var(--ink-strong);
+    outline-offset: 2px;
+}
+
 /* ---------- where the value of a detail came from ---------- */
+
+/*
+ * In a grid of details the inputs of one row stand on one line: when one label shares its line
+ * with its note and its neighbour's wraps onto two, the shorter head takes up the difference.
+ */
+.case .field-grid > .field > .field__head {
+    flex: 1 0 auto;
+    align-content: flex-start;
+}
 
 /* The label and the note on where the value came from share one line, and wrap when the column is narrow. */
 .field__head {

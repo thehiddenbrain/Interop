@@ -130,7 +130,8 @@ export function createCaseContext() {
         /**
          * What a tester should look at before sending, in sentences: what a lookup said about a
          * member or a provider it found, and a lookup that the environment now active did not answer.
-         * Each entry is {about, text}.
+         * Each entry is {about, text, reveal}: reveal() brings the lookup that said it into view, where
+         * the sentence is shown in full, and gives it the focus.
          */
         attention() {
             return member.attention().concat(provider.attention());
@@ -309,9 +310,12 @@ function group(spec) {
             : source !== 'hand' ? ''
                 : !replaced ? 'by hand'
                     : control.value() === '' ? 'cleared, not sent' : 'changed by hand';
-        control.input.title = source !== 'hand' ? ''
-            : replaced ? 'Changed by hand. The lookup returned another value, and the ledger notes that the run used this one.'
-                : 'Typed by hand. A lookup would not give this value back, and the ledger notes that.';
+        // The pane is narrow and a value can be longer than its input, so the title holds it whole.
+        const whole = control.value() === '' ? '' : control.value() + '\n';
+        control.input.title = source === 'lookup' ? control.value()
+            : source !== 'hand' ? ''
+                : replaced ? whole + 'Changed by hand. The lookup returned another value, and the ledger notes that the run used this one.'
+                    : whole + 'Typed by hand. A lookup would not give this value back, and the ledger notes that.';
     }
 
     /** Fills the details from the record a lookup found. A detail the tester edited while the answer was on its way keeps what they typed. */
@@ -385,9 +389,13 @@ function group(spec) {
 
         attention() {
             const about = spec.subject.charAt(0).toUpperCase() + spec.subject.slice(1) + ' lookup';
-            const out = lookup.attention().map(text => ({about, text}));
+            const reveal = () => {
+                bringIntoPane(identifier.node);
+                lookup.strip.focus({preventScroll: true});
+            };
+            const out = lookup.attention().map(text => ({about, text, reveal}));
             if (lookup.outdated()) {
-                out.push({about, text: 'It was made before the configuration changed. The environment now active has not been asked.'});
+                out.push({about, text: 'It was made before the configuration changed. The environment now active has not been asked.', reveal});
             }
             return out;
         },
