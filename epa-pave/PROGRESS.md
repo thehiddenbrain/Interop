@@ -4,32 +4,32 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**Read this first.** The four tasks this file records as started and not done, and whose lines
-below end with the words "being fixed", are merged in the revision that holds this file. The
-integrator built the line with them through the shared wrapper: 2826 tests, 2824 passed, 2 skipped,
-none failed. The lines below have not yet been settled one by one against what those tasks did, and
-neither have the README's: until they are, read every line marked "being fixed" as "a fix is merged
-and has been checked by nobody but its author". An independent check of these fixes is running and
-had not reported when this note was written.
-
-This describes revision `e1d37dc` on branch `epa-pave`, which is on the remote. It holds the line of
-`5763c41` (the fix wave, the leftover tasks, the five tabs joined into one tool, the server work the
-screens asked for, and the fixes for the second run of V2, V3 and V4), and, merged since: the README
-after the second audits (`docs-3`), the records of D-202 to D-228 (`records-3`), the last server task
-(`left3-server`), the last pass over the screens (`screens-fix`), six lines those two left each other
-(`seam-4`), and the fixes for what three of the last audits found: house style (`final-gate`),
-completeness on screen (`final-render`) and the walkthrough by a business tester (`final-uat`). The
-integrator built it once through the shared build wrapper: 2767 tests, 2765 passed, 2 skipped, none
-failed. The two skipped tests need a folder that cannot be written
+This describes revision `428eff5` on branch `epa-pave`, which is on the remote. The integrator built
+it through the shared build wrapper: 2826 tests, 2824 passed, 2 skipped, none failed. The two skipped
+tests need a folder that cannot be written
 (`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
 `JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
-make; the same refusals are covered by tests that did run. The decisions of the fix wave are D-140 to
-D-175, those of the leftover tasks and the frontend D-176 to D-201, those of the join, the server work
-for the screens and the second audits D-202 to D-228, and those of the last server task, the last
-screens pass, the last audits, the checks of the fixes and the four tasks now running D-229 to D-252.
+make; the same refusals are covered by tests that did run.
 
-Lines that one of the four tasks started from this revision is meant to close end with
-`[open at this revision: being fixed]`, so that each can be found and settled when they are merged.
+It holds the line of `e1d37dc`, and, merged since: the last pass over the README and the pull request
+draft (`docs-4`, D-250), the records of D-229 to D-252 (`records-4`), and the four tasks that fixed what
+the checks of the second audits' fixes and the honesty audit found: the fixtures (`close-fixtures` at
+`c413fc0`), the screens (`close-screens` at `84d52ec`), the ledger (`close-ledger` at `9be24c7`) and the
+guardrail (`close-guardrail` at `6037d2a`). The line of `e1d37dc` holds `5763c41` (the fix wave, the
+leftover tasks, the five tabs joined into one tool, the server work the screens asked for, and the
+fixes for the second run of V2, V3 and V4), the README after the second audits (`docs-3`), the records
+of D-202 to D-228 (`records-3`), the last server task (`left3-server`), the last pass over the screens
+(`screens-fix`), six lines those two left each other (`seam-4`), and the fixes for what three of the
+last audits found: house style (`final-gate`), completeness on screen (`final-render`) and the
+walkthrough by a business tester (`final-uat`).
+
+The decisions of the fix wave are D-140 to D-175, those of the leftover tasks and the frontend D-176 to
+D-201, those of the join, the server work for the screens and the second audits D-202 to D-228, those
+of the last server task, the last screens pass, the last audits and the checks of the fixes D-229 to
+D-252, and those of the four closing tasks and of these records D-253 to D-259. Every line these records
+had marked for one of the four tasks has been settled against the code of this revision and the
+reports of the fixes: what was fixed is in the tables below as fixed and checked by nobody but the
+author of the fix, and what was not, or only in part, stays below as open.
 
 ### Gates, first
 
@@ -38,20 +38,30 @@ Lines that one of the four tasks started from this revision is meant to close en
   - *V2 (member data), V3 (guardrail), V4 (fixtures), second run:* on `0658a7c`. Their fixes were
     merged at `5763c41`. **Each fix was then checked**, on `9e5306d`, by an agent that wrote neither
     the tool nor that fix, which took each fix out again and saw its tests fail (D-245). The checks
-    found several findings open one step away and some new ones; four tasks are fixing them now and
-    are not merged (D-246 to D-249). Merged after the checks: the three fixes for the last audits.
+    found several findings open one step away and some new ones; four tasks fixed them (D-253 to
+    D-256), merged in this revision. Merged after the checks: the three fixes for the last audits and
+    those four tasks.
   - *V1 (the build from a fresh clone), V5 (house style), V7 (completeness on screen) and the
     walkthrough by a business tester:* on `9e285a1`. Merged after them: the six lines (`seam-4`) and
-    the three fixes for the last audits. V5 ran only the style task, no clean build. V7 and the
-    walkthrough built only the jar.
-  - *V6 (honesty):* on `9e5306d`. Merged after it: the three fixes for the last audits.
-- **The fixes for V5, V7 and the walkthrough have been checked by nobody but their authors.** Nor has
-  any agent checked the outcome of the four tasks now running, which is not on this revision.
+    the three fixes for the last audits and the four closing tasks. V5 ran only the style task, no
+    clean build. V7 and the walkthrough built only the jar.
+  - *V6 (honesty):* on `9e5306d`. Merged after it: the three fixes for the last audits and the four
+    closing tasks.
+- **The check of the last fixes had not finished.** An independent check of the last fixes, in six
+  parts (the ledger, the fixtures, completeness on screen, the walkthrough, the house style gate, the
+  guardrail), each by an agent that wrote neither the tool nor the fix, was running when these records
+  were written: the first five on `98effa6`, the guardrail on `428eff5`. **One part had reported**: the
+  check of the style gate fix (D-258): three findings closed, three closed in part, six new minor
+  findings, none fixed. **The other five had not reported**, so the fixes for V7 and the walkthrough and
+  the four closing tasks have been checked by nobody but their authors.
+  - TO BE FILLED BY THE FINAL RUN: what the five other parts of the check of the last fixes found
+    (the ledger, the fixtures, completeness on screen, the walkthrough, the guardrail), finding by
+    finding, and what was done about each.
 - **The builds.** V1 built `9e285a1` from a fresh clone of the remote twice through the shared wrapper
   (2714 tests, none failed, 2 skipped) and a third time with the build cache off, started it with
   `./run.sh` and answered every endpoint of section 18. V6 built `9e5306d` from clean and from a fresh
   clone, through the same wrapper (2720 tests, none failed). This revision has been built by the
-  integrator alone, through the wrapper. The wrapper adds `--offline`; every JVM on the build machine
+  integrator alone, through the wrapper (2826 tests, 2824 passed, 2 skipped). The wrapper adds `--offline`; every JVM on the build machine
   runs with a machine-wide option that disables two base64 intrinsics; and on this machine a build
   from a fresh clone takes its compiled classes from the shared build cache unless the cache is
   switched off (V6's F-JAVAOPTS and F-CACHE-FRESH).
@@ -72,62 +82,54 @@ Lines that one of the four tasks started from this revision is meant to close en
   export, on mock and on live; the answers completed in DTR in the PAS result and in the wire view (the
   second pass also saw them in the PAS preview).
   Neither was looked at on this revision, on which the next step of `P32H-EMPTY` (D-241) and the mark
-  of the DTR response step (D-240) changed. `P32H-NO-AUTH` and `P32H-EMPTY` were seen as suite rows by
+  of the DTR response step (D-240) changed. The screens task looked at `P32H-EMPTY` and the journey with
+  `P32H-DOC-DTR` into PAS on its own branch (from `e1d37dc`), before the four tasks were merged. `P32H-NO-AUTH` and `P32H-EMPTY` were seen as suite rows by
   V7, and not in a chain on screen.
 
 ### Not done, not verified, or known to be wrong
 
-**Started from this revision and not on it.** Five pieces of work began from `e1d37dc` at the moment
-these records were written: four tasks that fix what the checks of the second audits' fixes and the
-honesty audit found (the ledger, the guardrail, the fixtures, and what the last two screen fixes left
-each other; D-246 to D-249), and the last pass over the README and the pull request draft (D-250).
-None of it is done here.
+**What the four closing tasks left.** Each line these records had marked for one of the four tasks
+(D-246 to D-249) is either gone from the lists below, because the task fixed it (it is in the tables
+further down as fixed and checked by nobody but its author, and in D-253 to D-256), or stays below with
+what is left of it. The last pass over the README and the pull request draft (D-250) is done and
+merged.
 
 **The ledger and member data.**
-- A note, tester reference or expectation sent with a request of the tester's own from the CRD, DTR or
-  PAS tab is checked against nothing, because the page sends no member with such a run; a note naming
-  the member the body is about is written to the ledger and the export in clear, beside a line with no
-  member token (N1 of the member data check). A request sent as written is checked against its body
-  (D-231). [open at this revision: being fixed]
-- A date of birth written with the month's name ("July 23, 1961", "23 Jul 1961"), and the member ID in
-  fullwidth digits or without its letter, are not recognised in a note, a suite row or a note added
-  later (N3). [open at this revision: being fixed]
-- An identifier a service supplies that is a member ID with its digits split by a separator
-  (`S123-456-789`, `S12345-6789`) is written in clear on the subscription line and the notification
-  line (N2). [open at this revision: being fixed]
-- A plain number a server mints (`1052344`) as a subscription id or a ClaimResponse id is written as
-  `(not recorded, N characters)`, so a notification on it is no longer matched to its run, and the
-  screen says the id "reads like a member identifier or a date" (N4, broken by the second audit's fix).
-  [open at this revision: being fixed]
-- A member whose first or last name is an ordinary word (two-letter surnames such as "An" included) gets
-  every honest note holding that word refused (N6). [open at this revision: being fixed]
-- One part of a hyphenated surname, and the city with the postal code of the request's address, are
-  accepted in a note and written in clear (N5). [open at this revision: being fixed]
-- A procedure code of seven digits or more (an ICD-10-PCS shape, an NDC) is written as `(not a code, N
-  characters)` and its run cannot be replayed (N7). [open at this revision: being fixed]
-- The results file of a suite repeats the expectation of a row refused for holding the member ID (N8).
-  [open at this revision: being fixed]
-- After the tool deletes the subscription it created, an unmatched notification's next step still
-  speaks of "the subscription this tool created", and a notification on the deleted subscription is
-  matched as live (N-DELETED-SUB of the fixture check). [open at this revision: being fixed]
-- The receiver's refusal of an unknown run id, "The run must be a run id this tool returned.", says
-  nothing of what to do (V5). [open at this revision: being fixed]
+- A run with a body of the tester's own from the CRD, DTR or PAS tab is now checked against the member
+  identifiers that body carries (D-253). What is left: only identifiers are read, not a name or a date
+  of birth; the body is checked as typed, before `{{placeholders}}` are filled, so an ID that only a
+  placeholder brings in is not seen; on the jar the fix's author saw the refusal for CRD only, DTR and PAS
+  being covered by `OwnBodyMemberTextTest`, and neither tab was driven in a browser.
+- A note added later on a line that holds only the token is checked against the token: the digits of
+  the ID alone are found only when one or two letters stood in front of them, and a name or a date of
+  birth cannot be checked, because the line holds neither (D-253).
+- An identifier a service supplies is now a token unless it is a UUID, an OID or one the tool minted
+  (D-253). What is left: a ClaimResponse id that holds the submission's own member ID with separators
+  (`S123-456-789` on a run for `S123456789`) is still written as `(not recorded, N characters)` on the
+  submission line, so a notification carrying it is not matched; lines the first fix wrote that way under
+  a subscription or ClaimResponse id cannot be matched either. The static hook through which the record
+  learns the code list (`RunRecord.codesOnTheList`) is to be reviewed (D-253, item 6). The frozen
+  `InMemoryLedger` does not tokenise supplied ids.
+- Checked by unit tests only, not on the jar or in a browser: a long code the code list holds kept as
+  written (no loaded list held one); a notification on a subscription this tool deleted, and the next
+  step after it; the run id refusal's new sentence on the PAS tab (on live the sample endpoint refuses
+  earlier, as the author saw).
 - Known limits that stand: a name, a date of birth or an address the request does not carry is written
   as typed, so member data must not be typed into a note (D-217); older lines that hold a name or a
-  date are shown and exported as written; a one-word surname in a code or an id is kept (D-218); a
+  date are shown and exported as written; a one-word surname in a code is kept (D-218); a
   raw send looks for identifiers only, not names, dates of birth or a `P32H-` sentinel, and a raw write
   the guardrail refuses is checked against the body as typed, not the saved body (D-231). The
   configuration store keeps uploads exactly as uploaded and can hold member data an uploaded file
   contains; the upload warns by the names of variables and saved examples, and nothing is stripped
   (D-213).
-- The upload warning does not know `mbrId`, `ssn`, `MBI`, `mrn`, Medicaid and Medicare numbers,
-  addresses and telephones (N9). [open at this revision: being fixed]
+- The upload warning's new names (`mbr`, Medicare and Medicaid, MBI, SSN, MRN, HICN, an address, a
+  telephone; D-254) are covered by a test and were not checked on the jar.
 - The member data check found 70 or more `pave-server-*` folders in `/tmp`, 37 of them empty, left by
   processes it could not attribute and did not look into. The tool removes its own at a clean stop and
   a hard kill leaves it (F7, D-216); whether any of these came from a clean stop of this tool is not
   known.
 - The installation salt sits in plain text in `config-store/`; with it a member ID is recovered from
-  its token at once (D-234). The README does not say so yet (D-250).
+  its token at once (D-234). The README says so (D-250).
 - The ledger record holds no count of the fields an answer carried that the tool did not interpret, so
   History, a suite row and a chain say nothing of them (V7's F8). Decided and given to no task (D-251).
 
