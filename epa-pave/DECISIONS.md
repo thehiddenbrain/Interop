@@ -1328,7 +1328,7 @@ added: the screens already tell a fault by its error kind, and a new status woul
 vocabulary three finished tabs read.
 
 **D-147. A credential typed into a collection is named at upload and masked by the name of its place.**
-From the member data audit (M7, m1). A collection a vendor hands over can hold a credential that is
+From the member data audit (M7, m1, m4, m10). A collection a vendor hands over can hold a credential that is
 not a variable. The decision is always by the name of the place, never by what the value looks like:
 - The upload's answer names each request and place (a query parameter such as `client_secret`, a
   form, urlencoded or JSON body field, a Postman auth helper on the collection, a folder or a
@@ -1347,6 +1347,12 @@ not a variable. The decision is always by the name of the place, never by what t
 - A credential typed into a path segment or a host, where no name says what it is, is still shown as
   written.
 - The FHIR element `preAuthRef` is exempt by its exact name (D-175).
+- The configuration store keeps credentials, so its folder and files are for their owner only where
+  the file system allows (m4), and a folder made with open modes is tightened at start-up. At
+  start-up the tool logs the full paths of the store and the run history, and warns when either lies
+  inside a git working tree, found by a `.git` entry without running git, because an uploaded
+  environment could then be committed (m10). The folders are not moved: the specification puts them
+  beside where the tool is started.
 
 **D-148. Where a request comes from is read from `Sec-Fetch-Site`, and another site's request is refused whatever its method.**
 From the review of the HTTP edge (E1, E2). On live, a page of another site open in the tester's
