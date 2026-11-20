@@ -11,8 +11,9 @@ of the same code (branch `records`, which changes only this file and `DECISIONS.
 tests: 2515 passed, 2 skipped, none failed. The two skipped tests need a folder that cannot be
 written (`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
 `JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
-make; the same refusals are covered by tests that did run. Where the third skipped line of the
-integrator's build came from was not established. The decisions of that wave are D-140 to D-175.
+make; the same refusals are covered by tests that did run. The third skipped line of the
+integrator's build was not a test: it was the Gradle task `jar`, which this build switches off
+because only the executable jar is wanted. The decisions of that wave are D-140 to D-175.
 
 ### Not done, not verified, or known to be wrong
 
