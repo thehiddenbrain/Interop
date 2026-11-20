@@ -20,8 +20,9 @@ server work for the screens and the second audits D-202 to D-228.
 ### Gates, first
 
 - **Section 27.** The member data audit (V2), the guardrail audit (V3) and the fixture audit (V4)
-  have had their second run, on revision `0658a7c`, each by an agent that wrote none of the tool.
-  They found three blockers and several majors; the tables below list every finding. **Their fixes
+  have had their second run, on revision `0658a7c`, each by an agent that wrote none of the tool, in
+  about 29 minutes (member data, guardrail) and about 27 minutes (fixtures); what each did not
+  examine is listed below. They found three blockers and several majors; the tables below list every finding. **Their fixes
   are merged at this revision and have been checked by nobody but the agent that wrote each.** A
   check of each fix by an agent that did not write it is planned for the final revision and has not
   run. **V1 (the build auditor, from a fresh clone), V5 (house style), V6 (honesty) and V7
@@ -88,10 +89,11 @@ each. None of it is done here, and every item below that D-226 covers is still o
 scripts, on mock unless said otherwise. What neither did, or what is still wrong:
 - *Not swept, or not swept again.* One state one look (a refused form, a blocked write, a timeout, a
   service that cannot be reached, nothing configured, a run not recorded) was not compared tab by tab;
-  the second pass made the action names agree. Production locked, unlocked and blocked by the floor,
-  a second browser context, UAT, the live profile with an empty store, tracking switched off, a ledger
-  that cannot write, a suite from the samples and a date-range replay were driven by the first pass
-  only, at 1366 by 768, before the second pass changed many shared files. The colour key was gone
+  the second pass made the action names agree. Production locked and unlocked with the floor allowing
+  writes, a second browser context, the live profile with an empty store, tracking switched off, a
+  ledger that cannot write, a suite from the samples and a replay of one run were driven by the first
+  pass only, at 1366 by 768, before the second pass changed many shared files. A write blocked by the
+  floor, UAT and a replay of a date range have never been driven on screen by either pass. The colour key was gone
   through at both sizes by the second pass; `STOP` and `FAULT` were reached on purpose, the tone of an
   unmatched notification was not.
 - *Never drawn on screen.* The answers dropped in an adaptive questionnaire (read in code, pinned by a
@@ -114,13 +116,14 @@ scripts, on mock unless said otherwise. What neither did, or what is still wrong
 - *Still wrong on screen, and decided for the next pass or the server (D-226).* A lookup answer that
   holds a masked value fills the case field with the mask text, which a later run would send as data.
   On mock a played timeout is said twice on every protocol tab, and on PAS the verdict says the payer
-  may have received the submission beside "Nothing was sent", with the next step "check the
-  environment, then send again" where no environment failed. The raw resolve view says a run with a
+  may have received the submission beside "Nothing was sent", with the next step "Next: check the
+  environment, then ask for the status before sending again." where no environment failed. The raw
+  resolve view says a run with a
   url part missing is still answered from a scenario, while the raw preview and send refuse it. An
   empty `issue.expression` shows in the issues table and again among the fields returned but not
-  interpreted. The comparison's `notes` repeats the caveat, and the page drops it by its text. The
-  body source of a raw send is served as a code only, and the page shows the server's sentence.
-- *Older, still true.* A tester reference or a note typed on one tab is not carried to the next (each
+  interpreted. The comparison's `notes` repeats the caveat, and the page drops it by its text.
+- *Older, still true.* The body source of a raw send is served as a code only, and the page shows the
+  server's sentence; nothing has been decided about it. A tester reference or a note typed on one tab is not carried to the next (each
   tab has its own fields). The PAS detail and the notifications list are not given the page's masking
   stopgap and rely on the server. When a pasted request and the case disagree, only a member ID gets a
   button; two dates of service that disagree are listed with no button. The vendor's sample on the
