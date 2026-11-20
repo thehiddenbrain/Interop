@@ -791,6 +791,11 @@ legend, .case-legend {
     overflow-wrap: anywhere;
 }
 
+.verdict__headline--long {
+    font-size: 1.375rem;
+    line-height: 1.25;
+}
+
 .verdict__supporting {
     margin-top: 8px;
     list-style: none;

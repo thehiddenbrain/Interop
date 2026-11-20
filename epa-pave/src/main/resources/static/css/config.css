@@ -225,12 +225,18 @@
     padding-bottom: var(--gap-3);
 }
 
+/* Said under a refusal that showed this view was out of date. */
+.config-read-again {
+    margin-top: 6px;
+}
+
+/* A question before a removal, not a fault: a plain rule around it, never the heavy frame the key gives to a fault. */
 .config-removal__box {
     display: flex;
     flex-direction: column;
     gap: var(--gap-2);
     padding: var(--gap-2) var(--gap-3) var(--gap-3);
-    border: 3px solid var(--ink-strong);
+    border: 1px solid var(--ink-strong);
 }
 
 /* A variable that is switched off or replaced is never used, and is set back accordingly. */

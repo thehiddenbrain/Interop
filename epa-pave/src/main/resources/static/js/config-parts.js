@@ -75,6 +75,20 @@ export function refusal(answer, roots) {
 }
 
 /**
+ * What the page adds under a refusal that means what this screen showed is out of date: a 404 for
+ * something that was there when the screen was drawn, or a 409. The server's own sentences say
+ * what was refused; this says only what the page does about it, which is to read the tool again.
+ * The caller reads it again.
+ */
+export function readAgainAfter(answer) {
+    if (answer.status !== 404 && answer.kind !== 'conflict') {
+        return null;
+    }
+    return el('p', {class: 'config-read-again'},
+        'It may have been changed from another browser. What the tool holds has been read again, and this view now shows it.');
+}
+
+/**
  * Runs one action from a control. Meanwhile the control is marked busy and cannot be used again,
  * so a second press does not send a second change. The control comes back whatever happened.
  */

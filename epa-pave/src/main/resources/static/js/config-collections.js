@@ -10,7 +10,7 @@ import * as calls from './config-calls.js';
 import {el, fill, clear, button, code, facts, table, heading, when, copyButton} from './dom.js';
 import {clearFieldErrors} from './forms.js';
 import {errorPanel} from './result.js';
-import {none, flag, sentences, refusal, during, counted, requestName, requestMarks} from './config-parts.js';
+import {none, flag, sentences, refusal, during, counted, requestName, requestMarks, readAgainAfter} from './config-parts.js';
 
 export function createCollectionsView(context) {
     let choosing = null;     // the operation a request is being chosen for
@@ -106,7 +106,9 @@ export function createCollectionsView(context) {
     // Not a live region: a request in full is long. It takes the focus when it arrives, which is announced.
     const detailNode = el('section', {class: 'result__section config-detail', id: 'config-request-in-full', tabIndex: -1});
     detailNode.hidden = true;
-    const status = el('div', {class: 'config-outcome', aria: {live: 'polite'}});
+    // The outcome of a change to the mapping or a removal. It takes the focus when the change is
+    // done, because the control that made it is redrawn away and the focus would fall to the page.
+    const status = el('div', {class: 'config-outcome', tabIndex: -1, aria: {live: 'polite'}});
 
     // While production writes are unlocked, an upload ends the unlock, from this browser or any other.
     const uploadLocks = el('p', {class: 'config-switch config-switch--unlocked'});
@@ -312,7 +314,21 @@ export function createCollectionsView(context) {
         clear(status);
         const answer = await calls.changeMapping(collectionId, requestId, operation);
         if (answer.kind !== 'ok') {
+            const stale = readAgainAfter(answer);
+            if (stale) {
+                // What this screen offered is out of date. The view is read again and redrawn, which
+                // takes the chooser away with what it offered, so the refusal is said in the line
+                // that stays, and the focus goes there.
+                choosing = null;
+                fill(status, refusal(answer, []), stale);
+                await context.changed();
+                status.focus();
+                return;
+            }
             fill(problemSlot || status, refusal(answer, problemSlot ? [problemSlot.parentNode] : []));
+            if (!problemSlot) {
+                status.focus();
+            }
             return;
         }
         const done = answer.body;
@@ -323,6 +339,7 @@ export function createCollectionsView(context) {
                 : ['"', done.request.name, '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']),
             sentences(done.notes)));
         await context.changed();
+        status.focus();
     }
 
     /* ---------- requests no operation uses ---------- */
@@ -420,16 +437,19 @@ export function createCollectionsView(context) {
 
     async function removeNow(collection) {
         clear(status);
+        // What an earlier upload said is about a collection that may be the one going now.
+        clear(outcome);
         const answer = await calls.removeCollection(collection.id);
         removing = null;
         if (answer.kind !== 'ok') {
-            fill(status, errorPanel(answer.body));
+            fill(status, errorPanel(answer.body), readAgainAfter(answer));
         } else {
             fill(status, el('div', {class: 'config-done'},
                 el('p', {class: 'config-done__title'}, 'Removed the collection "', answer.body.removed, '".'),
                 (answer.body.warnings || []).length > 0 ? el('div', {class: 'config-warnings', role: 'alert'}, sentences(answer.body.warnings)) : null));
         }
         await context.changed();
+        status.focus();
     }
 
     /* ---------- one request in full ---------- */

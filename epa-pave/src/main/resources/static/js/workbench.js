@@ -420,7 +420,8 @@ export function requestPreviewPanel(preview, close) {
         facts([
             ['Operation', operationName(preview.operation)],
             ['Method', preview.method ? code(preview.method) : null],
-            ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
+            // The server sends an empty template when nothing is configured: that is said, not drawn as an empty value of a response.
+            ['Url as configured', url.template ? code(url.template) : el('span', {class: 'presence presence--none'}, 'nothing configured')],
             ['Url it resolves to', url.display ? code(url.display) : el('span', {class: 'presence presence--none'}, 'none')],
             ['Where the url comes from', url.source || null],
             ['Placeholders with no value', url.unresolved && url.unresolved.length > 0
