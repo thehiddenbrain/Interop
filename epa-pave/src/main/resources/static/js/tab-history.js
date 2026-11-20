@@ -17,6 +17,7 @@ import {loadVocabulary} from './history-vocabulary.js';
 import {createHealth} from './history-health.js';
 import {createRunsList} from './history-runs.js';
 import {createRunView} from './history-run.js';
+import {chainLink} from './history-common.js';
 
 const VIEWS = [
     {id: 'runs', label: 'Runs'},
@@ -35,8 +36,19 @@ let vocabulary = null;
 let vocabularyRead = Promise.resolve(null);
 const nodes = {};
 
+// The one region that speaks for the History tab. Lists, reports and the health panel are redrawn
+// often and are long, so none of them is live: each says what changed here in one sentence.
+const announcer = el('p', {class: 'visually-hidden', role: 'status', aria: {live: 'polite', atomic: 'true'}});
+
+function announce(sentence) {
+    // Emptied first, so the same sentence twice in a row is still read out.
+    announcer.textContent = '';
+    window.setTimeout(() => { announcer.textContent = sentence; }, 50);
+}
+
 /** What the runs views share: the words for codes, the health panel, and a way to change the view. */
 const context = {
+    announce,
     vocabulary: () => vocabulary,
     /** Resolves when the words for codes have been read, so a list is never drawn with codes it could have worded. */
     ready: () => vocabularyRead,
@@ -47,8 +59,8 @@ const context = {
 
 function mount(panel, application) {
     app = application;
-    context.health = createHealth(app);
-    suites = createSuites(app, context.health);
+    context.health = createHealth(app, announce);
+    suites = createSuites(app, context);
     runs = createRunsList(app, context);
     runView = createRunView(app, context);
     readVocabulary();
@@ -60,7 +72,7 @@ function mount(panel, application) {
     nodes.view = el('div', {id: 'history-view', role: 'tabpanel'});
     nodes.chains = chainsView();
     panel.classList.add('tabpanel--stacked');
-    fill(panel, nodes.switcher, nodes.view);
+    fill(panel, nodes.switcher, announcer, nodes.view);
 }
 
 function onShow(path) {
@@ -91,20 +103,32 @@ function showView(view, argument, query) {
     }
     nodes.view.setAttribute('aria-labelledby', 'view-' + view);
     if (view === 'suites') {
-        fill(nodes.view, suites.node);
+        place(context.health.brief, suites.node);
         suites.show();
     } else if (view === 'chains') {
-        fill(nodes.view, nodes.chains.node);
+        place(context.health.brief, nodes.chains.node);
         nodes.chains.show(argument);
     } else if (argument) {
         openRunId = argument;
-        fill(nodes.view, runView.node);
+        place(runView.node);
         runView.open(argument);
     } else {
         openRunId = null;
-        fill(nodes.view, runs.node);
+        place(runs.node);
         runs.show(query !== null && query !== undefined ? new URLSearchParams(query) : runs.query());
     }
+}
+
+/**
+ * Puts the nodes of a view on screen. Nodes already there in that order are left in place: taking
+ * one out and putting it back would drop the keyboard focus inside it to the top of the page.
+ */
+function place(...wanted) {
+    const children = Array.from(nodes.view.children);
+    if (children.length === wanted.length && children.every((child, index) => child === wanted[index])) {
+        return;
+    }
+    fill(nodes.view, ...wanted);
 }
 
 /* ---------- chains ---------- */
@@ -113,7 +137,7 @@ function chainsView() {
     const from = textField({label: 'From', field: 'from', placeholder: 'YYYY-MM-DD'});
     const to = textField({label: 'To', field: 'to', placeholder: 'YYYY-MM-DD'});
     const problem = el('div');
-    const list = el('div', {class: 'chain-list', aria: {live: 'polite'}});
+    const list = el('div', {class: 'chain-list'});
     const detail = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The chain on screen'}});
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': 'Which chains to list'}},
         el('div', {class: 'case-pane__scroll'},
@@ -150,20 +174,27 @@ function chainsView() {
         }
         const chains = answer.body.chains || [];
         if (chains.length === 0) {
+            const troubled = context.health.troubled();
             fill(list, el('p', {class: 'quiet'},
-                'No chain has a run in this range. A chain starts when a run is sent with "Run as part of a chain" ticked on the CRD tab.'));
+                'No chain has a run in this range. A chain starts when a run is sent with "Run as part of a chain" ticked on the CRD tab.',
+                troubled ? ' The ledger reports a problem, above: runs it did not record, and lines it could not read, are in no chain.' : null));
+            context.announce('No chain in this range.');
             return;
         }
+        // Each button leads with what tells the chains apart, the member and the headline, so a
+        // list of the links on the page does not read as many entries that start alike.
         fill(list, el('ul', {class: 'chain-rows'}, chains.map(chain => {
             const latest = (chain.stages || []).map(stage => stage.latest).filter(Boolean).pop();
             return el('li', {class: 'chain-row', dataset: {chain: chain.chainId}},
-                button(chain.member ? ['Member, as recorded: ', code(chain.member)] : ['Chain ', code(chain.chainId)],
-                    () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text'}),
-                el('div', {class: 'small quiet'}, when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
+                button([chain.member ? code(chain.member) : code(chain.chainId), ': ', chain.headline],
+                    () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text chain-row__open'}),
+                el('div', {class: 'small quiet'}, chain.member ? 'Member, as recorded. ' : 'Chain id; no member recorded. ',
+                    when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
                     chain.procedureCodes && chain.procedureCodes.length > 0
                         ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
-                el('div', {class: 'small'}, latest ? outcome(chain.headline, latest.tone) : chain.headline));
+                latest ? el('div', {class: 'small'}, outcome(latest.outcomeLabel || latest.outcome || '', latest.tone)) : null);
         })));
+        context.announce(chains.length === 1 ? 'One chain listed.' : chains.length + ' chains listed.');
         markOpen();
     }
 

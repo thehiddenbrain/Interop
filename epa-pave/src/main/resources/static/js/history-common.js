@@ -6,8 +6,60 @@
 // policy wrote it: the member ID when recording it is switched on, otherwise a token and the last
 // characters. A token is not a member ID, and it is never labelled as one.
 
-import {el, code, token} from './dom.js';
+import {el, code, token, when} from './dom.js';
 import {outcome} from './marks.js';
+
+/*
+ * The ledger files a run under the UTC day it was made (one file a day, runs-YYYY-MM-DD.jsonl),
+ * and its From and To filters, the export, the replay of dates and "today" all count by that day.
+ * Times on screen are in the viewer's own zone. Where the two days differ the screen says so,
+ * because otherwise a run made in the evening west of UTC is listed under one date and filtered,
+ * exported and replayed under the next.
+ */
+
+/** The UTC day of a timestamp, YYYY-MM-DD, or null when it cannot be read. */
+export function utcDay(timestamp) {
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function localDay(date) {
+    const pad = value => String(value).padStart(2, '0');
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+}
+
+/** A time as when() shows it, with the UTC day the ledger files it under when that is not the date on the viewer's clock. */
+export function whenFiled(timestamp) {
+    const shown = when(timestamp);
+    const day = utcDay(timestamp);
+    if (!shown || !day || day === localDay(new Date(timestamp))) {
+        return shown;
+    }
+    return el('span', {class: 'history-when'}, shown,
+        el('span', {class: 'history-when__day', title: 'The ledger files this run under the UTC day ' + day + ', and the From and To dates find it there.'},
+            'filed under ' + day + ' UTC'));
+}
+
+/** Says, in a sentence, that the dates are UTC days and when the next UTC day starts on the viewer's clock. */
+export function utcDayNote() {
+    const now = new Date();
+    const offset = -now.getTimezoneOffset();
+    if (offset === 0) {
+        return 'Dates are UTC days, as the ledger files its runs. Your clock is on UTC, so the two agree.';
+    }
+    const hours = Math.abs(offset) / 60;
+    const amount = (Number.isInteger(hours) ? String(hours) : hours.toFixed(1)) + (hours === 1 ? ' hour' : ' hours');
+    const nextUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+    const at = nextUtcMidnight.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+    return 'Dates are UTC days, as the ledger files its runs, not the dates on your clock. Your clock is ' + amount
+        + (offset < 0 ? ' behind' : ' ahead of') + ' UTC, so each UTC day starts at ' + at + ' your time'
+        + (offset < 0 ? ', the evening before' : '') + '. A run whose date on your clock differs says "filed under" the UTC day.';
+}
+
+/** Today's UTC day, the day the ledger counts as today. */
+export function utcToday() {
+    return new Date().toISOString().slice(0, 10);
+}
 
 /** The address of one run on the History tab. A run id shown anywhere in the tool can point here. */
 export function runAddress(runId) {
@@ -73,6 +125,18 @@ export function memberShort(run) {
 export function outcomeOf(vocabulary, run) {
     const option = vocabulary ? vocabulary.outcome(run.protocol, run.outcome) : null;
     return option ? outcome(option.label, option.tone) : outcome(code(run.outcome), null);
+}
+
+/**
+ * What the tester expected, in the same words as the outcome when the server has words for that
+ * code, with the code beneath. An expectation the server has no words for is shown as written.
+ */
+export function expectedOf(vocabulary, run) {
+    if (!run.expected) {
+        return null;
+    }
+    const option = vocabulary ? vocabulary.outcome(run.protocol, run.expected) : null;
+    return option ? [el('span', {class: 'history-expected'}, option.label), el('div', {class: 'small'}, code(run.expected))] : code(run.expected);
 }
 
 /** What ran, in the server's words for the operation. */
