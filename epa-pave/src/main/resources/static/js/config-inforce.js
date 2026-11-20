@@ -192,6 +192,7 @@ export function createInForceView(context) {
             target && target.requestName ? requestMarks({scripted: target.scripted}) : null,
             !target && requests.length > 0 ? el('span', null, requests.length === 1 ? 'One sample request of a collection is listed.' : requests.length + ' sample requests of a collection are listed.') : null,
             target && others > 0 ? el('div', {class: 'small quiet'}, others === 1 ? 'One more request is mapped to it.' : others + ' more requests are mapped to it.') : null,
+            row.defaultRule ? el('div', {class: 'small'}, row.defaultRule) : null,
             !target && requests.length === 0 && row.outbound ? none('nothing is mapped') : null
         ];
     }

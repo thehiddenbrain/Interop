@@ -251,13 +251,6 @@
     margin-bottom: var(--gap-2);
 }
 
-/* No service can call back: a tester must not sit waiting for a notification that cannot arrive. */
-.pas-receiver__unreachable {
-    padding: 4px 0 4px var(--gap-3);
-    border-left: 4px solid var(--ink-strong);
-    color: var(--ink-strong);
-}
-
 .pas-notifications__list {
     list-style: none;
     margin: var(--gap-2) 0 0;

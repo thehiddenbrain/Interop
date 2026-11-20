@@ -214,7 +214,7 @@ export function createCollectionsView(context) {
                     index === 0 ? el('th', {scope: 'row', rowSpan: requests.length},
                         el('span', {class: 'config-op__label'}, row.label),
                         row.outbound ? null : el('div', {class: 'small quiet'}, row.unavailable || ''),
-                        row.outbound && requests.length > 1 ? severalNote(row) : null) : null,
+                        severalNote(row)) : null,
                     el('td', null, requestName(request),
                         el('div', {class: 'small'}, code(request.method), ' ', code(request.urlTemplate)),
                         el('div', {class: 'config-marks'},
@@ -235,16 +235,9 @@ export function createCollectionsView(context) {
         return lines;
     }
 
-    /** Said beside an operation with several requests: which one a run takes, and how to have another taken. */
+    /** The server's sentence beside an operation with several requests: which one a run takes, why, and how to have another taken. */
     function severalNote(row) {
-        return el('div', {class: 'small config-op__rule'}, 'The tool picks the one marked "used by default". To have another used, take the others off.');
-    }
-
-    function defaultRule(row) {
-        const used = (row.requests || []).find(available => available.usedByDefault);
-        return [used ? ['A run uses "', used.request.name, '", marked "used by default". '] : 'No request here is used by default. ',
-            'The tool picks that one itself, and this page cannot pick another. To have another used, take the ones you do not want off ',
-            row.label, '; the line under this table then names the one used.'];
+        return row.defaultRule ? el('div', {class: 'small config-op__rule'}, row.defaultRule) : null;
     }
 
     function collectionsHeld() {
@@ -326,7 +319,7 @@ export function createCollectionsView(context) {
                     el('label', {htmlFor: id}, ['The request of the collection to use for ', el('strong', null, row.label)]), select),
                 entries.length === 0 ? el('p', null, 'No collection is uploaded, so there is no request to choose.') : null,
                 el('p', {class: 'small quiet'}, 'The request keeps its own url, headers and sample body. A request moved here is no longer used for the operation it had before.'),
-                (row.requests || []).length > 0 ? el('p', {class: 'small'}, defaultRule(row)) : null,
+                row.defaultRule ? el('p', {class: 'small'}, row.defaultRule) : null,
                 problemSlot,
                 el('div', {class: 'button-row'}, look, use))));
     }
