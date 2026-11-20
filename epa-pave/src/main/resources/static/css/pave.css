@@ -796,6 +796,12 @@ legend, .case-legend {
     line-height: 1.25;
 }
 
+/* A refusal worded into a paragraph is still the loudest line on screen, at the size of a heading. */
+.verdict__headline--longest {
+    font-size: 1.125rem;
+    line-height: 1.3;
+}
+
 .verdict__supporting {
     margin-top: 8px;
     list-style: none;

@@ -97,8 +97,9 @@ function verdictStrip(envelope) {
     }
     // A headline is one sentence, set large. A refusal can word its reason into a paragraph, which
     // at that size fills the screen and hides the test result beside it, so a long one is set smaller.
-    const long = String(verdict.headline || '').length > 110;
-    strip.append(el('h2', {class: 'verdict__headline' + (long ? ' verdict__headline--long' : '')}, verdict.headline));
+    const length = String(verdict.headline || '').length;
+    const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 110 ? ' verdict__headline--long' : '';
+    strip.append(el('h2', {class: 'verdict__headline' + size}, verdict.headline));
     const supporting = verdict.supporting || [];
     if (supporting.length > 0) {
         strip.append(el('ul', {class: 'verdict__supporting'}, supporting.map(line => el('li', null, line))));

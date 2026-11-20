@@ -264,7 +264,7 @@ export function createCollectionsView(context) {
     }
 
     function takeOffControl(collectionId, request, row) {
-        const control = button('Take it off this operation', () => during(control, () => remap(collectionId, request.id, 'UNMAPPED')),
+        const control = button('Take it off this operation', () => during(control, () => remap(collectionId, request.id, 'UNMAPPED', null, row.label)),
             {class: 'button--text', aria: {label: 'Take ' + request.name + ' off ' + row.label}});
         return control;
     }
@@ -310,7 +310,8 @@ export function createCollectionsView(context) {
                 el('div', {class: 'button-row'}, look, use))));
     }
 
-    async function remap(collectionId, requestId, operation, problemSlot) {
+    /** fromLabel is the operation a request is being taken off, so the outcome can name it. */
+    async function remap(collectionId, requestId, operation, problemSlot, fromLabel) {
         clear(status);
         const answer = await calls.changeMapping(collectionId, requestId, operation);
         if (answer.kind !== 'ok') {
@@ -334,7 +335,10 @@ export function createCollectionsView(context) {
         const done = answer.body;
         choosing = null;
         fill(status, el('div', {class: 'config-done'},
-            el('p', {class: 'config-done__title'}, done.changed
+            el('p', {class: 'config-done__title'}, done.changed && operation === 'UNMAPPED' && fromLabel
+                // Taken off: what changed is that the operation no longer uses it, and where it went is the list below.
+                ? ['"', done.request.name, '" is no longer used for ', fromLabel, '. It is listed below, among the requests no operation uses.']
+                : done.changed
                 ? ['"', done.request.name, '" is now mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, '.']
                 : ['"', done.request.name, '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']),
             sentences(done.notes)));

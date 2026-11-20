@@ -158,6 +158,12 @@
     display: none;
 }
 
+/* The outcome takes the focus so it is read out, and it is not a control: no ring around it,
+   which would look like the heavy frame of a fault. The next Tab goes on from it. */
+.config-outcome:focus {
+    outline: none;
+}
+
 .config-done {
     display: flex;
     flex-direction: column;
