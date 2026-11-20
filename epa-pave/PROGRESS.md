@@ -4,6 +4,30 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Read this first.** The revision that holds this file is later than the one the rest of this section
+describes, and the sections below have not yet been brought up to it. Merged since `33893aa`, and
+built together with 2597 tests (2595 passed, 2 skipped as explained below, none failed):
+
+- the leftovers the audit wave left between its parts, in the three protocols and outside them
+  (each fixed by one agent, attacked by a second, finished by a third). `POST /api/raw` now sends
+  the saved body, so the line below that says it does not is out of date, and so are the README
+  sentences that say the same;
+- the frontend: the frame and the shared files, the case, and the CRD, DTR, PAS, History and Config
+  tabs, each built by one agent, used in a real browser by a second, and finished by a third.
+
+**Not done at this revision, beyond what is listed below:**
+
+- Nobody has used the five tabs together. Each was built and reviewed alone, on a base without the
+  others and without the last server changes. The pass that joins them and walks the journey CRD to
+  DTR to PAS on the real tabs has not run.
+- On the live profile with nothing configured the protocol tabs still show a form that cannot send
+  (section 20). The frame has the piece that puts this right, and no tab switches it on yet.
+- The reviews of the screens left changes for the server that are not made yet: among them a
+  credential a pasted request carries is shown as typed by the request comparison, and a secret a
+  service sends back is masked on a raw send by the page and not yet by the server.
+- The decisions of these two waves are not in `DECISIONS.md` yet, and the README does not describe
+  the screens or the last server changes.
+
 This describes revision `33893aa` on branch `epa-pave`: every fix branch of the audit wave, the
 request comparison (D-119, D-170) and the documentation, merged. The integrator's build of it was
 green and printed 2515 passed lines, 3 skipped lines and no failure. The XML test reports of a build
