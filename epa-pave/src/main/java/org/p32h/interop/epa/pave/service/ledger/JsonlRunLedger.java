@@ -3,15 +3,18 @@ package org.p32h.interop.epa.pave.service.ledger;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
+import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.LedgerHealth;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -108,7 +111,12 @@ public class JsonlRunLedger implements RunLedger {
     private record Appended(String failure, Integer runsToday) {
     }
 
-    public JsonlRunLedger(TrackingProperties tracking, ConfigStoreProperties configStore, EpaProperties epa, Clock clock) {
+    /**
+     * @param codeList what tells a line of business the tool knows from any other text: a line the
+     *                 code list names, directly or through {@code codelist.line-of-business-aliases}
+     */
+    public JsonlRunLedger(TrackingProperties tracking, ConfigStoreProperties configStore, EpaProperties epa, Clock clock,
+                          ProcedureCodeDirectory codeList) {
         this.clock = clock;
         this.enabled = tracking.enabled();
         this.directory = path("tracking.directory", tracking.directory());
@@ -116,7 +124,8 @@ public class JsonlRunLedger implements RunLedger {
         Path store = path("config-store.directory", configStore.directory());
         this.saltFile = configuredSalt != null ? configuredSalt
                 : (store == null ? Path.of("") : store).resolve(LedgerTokens.DEFAULT_FILE_NAME).toAbsolutePath().normalize();
-        this.policy = new TrackingPolicy(tracking.recordMemberId(), tracking.recordNpi(), this::tokens);
+        Objects.requireNonNull(codeList, "codeList");
+        this.policy = new TrackingPolicy(tracking.recordMemberId(), epa.mock(), tracking.recordNpi(), this::tokens, codeList::statesLine);
 
         // Checked whether or not tracking is on. It costs nothing, and a salt beside the lines it
         // protects would let anyone who copies the folder test member IDs against them.
@@ -131,7 +140,8 @@ public class JsonlRunLedger implements RunLedger {
             throw new IllegalStateException("tracking.directory is blank, so there is nowhere to keep the run history. " + STARTUP_ADVICE);
         }
         try {
-            Files.createDirectories(directory);
+            // A folder made here is for its owner only, where the file system has owners. See OwnerOnly.
+            Files.createDirectories(directory, OwnerOnly.directory());
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("The run history directory " + directory + " could not be created ("
                     + e.getClass().getSimpleName() + "). " + STARTUP_ADVICE);
@@ -229,7 +239,8 @@ public class JsonlRunLedger implements RunLedger {
      */
     void proveWritable() throws IOException {
         Path probe = directory.resolve(".write-check-" + UUID.randomUUID() + ".tmp");
-        try (FileChannel channel = FileChannel.open(probe, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+        try (FileChannel channel = FileChannel.open(probe, java.util.EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                OwnerOnly.file())) {
             writeFully(channel, "PAVE startup write check. Safe to delete.\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             channel.force(true);
         } finally {
@@ -324,8 +335,9 @@ public class JsonlRunLedger implements RunLedger {
                     System.arraycopy(bytes, 0, separated, 1, bytes.length);
                     bytes = separated;
                 }
-                try (FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                        StandardOpenOption.APPEND)) {
+                // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
+                try (FileChannel channel = FileChannel.open(file, java.util.EnumSet.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                        StandardOpenOption.APPEND), OwnerOnly.file())) {
                     writeFully(channel, bytes);
                     channel.force(true);
                 }
@@ -606,6 +618,13 @@ public class JsonlRunLedger implements RunLedger {
         RunRecord known = find(runId).orElseThrow(() -> RunIds.notFound(runId));
         if (note == null && testerRef == null) {
             throw ValidationException.of("note", "Give a note, a tester reference or both. Nothing was changed.");
+        }
+        // The endpoint checks the same limits first. Checked here too, so no caller can append more
+        // than a run line may hold: a note line is not a record and the record's own check never sees it.
+        Map<String, String> tooLong = RunInputs.textForTheLedger(note, testerRef, null);
+        if (!tooLong.isEmpty()) {
+            throw new ValidationException("The note was not added. Nothing was changed.",
+                    tooLong.entrySet().stream().map(e -> new FieldError(e.getKey(), e.getValue())).toList());
         }
         if (!enabled) {
             return new LedgerReceipt(false, known, "The note was NOT recorded: " + SWITCHED_OFF + ".", null);

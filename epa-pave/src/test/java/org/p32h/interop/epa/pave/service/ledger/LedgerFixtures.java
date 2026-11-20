@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.ledger;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
+import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -11,6 +12,8 @@ import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
 import org.p32h.interop.epa.pave.service.RunStamps;
+import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
+import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -110,9 +113,15 @@ public final class LedgerFixtures {
         return ConfigStoreProperties.of(Map.of("directory", home.resolve("config-store").toString()));
     }
 
+    /** The lines of business the ledger knows in these tests: the three the bundled code list names. */
+    public static ProcedureCodeDirectory codeList() {
+        return new FakeCodeList().row("95810", AuthRequirement.REQUIRED, "Medicare", null).row("95810", AuthRequirement.REQUIRED, "Medicaid", null)
+                .row("E0601", AuthRequirement.NOT_REQUIRED, "Commercial", null);
+    }
+
     /** A ledger on the mock profile, with the configuration defaults: member IDs are not recorded, NPIs are. */
     public static JsonlRunLedger ledger(Path home, Clock clock, Map<String, String> overrides) {
-        return new JsonlRunLedger(tracking(home, overrides), configStore(home), EpaProperties.defaults(), clock);
+        return new JsonlRunLedger(tracking(home, overrides), configStore(home), EpaProperties.defaults(), clock, codeList());
     }
 
     public static JsonlRunLedger ledger(Path home, Clock clock) {

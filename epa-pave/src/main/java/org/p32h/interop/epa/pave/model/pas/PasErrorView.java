@@ -22,4 +22,10 @@ public record PasErrorView(String foundAt, Shown itemSequence, Shown detailSeque
         codes = codes == null ? List.of() : List.copyOf(codes);
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "PasErrorView[" + foundAt + "]";
+    }
 }

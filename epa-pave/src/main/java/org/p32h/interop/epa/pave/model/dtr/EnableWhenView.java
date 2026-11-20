@@ -13,4 +13,9 @@ import org.p32h.interop.epa.pave.model.Shown;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record EnableWhenView(Shown question, DtrCode operator, Shown answer, ConditionState state, String explanation) {
+    /** Prints the state only. The question and the answer come from a response. */
+    @Override
+    public String toString() {
+        return "EnableWhenView[" + state + "]";
+    }
 }

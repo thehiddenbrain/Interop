@@ -11,4 +11,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReplayDifference(String field, String was, String now) {
+
+    /** Prints the field only. The two values come from responses. */
+    @Override
+    public String toString() {
+        return "ReplayDifference[" + field + "]";
+    }
 }

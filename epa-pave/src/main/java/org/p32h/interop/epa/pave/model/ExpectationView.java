@@ -25,4 +25,10 @@ public record ExpectationView(String expected, String expectedLabel, String actu
             throw new IllegalArgumentException("A run can pass or fail only against a declared expectation.");
         }
     }
+
+    /** Prints the outcome and the result. The expectation is free text a tester typed. */
+    @Override
+    public String toString() {
+        return "ExpectationView[" + actual + ", " + result + "]";
+    }
 }

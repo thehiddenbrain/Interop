@@ -14,4 +14,10 @@ public record WireHeader(String name, String value) {
             value = Secrets.redactCredential(name, value);
         }
     }
+
+    /** Prints the name only. A value can hold a credential or an address with a member ID in it. */
+    @Override
+    public String toString() {
+        return "WireHeader[" + name + "]";
+    }
 }

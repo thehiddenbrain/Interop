@@ -247,7 +247,7 @@ class RunCsvTest {
         // collection, an environment name from an upload, a member ID from the member.
         Map<String, String> cells = onlyRow(minimal("run-1").note("=1+1").testerRef("@QA").expected("+NO_AUTH_REQUIRED")
                 .targetSource("- submit (error case)").environment("=Sandbox", EnvironmentKind.SANDBOX).memberId("-A1234").caseId("@case")
-                .lineOfBusiness("+Medicare").correlation(Map.of(RunRecord.CORR_CLAIM_ID, "=claim")).build());
+                .lineOfBusiness("+Medicare").correlation(Map.of(RunRecord.CORR_CLAIM_ID, "-claim")).build());
 
         assertThat(cells.get("note")).isEqualTo("'=1+1");
         assertThat(cells.get("testerRef")).isEqualTo("'@QA");
@@ -257,7 +257,8 @@ class RunCsvTest {
         assertThat(cells.get("memberId")).isEqualTo("'-A1234");
         assertThat(cells.get("caseId")).isEqualTo("'@case");
         assertThat(cells.get("lineOfBusiness")).isEqualTo("'+Medicare");
-        assertThat(cells.get("correlation.claimId")).isEqualTo("'=claim");
+        // A claim id is one identifier token, so of the four signs only a leading hyphen can reach it.
+        assertThat(cells.get("correlation.claimId")).isEqualTo("'-claim");
         // No cell of the file starts a formula.
         for (List<String> row : read(RunCsv.text(List.of(everyFieldSet(), minimal("run-2").note("=2+2").build())))) {
             assertThat(row).noneMatch(cell -> cell.startsWith("=") || cell.startsWith("+") || cell.startsWith("-") || cell.startsWith("@"));

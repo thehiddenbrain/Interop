@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.MEMBER_ID;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.NPI;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.bytes;
+import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.codeList;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.configStore;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.dayFile;
 import static org.p32h.interop.epa.pave.service.ledger.LedgerFixtures.draft;
@@ -344,6 +345,23 @@ class JsonlRunLedgerTest {
     }
 
     @Test
+    void aNoteOrATesterReferenceOverItsLimitIsRefusedByTheLedgerItselfAndNothingIsAppended() {
+        // Found by the member data audit (M5). The endpoint checks first; the ledger holds the same limit for any other caller.
+        JsonlRunLedger ledger = ledger(home, clock);
+        ledger.record(draft("run-1", clock).build());
+        byte[] before = bytes(todayFile());
+
+        assertThatThrownBy(() -> ledger.addNote("run-1", "n".repeat(RunRecord.LONGEST_NOTE + 1), null))
+                .isInstanceOf(org.p32h.interop.epa.pave.service.error.ValidationException.class);
+        assertThatThrownBy(() -> ledger.addNote("run-1", null, "r".repeat(RunRecord.LONGEST_TESTER_REF + 1)))
+                .isInstanceOf(org.p32h.interop.epa.pave.service.error.ValidationException.class);
+        assertThat(bytes(todayFile())).isEqualTo(before);
+
+        assertThat(ledger.addNote("run-1", "n".repeat(RunRecord.LONGEST_NOTE), "r".repeat(RunRecord.LONGEST_TESTER_REF)).recorded()).isTrue();
+        assertThat(ledger.find("run-1").orElseThrow().note()).hasSize(RunRecord.LONGEST_NOTE);
+    }
+
+    @Test
     void aTornLastLineIsLeftBehindAndTheNextRunStartsOnItsOwnLine() throws IOException {
         JsonlRunLedger ledger = ledger(home, clock);
         ledger.record(draft("run-1", clock).build());
@@ -480,7 +498,7 @@ class JsonlRunLedgerTest {
 
     @Test
     void aLedgerThatCannotPrepareALineSaysSoAndDoesNotThrow() {
-        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, Map.of()), configStore(home), EpaProperties.defaults(), clock) {
+        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, Map.of()), configStore(home), EpaProperties.defaults(), clock, codeList()) {
             @Override
             RunRecord policyApplied(RunRecord draft) {
                 throw new IllegalStateException("must not reach the tester: " + draft.memberId());
@@ -575,14 +593,14 @@ class JsonlRunLedgerTest {
         Path file = Files.writeString(home.resolve("not-a-folder"), "x");
         Map<String, String> off = Map.of("enabled", "false", "directory", file.resolve("run-history").toString());
 
-        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, off), configStore(home), EpaProperties.defaults(), clock);
+        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, off), configStore(home), EpaProperties.defaults(), clock, codeList());
 
         assertThat(ledger.record(draft("run-1", clock).build()).recorded()).isFalse();
         assertThat(ledger.query(RunQuery.all())).isEmpty();
         assertThat(ledger.find("run-1")).isEmpty();
         // The same place with tracking on is refused at startup.
         Map<String, String> on = Map.of("directory", file.resolve("run-history").toString());
-        assertThatThrownBy(() -> new JsonlRunLedger(tracking(home, on), configStore(home), EpaProperties.defaults(), clock))
+        assertThatThrownBy(() -> new JsonlRunLedger(tracking(home, on), configStore(home), EpaProperties.defaults(), clock, codeList()))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -644,7 +662,7 @@ class JsonlRunLedgerTest {
         // The two tests before this one each need a folder that refuses a file, and not every machine
         // has one: an administrator is refused almost nowhere, and some systems ignore a read-only
         // folder. Here the proof itself is made to fail, so the refusal and its wording are checked everywhere.
-        assertThatThrownBy(() -> new JsonlRunLedger(tracking(home, Map.of()), configStore(home), EpaProperties.defaults(), clock) {
+        assertThatThrownBy(() -> new JsonlRunLedger(tracking(home, Map.of()), configStore(home), EpaProperties.defaults(), clock, codeList()) {
             @Override
             void proveWritable() throws IOException {
                 throw new java.nio.file.AccessDeniedException("a path and a reason that must not be repeated");
@@ -803,7 +821,7 @@ class JsonlRunLedgerTest {
         String warning = "tracking.record-member-id is true on the live profile";
         EpaProperties live = EpaProperties.of(Map.of("mode", "live"));
 
-        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, Map.of("record-member-id", "true")), configStore(home), live, clock);
+        JsonlRunLedger ledger = new JsonlRunLedger(tracking(home, Map.of("record-member-id", "true")), configStore(home), live, clock, codeList());
         for (int i = 0; i < 3; i++) {
             ledger.record(draft("run-" + i, clock).build());
         }
@@ -821,7 +839,7 @@ class JsonlRunLedgerTest {
     void thereIsNoWarningOnMockOrWhenMemberIdsAreNotRecorded(CapturedOutput output) {
         recordingIds(home.resolve("mock"), clock).record(draft("run-1", clock).build());
         new JsonlRunLedger(tracking(home.resolve("live"), Map.of()), configStore(home.resolve("live")), EpaProperties.of(Map.of("mode", "live")),
-                clock).record(draft("run-2", clock).build());
+                clock, codeList()).record(draft("run-2", clock).build());
 
         assertThat(output.getAll()).doesNotContain("tracking.record-member-id");
     }

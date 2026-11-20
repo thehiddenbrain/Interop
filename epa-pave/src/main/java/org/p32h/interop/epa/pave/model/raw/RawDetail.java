@@ -29,4 +29,10 @@ public record RawDetail(String requestName, String responseKind, List<IssueView>
         issues = issues == null ? List.of() : List.copyOf(issues);
         requestNotes = requestNotes == null ? List.of() : List.copyOf(requestNotes);
     }
+
+    /** Prints the kind of response. The issues come from a response. */
+    @Override
+    public String toString() {
+        return "RawDetail[" + responseKind + "]";
+    }
 }

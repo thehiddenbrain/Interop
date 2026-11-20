@@ -54,9 +54,21 @@ public record SuitePreview(
         public RowProblem {
             problems = problems == null ? List.of() : List.copyOf(problems);
         }
+
+        /** Prints the row only. The case id is a cell of the file. */
+        @Override
+        public String toString() {
+            return "RowProblem[" + row + "]";
+        }
     }
 
     /** How many rows run one thing. */
     public record Kind(String what, int count) {
+    }
+
+    /** Prints the counts. The name, the columns and the problems come from the file. */
+    @Override
+    public String toString() {
+        return "SuitePreview[" + total + " cases, " + valid + " valid]";
     }
 }

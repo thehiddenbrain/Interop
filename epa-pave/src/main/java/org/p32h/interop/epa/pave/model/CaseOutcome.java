@@ -66,4 +66,10 @@ public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<
     public RunRecord finalRun() {
         return runs.isEmpty() ? null : runs.get(runs.size() - 1);
     }
+
+    /** Prints how the case ended. The case holds a member ID and its reason can quote what was typed. */
+    @Override
+    public String toString() {
+        return "CaseOutcome[" + status + ", " + overall + "]";
+    }
 }

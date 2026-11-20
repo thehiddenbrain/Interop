@@ -22,4 +22,10 @@ public record ProviderLookupResult(LookupStatus status, String npi, ProviderDeta
         fields = fields == null ? List.of() : List.copyOf(fields);
         additionalFields = additionalFields == null ? List.of() : List.copyOf(additionalFields);
     }
+
+    /** Prints the status only. The provider, the fields and the wire view come from a response. */
+    @Override
+    public String toString() {
+        return "ProviderLookupResult[" + status + "]";
+    }
 }

@@ -26,4 +26,10 @@ public record AttachmentRefView(String foundAt, Shown reference, boolean carried
         wanted = wanted == null ? List.of() : List.copyOf(wanted);
         rest = rest == null ? List.of() : List.copyOf(rest);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "AttachmentRefView[" + foundAt + "]";
+    }
 }

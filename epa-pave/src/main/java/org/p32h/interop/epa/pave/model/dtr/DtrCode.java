@@ -20,4 +20,10 @@ public record DtrCode(Presence presence, String code, String display, boolean re
     public boolean is(String expectedCode) {
         return code != null && code.equals(expectedCode);
     }
+
+    /** Prints whether a code was there and known. The code and its display come from a response. */
+    @Override
+    public String toString() {
+        return "DtrCode[" + presence + ", " + (recognised ? "recognised" : "not recognised") + "]";
+    }
 }

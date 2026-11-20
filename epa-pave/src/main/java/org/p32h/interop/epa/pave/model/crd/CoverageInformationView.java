@@ -62,4 +62,10 @@ public record CoverageInformationView(
                 infoNeeded, satisfiedPaId, coverage, coverageAssertionId, date, questionnaires, reasons, details, delegatedVendor,
                 delegatedVendorBasis, otherSubExtensions);
     }
+
+    /** Prints where it was found and the outcome. A vendor and every value come from a response. */
+    @Override
+    public String toString() {
+        return "CoverageInformationView[" + foundAt + ", " + outcome + "]";
+    }
 }

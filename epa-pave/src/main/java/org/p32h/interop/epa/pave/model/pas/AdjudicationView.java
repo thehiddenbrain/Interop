@@ -18,4 +18,10 @@ public record AdjudicationView(String foundAt, Shown category, Shown reason, Sho
         reviewActions = reviewActions == null ? List.of() : List.copyOf(reviewActions);
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "AdjudicationView[" + foundAt + "]";
+    }
 }

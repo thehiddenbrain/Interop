@@ -61,6 +61,12 @@ public final class Expectations {
         public static Answer of(String subject, Map<String, List<String>> codes) {
             return new Answer(subject, codes);
         }
+
+        /** Prints how many elements the answer carried. The subject and the codes come from a response. */
+        @Override
+        public String toString() {
+            return "Answer[" + codes.size() + " elements]";
+        }
     }
 
     /** One parsed term. {@code name} is null for an outcome term. */
@@ -72,6 +78,12 @@ public final class Expectations {
 
         String label() {
             return assertion() ? (subject == null ? "" : subject + ": ") + name + "=" + code : raw;
+        }
+
+        /** Prints the kind of term only. A term is free text a tester typed. */
+        @Override
+        public String toString() {
+            return "Term[" + (name == null ? "outcome" : "assertion") + "]";
         }
     }
 

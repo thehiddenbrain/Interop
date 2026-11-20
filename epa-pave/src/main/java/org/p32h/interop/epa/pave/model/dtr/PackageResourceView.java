@@ -20,4 +20,10 @@ public record PackageResourceView(String foundAt, Shown resourceType, Shown id, 
         concepts = concepts == null ? List.of() : List.copyOf(concepts);
         content = content == null ? List.of() : List.copyOf(content);
     }
+
+    /** Prints where the resource sits. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "PackageResourceView[" + foundAt + "]";
+    }
 }

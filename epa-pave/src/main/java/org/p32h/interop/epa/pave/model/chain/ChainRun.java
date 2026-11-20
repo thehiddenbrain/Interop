@@ -44,4 +44,10 @@ public record ChainRun(
     public ChainRun {
         findings = findings == null ? List.of() : List.copyOf(findings);
     }
+
+    /** Prints what identifies the run. The expectation is free text a tester typed. */
+    @Override
+    public String toString() {
+        return "ChainRun[" + runId + ", " + operation + ", " + outcome + "]";
+    }
 }

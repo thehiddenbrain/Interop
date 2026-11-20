@@ -53,4 +53,10 @@ public record SuiteRunView(
         return new SuiteRunView(suiteRunId, name, format, state, headline, stopReason, startedAt, finishedAt, mode, target,
                 environment, epoch, testerRef, comparedWith, counts, timing, findingCounts, notes, null);
     }
+
+    /** Prints the run id and its state. The name, the tester reference and the rows come from the file. */
+    @Override
+    public String toString() {
+        return "SuiteRunView[" + suiteRunId + ", " + state + "]";
+    }
 }

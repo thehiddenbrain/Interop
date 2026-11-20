@@ -18,4 +18,10 @@ public record BundleResourceView(String foundAt, Shown resourceType, Shown id, S
     public BundleResourceView {
         fields = fields == null ? List.of() : List.copyOf(fields);
     }
+
+    /** Prints where it was found. Everything else comes from a response. */
+    @Override
+    public String toString() {
+        return "BundleResourceView[" + foundAt + "]";
+    }
 }

@@ -60,4 +60,10 @@ public record ChainView(
         return new ChainView(chainId, headline, nextAction, nextHeadline, nextStage, ended, startedAt, lastRunAt, environment,
                 environmentKind, profile, target, member, procedureCodes, brief, List.of(), runCount, elapsedMillis, notes);
     }
+
+    /** Prints the chain id and the count. The member is named here as the ledger allows, which is still a member. */
+    @Override
+    public String toString() {
+        return "ChainView[" + chainId + ", " + runCount + " runs]";
+    }
 }

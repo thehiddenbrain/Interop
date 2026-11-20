@@ -30,4 +30,10 @@ public record ChangesView(boolean compared, String summary, List<QuestionRef> ap
     public static ChangesView notCompared(String why) {
         return new ChangesView(false, why, List.of(), List.of(), List.of());
     }
+
+    /** Prints whether a comparison was made. The questions it names come from a response. */
+    @Override
+    public String toString() {
+        return "ChangesView[" + (compared ? "compared" : "not compared") + "]";
+    }
 }

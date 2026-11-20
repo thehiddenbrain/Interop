@@ -20,4 +20,10 @@ public record CodedValue(Presence presence, String code, String display, boolean
     public boolean is(String expectedCode) {
         return code != null && code.equals(expectedCode);
     }
+
+    /** Prints whether a code was there and known. The code and its display come from a response. */
+    @Override
+    public String toString() {
+        return "CodedValue[" + presence + ", " + (recognised ? "recognised" : "not recognised") + "]";
+    }
 }

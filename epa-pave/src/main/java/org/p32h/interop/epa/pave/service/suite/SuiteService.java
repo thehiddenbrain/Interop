@@ -42,6 +42,7 @@ import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -188,6 +189,11 @@ public class SuiteService implements AutoCloseable {
         CaseRunner runner = caseRunner.getIfAvailable();
         if (runner == null) {
             throw new BadInputException("This build cannot run a suite.", "Run the cases one at a time from their tabs.");
+        }
+        // Recorded on every case that gives none of its own, so it is held to the limit a run's is.
+        String refProblem = RunInputs.textForTheLedger(null, testerRef, null).get("testerRef");
+        if (refProblem != null) {
+            throw new ValidationException("The suite was not started. Nothing was sent.", List.of(new FieldError("testerRef", refProblem)));
         }
         SuiteDefinition definition = define(fileName, text);
         if (!definition.problems().isEmpty()) {
@@ -384,6 +390,7 @@ public class SuiteService implements AutoCloseable {
             }
         } catch (RuntimeException | Error e) {
             String reference = UUID.randomUUID().toString();
+            // A reference and the exception types and frames only. Never a message, and never a case, which holds a member ID.
             log.error("A suite run failed inside this tool, reference {}: {}", reference, Faults.describe(e));
             ended = "This tool failed while running the suite. Reference " + reference + ".";
             if (e instanceof Error error) {
@@ -469,6 +476,12 @@ public class SuiteService implements AutoCloseable {
 
     /** What an earlier run made of one case. */
     private record Previous(String caseId, Protocol protocol, String outcome, TestResult result) {
+
+        /** Prints the protocol and the result. The case id is a cell of a suite file. */
+        @Override
+        public String toString() {
+            return "Previous[" + protocol + ", " + result + "]";
+        }
     }
 
     /** One case of a run. Its fields are read and written under the run's monitor. */

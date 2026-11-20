@@ -47,4 +47,10 @@ public record ItemView(
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
         items = items == null ? List.of() : List.copyOf(items);
     }
+
+    /** Prints where the item sits. Its text, its answers and its prepopulated values come from a response. */
+    @Override
+    public String toString() {
+        return "ItemView[" + path + "]";
+    }
 }

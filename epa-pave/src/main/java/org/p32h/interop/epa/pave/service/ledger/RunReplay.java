@@ -87,7 +87,8 @@ public class RunReplay {
 
     /** What the record writes in place of text it did not keep, anywhere in a coverage code entry or a vendor name. */
     private static final Pattern TEXT_NOT_KEPT =
-            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list), \\d+ characters\\)");
+            Pattern.compile("\\((?:not a code|not a code entry|vendor not on the known list|" + Pattern.quote(RunRecord.READS_LIKE_AN_IDENTIFIER)
+                    + "), \\d+ characters\\)");
 
     /** Each kind of input a line can say it does not hold, in words a tester reads. */
     static final Map<String, String> INPUTS_IN_WORDS = Map.of(
@@ -347,7 +348,8 @@ public class RunReplay {
         }
         if (Texts.blank(original.memberId()) && Texts.present(original.memberToken())) {
             return "The member ID of this run was not recorded. The line holds a token in its place, and a token cannot be turned back "
-                    + "into the ID, so the same request cannot be sent again. Member IDs are kept only while tracking.record-member-id is true.";
+                    + "into the ID, so the same request cannot be sent again. Member IDs are kept only while tracking.record-member-id is true, "
+                    + "and on the mock profile only for this tool's own P32H- sentinels and S123456789-style placeholders.";
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code. The line "
