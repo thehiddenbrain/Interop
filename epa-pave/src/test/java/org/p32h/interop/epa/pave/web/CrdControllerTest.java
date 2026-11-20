@@ -324,7 +324,7 @@ class CrdControllerTest {
     @Test
     void aComparisonWorksOnLiveWithNothingConfiguredAndIsNeverACall() throws Exception {
         gateway.failing(new EndpointNotConfiguredException(EpaOperation.CRD_ORDER_SIGN, "There is no url for CRD order-sign."));
-        JsonNode answer = compare(mvc("live"), comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\"}"), 200);
+        JsonNode answer = compare(mvc("live"), comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Placeholder-Form-Surname\"}"), 200);
         assertThat(answer.get("comparable").asBoolean()).isTrue();
         // The form's value was used, and is reported as the form's.
         assertThat(answer.at("/caseSource/3/field").asString()).isEqualTo("member.lastName");
@@ -337,7 +337,7 @@ class CrdControllerTest {
     void aPairThatCannotBeComparedFieldByFieldIsAnAnswerWith200ThatSaysWhy() throws Exception {
         MockMvc mvc = mvc("mock");
         // Not JSON: where parsing stopped, and the text as it was written.
-        String notJson = "{\"hook\": \"order-sign\", \"note\": Sample-Member}";
+        String notJson = "{\"hook\": \"order-sign\", \"note\": Placeholder-Sample-Member}";
         JsonNode unreadable = compare(mvc, comparing(notJson, ""), 200);
         assertThat(unreadable.get("comparable").asBoolean()).isFalse();
         assertThat(unreadable.get("whyNot").asString()).isEqualTo("The two cannot be compared field by field, because your request could not be "
@@ -349,7 +349,7 @@ class CrdControllerTest {
         assertThat(unreadable.get("differences")).isEmpty();
         assertThat(unreadable.get("counts")).isEmpty();
         // Nothing of the text around the place parsing stopped is quoted in any sentence.
-        assertThat(unreadable.get("whyNot").asString() + unreadable.get("notes")).doesNotContain("Sample-Member");
+        assertThat(unreadable.get("whyNot").asString() + unreadable.get("notes")).doesNotContain("Placeholder-Sample-Member");
 
         // JSON that is not an object, and an object with nothing in it.
         assertThat(compare(mvc, comparing("[1, 2]", ""), 200).get("whyNot").asString()).isEqualTo("The two cannot be compared field by field, "
@@ -407,22 +407,22 @@ class CrdControllerTest {
     @org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
     void nothingFromEitherRequestIsLoggedByAComparisonOrByAnyWayItCanFail(org.springframework.boot.test.system.CapturedOutput output) throws Exception {
         MockMvc mvc = mvc("mock");
-        compare(mvc, comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\",\"dateOfBirth\":\"1970-01-31\"}"), 200);
-        compare(mvc, comparing("{\"name\": Sample-Member born 1968-04-12}", ""), 200);
-        compare(mvc, comparing("{\"hook\":\"order-sign\",\"note\":\"Sample-Member\"}", ""), 200);
+        compare(mvc, comparing(vendorSample(), ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Placeholder-Form-Surname\",\"dateOfBirth\":\"1970-01-31\"}"), 200);
+        compare(mvc, comparing("{\"name\": Placeholder-Sample-Member born 1968-04-12}", ""), 200);
+        compare(mvc, comparing("{\"hook\":\"order-sign\",\"note\":\"Placeholder-Sample-Member\"}", ""), 200);
         compare(mvc, comparing(vendorSample(), ",\"provider\":{\"npi\":\"1234567890\"}"), 422);
-        compare(mvc, comparing("", ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Form-Surname\"}"), 422);
-        compare(mvc, "{\"rawBody\": \"Sample-Member", 422);
+        compare(mvc, comparing("", ",\"member\":{\"memberId\":\"S123456789\",\"lastName\":\"Placeholder-Form-Surname\"}"), 422);
+        compare(mvc, "{\"rawBody\": \"Placeholder-Sample-Member", 422);
         // A failure inside this tool while it builds its own request: the code list is asked for a system and fails.
-        codeList.failing(new IllegalStateException("code list exploded for Sample-Member"));
+        codeList.failing(new IllegalStateException("code list exploded for Placeholder-Sample-Member"));
         JsonNode failure = compare(mvc, comparing(vendorSample().replace("\"system\": \"http://www.ama-assn.org/go/cpt\",", ""), ""), 500);
         assertThat(failure.get("kind").asString()).isEqualTo("INTERNAL");
         assertThat(failure.get("reference").asString()).isNotBlank();
-        assertThat(failure.toString()).doesNotContain("Sample-Member").doesNotContain("code list exploded").doesNotContain("S123456789");
+        assertThat(failure.toString()).doesNotContain("Placeholder-Sample-Member").doesNotContain("code list exploded").doesNotContain("S123456789");
 
         // The failure is logged under its reference, as exception types and frames, and nothing else is logged at all.
         assertThat(output.getAll()).contains(failure.get("reference").asString()).contains("IllegalStateException");
-        assertThat(output.getAll()).doesNotContain("Sample-Member").doesNotContain("Form-Surname").doesNotContain("S123456789")
+        assertThat(output.getAll()).doesNotContain("Placeholder-Sample-Member").doesNotContain("Placeholder-Form-Surname").doesNotContain("S123456789")
                 .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain("1000000087").doesNotContain("Robin")
                 .doesNotContain("pat-8842").doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street")
                 .doesNotContain("code list exploded");

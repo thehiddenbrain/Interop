@@ -92,7 +92,7 @@
       "name": [
         {
           "use": "official",
-          "family": "Sample-Member",
+          "family": "Placeholder-Sample-Member",
           "given": ["Robin", "Quinn"]
         }
       ],
@@ -136,7 +136,7 @@
       ],
       "name": [
         {
-          "family": "Sample-Provider",
+          "family": "Placeholder-Sample-Provider",
           "given": ["Alex"]
         }
       ]

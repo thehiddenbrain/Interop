@@ -211,23 +211,23 @@ class CrdServiceCompareTest {
     void nothingFromEitherRequestReachesTheLogWhateverTheComparisonEndsIn(CapturedOutput output) {
         CrdService service = service("mock");
         // Compared.
-        service.compare(CrdRunRequest.builder().rawBody(VENDOR).member(MemberDetail.builder().memberId("S123456789").lastName("Form-Surname")
+        service.compare(CrdRunRequest.builder().rawBody(VENDOR).member(MemberDetail.builder().memberId("S123456789").lastName("Placeholder-Form-Surname")
                 .dateOfBirth("1970-01-31").build()).build());
         // Not JSON, with member data where parsing stops.
-        service.compare(CrdRunRequest.builder().rawBody("{\"name\": Sample-Member born 1968-04-12}").build());
+        service.compare(CrdRunRequest.builder().rawBody("{\"name\": Placeholder-Sample-Member born 1968-04-12}").build());
         // Nothing to build from.
-        service.compare(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"note\":\"Sample-Member\"}").build());
+        service.compare(CrdRunRequest.builder().rawBody("{\"hook\":\"order-sign\",\"note\":\"Placeholder-Sample-Member\"}").build());
         // Refused.
         assertThatThrownBy(() -> service.compare(CrdRunRequest.builder().rawBody(VENDOR).provider(ProviderDetail.builder().npi("1234567890").build())
                 .build())).isInstanceOf(ValidationException.class);
         assertThatThrownBy(() -> service.compare(CrdRunRequest.builder().rawBody(" ").member(MemberDetail.builder().memberId("S123456789").build())
                 .build())).isInstanceOf(ValidationException.class);
         // A failure inside the tool while it builds its own request.
-        codeList.failing(new IllegalStateException("code list exploded for Sample-Member"));
+        codeList.failing(new IllegalStateException("code list exploded for Placeholder-Sample-Member"));
         assertThatThrownBy(() -> service.compare(CrdRunRequest.builder().rawBody(VENDOR.replace("\"system\": \"http://www.ama-assn.org/go/cpt\",", ""))
                 .build())).isInstanceOf(IllegalStateException.class);
 
-        assertThat(output.getAll()).doesNotContain("Sample-Member").doesNotContain("Form-Surname").doesNotContain("S123456789")
+        assertThat(output.getAll()).doesNotContain("Placeholder-Sample-Member").doesNotContain("Placeholder-Form-Surname").doesNotContain("S123456789")
                 .doesNotContain("1968-04-12").doesNotContain("1970-01-31").doesNotContain(NPI).doesNotContain("Robin").doesNotContain("pat-8842")
                 .doesNotContain("hookInstance").doesNotContain("resourceType").doesNotContain("Placeholder Street")
                 .doesNotContain("placeholder-token-for-a-test-fixture");
