@@ -30,10 +30,11 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-272 | The real STS 5.4.0 has run the project on Linux, twice, with one fix between the runs | On Linux with Spring Tools 5.4.0 the import with every default worked; the shared launch configuration started `PaveApplication` from the Boot Dashboard without asking; three tests that need the Gradle test task were skipped outside it with a sentence that says why. A profile typed in the launch dialog was written into that tracked file. **Not seen: Windows, `run.cmd`, a real tester's workstation, the screens in a browser after an STS start, live against a service, the whole suite from the IDE, any other STS release** |
 | D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; on Linux it read like a network fault and was not one (the operator's cause was not seen). STS alone, with no JDK 21, imports a project that cannot start (simulated; since D-274 this holds only for a checkout from before `6201644`). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
 | D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0, a fetch of new commits from GitHub in STS** |
-| D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** |
+| D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** (D-279: a defect that writes that very log entry was found and corrected; whether it was theirs is not confirmed) |
 | D-276 | The operator's verdict was answered with a first round of screen changes, without waiting for the three worst things they were asked for | A look, a doubt, a plan, an attack, two batches, a walk, an audit and three rounds of correction and check, all by agents. On mock one click gives a case that can be sent; a good run no longer looks wrong; the form opens with what a send needs; DTR questions come first; a result is ordered and folded; Config opens with "Ready to send?" and says that signing in is off; a failed call names its address and cause. **The operator has not seen it, no person has used it, nothing of it ran on Windows.** Left: long results, History, reload, the values the vendor's file lacks, a sign-in |
 | D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
 | D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
+| D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and every later reading of it threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion left is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5544,6 +5545,15 @@ the operator is reported, not seen by the writers of these documents.
 - The commits that record this change this file, `PROGRESS.md` and the README only; the launch file
   changed in `8463174`.
 
+Later: D-279. A stress of the upload found a defect that writes this very log entry at default
+settings: a collection holding one quoted text of about 1,300 characters or more in a request body or
+a saved example threw `StackOverflowError` in the scan for credentials, after the collection had been
+stored, so that every later reading of the store threw again. It is corrected, and a store left by
+the old version opens again. Whether it was the operator's failure is not confirmed; the line of their
+log entry after " <- caused by ", or the cause the screen now names (D-277), would settle it. The
+compiler of the IDE was tested as a cause and refuted, except that a project started with compile
+errors gives the same entry (D-279).
+
 **D-276. The first round of screen changes: why it was made without waiting, how it was made and
 checked, what a tester now sees, where the builders left the plan, and what is left.**
 After the first session on their workstation the operator judged the tool, in their words, "the
@@ -5834,6 +5844,8 @@ the screen: a deliberate, narrow change to D-036.**
   rewritten by the script, because no way was found to make one case fail in the real jar.
 - **Limits, said plainly.** A class removed by hand on Linux is the nearest thing to the operator's
   case that could be made; it is not their case. **The cause of their failure is still not known.**
+  (Later, D-279: a defect that writes that very log entry, a long text in a Postman file, was found
+  and corrected; whether it was the operator's failure is not confirmed.)
   Nothing of this ran on Windows. Not seen in a browser: an internal error answered by the outermost
   filter, and the History replay view of the cause (both held by tests). **Two places still give the
   reference of an internal error inside a sentence only, with no cause:** the stop of a whole suite
@@ -6060,4 +6072,256 @@ left.**
 - **Tests.** 2,951 before this step, 2,962 after `d4b2023`, 2,965 at `ef069d9`, the last whole clean
   build, through the shared runner, with 0 failures, 0 errors and 2 skipped. The jar of `d4b2023` and
   of `ef069d9` is the same byte for byte (the last two commits change tests only).
+- The commits that record this change this file, `PROGRESS.md` and the README only.
+
+**D-279. A long text in a Postman file no longer breaks the upload or the store: what was found,
+the theory it replaced, what was decided and built, what two attacks found, what the proofs showed,
+what is still not confirmed, and what is left.**
+The reports, outputs and screenshots are in the integrator's scratch directory under `cont22/`,
+`upl2/`, `upl2-doubt/`, `cont23/` and `rx/`.
+- **The failure it answers** (D-275). On the operator's Windows workstation, with the tool started
+  from STS, every upload of a Postman environment or collection answered "This tool hit an internal
+  error". The five lines of the log entry the operator pasted ended before the line that names the
+  cause; line 978 of `DispatcherServlet.doDispatch` in them is where Spring wraps a `java.lang.Error`
+  thrown in a handler. The operator was asked for the rest of the entry, the Problems view and their
+  files, and has not answered.
+- **A first theory, tested and refuted: the compiler of the IDE.** STS compiles with the Eclipse
+  compiler, not the JDK's. An agent compiled the 446 main sources of `e70af34` with each of the twelve
+  releases 3.36.0 to 3.46.100 of that compiler, against the class library of a JDK 21 and of the Java
+  25 that STS brings: 24 runs, no error in any file (releases 3.33 to 3.35 refuse source level 21; a
+  planted error was reported, so "no error" is a real result). A second agent ran the classes each
+  release wrote: all 696 verified and linked, both sample uploads answered 200 and the two handover
+  proofs held on each, on Java 21 and Java 25. **What stands of it:** a class with a compile error that
+  the IDE starts all the same throws `java.lang.Error` ("Unresolved compilation problem") and writes a
+  log entry of exactly the shape the operator pasted (seen in a copy compiled that way). So "STS started
+  the project although it had errors" remains possible on that workstation; a difference between
+  compiler releases does not produce it.
+- **What a stress of the upload found, at default settings** (the jar of `e70af34`, 118 files of real
+  size and odd shape, then a second agent that doubted it, reproduced it and shrank the input):
+  1. A collection whose raw request body, or the body of a saved example, starts with `{` or `[` and
+     holds one quoted text of about 1,300 characters or more made the upload throw
+     `StackOverflowError`. The smallest file is a body `["` followed by 1,302 letters and `"]`:
+     1,302 fails on the first upload after a fresh start, 1,301 passes. Other measured edges: 1,257 to
+     1,278 for a Binary resource's `data`, 1,287 in a saved example; about 3,450 once the Java has
+     warmed up (measured in a thread of its own, 3,456 on Java 25 and Java 21); about 1,600 with
+     `-XX:TieredStopAtLevel=1`, which the IDE's fast start adds (1,613, measured once on a partly warmed
+     tool); 1,173 with the interpreter only. Real exports hold such texts as a rule: an encoded
+     attachment, a saved response, a token. The sample files' longest text is 79 characters, which is
+     why no earlier attempt to reproduce the operator's failure met it.
+  2. The pattern at fault was `LiteralCredentials.JSON_MEMBER`, the scan that looks for a credential
+     typed into a body. It repeated a group holding an alternation, which `java.util.regex` evaluates
+     by calling itself once per character, about six frames each, until a 1 MB stack is used up.
+  3. **Why the store stayed broken.** `ConfigStore.uploadCollection` committed the collection before
+     that scan ran. So the upload answered "internal error" for a file that was stored, and every later
+     reading of it ran the same scan and threw again: the list of collections and "In force now"
+     (after a collection of 3,000 characters, each answered 500 on every call, after a restart too),
+     and the request detail for a text only in a saved example. The way out the stress found was a
+     `DELETE` of that collection through the API, because the Config tab could no longer list it (its list answered 500).
+  4. An environment value made of 1,579 or more labels joined by dots (1,578 pass) threw the same
+     Error in `ProductionSigns.BARE_HOST`; nothing was stored. No real export looks like that.
+  5. Beside them: `PostmanParser.VERSION` repeated a group once per number of a schema version; a
+     collection nested deeper than the parser reads was refused as "not valid JSON", which is not the
+     reason; and an environment of thousands of variables takes seconds to minutes inside the store's
+     lock.
+- **Decided by the integrator** (point by point): (1) no regular expression of the tool may recurse
+  with the length of its input: rewrite the three named, then find every other pattern on every path
+  (uploads, building requests, reading answers, masking, the ledger, History, lookups, the code
+  picker); (2) a guard test that stays, which finds every pattern of the main code and runs each on
+  long hostile texts on a 256 KB stack within a time bound, and fails on the old patterns; (3) each
+  rewritten pattern gives the same answer as before, held by a test against the old one; (4) an
+  upload stores nothing until every check that can fail has run; (5) a store written by the old
+  version opens again, and the Config tab lists and deletes what it holds; (6) recursion over what a
+  file or an answer nests is bounded, and the tool says the true reason when the bound is hit,
+  Jackson's limit of 500 levels, not raised; (7) left out on purpose, to be reported: the time an
+  environment of thousands of variables takes, a request with two file parts, a part without a file
+  name, an upload under a heap forced small.
+- **What was built, pattern by pattern** (`5c8d06e` to `4456ea5`, thirteen commits on their own branch
+  from `e70af34`). Twelve patterns repeated a group the way `java.util.regex` evaluates by recursion:
+  - `LiteralCredentials.JSON_MEMBER` is gone: a loop reads the JSON members of a body in one pass
+    (`jsonMembers`). The possessive form the second agent had proposed no longer recursed, but under
+    `find()` it took time in the square of the length: 70 s for 160,000 characters of escaped quotes,
+    inside the store's lock. `JsonMembersTest` compares the loop with the old pattern on the existing
+    cases and 200,000 seeded random texts.
+  - `CodeListText`'s bracketed ending is a loop too (`withoutBracketedEnding`), held by
+    `BracketedEndingTest` the same way.
+  - Ten are possessive, their groups kept: `ProductionSigns.BARE_HOST`, `PostmanParser.VERSION`, the
+    three `SENTINEL` patterns (`ScenarioRepository`, `TrackingPolicy`, `LookupFixtures`),
+    `RunInputs.SUBJECT`, and in `RunRecord` the subjects of `CODE_ENTRY`, `NO_ANSWER_ENTRY` and
+    `NAMED_ENTRY` and the path of `QUESTIONNAIRES`. `RewrittenPatternsTest` compares each with its old
+    text on the existing cases and 100,000 seeded random texts.
+  - After the attacks, seven inline strips that were quadratic on a long run followed by another
+    character (`/+$` in four places, `[.\s]+$` in `LookupOutcomes`, `^-+|-+$` and `-+$` in `Ids`) are
+    `Texts.withoutTrailing` and `withoutLeading`, compared with the old patterns on 100,000 seeded
+    texts (`TextsTest`).
+  - **Every other pattern** the search found, about 150 (some 90 static fields and about 70 written
+    inline), was left as it is: each has only bounded repetitions or a loop over one class of
+    characters, and each passes the guard. Among them `RunRecord.IDENTIFIER_OR_DATE`, which stays
+    slow on texts of millions of characters (below, and open). Nine patterns are run by the guard with
+    `matches()` only, because they are quadratic under `find()` over a million characters and are only
+    used whole; that they are only used whole was checked by reading, not by the test. The 38 regular
+    expressions of the browser scripts were read: none repeats a group; the guard does not cover them.
+- **The guard** (`style/RegexStackGuardTest`, about three minutes). It finds the static `Pattern`
+  fields of the tool's classes by reflection, and holds a list of every pattern written inline, with a
+  scan of the sources that fails when an inline pattern appears that the list does not name or a
+  listed one is gone. Each pattern is checked twice: its compiled form must hold no greedy repetition
+  of a group, and it is run, with `matches()` and `find()`, on a million of each character it names,
+  the same followed by one other character, long runs of quotes, backslashes, braces, dots, digits
+  and white space, and alternations of them, in a thread whose stack is 256 KB. No
+  `StackOverflowError`, and each operation within 5 s: the slowest healthy pattern took under 0.3 s on
+  a million characters, while catastrophic backtracking never ends and quadratic `find()` over a
+  million takes hours. Its own tests show it fails on the three old patterns and on the old strips,
+  and stops an exponentially backtracking pattern at the bound. With only the guard compiled on the
+  old code it failed, naming the twelve patterns. An agent that wrote none of it put back the old
+  patterns one at a time, ten in all: the guard failed every time; and an unlisted inline pattern it
+  added failed the list check. `RecursionGuardTest` is its companion for methods: it scans the
+  compiled main classes for every call cycle (direct calls, lambdas, method references, overrides)
+  and fails on one that is not listed with what bounds it: the depth of a JSON tree (at most 500
+  levels), a fixed cap, or the backslashes of a configured secret; 37 cycles are listed. It does not
+  see a recursion through a library type held in a field, as its Javadoc says. **At the merge** the
+  screen round had added an inline pattern (the one in `Faults` that makes the cause of a failure one
+  line) and removed one (the NPI check `ProviderLookupService` no longer holds); the guard failed on
+  the merged code, once for each, until its list was brought up to it in the merge commit
+  (`ba4661b`). The new entry is run against the long texts like every other. The guard tests then
+  passed (`RegexStackGuardTest`, `RewrittenPatternsTest`, `RecursionGuardTest`).
+- **The order of an upload.** Both uploads now run every check and build every warning, then write
+  the file, then commit (`da735e7`); the answer to the upload, which was built from the stored
+  snapshot after the commit, is built before it (`8000750`). Activation, the deletes and the mapping
+  correction were read: nothing that can fail follows their commit but a log line, so they are as
+  they were. `LongTextUploadTest` plants a failing check and a failing view and shows the store holds
+  nothing afterwards, file for file.
+- **Nesting.** A Postman file nested past the 500 levels the parser reads is refused with its own
+  sentence (`b613938`): "This file nests its objects and lists deeper than the 500 levels this tool
+  reads: the level past that limit opens at line L, column C. It was not read, and nothing was
+  stored.", and for a collection "In Postman, move the requests of the deepest folders into folders
+  nearer the top, export the collection again and upload that file." A collection of 240 folders is
+  read, one of 300 is refused; an agent counted the position the sentence gives and found it exact,
+  and a file exactly 500 deep uploads. A service answer nested past the limit gets "The body nests
+  its objects and lists deeper than the 500 levels this tool reads: the level past that limit opens
+  at line L, column C. It was not read." in place of "The body is not valid JSON." (`20740d6`).
+  The note on a body of the tester's own that cannot be read now begins "The body you supplied
+  cannot be read as JSON once its placeholders are filled in. It was sent exactly as written." and
+  gives one of those two reasons after it (one CRD test's expectation changed for that, `4456ea5`).
+- **What the two attacks found, and what was done about each.** Two agents that wrote none of the
+  fix attacked it on the jar of `583ccbe`.
+  - *A DTR questionnaire whose items enable each other in a chain of thousands* threw the same
+    `StackOverflowError`, with nothing to do with an upload: `EnableWhenEvaluator` called itself once
+    per item, and the items are a flat list, so the 500-level limit does not bound it. From 1,500
+    items on Java 25 and 3,000 on Java 21 at the default stack, 400 at 256 KB; on the package fetch
+    (live) and on `POST /api/dtr/response` (mock too); the call had reached the service and no ledger
+    line was written. The old jar fails the same way: the fix missed it, it did not cause it. It is
+    a legal questionnaire, if an unusual one. **Corrected** (`91dfb34`): the evaluator works from a
+    stack of its own, in the order the recursive one visited the items; `EnableWhenChainTest` runs
+    chains and rings of 5,000 items on a 256 KB thread and compares the new evaluator with the old,
+    kept in the tests, on 20,000 seeded questionnaires. Such a questionnaire now gives the usual result
+    ("The questionnaire package was loaded with one questionnaire.").
+  - *An answer nested past 500 levels was still called not valid JSON*: corrected, above.
+  - *The masking of returned secrets recursed once per JSON level* and threw on a 256 KB stack from
+    about 300 levels: it is a loop now (`a36fca1`). The other walks over an answer still take a frame
+    per level. `DeepAnswerStackTest` runs a 500-level answer of each protocol through its service on
+    a 512 KB thread, masked, recorded and serialized; at 256 KB it fails. On the final jar every such
+    answer passed at 512 KB and at the default stack, on Java 21 and Java 25; at 384 KB and 256 KB
+    with `-XX:TieredStopAtLevel=1` on Java 25, 6 of 9 failed (the check: 4 of 10 at 256 KB; the old
+    jar 7 of 9). **Decided by the integrator: the smallest thread stack the tool supports is 512 KB.**
+    A 64-bit Java gives 1 MB unless told otherwise, so a tester who sets nothing has nothing to do;
+    the README says so under its limitations.
+  - *The answer to an upload was built after the commit*: corrected, above.
+  - *A credential's name was quoted whole in its warning*: a key of 2,000,000 characters ending in
+    "password" gave one warning of 2,000,683 characters. A name longer than 60 characters is now quoted
+    by its start and its length, "... (a name of 2000008 characters) ..." (`d7f9aba`); that warning is
+    now under 800 characters (765 and 773 in two measurements, the file path differing). Field, header,
+    query and helper names only: see what is open.
+  - *The inline strips were quadratic*: loops, above.
+  - *`RunRecord.IDENTIFIER_OR_DATE` took over 5 s on 5,000,000 characters*: left. The corrector's
+    reason, "only used on ledger text capped at 4,000 characters", was found untrue by the check that
+    followed: it also runs on the parts of a questionnaire address a service supplies, which nothing
+    caps (a 5,000,000-character address took 5.0 s and answered 200). A delay, no Error. Open.
+  - *The answer the browser receives is about twelve times the body the service sent*: a PAS answer
+    with a 10 MB address gave a browser answer of 120,011,498 characters, a DTR one 80 MB, a plain 10
+    MB PAS text 100 MB; with no Error at the default heap. **Left by the integrator**, with an open line:
+    cutting or sharing long values would change what section 21 says the wire view shows, so it needs
+    a decision of its own.
+- **What the proofs showed, each with its limit.**
+  - *The old jar fails, the new one does not.* The jar of `e70af34` (identified by its checksum against
+    the reports) answered 500 with `StackOverflowError` on the 1,302-character collection, on the
+    3,000-character one and on the dotted environments, each on a fresh start, on Java 21 and Java 25;
+    after the 3,000-character collection its list and "In force now" answered 500. The new jar answered
+    200 on each, its reads 200. The attack repeated this with texts of 100,000 characters in a body
+    and in a saved example; the last check repeated it on the final jar with a 256 KB stack and
+    `-XX:TieredStopAtLevel=1`.
+  - *The corpus.* The 118 files on the new jar (126 uploads by the builder, 162 by the attack, 162 by
+    the last check): each answered 200, or 422 or 413 with its reason. No "internal error", no
+    `StackOverflowError`. The environments of 100,000 or 200,000 variables took many minutes or gave no
+    answer within the client's time (the time left out on purpose), and the builder's client giving up
+    on them left two "Unhandled exception" entries in the log (open, below).
+  - *Big texts.* 1, 5 and 20 MB in a request body, a saved example, a header, a url, a script, an
+    environment value and a dotted value, on Java 21 and Java 25, at the default stack, at 256 KB and
+    with `-XX:TieredStopAtLevel=1`: every upload and read answered 200. **Limit:** that series ran on
+    the jar of `583ccbe`, before the corrections; the last check ran texts of 2 MB again on the final
+    jar.
+  - *The scan still finds what it is for.* A literal credential beside a text of 2 MB is warned about
+    in the same words as the same credential beside a short text on the old jar; the production signs
+    of an environment are the same lists. Escapes, unclosed quotes and a backslash at the end of 2 MB
+    each answered within 0.8 s. An agent's own program compared the old patterns with the new code
+    over 14,369,576 texts (random, shaped, and every text of the samples, scenarios and fixtures): no
+    difference.
+  - *The old store opens.* A working folder poisoned by the old jar (the 3,000-character collection
+    twice and a renamed copy; the old jar answered 500 on each and again after a restart) opens in the
+    new jar: the list, "In force now" and each request detail answer 200, and in Chromium the Config
+    tab listed both copies and removed one (screenshots looked at, on Java 21 and Java 25, the last
+    check on a 256 KB stack with three collections and two removals). **Limit:** the same file uploaded
+    twice is held once, because its id comes from its name; copies need different names. The Config
+    tab on the old version after poisoning was never watched in a browser.
+  - *The answers of the service.* On live against a stand-in on 127.0.0.1: a CRD answer, a DTR package
+    and a PAS answer each carrying a text of 2 MB, and an error answer of 2 MB, on Java 21 and Java
+    25, at the default stack and at 256 KB: each run completed, the secret the stand-in echoed was
+    masked on the result page (CRD and PAS screenshots looked at) and absent from the ledger line and
+    the log. **Limit:** on the jar of `583ccbe`; the DTR chains and the deep answers were run on the
+    final jar.
+  - *The commit order*: by tests, and by an attacking agent's jar with a throw planted in the scan
+    and in the last check: `store.json` and the stored files byte for byte as before. That the view is
+    built before the commit has no proof on the jar beyond the upload's view equalling the listed one,
+    because nothing makes a view fail at run time.
+  - *Commits* were not built one by one; the whole build ran on `583ccbe` (2,896 tests) and on
+    `4456ea5` (2,913), each with 0 failures, 0 errors and 2 skipped.
+- **What is not confirmed: whether this is the operator's failure.** It is the only way anyone has
+  made the tool write that log entry at default settings, and a vendor's collection will as a rule
+  hold such a text. But after a collection of 1,500 characters was stored, the sample environment and
+  the sample collection still uploaded with 200 (and on the old jar, after the 1,302-character file, the
+  list and "In force now" answered 200). "Every upload fails" follows only for longer texts,
+  through the Config tab reloading the stored list after each upload, which was read from the tab's
+  script and not watched on the old version, or from the operator's own files. Only the line of their
+  log entry after " <- caused by ", or the cause the screen now names (D-277), settles it.
+- **What the operator has to do**, once this version is on the branch of their clone: pull (in STS:
+  Team, Pull, then Gradle, Refresh Gradle Project) and start the tool again. The Config tab opens
+  again on the store the earlier attempts left; it may list more than one copy of the collection, one
+  for each differently named file that was tried: delete the extras. Upload the files again. If an
+  internal error still appears, press `Copy reference and cause` under it and send what it copies.
+- **Seen on the way and left, each with why.**
+  - Resolving an environment takes time in the square of its variables, inside the store's lock: an
+    environment of 10,000 chained variables takes about 7.4 s on an empty store, the same on the old
+    jar, and minutes when many collections are stored; 100,000 chained took 766 s and 775 s, and
+    200,000 variables gave no answer in 1,800 s. Every other upload, activation and delete waits
+    meanwhile. Left on purpose: no real export looks like that.
+  - A request with two file parts is answered with the first and the second is ignored without a
+    word; a part named `file` sent without a file name is answered "The part file is required."; the
+    kind is accepted in any letter case (`SandBox`). Left, as decided.
+  - With a heap forced to 64 or 96 MB, files of 5 to 20 MB give an `OutOfMemoryError` while the server
+    reads the upload, before the tool's code; at the default heap every file up to the 25 MB limit
+    was accepted. Left, as decided.
+  - **Open, and being corrected or looked at in the next step (D-280):** after 89 uploads into one
+    store, a `GET /api/config/environments` answer that the corrector's script could not read, never
+    explained (on a fresh store it answered with the list); a client that gives up on a slow answer
+    leaves an "Unhandled exception" entry in the log although nothing in the tool failed; a credential
+    warning still quotes the name of a request or of a saved example whole, however long (a
+    1,000,000-character request name gave a warning of 1,000,696 characters); and
+    `RunRecord.IDENTIFIER_OR_DATE` takes seconds on a questionnaire address of megabytes.
+  - Open, with no step yet: the answer the browser receives, about twelve times the service's body;
+    the walks over an answer below a 512 KB stack.
+- **Nothing of this ran on Windows**, and the operator has not pulled it.
+- **Tests.** 2,872 at `e70af34`; 2,896 at `583ccbe` and 2,913 at `4456ea5`, the head of the fix; 2,965
+  at `963d5b0`, the head of the screen round. The two were merged at `ba4661b` (no file conflicted;
+  the guard's list above was the one thing to settle). Its whole build through the shared runner:
+  BUILD SUCCESSFUL, 3,006 tests, 0 failures, 0 errors, 2 skipped; the jar's sha1 is
+  `981a972d4ba3d7f0620e1a8e7973288e037093c5`. The integrator's final gates had not run on it when this
+  was written.
 - The commits that record this change this file, `PROGRESS.md` and the README only.

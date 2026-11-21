@@ -4,22 +4,31 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**The head** is `ef069d9` on the branch `ui-round1`, with the commit that adds these records. It holds
-`e70af34` (the records of D-275 and their check, on the code of `8463174`) and, since then, the first
-round of screen changes and the internal error that names its cause (D-276, D-277): `2590656` to
-`99a939c` built the letters A to K of the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and
-`87dee6f` corrected what the walk, the audit and the checks found, and `56c3e64`, `4fb199f`,
-`e0f3333`, `425e16a` and `6a6fe2f` made the cause of an internal error named on the screen and on the
-first line of the log entry. Since the records of those two (`d289335`, `343086f`), two more steps:
-`22a41bc` to `253928e` gave the stop of a suite and the notification receiver's verdict their cause
-(D-277, "Later:"), and `cbffaf1` to `ef069d9` closed every path found by which the message of an
-exception could reach the log while the tool runs, after a check found the suite's thread printing one
-(D-278; the first correction is `7cbc0f8`); a start that fails is still Spring's own report, with its
-messages, by decision, and two narrow paths are named in D-278's limits. **The last whole build** is that of `ef069d9`, through the shared wrapper (`clean
-build`): 2965 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872
-tests; on the way, 2896 after the first batch, 2908 after the second, 2909, 2916 and 2930 after the
-corrections and the error cause, 2937 at `6a6fe2f`, 2946 after `f3a93dd`, 2951 after `253928e` and
-2962 after `d4b2023`, each with 0 failures, 0 errors and 2 skipped. The integrator's gates on the head run after these records. The rest of this section
+**The head** is `ba4661b` on the branch `final`, with the commit that adds these records. It is the
+merge of two lines that both start at `e70af34` (the records of D-275 and their check, on the code of
+`8463174`). One is the screen round, whose head is `963d5b0`: the first round of screen changes and the
+internal error that names its cause (D-276, D-277): `2590656` to `99a939c` built the letters A to K of
+the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and `87dee6f` corrected what the walk, the
+audit and the checks found, and `56c3e64`, `4fb199f`, `e0f3333`, `425e16a` and `6a6fe2f` made the cause
+of an internal error named on the screen and on the first line of the log entry; then `22a41bc` to
+`253928e` gave the stop of a suite and the notification receiver's verdict their cause (D-277,
+"Later:"), and `cbffaf1` to `ef069d9` closed every path found by which the message of an exception
+could reach the log while the tool runs, after a check found the suite's thread printing one (D-278;
+the first correction is `7cbc0f8`); a start that fails is still Spring's own report, with its
+messages, by decision, and two narrow paths are named in D-278's limits. The other is **the upload
+fix** (D-279), `5c8d06e` to `4456ea5`, thirteen commits: a long text in a Postman file no longer
+breaks the upload or the store, no pattern of the main code recurses with the length of its input,
+an upload stores nothing until every check that can fail has run, a file or an answer nested past the
+500 levels the parser reads is refused or reported with that reason, a DTR questionnaire whose
+enableWhen conditions form a chain of thousands no longer throws, and two guard tests hold the
+patterns and the recursions of the main code. No file conflicted in the merge; the guard's list of
+inline patterns was brought up to the merged code in the merge commit (D-279). **The last whole
+build** is that of `ba4661b`, through the shared runner (`clean build`): 3006 tests, 0 failures, 0
+errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872 tests; the screen round ended at
+2965 (`ef069d9`; on the way 2896, 2908, 2909, 2916, 2930, 2937 at `6a6fe2f`, 2946, 2951 and 2962), the
+upload fix at 2913 (2896 at `583ccbe`), each with 0 failures, 0 errors and 2 skipped. **The
+integrator's gates** last passed on `e70af34`; they are due on the new head, after these records, and
+had not run when this was written. The rest of this section
 describes the line up to `e70af34`, from `902e0d9` on.
 
 This describes revision `902e0d9` on branch `epa-pave`, which is on the remote, before the commit that
@@ -79,11 +88,13 @@ entry, a narrow change to D-036, with what the tests and a damaged copy of the j
 "Later:" the stop of a suite and the notification verdict that now name it too. D-278 records that
 the Java runtime could print the message of an exception into the log around `Faults` since suites
 were built, and how every thread of the tool was closed against it, with what the tests and copies of
-the jar with a class removed showed and what is left.
+the jar with a class removed showed and what is left. D-279 records the upload that threw on a long
+text in a Postman file, the theory it replaced (the compiler of the IDE), the fix, what two attacks on
+it found and what was corrected, what the proofs showed, what is still not confirmed and what is left.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, the code changes of
-D-276, D-277 and D-278 (above), and before them three code changes:
+D-276, D-277, D-278 and D-279 (above), and before them three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
 `HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
 tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
@@ -99,8 +110,9 @@ Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b10
 `classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
 `-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
 whole build was run on it. At `e70af34` the code was that of `647b102` with that launch file; since then the code has changed
-with D-276, D-277 and D-278 (the head, above), whose last whole build is that of `ef069d9`; the
-integrator's gates run after this file, and their result is in the pull request description.
+with D-276, D-277, D-278 and D-279 (the head, above), whose last whole build is that of `ba4661b`;
+the integrator's gates, which last passed on `e70af34`, run after this file, and their result is in
+the pull request description.
 
 **What was seen on a Windows Java under Wine** (D-275). Nothing ran on Windows itself on the build
 machine. An agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows
@@ -121,22 +133,29 @@ its author only" means one agent made the change, saw its own test fail without 
 has looked.
 
 1. **On the one real workstation that has run the tool, uploading an environment or a collection
-   fails with an internal error** (D-275). The operator's Windows workstation, started from STS on the
+   failed with an internal error** (D-275). The operator's Windows workstation, started from STS on the
    code of `f82e32e`: the log line shows a `java.lang.Error` thrown while the upload ran, and the part
-   of the entry that names its cause was not in what they pasted. The cause is not known. It was not
-   reproduced on Linux, nor on a Windows Java under Wine (which is not Windows). The operator has
-   been asked for the rest of the log entry, the Problems view of the project and whether the sample
-   file fails too; no answer yet. Until it is found, nothing can be configured for the live profile
-   on that workstation: the vendor's environment and collection reach the tool only by these uploads.
-   **What the tool does about it since D-277:** the first line of the log entry and the screen name
-   the chain of exception types, with the text of a missing class, a compile problem or the like, and
-   `Copy reference and cause` copies both. Seen only in a copy of the jar damaged by hand on Linux.
-   It is on the branch `ui-round1` and reaches `epa-pave`, the branch of the operator's clone, only
-   when `ui-round1` is merged. For the operator to get it, once that merge is done: pull `epa-pave`,
-   start again, upload once more and send what the button copies.
-   **The cause is still not known.** A suite that stops and the notification receiver's verdict now
-   give the cause beside the reference as well (D-277, "Later:"), seen in damaged copies of the jar on
-   Linux only.
+   of the entry that names its cause was not in what they pasted. The operator has been asked for the
+   rest of the log entry, the Problems view of the project and their files; no answer yet.
+   **A defect that produces that very log entry was found and corrected** (D-279): a collection
+   holding one quoted text of about 1,300 characters or more in a request body or a saved example
+   (an encoded attachment, a saved response, a token) threw `StackOverflowError` in the scan for
+   credentials, after the collection had been stored, so that every later reading of the store threw
+   again, after a restart too. The sample files hold no text that long, which is why no earlier
+   attempt met it. **Whether it was the operator's failure is not confirmed.** It is the only way
+   anyone has made the tool write that entry at default settings, but after a shorter long text was
+   stored the sample files still uploaded, so "every upload fails" follows only for longer texts,
+   through the Config tab reloading the stored list after each upload (read from the tab's script,
+   not watched on the old version), or from the operator's own files.
+   The other theory, the compiler of the IDE, was tested and refuted, except that a project STS starts
+   with compile errors gives the same entry. **What would confirm it:** the line of the operator's log
+   entry after " <- caused by ", or the cause the screen now names (D-277). For the operator, once this version is on the
+   branch of their clone: pull, start again (the Config tab opens again on the store the old version
+   left, and may list one copy of the collection for each differently named file tried: delete the
+   extras), upload again, and if an internal error still appears press `Copy reference and cause` and
+   send what it copies. Nothing of this ran on Windows, and the operator has not pulled it. Until the
+   uploads work there, nothing can be configured for the live profile on that workstation: the
+   vendor's environment and collection reach the tool only by these uploads.
 2. **The operator's verdict after that first session**, the only judgement of the tool by the person
    it was built for: "the whole UI and app sucks", and not what the effort spent on it should have
    produced (D-275). No particulars yet; the integrator asked for the three worst things. **Built in
@@ -299,6 +318,36 @@ has looked.
      printed there. Left as Spring reports it, by decision (D-278).
    - The self-check, most of the code picker and the History list could not be tried with a class
      removed: the copy did not start.
+15. **What the upload fix left** (D-279).
+   - **Open, being corrected or looked at in the next step:** after 89 uploads into one store, an
+     answer of `GET /api/config/environments` that the corrector's script could not read, never
+     explained (on a fresh store it answered with the list); a client that gives up on a slow answer
+     leaves an "Unhandled exception" entry in the log although nothing in the tool failed; a
+     credential warning still quotes the name of a request or of a saved example whole, however long
+     (field, header and query names are now cut at 60 characters with their length); and
+     `RunRecord.IDENTIFIER_OR_DATE` takes seconds on a questionnaire address of megabytes, which no
+     cap limits (the corrector's reason for leaving it, "only on ledger text of at most 4,000
+     characters", was found untrue by the check that followed).
+   - **The smallest supported thread stack is 512 KB.** A 64-bit Java gives 1 MB unless told
+     otherwise. Below 512 KB an answer nested close to 500 levels still throws `StackOverflowError`:
+     only the masking of returned secrets is a loop, the other walks over an answer take a frame per
+     level. `DeepAnswerStackTest` holds every protocol's 500-level answer at 512 KB.
+   - The answer the browser receives is about twelve times the body the service sent (a 10 MB value
+     gave about 120 MB). No Error at the default heap; left, because cutting long values changes what
+     section 21 says the wire view shows, and needs a decision of its own.
+   - **Left on purpose:** resolving an environment takes time in the square of its variables, inside
+     the store's lock, so every other upload, activation and delete waits: 10,000 chained variables
+     about 7.4 s on an empty store (the old version the same), minutes with many collections stored;
+     100,000 chained 766 s and 775 s; 200,000 variables no answer in 1,800 s. No real export looks like
+     that. Also left: two file parts in one request (the first is taken, the second ignored without a
+     word); a part named `file` without a file name ("The part file is required."); the kind accepted
+     in any letter case; an `OutOfMemoryError` while the server reads files of 5 to 20 MB under a heap
+     forced to 64 or 96 MB (none at the default heap).
+   - Checked by tests only, not on the jar: that a view which fails while an upload is answered stores
+     nothing. Checked by reading, not by the guard: that nine patterns it runs with `matches()` only are
+     never used with `find()`. `RecursionGuardTest` does not see a recursion through a library type
+     held in a field. The 1, 5 and 20 MB texts and the live answers of 2 MB ran on the jar of
+     `583ccbe`, before the corrections; the commits of the fix were not built one by one.
 
 ### Gates, first
 
@@ -333,10 +382,13 @@ has looked.
   on the build machine runs with a machine-wide option that disables two base64 intrinsics; and on this
   machine a build from a fresh clone takes its compiled classes from the shared build cache unless the
   cache is switched off (V6's F-JAVAOPTS and F-CACHE-FRESH).
-- **The integrator's last gates run after these records**, on the commit that holds them: the plain
-  `./gradlew clean build` twice, the build from a fresh clone with the build cache off, the start and
-  `GET /api/mode`, and the changed paths. Their result is in the pull request description, part 2; a
-  file cannot hold the result of a build of the commit it is part of (D-267).
+- **The integrator's last gates** (the plain `./gradlew clean build` twice, the build from a fresh
+  clone with the build cache off, the start and `GET /api/mode`, the handover proofs and the changed
+  paths) **last passed on `e70af34`**. On the new head they are due, after these records, on the
+  commit that holds them, and had not run when this was written. Their result goes in the pull
+  request description, part 2; a file cannot hold the result of a build of the commit it is part of
+  (D-267). The whole build of `ba4661b` through the shared runner gave 3006 tests, 0 failures, 0
+  errors, 2 skipped (D-279).
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
   An agent ran the tool on a Windows Java under Wine (D-275), not through `run.cmd`.
 - **Nothing has been observed against the vendor's service.** Every live check any agent reported used
@@ -352,8 +404,8 @@ has looked.
   they were run by the integrator through the API, not on a screen**: on the jar built from that
   content, on mock, with a script (D-267). On the code of `05acbf7` they were run in the emulation of
   D-271, from classes the Eclipse compiler built, and held; on `e70a873` and `ace5914` they were run
-  through the API after starts from the real STS 5.4.0, and held (D-272); the integrator's gates run
-  them again on the head, from a fresh clone, and that result is in the pull request description. `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
+  through the API after starts from the real STS 5.4.0, and held (D-272); the integrator's gates ran
+  them last on `e70af34`, from a fresh clone; on the new head they are due after these records. `P32H-NO-AUTH` gave `NO_AUTH_REQUIRED`,
   "Prior authorization is not required.", next action `FLOW_ENDS`, and `P32H-EMPTY` gave
   `NO_DETERMINATION`, "The service answered but returned no determination.", next action
   `REPORT_NO_DETERMINATION`; their two ledger lines differ in outcome and hold no raw request or
@@ -1588,9 +1640,10 @@ stub, and a business tester's walkthrough on mock found every case it ran readab
 with gaps since fixed in part. Level 1 is not claimed by these records: the last fixes, in the guardrail
 and the ledger among them, are checked by nobody but their authors and no check follows them (D-268);
 what they left is open (the list at the top); on the one real workstation that has run it, an
-upload of the configuration fails with a cause not yet known (D-275), which the screen now names
-(D-277), though nobody has seen it named on that workstation; nobody opened a browser on `902e0d9`, and the
+upload of the configuration failed with a cause not yet known (D-275), which the screen now names
+(D-277), though nobody has seen it named on that workstation; a defect that writes that very log
+entry was found and corrected (D-279), and whether it was theirs is not confirmed; nobody opened a browser on `902e0d9`, and the
 screen changes since (D-276) were seen in a browser by agents only, never by the operator or another
 person; the integrator's
-last gates run after these records; and nothing has been observed against the vendor's service. The
+gates last passed on `e70af34` and are due on the new head after these records; and nothing has been observed against the vendor's service. The
 level delivered is stated in the pull request description, part 3, after those gates.

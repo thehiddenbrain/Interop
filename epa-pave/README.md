@@ -117,11 +117,14 @@ Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
   before the change, after Team, Pull and Gradle, Refresh Gradle Project, and a fresh import by the
   operator's own path, both on clones of a local copy, so no fetch from GitHub was seen. Other
   releases were not tried. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
-- **Windows: one workstation has run it, and an upload fails there.** Reported, not seen: the
+- **Windows: one workstation has run it, and an upload failed there.** Reported, not seen: the
   operator started the tool from STS on their Windows workstation, and uploading an environment or a
-  collection answered with an internal error whose cause is not known yet (D-275). Since D-277 the
-  screen and the first line of the log entry name the cause, and one button copies it; that was seen
-  only in a copy of the jar damaged by hand on Linux, not on that workstation. Seen by an agent:
+  collection answered with an internal error whose cause they could not see (D-275). Since then a
+  defect that writes that very log entry was found and corrected: a Postman collection holding one
+  long text (about 1,300 characters or more) in a request body or a saved example (D-279). Whether
+  it was the operator's failure is not confirmed. Since D-277 the screen and the first line of the
+  log entry name the cause, and one button copies it; that was seen only in a copy of the jar damaged
+  by hand on Linux, not on that workstation. Seen by an agent:
   the tool on a Windows Java under Wine, which is not Windows, started, took about 60 uploads and
   held both proofs without that error. `run.cmd` has not been run by anyone. See "When the running
   tool answers "This tool hit an internal error"" under
@@ -968,7 +971,12 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
 ```
 
 - Schema v2.1 only. A v1 collection, a truncated file and a file that is not JSON are refused with
-  422.
+  422. So is a file nested deeper than the 500 levels the tool reads: "This file nests its objects
+  and lists deeper than the 500 levels this tool reads: the level past that limit opens at line L,
+  column C. It was not read, and nothing was stored.", with "In Postman, move the requests of the
+  deepest folders into folders nearer the top, export the collection again and upload that file."
+  (an environment nested that deep gets the same sentence; about 250 folders inside each other reach
+  that limit).
 - The folder tree is walked: requests nested in folders are found.
 - Each request's method, url with placeholders intact, headers, raw body and saved example
   responses are read.
@@ -2327,8 +2335,8 @@ the first line of the log entry `Unhandled exception, reference` in the Console.
 tool stopped, and a notification it failed to read, show the same `Reference <id>`, cause and button
 under their own sentence. Seen in a copy of
 the jar with one class removed by hand, on Linux; the cause on the one Windows workstation that met
-this error is not known (D-275, D-277). What the cause means, from reading, not from a fix seen to
-work:
+this error is not confirmed (D-275, D-277, D-279). What the cause means, from reading, not from a fix
+seen to work:
 - **"Unresolved compilation problem"**: STS started the tool although the project has errors. Open
   the Problems view (Window, Show View, Problems), look for red errors in `epa-pave`, then Project,
   Clean..., clean `epa-pave`, wait until the status bar is empty, and start the tool again.
@@ -2336,7 +2344,15 @@ work:
   stale or incomplete. Project, Clean... as above, then right click `epa-pave`, Gradle, Refresh Gradle
   Project, and start again.
 - **A stack overflow or a memory error** (`StackOverflowError`, `OutOfMemoryError`): report it with
-  the size of the file you uploaded.
+  the size of the file you uploaded, and whether the tool was started with `-Xss` or `-Xmx`.
+
+**If an upload met this error before this version** (D-279). A collection holding one long text in
+a request body or a saved example made the upload fail with this error while the collection was
+stored all the same, and every later reading of the store failed too, after a restart as well. After
+you pull this version (Team, Pull, then Gradle, Refresh Gradle Project) and start the tool again, the
+Config tab opens again. It may list more than one copy of the collection, one for each differently
+named file you tried: delete the extras. Upload the files again. If an internal error still appears,
+press `Copy reference and cause` and send what it copies.
 
 **6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
 `live` typed in the Profile field of the Spring Boot tab, Apply, then Run, started the tool on live
@@ -2435,7 +2451,8 @@ two clones, one on `epa-pave` and one on another branch and 39 commits behind; t
 page offered only the top folder, already imported; and the top folder was then a Maven project with
 `epa-pave` a plain folder inside it. Later the operator had the tool running there, started from
 STS, and reported that uploading an environment or a collection fails with an internal error; the
-log entry they pasted ended before its cause (D-275). **Seen by an agent, and not Windows:** the tool
+log entry they pasted ended before its cause (D-275); a defect that writes that very entry was
+later found and corrected, and whether it was theirs is not confirmed (D-279). **Seen by an agent, and not Windows:** the tool
 on the Java 25 for Windows that Spring Tools 5.4.0 carries, run under Wine on Linux, from the jar
 and from classes STS compiled on Linux: about 60 uploads gave 200 or a 422 that said why, both
 proofs held, and no internal error appeared. **Not seen by
@@ -2483,13 +2500,14 @@ repeat every finding id; it leaves out nothing a tester has to know.
 
 - **Nothing has been run against Onyx or any real service.** Every live check used a stand-in on a
   loopback port. The lookups have never met the real member API or provider directory.
-- **The integrator's last gates run after this README is written**, on the commit that holds it:
-  the plain `./gradlew clean build` twice, a build from a fresh clone with the build cache off, the
-  start with `GET /api/mode`, and the changed paths. A file cannot hold the result of a build of
-  the commit it is part of, so their results are in the pull request description (part 2). The last
-  whole build this README can name is that of `ef069d9`, whose code is the code handed over, through
-  the shared wrapper: 2,965 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276 to
-  D-278); `6a6fe2f` gave 2,937.
+- **The integrator's last gates** (the plain `./gradlew clean build` twice, a build from a fresh
+  clone with the build cache off, the start with `GET /api/mode`, the two proofs, and the changed
+  paths) last passed on `e70af34`. On the code handed over they are due after this README is
+  written, on the commit that holds it. A file cannot hold the result of a build of the commit it is
+  part of, so their results are in the pull request description (part 2). The last whole build this
+  README can name is that of `ba4661b`, whose code is the code handed over, through the shared
+  wrapper: 3,006 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276 to D-279); the
+  screen changes alone gave 2,965 at `ef069d9`, and the upload fix alone 2,913 at `4456ea5`.
   Before the screen changes, `647b102`, `ace5914` and `05acbf7` gave 2,872 tests, and `902e0d9` 2,870,
   each with 0 failures, 0 errors and 2 skipped.
   Every build on the machine this README was checked on went through a wrapper that adds
@@ -2516,16 +2534,19 @@ repeat every finding id; it leaves out nothing a tester has to know.
   left. If a ledger test fails once and passes when run again, report it.
 - **No business tester has used the tool.** The walkthrough was made by an automated agent on mock,
   not by a person, and is not a sign-off.
-- **On the one Windows workstation that has run the tool, an upload fails.** Reported by the
-  operator, not seen: started from STS, uploading an environment or a collection answers "This tool
-  hit an internal error"; the cause is not known, and until it is found the live profile cannot be
-  configured there. A Windows Java under Wine ran the tool, the uploads and the proofs without that
-  error, but it is not Windows. Since D-277 the screen names the cause and `Copy reference and cause`
-  copies it with the reference. That change is on the branch `ui-round1` and reaches `epa-pave`, the
-  branch of the operator's clone, only when `ui-round1` is merged; once it is, pull `epa-pave`, start
-  again, upload once more and send what it copies. What
-  the kinds of cause mean is under step 5 of
-  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275, D-277).
+- **On the one Windows workstation that has run the tool, an upload failed.** Reported by the
+  operator, not seen: started from STS, uploading an environment or a collection answered "This tool
+  hit an internal error", and until the uploads work there the live profile cannot be configured
+  there. A defect that writes that very log entry was found and corrected (D-279): a collection with
+  one long text in a request body or a saved example. Whether it was the operator's failure is not
+  confirmed; nothing of it ran on Windows. Since D-277 the screen names the cause and `Copy reference
+  and cause` copies it with the reference. These changes are on the branch `final` and reach
+  `epa-pave`, the branch of the operator's clone, only when they are merged there; then pull
+  `epa-pave`, start again and do what "If an upload met this error before this version" under step 5
+  of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says (D-275, D-277, D-279).
+- **The smallest thread stack PAVE supports is 512 KB.** A 64-bit Java gives 1 MB unless told
+  otherwise, so if you set nothing there is nothing to do. Do not start it with `-Xss` below `512k`:
+  an answer of the service nested close to 500 levels deep fails with an internal error below that.
 - **`run.cmd` has not been run** by anyone. No Windows machine was available to the writers. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
@@ -2852,6 +2873,19 @@ repeat every finding id; it leaves out nothing a tester has to know.
   the ones these steps changed appeared in it only in "Limitations", which is rewritten. The suite
   stop, the running row and the notification were seen by agents in Chromium against copies of the
   jar with a class removed by hand, on mock; nobody walked the other screens again for these steps.
+- **Since then also the upload fix** (D-279; `5c8d06e` to `4456ea5`, on its own branch from
+  `e70af34`, merged with the screen changes at `ba4661b`): the patterns and recursions of the main
+  code, the order of an upload, the reason given for a file or an answer nested too deep, the DTR
+  enableWhen evaluation, the warning for a long credential name, and tests. The whole build of
+  `ba4661b` through the same wrapper: 3,006 tests, 0 failures, 0 errors, 2 skipped. For this README
+  the sentences that fix changed were taken from its reports and looked for in the sources of
+  `ba4661b` (the nesting sentences and the shortened name are there); the only one this README
+  quotes is the refusal under [Uploading a collection](#uploading-a-collection), added. Seen on the
+  jar of the fix by its builder, and in part again by four agents that wrote none of it: the old jar of `e70af34` failing
+  and the new one not, the corpus of 118 odd files, texts of 1 to 20 MB, a store poisoned by the old
+  jar opening in the new one (the Config tab in Chromium listing both copies and removing one), and
+  live answers of 2 MB from a stand-in on this machine. Nothing of it on Windows, and nobody walked
+  the screens again for it.
   Apart from these, the commits after `902e0d9` change this README, `PROGRESS.md` and
   `DECISIONS.md` only.
 - **Windows.** What this README says of Windows is the operator's report (one workstation, STS, an
@@ -2913,9 +2947,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran with
   `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run for
-  this revision. The last whole build this README names is that of `ef069d9`, the code at the head,
-  through that wrapper (`clean build`): 2,965 tests, 0 failures, 0 errors, 2 skipped, BUILD
-  SUCCESSFUL (D-276 to D-278). Before the screen changes, `647b102` with the JDK 21 present gave 2,872
+  this revision. The last whole build this README names is that of `ba4661b`, the code at the head,
+  through that wrapper (`clean build`): 3,006 tests, 0 failures, 0 errors, 2 skipped, BUILD
+  SUCCESSFUL (D-276 to D-279); `ef069d9` gave 2,965 and `4456ea5` 2,913. Before the screen changes, `647b102` with the JDK 21 present gave 2,872
   tests, 0 failures, 0 errors, 2 skipped (D-274); `6201644` gave the same counts with the JDK 21 hidden and Gradle
   on a Java 25 (simulated), and with it present; `ace5914` and `05acbf7` gave the same counts, and
   `902e0d9` 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
