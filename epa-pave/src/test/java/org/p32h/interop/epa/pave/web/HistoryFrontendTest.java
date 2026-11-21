@@ -36,6 +36,18 @@ class HistoryFrontendTest {
         assertThat(confirm).contains("replayIds(listed)").contains("oldest first")
                 .contains("'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.'")
                 .contains("tooMany ? null : button('Replay these runs'");
+        // Over the limit the box says only the limit: the count of what would be sent and the writes are drawn after the return.
+        int limit = confirm.indexOf("if (tooMany) {");
+        int back = confirm.indexOf("return;", limit);
+        assertThat(limit).isPositive();
+        assertThat(confirm.indexOf("'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.'")).isBetween(limit, back);
+        assertThat(confirm.indexOf("'run is sent again', 'runs are sent again'")).isGreaterThan(back);
+        assertThat(confirm.indexOf("'of them is a write', 'of them are writes'")).isGreaterThan(back);
+        // Nor does the line beside the button offer what cannot be sent.
+        String actions = CaseCodesFrontendTest.body(runs, "function drawActions(query, body) {");
+        int over = actions.indexOf(": originals > MOST_REPLAYED ? el('div', {class: 'history-actions__item'},");
+        assertThat(over).isPositive().isLessThan(actions.indexOf("replayOpener(listed)"));
+        assertThat(actions).contains("'More than 1,000 runs are listed; narrow the list to replay them. One replay sends at most 1,000.'");
         assertThat(CaseCodesFrontendTest.body(runs, "function drawActions(query, body) {"))
                 .contains("' Only the runs listed are sent, not the others that match.'")
                 .contains("' again, against the configuration in force now, and says which answers are the same and what changed.'");

@@ -314,6 +314,9 @@ export function createRunsList(app, context) {
             originals === 0 ? el('div', {class: 'history-actions__item'},
                 el('p', {class: 'small'}, 'Every run listed was made by a replay, so there is nothing here to replay. '
                     + 'Untick "Show runs made by a replay", or widen the filters.'))
+                // Over the limit nothing can be sent, so nothing offers to send: the line says what to do instead.
+                : originals > MOST_REPLAYED ? el('div', {class: 'history-actions__item'},
+                    el('p', {class: 'small'}, 'More than 1,000 runs are listed; narrow the list to replay them. One replay sends at most 1,000.'))
                 : el('div', {class: 'history-actions__item'},
                     replayOpener(listed),
                     el('p', {class: 'small'},
@@ -360,6 +363,16 @@ export function createRunsList(app, context) {
         const tooMany = ids.length > MOST_REPLAYED;
         const send = tooMany ? null : button('Replay these runs', () => runReplay(ids, send), {class: 'button--primary'});
         const cancel = button('Do not replay them', () => { confirming = null; clear(replayBox); opener.focus(); });
+        if (tooMany) {
+            // Nothing is sent over the limit, so the box says only that: no count of what would be sent, and no writes.
+            fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay the runs listed'}},
+                el('p', null, el('strong', null, 'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.')),
+                el('div', {class: 'button-row'}, cancel)));
+            if (!redraw) {
+                cancel.focus();
+            }
+            return;
+        }
         fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay the runs listed'}},
             el('p', null, plural(listed.length, 'run is listed. ', 'runs are listed. '),
                 made > 0 ? plural(made, 'of them was made by a replay and is not sent again. ', 'of them were made by a replay and are not sent again. ') : null,
@@ -367,7 +380,6 @@ export function createRunsList(app, context) {
                 ids.length === 1 ? '; if it cannot be sent again, it is reported with the reason and not sent.'
                     : ', one after another; a run that cannot be sent again is reported with the reason and not sent. '
                         + 'They are sent oldest first, as they were first made.'),
-            tooMany ? el('p', null, el('strong', null, 'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.')) : null,
             el('p', null, writes === 0 ? 'None of them is a write.'
                 : [el('strong', null, plural(writes, 'of them is a write', 'of them are writes')), ' (',
                     Array.from(writesByOperation.entries()).map(([label, number], index) => [index > 0 ? ', ' : null, count(number) + ' x ' + label]), '). ',
