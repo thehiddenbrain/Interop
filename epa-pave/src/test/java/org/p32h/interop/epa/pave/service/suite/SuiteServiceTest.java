@@ -224,6 +224,25 @@ class SuiteServiceTest {
         assertThat(file).doesNotContain("1970-01-31").doesNotContain(SuiteTestBed.SURNAME);
     }
 
+    /**
+     * Every line of a case keeps its case id. Where the member's name is known only once the case
+     * looked the member up (live, as this runner is wired), the run refuses a case id that holds it,
+     * writes no line, and the results and their file name the row by its position and not by the id.
+     */
+    @Test
+    void aCaseIdThatHoldsTheMembersNameIsNotValidAndIsKeptNeitherInTheLedgerNorInTheResults() {
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"),
+                row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
+        assertThat(run.headline()).isEqualTo("Finished: 2 cases. 1 passed, 1 not valid.");
+        SuiteCaseResult refused = run.results().get(1);
+        assertThat(refused.status()).isEqualTo(CaseStatus.INVALID);
+        assertThat(refused.reason()).isEqualTo("caseId: The case id holds the member's last name. The ledger keeps it as written and may "
+                + "not hold member data, so leave it out. Nothing was sent.");
+        assertThat(refused.caseId()).isEqualTo("case-2");
+        assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-1");
+        assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
+    }
+
     @Test
     void aWriteTheGuardrailRefusesIsCountedAsBlockedAndNeverAsFailed() {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);

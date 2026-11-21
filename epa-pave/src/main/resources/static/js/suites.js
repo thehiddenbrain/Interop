@@ -74,7 +74,7 @@ export function createSuites(app, context) {
             el('div', {class: 'field', dataset: {field: 'file'}},
                 el('label', {htmlFor: 'suite-file'}, 'Suite file, CSV or JSON'), file,
                 el('span', {class: 'small'}, templateLink),
-                el('span', {class: 'field__hint'}, 'The ledger keeps the expected, testerRef and note of each row as typed. Do not type member data into them.')),
+                el('span', {class: 'field__hint'}, 'The ledger keeps the caseId, expected, testerRef and note of each row as typed. Do not type member data into them.')),
             testerRef.node,
             compare.node),
         previewBox,

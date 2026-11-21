@@ -54,6 +54,7 @@ import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.UncaughtFailures;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.slf4j.Logger;
@@ -646,7 +647,11 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         // and not the expectation.
         String refusal = status == CaseStatus.INVALID ? SuiteCases.expectationRefusal(outcome.reason()) : null;
         String shownExpected = refusal != null ? refusal : entry.expected;
-        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
+        // On live the member's name is known only once the case looked the member up, so a case id
+        // refused for it is found here, and is not repeated in the results a tester downloads.
+        String shownCaseId = status == CaseStatus.INVALID && MemberInText.refusesCaseId(outcome.reason()) ? "case-" + entry.number
+                : entry.caseId;
+        return new SuiteCaseResult(entry.number, shownCaseId, entry.what, entry.chain, SuiteRowState.DONE, status,
                 rowLine(outcome, result, entry, sent, configurationMoved), shownExpected, code, outcomes.label(protocol, code), tone, result,
                 elapsed, slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),
                 last == null ? null : last.httpStatus(), List.copyOf(findings), last == null ? null : last.nextAction(),

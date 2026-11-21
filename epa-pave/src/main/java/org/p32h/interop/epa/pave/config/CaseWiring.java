@@ -69,6 +69,7 @@ public class CaseWiring {
         // member lookup reads a file on this machine, so a preview may make it; on live a preview sends nothing.
         return new ProtocolCaseRunner(members, providers)
                 .previewMembers(epa.mock() ? members : null)
+                .ownCaseIds(ScenarioRepository.bundledIds())
                 .scenarios((protocol, id) -> {
                     ScenarioRepository repository = scenarios.getIfAvailable();
                     return repository == null || repository.list(protocol.name().toLowerCase(java.util.Locale.ROOT)).stream()

@@ -160,6 +160,48 @@ class ProtocolCaseRunnerTest {
         }
     }
 
+    /**
+     * Every line of a case keeps its case id, so a case id that holds the looked-up member's name is
+     * refused before anything is sent, in the preview (mock) and in the run (both profiles) with the
+     * same words, and no line is written. A case id that is exactly one of the tool's bundled case
+     * ids is its own word and is never refused, though the mock surname is made from the same word.
+     */
+    @Test
+    void aCaseIdThatHoldsTheMembersNameIsRefusedBeforeSendingAndABundledCaseIdIsNot() {
+        MemberLookup inactive = id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id), MemberDetail.builder().memberId(id)
+                .firstName("Gray").lastName("Placeholder-Inactive").lineOfBusiness("Medicare").build(), List.of(), List.of(), List.of(),
+                null, null, "message");
+        java.util.Set<String> bundled = ScenarioRepository.bundledIds();
+        assertThat(bundled).contains("crd-08-coverage-inactive", "crd-13-timeout", "pas-02-pended");
+        ProtocolCaseRunner onMock = runner(inactive).previewMembers(inactive).ownCaseIds(bundled);
+        ProtocolCaseRunner onLive = runner(inactive).ownCaseIds(bundled);
+
+        CaseSpec named = crdCase("P32H-INACTIVE").caseId("row-Placeholder-Inactive").procedureCodes(List.of("T1030"))
+                .expected("COVERAGE_INACTIVE").build();
+        String words = "caseId: The case id holds the member's last name. The ledger keeps it as written and may not hold member data, "
+                + "so leave it out. Nothing was sent.";
+        assertThat(onMock.refusals(named)).containsExactly(words);
+        for (ProtocolCaseRunner runner : List.of(onMock, onLive)) {
+            CaseOutcome refused = runner.run(named);
+            assertThat(refused.status()).isEqualTo(CaseStatus.INVALID);
+            assertThat(refused.reason()).isEqualTo(words);
+            assertThat(refused.runs()).isEmpty();
+        }
+        assertThat(ledger.records()).isEmpty();
+        // The first name, and the member ID, are refused the same way.
+        assertThat(onLive.run(crdCase("P32H-INACTIVE").caseId("asked-gray").build()).reason()).contains("the member's first name");
+        assertThat(onLive.run(crdCase("P32H-INACTIVE").caseId("x-P32H-INACTIVE").build()).reason()).contains("this run's member ID");
+
+        CaseSpec own = crdCase("P32H-INACTIVE").caseId("crd-08-coverage-inactive").procedureCodes(List.of("T1030"))
+                .expected("COVERAGE_INACTIVE").build();
+        assertThat(onMock.refusals(own)).isEmpty();
+        CaseOutcome ran = onLive.run(own);
+        assertThat(ran.status()).isEqualTo(CaseStatus.COMPLETED);
+        assertThat(ran.finalRun().caseId()).isEqualTo("crd-08-coverage-inactive");
+        // Only the exact id is the tool's own: written another way it is the tester's own text, and is held to the check.
+        assertThat(onLive.run(crdCase("P32H-INACTIVE").caseId("CRD-08-COVERAGE-INACTIVE").build()).status()).isEqualTo(CaseStatus.INVALID);
+    }
+
     @Test
     void theHookOfTheCaseIsTheHookThatIsSent() {
         runner().run(crdCase("P32H-NO-AUTH").operation(EpaOperation.CRD_ORDER_SELECT).build());

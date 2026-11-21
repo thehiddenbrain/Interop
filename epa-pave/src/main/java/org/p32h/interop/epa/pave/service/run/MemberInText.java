@@ -30,7 +30,8 @@ import org.p32h.interop.epa.pave.model.raw.RawOutcome;
 
 /**
  * Whether the free text a run carries to the ledger holds member data the same request carries:
- * the note, the tester reference and the expectation, which the ledger keeps as typed.
+ * the note, the tester reference and the expectation, which the ledger keeps as typed, and a suite
+ * row's case id, which it keeps as written.
  *
  * <p>Only what the request itself holds can be looked for: its member ID in any spelling (with or
  * without spaces or punctuation, in any letter case, inside a longer word, and its run of digits
@@ -56,8 +57,11 @@ public final class MemberInText {
     /** An address line shorter than this is not looked for. */
     private static final int SHORTEST_ADDRESS_SOUGHT = 5;
 
+    /** The column of a suite row that holds its case id, which every ledger line of the case keeps as written. */
+    public static final String CASE_ID = "caseId";
+
     private static final Map<String, String> LABELS = Map.of("note", "The note", "testerRef", "The tester reference", "expected",
-            "The expectation");
+            "The expectation", CASE_ID, "The case id");
 
     /**
      * Every outcome code this tool defines. An expectation that is one of them names an outcome of
@@ -104,6 +108,32 @@ public final class MemberInText {
             }
         });
         return problems;
+    }
+
+    /**
+     * What is wrong with a suite row's case id that holds member data the case carries, by field,
+     * in the words of {@link #problems}. Empty when nothing is, or when there is no member.
+     *
+     * @param ownCaseIds the case ids this tool bundles. They are its own vocabulary, as its outcome
+     *                   codes are, so one that is exactly one of them is never refused: the mock
+     *                   surnames are made from the same words, and a bundled case would otherwise be
+     *                   refused as a name. Nothing else is exempt
+     */
+    public static Map<String, String> problemsInCaseId(String caseId, MemberDetail member, Set<String> ownCaseIds, String ending) {
+        Map<String, String> problems = new LinkedHashMap<>();
+        if (member == null || Texts.blank(caseId) || ownCaseIds != null && ownCaseIds.contains(caseId)) {
+            return problems;
+        }
+        List<String> kinds = kinds(caseId, member);
+        if (!kinds.isEmpty()) {
+            problems.put(CASE_ID, message(CASE_ID, kinds, ending));
+        }
+        return problems;
+    }
+
+    /** True when a problem or a reason holds the refusal of a case id for member data. */
+    public static boolean refusesCaseId(String text) {
+        return text != null && text.contains(LABELS.get(CASE_ID) + " holds ");
     }
 
     /**

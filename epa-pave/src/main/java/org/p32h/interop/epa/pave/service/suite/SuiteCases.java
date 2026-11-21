@@ -222,6 +222,8 @@ public final class SuiteCases {
                     text.containsKey("expected") ? null : expected, MemberDetail.builder().memberId(rowMember).build(),
                     "The row was not run.");
             member.values().forEach(problems::add);
+            MemberInText.problemsInCaseId(caseId, MemberDetail.builder().memberId(rowMember).build(),
+                    runner == null ? null : runner.ownCaseIds(), "The row was not run.").values().forEach(problems::add);
             if (member.containsKey("expected")) {
                 shownExpected = member.get("expected");
                 // The refusal says what is wrong with the expectation, and nothing else quotes it.
@@ -264,6 +266,11 @@ public final class SuiteCases {
             if (cannotRun == null) {
                 problems.addAll(runner.refusals(spec));
             }
+        }
+        if (problems.stream().anyMatch(MemberInText::refusesCaseId)) {
+            // A case id that holds member data is not repeated on screen or in the results, which a
+            // tester downloads: the row is named by its position, as for a case id that cannot be read.
+            caseId = "case-" + source.number();
         }
         // The service's own check, made once the member is looked up, can refuse the expectation for
         // a name or a date of birth, and says so in the words MemberInText gives it.

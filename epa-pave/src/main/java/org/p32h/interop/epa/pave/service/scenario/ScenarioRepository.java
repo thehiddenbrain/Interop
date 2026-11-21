@@ -614,6 +614,13 @@ public class ScenarioRepository {
             }
             return files;
         }
+        files.putAll(bundledFiles(protocolDirectory, problems));
+        return files;
+    }
+
+    /** The scenario files this tool bundles for a protocol directory, by file name. */
+    private static Map<String, String> bundledFiles(String protocolDirectory, List<String> problems) {
+        Map<String, String> files = new java.util.TreeMap<>();
         try {
             Resource[] resources = new PathMatchingResourcePatternResolver()
                     .getResources("classpath*:scenarios/" + protocolDirectory + "/*.json");
@@ -626,6 +633,25 @@ public class ScenarioRepository {
             problems.add("The bundled scenarios for " + protocolDirectory + " could not be read.");
         }
         return files;
+    }
+
+    /**
+     * The id of every scenario this tool bundles, on either profile and whatever directory
+     * {@code app.scenario-dir} names: a suite of the bundled cases names each case by its scenario,
+     * and those ids are this tool's own words. A bundled file that cannot be read gives no id.
+     */
+    public static java.util.Set<String> bundledIds() {
+        java.util.Set<String> ids = new java.util.TreeSet<>();
+        for (String protocol : PROTOCOLS) {
+            bundledFiles(protocol, new ArrayList<>()).forEach((name, text) -> {
+                try {
+                    ids.add(parse(name, text).id());
+                } catch (RuntimeException e) {
+                    // A damaged bundled file stops the start on mock and names itself there; here it only names no case.
+                }
+            });
+        }
+        return java.util.Set.copyOf(ids);
     }
 
     /** Reads one scenario file. Package-private so the parsing rules can be tested on text alone. */

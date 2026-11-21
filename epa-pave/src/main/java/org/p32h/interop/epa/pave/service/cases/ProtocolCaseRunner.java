@@ -49,6 +49,7 @@ public class ProtocolCaseRunner implements CaseRunner {
     private CaseStep chain;
     private java.util.function.BiPredicate<Protocol, String> knownScenario;
     private MemberLookup previewMembers;
+    private java.util.Set<String> ownCaseIds = java.util.Set.of();
 
     public ProtocolCaseRunner(MemberLookup members, ProviderLookup providers) {
         this.members = members;
@@ -81,6 +82,20 @@ public class ProtocolCaseRunner implements CaseRunner {
         return this;
     }
 
+    /**
+     * The case ids this tool bundles, which are never refused as member data (see
+     * {@link MemberInText#problemsInCaseId}).
+     */
+    public ProtocolCaseRunner ownCaseIds(java.util.Set<String> ids) {
+        this.ownCaseIds = ids == null ? java.util.Set.of() : java.util.Set.copyOf(ids);
+        return this;
+    }
+
+    /** The case ids this tool bundles. */
+    public java.util.Set<String> ownCaseIds() {
+        return ownCaseIds;
+    }
+
     /** Says how a chain case is run. */
     public ProtocolCaseRunner registerChain(CaseStep step) {
         this.chain = step;
@@ -105,7 +120,15 @@ public class ProtocolCaseRunner implements CaseRunner {
                         : CaseStatus.NOT_RUNNABLE, cannot, lookups, null, null);
             }
             CaseStep step = spec.chain() ? chain : steps.get(spec.operation());
-            CaseContext context = new CaseContext(spec, member(spec, lookups), provider(spec, lookups), codes(spec), RunOrigin.of(spec));
+            MemberDetail member = member(spec, lookups);
+            // Every line of the case keeps its case id, and no service sees it, so it is held here to
+            // the check the services make of the note, with the member the case was given. On live this
+            // is the first place the member's name is known.
+            Map<String, String> caseId = MemberInText.problemsInCaseId(spec.caseId(), member, ownCaseIds, "Nothing was sent.");
+            if (!caseId.isEmpty()) {
+                return ended(spec, CaseStatus.INVALID, fieldProblems(caseId).get(0), lookups, null, null);
+            }
+            CaseContext context = new CaseContext(spec, member, provider(spec, lookups), codes(spec), RunOrigin.of(spec));
             return completed(spec, step.run(context), lookups);
         } catch (RuntimeException e) {
             String what = spec.chain() ? "the chain" : spec.operation() == null ? null : spec.operation().label();
@@ -201,8 +224,8 @@ public class ProtocolCaseRunner implements CaseRunner {
 
     /**
      * The service's own check of the note, the tester reference and the expectation, with the member
-     * it will be given, in the service's own words, so the reason a preview gives is the reason the
-     * run gives. Made only where a lookup leaves nothing on the wire ({@link #previewMembers}).
+     * it will be given, in the service's own words, and this runner's check of the case id, so the
+     * reason a preview gives is the reason the run gives. Made only where a lookup leaves nothing on the wire ({@link #previewMembers}).
      *
      * @param expected the expectation the first call is sent with
      */
@@ -212,9 +235,17 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
         MemberLookupResult found = previewMembers.lookup(spec.memberId());
         if (found.status() == LookupStatus.FOUND && found.member() != null) {
-            MemberInText.problems(spec.note(), spec.testerRef(), expected, found.member(), "Nothing was sent.")
-                    .forEach((field, problem) -> problems.add(field + ": " + problem));
+            problems.addAll(fieldProblems(MemberInText.problemsInCaseId(spec.caseId(), found.member(), ownCaseIds, "Nothing was sent.")));
+            problems.addAll(fieldProblems(MemberInText.problems(spec.note(), spec.testerRef(), expected, found.member(),
+                    "Nothing was sent.")));
         }
+    }
+
+    /** Each problem after the name of its field, as a service's refusal names it. */
+    private static List<String> fieldProblems(Map<String, String> byField) {
+        List<String> out = new ArrayList<>();
+        byField.forEach((field, problem) -> out.add(field + ": " + problem));
+        return out;
     }
 
     /** The operations this runner has a step for. */

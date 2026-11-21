@@ -36,6 +36,20 @@ class SuiteCasesTest {
         return definition.rows().get(0);
     }
 
+    /**
+     * Every line of the case keeps the case id as written, so one that holds the row's own member ID
+     * is refused as the note is, on either profile, and the row is named by its position, so neither
+     * the preview nor the results repeat it.
+     */
+    @Test
+    void aCaseIdThatHoldsTheRowsOwnMemberIdIsNotValidAndIsNotRepeated() {
+        SuiteRow row = one("caseId,protocol,memberId,npi,codes", "S123456789-check,crd,S123456789,1234567893,95810");
+        assertThat(row.problems()).containsExactly("The case id holds this run's member ID. The ledger keeps it as written and may not "
+                + "hold member data, so leave it out. The row was not run.");
+        assertThat(row.caseId()).isEqualTo("case-1");
+        assertThat(row.spec()).isNull();
+    }
+
     @Test
     void aRowBecomesACaseWithEveryCellItGave() {
         SuiteDefinition definition = csv("caseId,protocol,hook,memberId,npi,codes,dateOfService,expected,scenarioId,testerRef,note\n"
