@@ -6,7 +6,7 @@
 // the field it is about with the server's own sentence beneath it. This page checks nothing
 // itself: a second set of rules in the browser would drift from the first.
 
-import {el, append, button} from './dom.js';
+import {el, append, fill, button} from './dom.js';
 
 let sequence = 0;
 
@@ -174,7 +174,9 @@ export function unmark(field) {
  * options.focus: false to leave the focus where it is. A refusal that arrives while the tester
  * is already typing in the next field must not pull them back out of it.
  * options.placed: an array; each problem marked at a field is pushed to it as {field, label,
- * message}, so the summary can name the field and take the tester to it.
+ * message}, so the summary can name the field and take the tester to it. A caller that passes it
+ * shows a summary, and the summary takes the focus (showFormProblem), so no field is scrolled to
+ * or focused here: a field brought into view pushed the summary above the visible part of the form.
  *
  * A field inside a closed fold has the fold opened first, so no refusal sits where nobody sees it.
  */
@@ -203,7 +205,7 @@ export function markFieldErrors(roots, fieldErrors, options) {
             first = first || control;
         }
     }
-    if (first && !(options && options.focus === false)) {
+    if (first && !placed && !(options && options.focus === false)) {
         // The field is brought into view whole, label and message included, before it takes the
         // focus. Focus alone would scroll only the input to the edge of the pane.
         const field = first.closest('[data-field]');
@@ -291,14 +293,28 @@ export function dropCorrected(slot, field) {
 }
 
 /**
+ * Puts a summary in its slot, scrolls the part of the page it sits in so the summary is at the top
+ * of what is visible, and puts the keyboard focus on it. It is where a tester and a screen reader
+ * land after a refusal; its links then take them to each field.
+ */
+export function showFormProblem(slot, node) {
+    fill(slot, node);
+    if (node.scrollIntoView) {
+        node.scrollIntoView({block: 'start'});
+    }
+    node.focus({preventScroll: true});
+}
+
+/**
  * The summary of a refused form: the server's title, what to do, each field marked by its label,
  * as a button that takes the tester to it, and any problem that names no field on screen. Shown
- * beside the button that was pressed.
+ * at the top of the form, by showFormProblem.
  *
  * placed, optional: what markFieldErrors pushed to options.placed.
  */
 export function formProblem(error, unplaced, placed) {
-    const node = el('div', {class: 'form-problem', role: 'alert'},
+    // Focusable from script only, so a refusal can put the keyboard here without adding a Tab stop.
+    const node = el('div', {class: 'form-problem', role: 'alert', tabIndex: -1},
         el('p', {class: 'form-problem__title'}, error.title),
         error.action ? el('p', null, error.action) : null);
     if (placed && placed.length > 0) {

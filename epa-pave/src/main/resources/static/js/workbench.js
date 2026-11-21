@@ -23,7 +23,7 @@
 // own fields, the preview included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem, unmark, fieldLabel, dropCorrected, UNMARKED} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, unmark, fieldLabel, dropCorrected, UNMARKED} from './forms.js';
 import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
@@ -440,7 +440,7 @@ export function createWorkbench(app, panel, spec) {
                 const placed = [];
                 const said = formProblem(nothing, markFieldErrors([ownRequest.field], [{field: 'rawBody', message: 'Paste the request body here.'}], {placed}), placed);
                 said.classList.add('form-problem--own');
-                fill(problem, said);
+                showFormProblem(problem, said);
                 status.textContent = nothing.title;
                 return null;
             }
@@ -451,7 +451,7 @@ export function createWorkbench(app, panel, spec) {
                 const left = {title: 'Nothing was sent: "' + typed + '" was typed in the procedure code box and not added to the case.',
                     action: 'Choose Add code to add it, or clear the box, then send again.', fieldErrors: []};
                 const placed = [];
-                fill(problem, formProblem(left, markFieldErrors([app.caseContext.node],
+                showFormProblem(problem, formProblem(left, markFieldErrors([app.caseContext.node],
                     [{field: 'procedureCodes', message: 'Typed and not added. Choose Add code, or clear the box.'}], {placed}), placed));
                 status.textContent = left.title;
                 return null;
@@ -486,7 +486,7 @@ export function createWorkbench(app, panel, spec) {
                 }
                 // A form problem is marked at the fields. The result of the earlier run stays where it is.
                 const placed = [];
-                fill(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors, {placed}), placed));
+                showFormProblem(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors, {placed}), placed));
                 return null;
             }
             fill(refusal, errorPanel(answer.body),

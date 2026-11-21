@@ -13,7 +13,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, aboutStep} from './dom.js';
-import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
+import {textField, selectField, formProblem, showFormProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
     scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {detailFor} from './pas-detail.js';
@@ -488,7 +488,7 @@ async function subscriptionCall(kind) {
             fieldErrors: [{field: 'subscriptionId', message: 'Enter the id of the subscription to ' + kind + '.'}]};
         bench.say(said.title);
         const placed = [];
-        fill(bench.problem, formProblem(said, markFieldErrors([panel], said.fieldErrors, {placed}), placed));
+        showFormProblem(bench.problem, formProblem(said, markFieldErrors([panel], said.fieldErrors, {placed}), placed));
         return;
     }
     const send = {

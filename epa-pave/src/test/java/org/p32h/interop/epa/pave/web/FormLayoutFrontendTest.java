@@ -98,6 +98,36 @@ class FormLayoutFrontendTest {
     }
 
     @Test
+    void afterARefusedSendTheSummaryIsScrolledToTheTopOfTheFormAndHasTheFocus() throws IOException {
+        String forms = read("forms.js");
+        // A marked field scrolled into view pushed the summary above the visible part of the form,
+        // so a caller that shows a summary leaves the field alone and the summary takes the focus.
+        assertThat(CaseCodesFrontendTest.body(forms, "export function markFieldErrors(roots, fieldErrors, options) {"))
+                .contains("if (first && !placed && !(options && options.focus === false)) {");
+        assertThat(CaseCodesFrontendTest.body(forms, "export function showFormProblem(slot, node) {"))
+                .contains("fill(slot, node);").contains("node.scrollIntoView({block: 'start'});").contains("node.focus({preventScroll: true});");
+        assertThat(CaseCodesFrontendTest.body(forms, "export function formProblem(error, unplaced, placed) {"))
+                .contains("{class: 'form-problem', role: 'alert', tabIndex: -1}");
+        // Every form that shows the summary: CRD, DTR and PAS through the workbench, the PAS
+        // subscription id, the CRD comparison, a request of the tester's own.
+        for (String file : List.of("workbench.js", "tab-pas.js", "crd-compare.js")) {
+            String text = read(file);
+            Matcher calls = Pattern.compile("(\\w+)\\(\\s*(?:bench\\.)?problem, formProblem\\(").matcher(text);
+            int count = 0;
+            while (calls.find()) {
+                count++;
+                assertThat(calls.group(1)).as(file + ": " + calls.group()).isEqualTo("showFormProblem");
+            }
+            assertThat(count).as(file).isGreaterThan(0);
+            Matcher marks = Pattern.compile("formProblem\\(([^;]*?)\\);", Pattern.DOTALL).matcher(text);
+            while (marks.find()) {
+                assertThat(marks.group(1)).as(file + ": " + marks.group()).contains("{placed}").matches("(?s).*, placed\\)*");
+            }
+        }
+        assertThat(read("workbench.js")).contains("showFormProblem(problem, said);");
+    }
+
+    @Test
     void noScreenSentenceSendsTheTesterToTheLeftOrTheRight() throws IOException {
         Pattern quoted = Pattern.compile("'([^'\\n]*)'");
         for (String file : List.of("tab-crd.js", "tab-dtr.js", "tab-pas.js", "pas-notifications.js", "tab-history.js")) {

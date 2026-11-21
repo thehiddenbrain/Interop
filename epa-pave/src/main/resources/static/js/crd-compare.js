@@ -12,7 +12,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, heading, table} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem} from './forms.js';
 import {errorPanel} from './result.js';
 import {lineMap, ancestors} from './crd-json-lines.js';
 
@@ -152,8 +152,9 @@ export function createComparison(spec) {
             if (ownRequest.text().trim() === '') {
                 // There is nothing to compare, and nothing is asked of the server.
                 const nothing = {title: 'There is nothing in the box to compare.', action: 'Paste a request into the box first.'};
-                fill(bench.problem, formProblem(nothing, markFieldErrors([ownRequest.field],
-                    [{field: 'rawBody', message: 'Paste the request body here.'}])));
+                const placed = [];
+                showFormProblem(bench.problem, formProblem(nothing, markFieldErrors([ownRequest.field],
+                    [{field: 'rawBody', message: 'Paste the request body here.'}], {placed}), placed));
                 bench.say(nothing.title);
                 refused(nothing.title);
                 return;
@@ -187,7 +188,7 @@ export function createComparison(spec) {
         bench.say(answer.body.title);
         if (answer.kind === 'form') {
             const placed = [];
-            fill(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors, {placed}), placed));
+            showFormProblem(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors, {placed}), placed));
             refused(answer.body.title);
             keepFocus(used);
             return;
