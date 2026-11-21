@@ -20,10 +20,18 @@ import org.springframework.web.servlet.HandlerMapping;
  * gone, and the framework's {@link AsyncRequestNotUsableException}, which it throws when the
  * response can no longer be used because such a write failed. No message is read and no other
  * type is taken for it: a defect filed as a client that left would never be looked at.
+ *
+ * <p>While this tool stops, the server itself closes a connection whose answer is not written
+ * when its time for the stop is up, and raises the same type. Who closed it is then not known, so
+ * the line says only that the connection closed while this tool was stopping. {@link StopMark}
+ * marks the stop.
  */
 final class ClientGone {
 
     private static final Logger log = LoggerFactory.getLogger(ClientGone.class);
+
+    /** Set on the application's servlet context when this tool begins to stop. */
+    static final String STOPPING = ClientGone.class.getName() + ".STOPPING";
 
     /** Set on a request once its line is written, so a second failure of the same answer adds none. */
     private static final String LOGGED = ClientGone.class.getName() + ".LOGGED";
@@ -55,10 +63,24 @@ final class ClientGone {
             }
             // The method, the route the request matched and the exception types. Never the address as
             // sent, which can hold a member ID, never a query string, a body or a message.
-            log.info("The client closed the connection before the answer was written: {} {}, {}", method(request), route(request),
-                    Faults.cause(error));
+            if (stopping(request)) {
+                log.info("The connection closed while this tool was stopping, before the answer was written: {} {}, {}", method(request),
+                        route(request), Faults.cause(error));
+            } else {
+                log.info("The client closed the connection before the answer was written: {} {}, {}", method(request), route(request),
+                        Faults.cause(error));
+            }
         } catch (RuntimeException e) {
             // Nothing to tell and nobody to tell it to: the line is not worth a failure of its own.
+        }
+    }
+
+    /** True once {@link StopMark} has marked the stop. A request the server answers on its own may have no application to ask. */
+    private static boolean stopping(HttpServletRequest request) {
+        try {
+            return request != null && request.getServletContext() != null && request.getServletContext().getAttribute(STOPPING) != null;
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
