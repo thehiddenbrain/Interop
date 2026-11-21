@@ -941,4 +941,45 @@ class SuiteServiceTest {
                 + "TC-2,crd,P32H-NO-AUTH," + NPI + ",95810,", " SUITE-REF ", null, null);
         assertThat(bed.ledger.records()).extracting(RunRecord::testerRef).containsExactly("ROW-REF", "SUITE-REF");
     }
+
+    /** An executor whose stop throws what it is given, the way a class missing at shutdown would surface. */
+    private static java.util.concurrent.ExecutorService failingExecutor(Throwable failure) {
+        return (java.util.concurrent.ExecutorService) java.lang.reflect.Proxy.newProxyInstance(
+                java.util.concurrent.ExecutorService.class.getClassLoader(), new Class<?>[] {java.util.concurrent.ExecutorService.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("toString")) {
+                        return "failing executor";
+                    }
+                    throw failure;
+                });
+    }
+
+    /**
+     * Stopped by Spring, as the tool stops, with a suite still running: what a destroy method
+     * throws, Spring logs with its message ("Invocation of close method failed ...").
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aFailureWhileTheSuitesStopIsOneEntryUnderAReferenceAndNeverItsMessage(CapturedOutput output) throws Exception {
+        java.lang.reflect.Field owned = SuiteService.class.getDeclaredField("owned");
+        owned.setAccessible(true);
+        Throwable[] failures = {new ExceptionInInitializerError(new IllegalStateException("no plan for S123456789")),
+            new RuntimeException("no plan for S123456789")};
+        for (Throwable failure : failures) {
+            bed.hold = true;
+            SuiteService service = bed.service();
+            service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null);
+            owned.set(service, failingExecutor(failure));
+            try (org.springframework.context.support.GenericApplicationContext context =
+                    new org.springframework.context.support.GenericApplicationContext()) {
+                context.registerBean("suiteService", SuiteService.class, () -> service);
+                context.refresh();
+            }
+            assertThat(output.getAll()).contains(": " + org.p32h.interop.epa.pave.service.error.Faults.cause(failure) + System.lineSeparator());
+        }
+        String all = output.getAll();
+        assertThat(all.split("Stopping the suites failed inside this tool, reference [0-9a-f-]{36}: ", -1)).hasSize(3);
+        assertThat(all).doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
+                .doesNotContain("Invocation of ").doesNotContain("Exception in thread");
+    }
 }
