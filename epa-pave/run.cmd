@@ -90,8 +90,8 @@ if exist "%JAR%" goto start
 echo %JAR% is not there yet. Building it once with the Gradle wrapper (tests are skipped here;
 echo run gradlew.bat clean build to run them).
 if "%MAJORNUM%"=="21" goto build
-echo Note: the build compiles with a JDK 21 toolchain. %JAVA% is Java %JVERSION%, so Gradle must 1>&2
-echo find a JDK 21 installed elsewhere, or the build stops and says it cannot find one. 1>&2
+echo Note: the build compiles with a JDK 21 toolchain when Gradle finds one. %JAVA% is Java %JVERSION%; 1>&2
+echo if no JDK 21 is installed, the build compiles for Java 21 with this Java and says so. 1>&2
 :build
 call gradlew.bat --console=plain bootJar
 if errorlevel 1 exit /b 1
