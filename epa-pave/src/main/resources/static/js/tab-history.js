@@ -157,6 +157,10 @@ function chainsView() {
     const utcNote = el('p', {class: 'small history-utc-note'});
     const problem = el('div');
     const list = el('div', {class: 'chain-list'});
+    // With "Run as part of a chain" on by default, every one-off run is a chain of one in the ledger,
+    // so the list leaves those out unless asked: a journey is two steps or more.
+    const showOne = el('input', {type: 'checkbox', id: 'chains-show-one'});
+    let listed = null;      // the chains of the last answer, drawn again when the box changes
     const detail = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The chain on screen'}});
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': 'Which chains to list'}},
         el('div', {class: 'case-pane__scroll'},
@@ -166,11 +170,17 @@ function chainsView() {
                 el('div', {class: 'field-grid'}, from.node, to.node),
                 aboutStep(utcNote),
                 problem,
+                el('label', {class: 'choice', htmlFor: 'chains-show-one'}, showOne, 'Show chains of one step'),
                 el('div', {class: 'button-row'}, el('button', {type: 'submit', class: 'button button--quiet'}, 'List chains'))),
             list));
     form.addEventListener('submit', event => {
         event.preventDefault();
         load();
+    });
+    showOne.addEventListener('change', () => {
+        if (listed) {
+            drawList(listed);
+        }
     });
 
     async function load() {
@@ -193,12 +203,27 @@ function chainsView() {
             fill(list, errorPanel(answer.body));
             return;
         }
-        const chains = answer.body.chains || [];
+        listed = answer.body.chains || [];
+        drawList(listed);
+    }
+
+    /** A chain is a journey once two of its stages hold a run. */
+    function ofTwoOrMore(chain) {
+        return (chain.stages || []).filter(stage => stage.latest).length >= 2;
+    }
+
+    function drawList(all) {
+        const chains = showOne.checked ? all : all.filter(ofTwoOrMore);
+        const hidden = all.length - chains.length;
+        const hiddenLine = hidden === 0 ? null : el('p', {class: 'quiet small'},
+            hidden === 1 ? '1 chain of one step is not listed.' : hidden + ' chains of one step are not listed.');
         if (chains.length === 0) {
             const troubled = context.health.troubled();
             fill(list, el('p', {class: 'quiet'},
-                'No chain has a run in this range. A chain starts when a run is sent with "Run as part of a chain" ticked on the CRD tab.',
-                troubled ? ' The ledger reports a problem, above: runs it did not record, and lines it could not read, are in no chain.' : null));
+                'No chain of two or more steps has a run in this range. A chain starts with the first run of a case while '
+                    + '"Run as part of a chain" is ticked, which it is when the page opens.',
+                troubled ? ' The ledger reports a problem, above: runs it did not record, and lines it could not read, are in no chain.' : null),
+                hiddenLine);
             context.announce('No chain in this range.');
             return;
         }
@@ -209,12 +234,12 @@ function chainsView() {
             return el('li', {class: 'chain-row', dataset: {chain: chain.chainId}},
                 button([chain.member ? code(chain.member) : code(chain.chainId), ' ', el('span', {class: 'chain-row__headline'}, chain.headline)],
                     () => { open(chain.chainId); app.addressChanged(); }, {class: 'button--text chain-row__open'}),
-                el('div', {class: 'small quiet'}, chain.member ? 'Member, as recorded. ' : 'Chain id; no member recorded. ',
+                el('div', {class: 'small quiet'},
                     when(chain.lastRunAt), ', ', String(chain.runCount), chain.runCount === 1 ? ' run' : ' runs',
                     chain.procedureCodes && chain.procedureCodes.length > 0
                         ? [', codes ', chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
                 latest ? el('div', {class: 'small'}, outcome(latest.outcomeLabel || latest.outcome || '', latest.tone, latest.answeredBy)) : null);
-        })));
+        })), hiddenLine);
         context.announce(chains.length === 1 ? 'One chain listed.' : chains.length + ' chains listed.');
         markOpen();
     }

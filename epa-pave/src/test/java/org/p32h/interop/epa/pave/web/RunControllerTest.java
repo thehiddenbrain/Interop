@@ -99,6 +99,24 @@ class RunControllerTest {
     // ---- GET /api/runs ----
 
     @Test
+    void theRunsMadeByAReplayAreLeftOutOnlyWhenAskedAndABadValueIsNamed() throws Exception {
+        ledger.record(draft("run-4", clock).replayOfRunId("run-3").build());
+
+        mvc.perform(get("/api/runs")).andExpect(status().isOk()).andExpect(jsonPath("$.count").value(4))
+                .andExpect(jsonPath("$.runs[0].runId").value("run-4"));
+        mvc.perform(get("/api/runs").param("replays", "include")).andExpect(status().isOk()).andExpect(jsonPath("$.count").value(4));
+        mvc.perform(get("/api/runs").param("replays", "leave-out")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(3))
+                .andExpect(jsonPath("$.runs[0].runId").value("run-3"));
+        // A list cut short counts what it left out after the same filter.
+        mvc.perform(get("/api/runs").param("replays", "leave-out").param("limit", "1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.truncated").value(true)).andExpect(jsonPath("$.matched").value(3));
+        mvc.perform(get("/api/runs").param("replays", "maybe")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("replays"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value(containsString("one of include or leave-out")));
+    }
+
+    @Test
     void theQueryReturnsTheRunsNewestFirstAndTheCount() throws Exception {
         mvc.perform(get("/api/runs")).andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))

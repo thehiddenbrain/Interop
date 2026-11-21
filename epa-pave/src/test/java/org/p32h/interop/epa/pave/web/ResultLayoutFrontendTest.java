@@ -55,7 +55,7 @@ class ResultLayoutFrontendTest {
 
     @Test
     void theRunLineCarriesTheTimeAndAFailedRecordStaysAnAlertOfItsOwn() throws IOException {
-        String facts = CaseCodesFrontendTest.body(read("result.js"), "function runFacts(envelope, settings) {");
+        String facts = CaseCodesFrontendTest.body(read("result.js"), "function runFacts(envelope, settings, root) {");
         assertThat(facts).contains("responseTime(envelope.timing)").contains("recorded ? null : ['Ledger', ledgerLine(")
                 .doesNotContain("typedWithRun(");
         assertThat(CaseCodesFrontendTest.body(read("result.js"), "function ledgerLine(ledger, runId) {"))
@@ -121,16 +121,33 @@ class ResultLayoutFrontendTest {
     }
 
     @Test
-    void findingsAreAllCountedAndAllDrawnWhetherOrNotTheyAreExpectedOnMock() throws IOException {
+    void findingsAreAllDrawnAndTheHeadingCountsWhatItIsNamedFor() throws IOException {
         String findings = CaseCodesFrontendTest.body(read("result.js"), "function findingsSection(envelope) {");
-        assertThat(findings).contains("heading(3, 'Findings', findings.length)").doesNotContain("shown.length)")
-                .contains("shown.map(finding)").contains("onMock.map(finding)");
+        // The heading is named for what it counts once some findings are set apart, and the fold carries
+        // the count of the rest, so the total is two numbers both on screen and "Findings (1) ... None" cannot appear.
+        assertThat(findings).contains("heading(3, onMock.length > 0 ? 'Findings to look at' : 'Findings', shown.length)")
+                .doesNotContain("findings.length)")
+                .contains("shown.map(finding)").contains("onMock.map(finding)")
+                .contains("'Expected on the mock profile (' + onMock.length + ')'");
         int none = findings.indexOf("'None were raised on this run.'");
-        int apart = findings.indexOf("'None apart from the ones expected on the mock profile, below.'");
+        int apart = findings.indexOf("'None. The ones below are expected on the mock profile.'");
+        assertThat(apart).isGreaterThan(none);
         assertThat(findings.substring(findings.lastIndexOf("if", none), none)).contains("onMock.length === 0");
         assertThat(findings.substring(findings.lastIndexOf("else", apart), apart)).doesNotContain("if");
+        assertThat(findings).doesNotContain("None apart from the ones expected").doesNotContain("with no environment active");
         String result = read("result.js");
         assertThat(result).doesNotContain("Both sides here are").doesNotContain("Upload and activate an environment");
+    }
+
+    @Test
+    void theRunRowOpensTheWireViewInOneClick() throws IOException {
+        String result = read("result.js");
+        String facts = CaseCodesFrontendTest.body(result, "function runFacts(envelope, settings, root) {");
+        assertThat(facts).contains("'Show what was sent and received'").contains("openWire(root)").contains("envelope.wire ?");
+        String open = CaseCodesFrontendTest.body(result, "function openWire(root) {");
+        assertThat(open).contains("details.result__details").contains("details.open = true")
+                .contains("details.wire").contains("wire.open = true").contains("scrollIntoView(").contains(".focus(");
+        assertThat(render()).contains("runFacts(envelope, settings, root)");
     }
 
     @Test
@@ -167,26 +184,52 @@ class ResultLayoutFrontendTest {
     }
 
     @Test
-    void theMockGroupingHoldsExactlyForAnIncompleteRequestOnMockWithNoEnvironmentWhenNodeRunsIt() throws IOException, InterruptedException {
+    void theMockGroupingHoldsForTheTwoKindsOnMockWhateverTheEnvironmentWhenNodeRunsIt() throws IOException, InterruptedException {
         Path node = CaseCodesFrontendTest.node();
         Assumptions.assumeTrue(node != null, "Node is not installed here, so the predicate cannot be run; the text checks still apply.");
-        String function = CaseCodesFrontendTest.body(read("result.js"), "export function expectedOnMock(envelope, item) {")
+        String result = read("result.js");
+        String constant = result.substring(result.indexOf("const EXPECTED_ON_MOCK = "), result.indexOf(";", result.indexOf("const EXPECTED_ON_MOCK = ")) + 1);
+        String kind = CaseCodesFrontendTest.body(result, "export function expectedOnMockKind(profile, kind) {")
+                .replaceFirst("^export ", "") + "\n}";
+        String function = CaseCodesFrontendTest.body(result, "export function expectedOnMock(envelope, item) {")
                 .replaceFirst("^export ", "") + "\n}";
         String cases = String.join(",\n",
                 "[{profile: 'mock'}, {kind: 'REQUEST_INCOMPLETE'}]",
                 "[{profile: 'mock', environment: {active: false}}, {kind: 'REQUEST_INCOMPLETE'}]",
-                "[{profile: 'live'}, {kind: 'REQUEST_INCOMPLETE'}]",
-                "[{profile: 'live'}, {kind: 'CODE_LIST_DISAGREES_ON_VENDOR'}]",
                 "[{profile: 'mock', environment: {active: true}}, {kind: 'REQUEST_INCOMPLETE'}]",
+                "[{profile: 'mock', environment: {active: true}}, {kind: 'PRE_REQUEST_SCRIPT_NOT_RUN'}]",
+                "[{profile: 'live'}, {kind: 'REQUEST_INCOMPLETE'}]",
+                "[{profile: 'live'}, {kind: 'PRE_REQUEST_SCRIPT_NOT_RUN'}]",
+                "[{profile: 'live'}, {kind: 'CODE_LIST_DISAGREES_ON_VENDOR'}]",
                 "[{profile: 'mock'}, {kind: 'CODE_LIST_DISAGREES_ON_VENDOR'}]",
                 "[{profile: 'mock'}, {kind: 'CODE_LIST_DISAGREES_ON_AUTH'}]",
-                "[null, {kind: 'REQUEST_INCOMPLETE'}]");
-        String script = function + "\nconsole.log(JSON.stringify([" + cases + "].map(pair => expectedOnMock(pair[0], pair[1]))));";
+                "[null, {kind: 'REQUEST_INCOMPLETE'}]",
+                "[{profile: 'mock'}, null]");
+        String script = constant + "\n" + kind + "\n" + function
+                + "\nconsole.log(JSON.stringify([" + cases + "].map(pair => expectedOnMock(pair[0], pair[1]))));";
         Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
         assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
         String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
         assertThat(process.exitValue()).as(out).isZero();
-        assertThat(out).isEqualTo("[true,true,false,false,false,false,false,false]");
+        assertThat(out).isEqualTo("[true,true,true,true,false,false,false,false,false,false,false]");
+    }
+
+    @Test
+    void aPastRunAndASuiteSetTheSameTwoKindsApartAndStillListEveryKind() throws IOException {
+        String run = read("history-run.js");
+        assertThat(run).contains("import {errorPanel, expectedOnMockKind} from './result.js';").contains("['Findings', findingsFact(run)]");
+        String fact = CaseCodesFrontendTest.body(run, "function findingsFact(run) {");
+        assertThat(fact).contains("expectedOnMockKind(run.profile, kind)").contains("' Expected on the mock profile: '")
+                .contains("none(expected.length > 0 ? 'none to look at' : 'none raised')");
+        String chain = read("chain.js");
+        String line = CaseCodesFrontendTest.body(chain, "function findingsLine(run) {");
+        assertThat(line).contains("run.answeredBy === 'SCENARIO' ? 'mock' : 'live'").contains("' Findings: '")
+                .contains("' Expected on mock: '").contains("' No findings.'");
+        String suites = read("suites.js");
+        String filters = CaseCodesFrontendTest.body(suites, "function countFilters(profile) {");
+        assertThat(filters).contains("mock ? 'With findings to look at' : 'With findings'")
+                .contains("(row.findings || []).some(kind => !expectedOnMockKind(profile, kind))");
+        assertThat(suites).contains("countFilters(app.isMock() ? 'mock' : 'live')").doesNotContain("COUNT_FILTERS");
     }
 
     @Test

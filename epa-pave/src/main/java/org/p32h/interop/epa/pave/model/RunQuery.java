@@ -18,10 +18,12 @@ import java.time.ZoneId;
  * @param testerRef        the tester reference a run carries, after its latest note. Compared exactly
  * @param zone             the clock {@code from} and {@code to} are days on. Null for the day each
  *                         run's own timestamp names, which is the day of the tool's clock it was made on
+ * @param includeReplays   false to leave out the runs a replay made (those naming the run they replayed).
+ *                         Null or true includes them, so every caller that does not ask is unchanged
  */
 public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOperation operation, TestResult result, String outcome,
                        String chainId, String suiteRunId, String correlationKey, String correlationValue, Integer limit,
-                       String testerRef, ZoneId zone) {
+                       String testerRef, ZoneId zone, Boolean includeReplays) {
 
     public static RunQuery all() {
         return builder().build();
@@ -39,7 +41,7 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOpera
     /** The same question with no limit, to count every run that answers it. */
     public RunQuery withoutLimit() {
         return new RunQuery(from, to, protocol, operation, result, outcome, chainId, suiteRunId, correlationKey, correlationValue, null,
-                testerRef, zone);
+                testerRef, zone, includeReplays);
     }
 
     public static RunQuery forChain(String chainId) {
@@ -62,7 +64,7 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOpera
     /** Redacted, because a correlation value can be an authorization number. */
     @Override
     public String toString() {
-        return "RunQuery[from=" + from + ", to=" + to + ", protocol=" + protocol + ", result=" + result + "]";
+        return "RunQuery[from=" + from + ", to=" + to + ", protocol=" + protocol + ", result=" + result + ", includeReplays=" + includeReplays + "]";
     }
 
     public static final class Builder {
@@ -79,6 +81,7 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOpera
         private Integer limit;
         private String testerRef;
         private ZoneId zone;
+        private Boolean includeReplays;
 
         private Builder() {
         }
@@ -145,9 +148,15 @@ public record RunQuery(LocalDate from, LocalDate to, Protocol protocol, EpaOpera
             return this;
         }
 
+        /** False leaves out the runs a replay made, so a list of the runs as first made is not swamped by its replays. */
+        public Builder includeReplays(Boolean value) {
+            this.includeReplays = value;
+            return this;
+        }
+
         public RunQuery build() {
             return new RunQuery(from, to, protocol, operation, result, outcome, chainId, suiteRunId, correlationKey, correlationValue, limit,
-                    testerRef, zone);
+                    testerRef, zone, includeReplays);
         }
     }
 }

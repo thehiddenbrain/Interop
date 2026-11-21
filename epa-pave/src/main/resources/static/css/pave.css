@@ -706,6 +706,17 @@ legend, .case-legend {
     font-style: italic;
 }
 
+/*
+ * A note of this tool's own, such as an expectation nobody declared or a time nobody measured: grey
+ * words with no frame. It is set apart from the presence marks on purpose: those say what a response
+ * left out, and this says what the tool did not record or was not given.
+ */
+.note--none {
+    color: var(--ink-soft);
+    font-style: italic;
+    font-size: var(--text-small);
+}
+
 /* Null: filled, and set as the literal it is. */
 .presence--null {
     background: var(--wash);
@@ -2003,12 +2014,6 @@ details.fold > :not(summary) {
     color: var(--ink-strong);
 }
 
-.chain-bar__side {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
 /* The stage the journey calls for now is the one drawn heavy. */
 .chain-stage--NEXT, .chain-stage--NEEDS_ATTENTION, .chain-stage--IN_PROGRESS {
     border-left: 4px solid var(--ink-strong);
@@ -2022,13 +2027,82 @@ details.fold > :not(summary) {
     color: var(--ink-soft);
 }
 
-.chain-bar__next-label {
-    color: var(--ink-soft);
+/*
+ * The bar as one line: the stages, whose case it is, and the two buttons. It sits above every
+ * protocol tab, so each pixel it takes is taken from the result; the next step is the result's own
+ * row and is not repeated here. A stage's line is cut with its full text kept as its title.
+ */
+.chain-bar--line {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--gap-4);
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
-.chain-bar__next-headline {
+.chain-bar--line .chain-stages {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: var(--gap-3);
+}
+
+.chain-bar--line .chain-stage {
+    flex: 1 1 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--gap-2);
+    white-space: nowrap;
+}
+
+.chain-bar--line .chain-stage__name {
+    display: inline;
+}
+
+.chain-bar--line .chain-stage__state {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/*
+ * A member recorded as a token is a long code. It stays on the line and is cut, with the whole of it
+ * kept as the title, past a third of the bar, so the stages keep room to say where each stands.
+ */
+.chain-bar__case {
+    flex: 0 1 auto;
+    max-width: 32%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chain-bar__case, .chain-bar__case code, .chain-bar__paused {
+    white-space: nowrap;
+}
+
+.chain-bar__paused {
+    flex: 0 0 auto;
+}
+
+.chain-bar__paused {
     font-weight: 600;
-    color: var(--ink-strong);
+}
+
+.chain-bar--line .chain-bar__actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 1100px) {
+    .chain-bar--line {
+        flex-wrap: wrap;
+        row-gap: 2px;
+    }
+
+    .chain-bar--line .chain-stages {
+        flex-basis: 100%;
+    }
 }
 
 /* The first line of a run carries no rule beneath it: the second line belongs to the same run. */
@@ -2652,15 +2726,11 @@ details.fold > :not(summary) {
         row-gap: 2px;
     }
 
-    .chain-stage__state, .chain-bar__side > p {
+    .chain-stage__state {
         display: block;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
-    }
-
-    .chain-bar__side {
-        gap: 2px;
     }
 
     .case-pane__actions {

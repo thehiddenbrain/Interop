@@ -44,6 +44,28 @@
     color: var(--ink-strong);
 }
 
+/* Opening a run by its id is one short field and its button on a line, above the filters of the list. */
+.history-open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--gap-2) var(--gap-3);
+    margin-bottom: var(--gap-4);
+}
+
+.history-open .field {
+    flex: 0 1 28rem;
+    min-width: 0;
+}
+
+.history-open .form-problem-slot {
+    flex-basis: 100%;
+}
+
+.history-open .form-problem-slot:empty {
+    display: none;
+}
+
 .history-filters {
     display: flex;
     flex-direction: column;
@@ -120,17 +142,23 @@
     min-width: 1180px;
 }
 
-.history-table th:nth-child(1) { width: 13%; }
-.history-table th:nth-child(2) { width: 10%; }
-.history-table th:nth-child(3) { width: 9%; }
-.history-table th:nth-child(4) { width: 17%; }
+/* The first column holds a whole date and time on one line, so it takes its room from Where and Outcome, which wrap. */
+.history-table th:nth-child(1) { width: 18%; }
+.history-table th:nth-child(2) { width: 9%; }
+.history-table th:nth-child(3) { width: 8%; }
+.history-table th:nth-child(4) { width: 14%; }
 .history-table th:nth-child(5) { width: 11%; }
 .history-table th:nth-child(7) { width: 7%; }
 .history-table th:nth-child(8) { width: 11%; }
 .history-table th:nth-child(9) { width: 6%; }
 
+/* A time read across a row is read on one line. */
+.history-table td.history-when-cell {
+    white-space: nowrap;
+}
+
 /* A number stays on one line; "not measured" in its place may wrap inside its own column. */
-.history-table td.num .presence {
+.history-table td.num .presence, .history-table td.num .note--none {
     white-space: normal;
     overflow-wrap: normal;
     word-break: normal;

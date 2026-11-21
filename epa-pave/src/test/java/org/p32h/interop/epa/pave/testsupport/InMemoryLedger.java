@@ -179,6 +179,10 @@ public final class InMemoryLedger implements RunLedger {
         if (query.suiteRunId() != null && !query.suiteRunId().equals(record.suiteRunId())) {
             return false;
         }
+        // As the real ledger: a list that asks to leave replays out does not get them back from the fake.
+        if (Boolean.FALSE.equals(query.includeReplays()) && Texts.present(record.replayOfRunId())) {
+            return false;
+        }
         if (query.correlationKey() != null) {
             String stored = record.correlation().get(query.correlationKey());
             return stored != null && matches(stored, query.correlationValue());

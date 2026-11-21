@@ -63,6 +63,16 @@ class InMemoryLedgerTest {
     // ---- the outcome filter ----
 
     @Test
+    void aListThatLeavesReplaysOutDoesNotGetThemBackFromTheFake() {
+        ledger.record(run("run-1", "APPROVED").build());
+        ledger.record(run("run-2", "APPROVED").replayOfRunId("run-1").build());
+
+        assertThat(ledger.query(RunQuery.builder().includeReplays(false).build())).extracting(RunRecord::runId).containsExactly("run-1");
+        assertThat(ledger.query(RunQuery.builder().includeReplays(true).build())).extracting(RunRecord::runId).containsExactly("run-2", "run-1");
+        assertThat(ledger.query(RunQuery.all())).hasSize(2);
+    }
+
+    @Test
     void theOutcomeFilterIgnoresCaseAndTheSpaceAroundIt() {
         ledger.record(run("run-1", "APPROVED").build());
         ledger.record(run("run-2", "DENIED").build());
