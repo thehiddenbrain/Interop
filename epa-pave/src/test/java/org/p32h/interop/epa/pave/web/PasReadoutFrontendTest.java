@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -54,12 +56,44 @@ class PasReadoutFrontendTest {
     }
 
     @Test
-    void afterAPlayedFaultTheWayToTheInquiryIsPartOfTheRehearsalAndIsLeftOffAPlayedUnreachable() throws IOException {
+    void afterAPlayedFaultTheWayToTheInquiryIsPartOfTheRehearsal() throws IOException {
         String show = CaseCodesFrontendTest.body(read("tab-pas.js"), "function showRun(envelope) {");
         assertThat(show).contains("const played = envelope.answeredBy === 'SCENARIO';")
-                .contains("&& !(played && unreached)) {")
+                .contains("if (row && offersInquiryWay(envelope, step, hasClaim)) {")
                 .contains("'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '")
                 .contains("'Send inquiry, in the form, is already filled with the claim identifier of this submission. '");
+    }
+
+    /**
+     * A submission that did not reach the service offers no inquiry, on live as on mock: nothing was
+     * submitted. Run with Node, so narrowing the condition to played faults again turns this red.
+     */
+    @Test
+    void aSubmissionThatDidNotReachTheServiceOffersNoInquiryPlayedOrLiveWhenNodeRunsIt() throws IOException, InterruptedException {
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here, so the condition cannot be run; the text checks still apply.");
+        String function = CaseCodesFrontendTest.body(read("tab-pas.js"), "export function offersInquiryWay(envelope, step, hasClaim) {")
+                .replaceFirst("^export ", "") + "\n}";
+        String check = "{action: 'CHECK_ENVIRONMENT'}";
+        String cases = String.join(",\n",
+                // Unreached, live and played: no inquiry.
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
+                "[{operation: 'PAS_SUBMIT', profile: 'live', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SCENARIO', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
+                // A failure or a timeout, live and played: the submission may have arrived, so the inquiry is offered.
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'SERVICE_ERROR'}}, " + check + ", true]",
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SCENARIO', verdict: {outcomeCode: 'TIMEOUT'}}, " + check + ", true]",
+                // No claim identifier, another step, an inquiry: none.
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'SERVICE_ERROR'}}, " + check + ", false]",
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'PENDED'}}, {action: 'CHECK_STATUS'}, true]",
+                "[{operation: 'PAS_INQUIRE', answeredBy: 'SERVICE', verdict: {outcomeCode: 'TIMEOUT'}}, " + check + ", true]",
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE'}, " + check + ", true]");
+        String script = function + "\nconsole.log(JSON.stringify([" + cases + "].map(c => offersInquiryWay(c[0], c[1], c[2]))));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[false,false,false,true,true,false,false,false,true]");
     }
 
     @Test

@@ -820,11 +820,9 @@ function showRun(envelope) {
     const row = readoutResult().querySelector('.nextstep__row');
     // After a fault the server's step is to check the environment, and whether to ask for the status first it says in words.
     // No inquiry is sent from here on the browser's own account; the Send inquiry call is filled from this submission, and the way to it is offered.
-    // On mock the fault was played: the way to the inquiry is said as part of the rehearsal, as the step above it is, and it is
-    // left off a played UNREACHABLE, after which the screen has said that nothing reached the payer.
+    // On mock the fault was played: the way to the inquiry is said as part of the rehearsal, as the step above it is.
     const played = envelope.answeredBy === 'SCENARIO';
-    const unreached = envelope.verdict && envelope.verdict.outcomeCode === 'UNREACHABLE';
-    if (step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && hasClaim && row && !(played && unreached)) {
+    if (row && offersInquiryWay(envelope, step, hasClaim)) {
         row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
             played ? 'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '
                 + 'claim identifier of this submission, to rehearse it. '
@@ -836,6 +834,16 @@ function showRun(envelope) {
     }
     drawFollowing();
     markOther();
+}
+
+/**
+ * Whether the result of a submission offers the way to Send inquiry for it: after a fault, where the
+ * server's step is to check the environment. Never after a submission that did not reach the service,
+ * played or live: nothing was submitted, the screen has said so, and there is nothing to ask about.
+ */
+export function offersInquiryWay(envelope, step, hasClaim) {
+    const unreached = !!envelope.verdict && envelope.verdict.outcomeCode === 'UNREACHABLE';
+    return step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && !!hasClaim && !unreached;
 }
 
 /** The part of the readout that holds the result. */
