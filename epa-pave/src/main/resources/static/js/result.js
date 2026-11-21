@@ -619,18 +619,23 @@ export function additionalFieldsSection(givenFields, title, wire, options) {
     const plain = fields.filter(field => field.kind !== 'NOTE' && field.kind !== 'RAW_BODY');
     const node = section(heading(3, label, fields.length),
         el('p', {class: 'quiet'}, 'The response carried these and this tool has no designed view for them. They are shown so that nothing is dropped.'));
-    let into = node;
-    if (options && options.folded) {
-        into = fieldsFold(fields.length);
-        node.append(into);
-    }
+    // The notes and the line that says a body could not be read are caveats on how to read the
+    // whole result, so they stay open under the heading; only the field table and the raw text fold.
     if (notes.length > 0) {
-        into.append(el('ul', {class: 'note-list'}, notes.map(note => el('li', null, el('strong', null, 'About the body: '), note.value))));
+        node.append(el('ul', {class: 'note-list'}, notes.map(note => el('li', null, el('strong', null, 'About the body: '), note.value))));
+    }
+    const folded = Boolean(options && options.folded) && plain.length + bodies.length > 0;
+    for (const body of bodies) {
+        node.append(el('p', {class: 'raw-body__said'}, el('strong', null, 'The body as received.'), ' It could not be read as JSON, so it is shown whole. ', code(body.path)));
+    }
+    let into = node;
+    if (folded) {
+        into = fieldsFold(plain.length + bodies.length);
+        node.append(into);
     }
     for (const body of bodies) {
         const text = el('pre', {class: 'body-text body-text--wrap', tabIndex: 0, aria: {label: 'The body as received'}}, body.value === undefined ? '' : body.value);
-        into.append(el('div', {class: 'raw-body'},
-            el('p', null, el('strong', null, 'The body as received.'), ' It could not be read as JSON, so it is shown whole. ', code(body.path)),
+        into.append(el('div', {class: 'raw-body'}, bodies.length > 1 ? el('p', null, code(body.path)) : null,
             text, copyButton('Copy this body', () => text.textContent, text)));
     }
     if (plain.length > 0) {

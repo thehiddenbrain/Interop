@@ -66,10 +66,17 @@ class ResultLayoutFrontendTest {
     void theAdditionalFieldsKeepTheirHeadingAndCountOutsideTheFoldTheyCreate() throws IOException {
         String section = CaseCodesFrontendTest.body(read("result.js"), "export function additionalFieldsSection(givenFields, title, wire, options) {");
         int headingAt = section.indexOf("section(heading(3, label, fields.length)");
-        int foldAt = section.indexOf("fieldsFold(fields.length)");
+        int foldAt = section.indexOf("fieldsFold(plain.length + bodies.length)");
         assertThat(headingAt).isGreaterThanOrEqualTo(0);
         assertThat(foldAt).isGreaterThan(headingAt);
         assertThat(section).contains("options && options.folded");
+        // The notes about the body and the line that says a body could not be read are caveats on
+        // the whole result: they go on the open section, before the fold is made.
+        int notesAt = section.indexOf("node.append(el('ul', {class: 'note-list'}, notes.map(");
+        int unreadableAt = section.indexOf("It could not be read as JSON");
+        assertThat(notesAt).isGreaterThan(headingAt).isLessThan(foldAt);
+        assertThat(unreadableAt).isGreaterThan(headingAt).isLessThan(foldAt);
+        assertThat(section).doesNotContain("into.append(el('ul', {class: 'note-list'}");
     }
 
     @Test
