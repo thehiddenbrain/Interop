@@ -243,8 +243,9 @@ public class NotificationReceiver {
 
     /**
      * Everything this tool could have sent to a service, by the rule the wire view of a call masks
-     * by: the secret variables of the active environment, the access token, the client secret and
-     * the credentials of the address to call back. A service may repeat any of them in a
+     * by: the secret variables of the active environment, of each collection and of application.yml,
+     * the access token, the client secret, and the credentials of the address to call back and of
+     * the lookup configuration. A service may repeat any of them in a
      * notification. Asked of the gateway each time, so a switch of environment is followed.
      */
     private org.p32h.interop.epa.pave.model.SentSecrets givenToServices() {
@@ -424,11 +425,11 @@ public class NotificationReceiver {
             }
             payloadNotes.add(masked.places() == 1
                     ? "1 place in this payload is masked because it repeats a secret this tool could have sent to the service: a secret "
-                            + "variable, the access token, the client secret or a credential of the address to call back. What is shown is "
-                            + "therefore not exactly what was received."
+                            + "variable, the access token, the client secret or a credential of the address to call back or of a lookup. "
+                            + "What is shown is therefore not exactly what was received."
                     : masked.places() + " places in this payload are masked because they repeat secrets this tool could have sent to the "
-                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back. "
-                            + "What is shown is therefore not exactly what was received.");
+                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back "
+                            + "or of a lookup. What is shown is therefore not exactly what was received.");
         }
         // As the wire view of a call says it: a payload shown with a secret in it and no word about
         // it would pass for one that was searched and found clean.

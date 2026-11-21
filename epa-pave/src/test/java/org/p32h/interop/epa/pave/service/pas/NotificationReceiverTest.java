@@ -255,7 +255,7 @@ class NotificationReceiverTest {
                 .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access token"));
         assertThat(view.payloadNotes()).contains("4 places in this payload are masked because they repeat secrets this tool could have "
                 + "sent to the service: a secret variable, the access token, the client secret or a credential of the address to call "
-                + "back. What is shown is therefore not exactly what was received.");
+                + "back or of a lookup. What is shown is therefore not exactly what was received.");
         assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-cb")
                 .doesNotContain("placeholder-receiver-token").doesNotContain("placeholder-client-secret")
                 .doesNotContain("placeholder-access-token");
@@ -263,6 +263,30 @@ class NotificationReceiverTest {
         NotificationView plain = receiver.receive(NotificationReceiver.Inbound.of(body));
         assertThat(plain.payload()).contains("placeholder-literal-cb-888888");
         assertThat(plain.payloadNotes()).noneMatch(note -> note.contains("masked"));
+    }
+
+    @Test
+    void aNotificationThatRepeatsASecretOfACollectionOrOfTheLookupConfigurationIsMaskedByTheRealGateway(
+            @org.junit.jupiter.api.io.TempDir Path directory) {
+        org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = org.p32h.interop.epa.pave.service.config.ConfigFixture.on(directory)
+                .lookup("member.url", "https://lookup.example.invalid/members/{id}?api_key=placeholder-lookup-url-key-2b2b")
+                .lookup("provider.headers.[X-Api-Key]", "placeholder-lookup-key-3c1d").build();
+        fixture.activeEnvironmentOf("Held", EnvironmentKind.SANDBOX, "baseUrl", "https://onyx.example.invalid/fhir");
+        fixture.collectionOf("Vendor", org.p32h.interop.epa.pave.service.config.ConfigFixture.items(
+                org.p32h.interop.epa.pave.service.config.ConfigFixture.item("subscription-create Happy Path", "POST", "{{baseUrl}}/Subscription")),
+                "[{\"key\": \"tenantPassphrase\", \"value\": \"placeholder-collection-secret-91c2\", \"type\": \"secret\"}]");
+        NotificationReceiver masking = new NotificationReceiver(fixture.gateway, support, ledgerProvider(), scenarios);
+        String body = bundle(status(SUBSCRIPTION, "event-notification"), NotificationJson.claimResponse("cr-held-1", null, "A1",
+                "\"disposition\":\"echo placeholder-collection-secret-91c2 and placeholder-lookup-key-3c1d and "
+                        + "placeholder-lookup-url-key-2b2b\""));
+
+        NotificationView view = masking.receive(NotificationReceiver.Inbound.of(body));
+
+        assertThat(JsonSafe.mapper().writeValueAsString(view)).doesNotContain("placeholder-collection-secret")
+                .doesNotContain("placeholder-lookup").contains("[secret tenantPassphrase]").contains("[secret X-Api-Key header]");
+        assertThat(view.payloadNotes()).anyMatch(note -> note.startsWith("3 places in this payload are masked"));
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-collection-secret")
+                .doesNotContain("placeholder-lookup");
     }
 
     // ---- correlation ----

@@ -45,7 +45,7 @@ public final class SubscriptionResponseMapper {
      * @param askedId   the id of the subscription the call was about, or null for a create and a list
      */
     public SubscriptionReading read(VendorExchange received, EpaOperation operation, String askedId) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // The body as received when it could not be parsed, and anything worth knowing about the
         // body as a whole, come first so they are not lost below a long list.
@@ -69,8 +69,8 @@ public final class SubscriptionResponseMapper {
                 note = exchange.ok() ? "The response has no body. For this call that is a normal answer." : "The response has no body.";
             } else {
                 kind = SubscriptionResponseKind.NOT_JSON;
-                note = ("The body could not be read as JSON. It is shown as received, but for any place that repeats a secret the request "
-                        + "carried, under the fields that were returned "
+                note = ("The body could not be read as JSON. It is shown as received, but for any place that repeats a secret this tool "
+                        + "holds, under the fields that were returned "
                         + "but not interpreted, and in the wire view. " + Texts.orElse(exchange.parseError(), "")).strip();
             }
         } else {

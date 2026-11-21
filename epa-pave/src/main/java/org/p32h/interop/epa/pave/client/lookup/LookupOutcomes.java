@@ -54,8 +54,8 @@ final class LookupOutcomes {
         if (Exchanges.INCOMPLETE_BODY.equals(exchange.parseError())) {
             // Even with a 404 status. An answer that stopped part way is not taken as an answer.
             return fault(kindOf(failure), words.api() + " started to answer with HTTP " + status + " and the answer did not arrive in full.",
-                    "The part that arrived is shown under the returned fields as received, except that a place repeating a secret the "
-                            + "request carried is masked. Leave the field again to retry, and report "
+                    "The part that arrived is shown under the returned fields as received, except that a place repeating a secret this "
+                            + "tool holds is masked. Leave the field again to retry, and report "
                             + "the environment if it repeats. Until then, " + words.byHand() + ".", exchange, tracked);
         }
         return switch (failure) {
@@ -83,8 +83,8 @@ final class LookupOutcomes {
                             + "reported as not found. If this API answers an unknown " + words.identifier() + " this way, the mapping "
                             + "has to be told so. Until then, " + words.byHand() + ".", exchange, tracked)
                     : fault(ErrorKind.MALFORMED_RESPONSE, words.api() + " answered HTTP " + status + " with a body that is not JSON.",
-                    "The body is shown under the returned fields as received, except that a place repeating a secret the request "
-                            + "carried is masked. " + words.byHandSentence()
+                    "The body is shown under the returned fields as received, except that a place repeating a secret this tool "
+                            + "holds is masked. " + words.byHandSentence()
                             + " Report it as a defect in the service.", exchange, tracked);
         };
     }

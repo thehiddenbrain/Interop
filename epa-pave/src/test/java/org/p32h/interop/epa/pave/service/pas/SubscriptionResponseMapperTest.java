@@ -367,7 +367,7 @@ class SubscriptionResponseMapperTest {
 
         SubscriptionReading malformed = read(EpaOperation.SUBSCRIPTION_GET, 200, "{\"resourceType\": \"Subscription\", ", ID);
         assertThat(malformed.outcome()).isEqualTo(SubscriptionOutcome.MALFORMED_RESPONSE);
-        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("shown as received, but for any place that repeats a secret the request carried");
+        assertThat(malformed.detail().responseNote()).contains("could not be read as JSON").contains("shown as received, but for any place that repeats a secret this tool holds");
         assertThat(malformed.additionalFields()).containsExactly(AdditionalField.unparsedBody("{\"resourceType\": \"Subscription\", "));
 
         // A read with nothing in it is not an answer, and it is not a delete that succeeded either.

@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import java.util.List;
 
 /**
@@ -74,4 +75,15 @@ public sealed interface PreparedCall permits IssuedCall {
      * a collection request, or that request has no raw body.
      */
     String savedBody();
+
+    /**
+     * Every secret this tool holds for the configuration this call was prepared in, whether or not
+     * the call carries it: the secret variables of the environment, of the collection the request
+     * came from and of application.yml with the values given for this run, the client secret, the
+     * credentials of the address to call back and of the lookup configuration, and the access
+     * token held. A service can repeat any of them, such as the client secret in an error answer to
+     * a call sent without sign-in, so the answer to this call is masked with them as well as with
+     * the secrets it carried. The values never leave the type that holds them.
+     */
+    SentSecrets heldSecrets();
 }

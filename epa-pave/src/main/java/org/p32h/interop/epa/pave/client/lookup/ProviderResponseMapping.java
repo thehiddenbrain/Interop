@@ -108,7 +108,7 @@ final class ProviderResponseMapping {
      * @param npi      the NPI that was asked for, already checked
      */
     static ProviderLookupResult map(VendorExchange received, String npi) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
         // Every value of a key the body repeats is listed too, so an earlier value is not on the wire view alone.

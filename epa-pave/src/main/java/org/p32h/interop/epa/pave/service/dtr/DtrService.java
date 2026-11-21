@@ -261,7 +261,7 @@ public class DtrService {
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
             // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
-            // Read through the mask: the name goes to the ledger line, which never holds a secret the request carried.
+            // Read through the mask: the name goes to the ledger line, which never holds a secret.
             String answered = Texts.orElse(first(OnyxDtrConventions.completes(
                     QuestionnaireJson.findResponse(exchange.withReturnedSecretsMasked().json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());

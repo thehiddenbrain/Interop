@@ -49,6 +49,13 @@ public final class TestPreparedCalls {
         return new IssuedCall(operation, method, url, headers, environment, requestName, scripted, epoch, resolver);
     }
 
+    /** The same call, holding the given secrets beside what it carries, as a call the real gateway prepared holds those of its configuration. */
+    public static PreparedCall holding(PreparedCall call, org.p32h.interop.epa.pave.model.SentSecrets held) {
+        IssuedCall issued = (IssuedCall) call;
+        return new IssuedCall(issued.operation(), issued.method(), issued.url(), issued.headers(), issued.environment(),
+                issued.requestName(), issued.scripted(), issued::epoch, issued::resolve, issued.savedBody(), () -> held);
+    }
+
     /** A call on the mock profile with nothing configured, which is the out-of-the-box state. */
     public static PreparedCall unconfigured(EpaOperation operation) {
         return with(operation, operation.defaultMethod(), ResolvedUrl.notConfigured("not configured"), List.of(),

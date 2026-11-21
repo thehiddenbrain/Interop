@@ -262,7 +262,7 @@ class SecretsSentBackOverTheServerTest {
         assertThat(member.get("status").asString()).isEqualTo("FOUND");
         assertThat(field(member, "firstName").get("value").get("value").asString()).isEqualTo("Avery key [secret x-api-key header]");
         assertThat(field(member, "firstName").get("masked").asBoolean()).isTrue();
-        assertThat(field(member, "firstName").get("note").asString()).isEqualTo("This value holds a secret the request sent, which this tool "
+        assertThat(field(member, "firstName").get("note").asString()).isEqualTo("This value repeats a secret this tool holds, which this tool "
                 + "masked, so it is not what the service returned and is not offered for the case.");
         assertThat(field(member, "lastName").has("masked")).isFalse();
         assertThat(field(member, "lastName").has("note")).isFalse();

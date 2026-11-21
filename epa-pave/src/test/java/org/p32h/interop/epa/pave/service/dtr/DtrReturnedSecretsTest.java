@@ -58,8 +58,8 @@ class DtrReturnedSecretsTest {
     void aBodyThatCannotBeParsedSaysThatAPlaceRepeatingASecretIsMasked() {
         DtrReading reading = new DtrResponseMapper().readPackage(answered("not json " + TOKEN), List.of());
         assertThat(reading.detail().responseNote()).startsWith("The body could not be read as JSON. It is shown under the fields that were "
-                + "returned but not interpreted, and in the wire view, as received except that a place repeating a secret the request "
-                + "carried is masked.");
+                + "returned but not interpreted, and in the wire view, as received except that a place repeating a secret this tool "
+                + "holds is masked.");
         assertThat(JsonSafe.mapper().writeValueAsString(reading.additionalFields())).doesNotContain(TOKEN);
     }
 }

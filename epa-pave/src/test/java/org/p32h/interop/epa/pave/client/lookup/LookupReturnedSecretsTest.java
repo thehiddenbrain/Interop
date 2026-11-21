@@ -61,7 +61,7 @@ class LookupReturnedSecretsTest {
         MemberLookupResult result = MemberResponseMapping.map(answered(200, "not json " + TOKEN), MemberIds.forms("S123456789"),
                 LocalDate.of(2026, 3, 10));
         assertThat(result.error().action()).startsWith("The body is shown under the returned fields as received, except that a place "
-                + "repeating a secret the request carried is masked.");
+                + "repeating a secret this tool holds is masked.");
         assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain(TOKEN);
     }
 }

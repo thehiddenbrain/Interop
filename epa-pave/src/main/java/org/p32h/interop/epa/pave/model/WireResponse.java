@@ -5,8 +5,8 @@ import java.util.List;
 
 /**
  * The response as it arrived, for the wire view, with one exception that it states itself: a place
- * where the response repeats a secret the request sent is shown as that secret's mask, written
- * {@code [secret name]} as on the request side. A service can send a credential back, most often
+ * where the response repeats a secret the request sent, or any other this tool holds, is shown as
+ * that secret's mask, written {@code [secret name]} as on the request side. A service can send a credential back, most often
  * in a Subscription that returns the header it was created with, and the wire view is what a
  * tester screenshots.
  *

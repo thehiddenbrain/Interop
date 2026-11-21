@@ -172,7 +172,7 @@ public final class DtrResponseMapper {
      * @param requestedCanonicals the questionnaires the request asked for by canonical url. Empty when it named none
      */
     public DtrReading readPackage(VendorExchange received, List<String> requestedCanonicals) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<String> requested = new ArrayList<>();
         if (requestedCanonicals != null) {
@@ -289,7 +289,7 @@ public final class DtrResponseMapper {
      *             was sent could not be read as one
      */
     public DtrReading readNextQuestion(VendorExchange received, JsonNode sent) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         List<IssueView> issues = new ArrayList<>();
@@ -792,7 +792,7 @@ public final class DtrResponseMapper {
             return "The response has no body.";
         }
         return ("The body could not be read as JSON. It is shown under the fields that were returned but not interpreted, and in "
-                + "the wire view, as received except that a place repeating a secret the request carried is masked. "
+                + "the wire view, as received except that a place repeating a secret this tool holds is masked. "
                 + Texts.orElse(exchange.parseError(), "")).strip();
     }
 

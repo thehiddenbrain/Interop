@@ -194,9 +194,11 @@ public class ConfigStoreGateway implements OperationGateway {
             }
             return Long.MIN_VALUE;
         };
+        StoredCollection collection = plan.target().collection();
+        Map<String, String> runValues = intent.runValues();
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
-                plan.target().savedBody());
+                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? List.of() : List.of(collection)));
     }
 
     /**
@@ -349,7 +351,7 @@ public class ConfigStoreGateway implements OperationGateway {
         return resolver.resolve(template, layers(store.snapshot(), Map.of(), null, Map.of()));
     }
 
-    /** Whatever holds the access token, asked only when a notification is masked. Absent in tests that build the gateway alone. */
+    /** Whatever holds the access token, asked when an answer or a notification is masked. Absent in tests that build the gateway alone. */
     private volatile org.springframework.beans.factory.ObjectProvider<HeldAccessToken> heldToken;
 
     @Autowired(required = false)
@@ -360,23 +362,47 @@ public class ConfigStoreGateway implements OperationGateway {
     @Override
     public org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
         ConfigSnapshot snapshot = store.snapshot();
+        // A notification belongs to no request, so to no one collection: each one uploaded is held.
+        return held(snapshot, Map.of(), snapshot.collections());
+    }
+
+    /**
+     * Every secret this tool holds for a configuration, the values a response is masked with
+     * whether or not the request carried them: the secret variables of the active environment, of
+     * each collection given and of application.yml (an operating system value one refers to
+     * included), with the values given for one run in front of them; the client secret the access
+     * token is fetched with; the credentials of the address the service is given to call back; the
+     * credentials of the lookup configuration, in its urls and its headers; and the access token
+     * held for the service.
+     *
+     * <p>A variable is secret by the resolver's rule alone, the one the request side masks by:
+     * typed secret in Postman in any layer, a name that reads as a credential, or a value read from
+     * the operating system. A header is a credential by its name, as on the request side. A
+     * variable that is unset or blank holds nothing and masks nothing.
+     *
+     * @param collections the collections whose variables are in force: the one a request came
+     *                    from, none for a call from application.yml, or every one uploaded
+     */
+    private org.p32h.interop.epa.pave.model.SentSecrets held(ConfigSnapshot snapshot, Map<String, String> runValues,
+                                                             List<StoredCollection> collections) {
         org.p32h.interop.epa.pave.model.SentSecrets.Builder found = org.p32h.interop.epa.pave.model.SentSecrets.builder();
-        List<VariableLayer> layers = layers(snapshot, Map.of(), null, Map.of());
-        // Secret by the same rule the wire view masks by, which is the resolver's: typed secret in
-        // Postman, a credential by its name, or a value read from the operating system.
-        Set<String> names = new LinkedHashSet<>();
-        StoredEnvironment active = snapshot.active();
-        if (active != null) {
-            names.addAll(active.content().inForce().keySet());
-        }
-        names.addAll(onyx.variables().keySet());
-        for (String name : names) {
-            for (Resolution.Piece piece : resolver.resolve("{{" + name + "}}", layers).pieces()) {
-                if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
-                    found.variable(piece.name(), piece.send());
-                }
+        List<StoredCollection> each = collections.isEmpty() ? Collections.singletonList(null) : collections;
+        for (StoredCollection collection : each) {
+            List<VariableLayer> layers = layers(snapshot, runValues, collection, Map.of());
+            Set<String> names = new LinkedHashSet<>(runValues.keySet());
+            StoredEnvironment active = snapshot.active();
+            if (active != null) {
+                names.addAll(active.content().inForce().keySet());
+            }
+            if (collection != null) {
+                names.addAll(collection.content().inForce().keySet());
+            }
+            names.addAll(onyx.variables().keySet());
+            for (String name : names) {
+                secretPieces(found, resolver.resolve("{{" + name + "}}", layers));
             }
         }
+        List<VariableLayer> layers = layers(snapshot, runValues, collections.size() == 1 ? collections.get(0) : null, Map.of());
         if (onyx.auth() != null && Texts.present(onyx.auth().clientSecret())) {
             Resolution secret = resolver.resolve(onyx.auth().clientSecret(), layers);
             if (secret.complete()) {
@@ -384,12 +410,47 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         callbackCredentials(found, layers);
+        lookupCredentials(found, lookup.member(), layers);
+        lookupCredentials(found, lookup.provider(), layers);
         org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held = heldToken;
         HeldAccessToken token = held == null ? null : held.getIfAvailable();
         if (token != null) {
             token.addTo(found);
         }
         return found.build();
+    }
+
+    /** Adds the value of each secret variable a resolution reached, under that variable's name. */
+    private static void secretPieces(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, Resolution resolution) {
+        for (Resolution.Piece piece : resolution.pieces()) {
+            if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
+                found.variable(piece.name(), piece.send());
+            }
+        }
+    }
+
+    /**
+     * The credentials one lookup is configured with, held whichever lookup a call is for: a secret
+     * variable or a credential typed into its url, a secret variable in a header, and the value of
+     * a header that is a credential by its own name, masked under that header's name as the
+     * request side masks it.
+     */
+    private void lookupCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, LookupProperties.Endpoint endpoint,
+                                   List<VariableLayer> layers) {
+        if (endpoint == null) {
+            return;
+        }
+        if (Texts.present(endpoint.url())) {
+            LiteralCredentials.Marked typed = LiteralCredentials.inUrl(endpoint.url().strip());
+            secretPieces(found, resolver.resolve(typed.template(), typed.before(layers)));
+        }
+        endpoint.headers().forEach((name, value) -> {
+            Resolution how = resolver.resolve(Texts.orElse(value, ""), layers);
+            secretPieces(found, how);
+            if (how.complete() && Texts.present(name) && Secrets.credentialHeader(name)) {
+                found.header(name, Secrets.credential(name, how.send()));
+            }
+        });
     }
 
     /**
@@ -402,11 +463,7 @@ public class ConfigStoreGateway implements OperationGateway {
             return;
         }
         Resolution resolved = resolver.resolve(template.strip(), layers);
-        for (Resolution.Piece piece : resolved.pieces()) {
-            if (piece.kind() == Resolution.Kind.SECRET && piece.name() != null) {
-                found.variable(piece.name(), piece.send());
-            }
-        }
+        secretPieces(found, resolved);
         if (!resolved.complete() || resolved.send() == null) {
             return;
         }

@@ -102,7 +102,7 @@ class ReturnedSecretsTest {
                 new WireHeader("Location", URL + "/s-1?key=[secret apiKey]"), new WireHeader("X-Echo", "[secret callbackToken] [secret callbackToken]"));
         assertThat(shown.maskedPlaces()).isEqualTo(5);
         assertThat(shown.maskNote()).isEqualTo("5 places in this response, 3 in the headers and 2 in the body, are masked because they repeat "
-                + "a secret this request sent." + EXPLAINED);
+                + "a secret this tool holds." + EXPLAINED);
         // The count is of what arrived, not of the text that is shown in its place.
         assertThat(shown.byteLength()).isEqualTo((long) raw.length);
         assertThat(shown.status()).isEqualTo(201);
@@ -139,14 +139,14 @@ class ReturnedSecretsTest {
         WireResponse inBody = Exchanges.fromResponse(request(tokenAndKey()), 200, List.of(new WireHeader("X-Request-Id", "r-1")),
                 "{\"echo\":\"" + TOKEN + "\"}", 1L, true).wireResponse();
         assertThat(inBody.maskedPlaces()).isEqualTo(1);
-        assertThat(inBody.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request sent."
+        assertThat(inBody.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this tool holds."
                 + EXPLAINED);
 
         WireResponse inHeaders = Exchanges.fromResponse(request(tokenAndKey()), 200, List.of(new WireHeader("X-Echo", KEY),
                 new WireHeader("X-Echo-Again", KEY)), "{}", 1L, true).wireResponse();
         assertThat(inHeaders.maskedPlaces()).isEqualTo(2);
         assertThat(inHeaders.maskNote()).isEqualTo("2 places in the headers of this response are masked because they repeat a secret this "
-                + "request sent." + EXPLAINED);
+                + "tool holds." + EXPLAINED);
         assertThat(inHeaders.body()).isEqualTo("{}");
     }
 
@@ -161,7 +161,7 @@ class ReturnedSecretsTest {
         List<AdditionalField> fields = exchange.bodyFields();
         assertThat(fields).extracting(AdditionalField::kind).containsExactly(AdditionalField.Kind.RAW_BODY, AdditionalField.Kind.NOTE);
         assertThat(fields.get(0).value()).isEqualTo(shown);
-        assertThat(fields.get(1).value()).isEqualTo("2 places in the body as shown here are masked because they repeat a secret this request sent.");
+        assertThat(fields.get(1).value()).isEqualTo("2 places in the body as shown here are masked because they repeat a secret this tool holds.");
         // What arrived is still there for whoever has to read it.
         assertThat(exchange.responseBody()).isEqualTo(page);
 
@@ -177,13 +177,13 @@ class ReturnedSecretsTest {
         WireResponse shown = Exchanges.fromResponse(request(oneShort), 200, List.of(), "{\"pin\":\"12345\"}", 1L, true).wireResponse();
         assertThat(shown.body()).isEqualTo("{\"pin\":\"12345\"}");
         assertThat(shown.maskedPlaces()).isZero();
-        assertThat(shown.maskNote()).isEqualTo("This request sent 1 secret shorter than 6 characters. A secret that short is not searched "
+        assertThat(shown.maskNote()).isEqualTo("This tool holds 1 secret shorter than 6 characters. A secret that short is not searched "
                 + "for, because it would be found by accident, so this response is not masked where it repeats that one.");
 
         SentSecrets mixed = SentSecrets.builder().variable("pin", "12345").variable("code", "abc").variable("apiKey", KEY).build();
         WireResponse both = Exchanges.fromResponse(request(mixed), 200, List.of(), "{\"key\":\"" + KEY + "\"}", 1L, true).wireResponse();
-        assertThat(both.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request sent."
-                + EXPLAINED + " This request also sent 2 secrets shorter than 6 characters. A secret that short is not searched for, "
+        assertThat(both.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this tool holds."
+                + EXPLAINED + " This tool also holds 2 secrets shorter than 6 characters. A secret that short is not searched for, "
                 + "because it would be found by accident, so this response is not masked where it repeats one of those.");
 
         // No response, so nothing is shown and there is nothing to say about how it is shown.
@@ -410,7 +410,7 @@ class ReturnedSecretsTest {
         WireResponse both = Exchanges.fromResponse(Exchanges.wireRequest(withHeader, body, FHIR, true, null), 200, List.of(),
                 "{\"context\":\"" + CONTEXT + "\"}", 1L, true).wireResponse();
         assertThat(both.body()).isEqualTo("{\"context\":\"[secret contextSecret]\"}");
-        assertThat(both.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request sent."
+        assertThat(both.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this tool holds."
                 + EXPLAINED + " " + NOT_KNOWN.replace("This request carried", "This request also carried"));
 
         // No response, so nothing is shown and there is nothing to say about how it is shown.
@@ -560,14 +560,16 @@ class ReturnedSecretsTest {
         WireView wire = exchange.wire(null);
         assertThat(JsonSafe.mapper().writeValueAsString(wire)).doesNotContain("hunter2");
         assertThat(exchange.bodyFields()).extracting(AdditionalField::value).noneMatch(value -> value.contains("hunter2"));
-        // Each under the name of the variable it came from, as the request shows it.
+        // Each under the name of the variable it came from. The whole Authorization value is the
+        // value of authHeader, a secret by its name that the environment holds, and the longer
+        // secret covers the token inside it.
         assertThat(wire.response().body()).isEqualTo("https://x.example.invalid/fhir/Subscription?k=[secret apiKey]&c=[secret collectionTenant]"
                 + "&y=[secret ymlPassword]&t=[secret typedPassword]\n"
                 + "X-Greeting: Hello [secret apiKey]\n"
-                + "Authorization: Bearer [secret callbackToken]\n"
+                + "Authorization: [secret authHeader]\n"
                 + "X-Plain: [secret clientSecret] and more\n"
                 + "X-Vendor-Key: [secret X-Vendor-Key header]\n"
-                + "{\"channel\":{\"header\":[\"Authorization: Bearer [secret callbackToken]\"]},\"note\":\"Hello [secret apiKey]\"}");
+                + "{\"channel\":{\"header\":[\"Authorization: [secret authHeader]\"]},\"note\":\"Hello [secret apiKey]\"}");
         assertThat(wire.response().headers()).containsExactly(new WireHeader("X-Received-Url", "https://x.example.invalid/fhir/Subscription"
                 + "?k=[secret apiKey]&c=[secret collectionTenant]&y=[secret ymlPassword]&t=[secret typedPassword]"));
         // Ten in the body, four in the header.

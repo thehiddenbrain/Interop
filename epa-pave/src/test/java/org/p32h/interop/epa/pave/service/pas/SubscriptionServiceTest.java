@@ -487,6 +487,55 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    void aSecretTheConfigurationHoldsThatTheRequestDidNotCarryIsMaskedInTheLedgerLineAndInEverythingTheBrowserIsSent() {
+        String held = "placeholder-secret-value-7f3a";
+        gateway.held(org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("clientSecret", held).build());
+        // The service names the new subscription by the secret, and quotes it in a header and a field nobody anticipated.
+        SubscriptionClient answering = new SubscriptionClient() {
+            private VendorExchange answer(PreparedCall call, ResolvedText body) {
+                org.p32h.interop.epa.pave.model.WireRequest request = Exchanges.wireRequest(call, body,
+                        org.p32h.interop.epa.pave.client.support.ExchangeOptions.json("application/fhir+json"), true, null);
+                return Exchanges.fromResponse(request, 201, List.of(new org.p32h.interop.epa.pave.model.WireHeader("Location",
+                        "https://onyx.example.invalid/fhir/Subscription/" + held + "/_history/1")),
+                        "{\"resourceType\":\"Subscription\",\"id\":\"" + held + "\",\"status\":\"requested\",\"note\":\"issued for "
+                                + held + "\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":\"" + RECEIVER + "\"}}", 9L, true);
+            }
+
+            @Override
+            public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return answer(call, body);
+            }
+
+            @Override
+            public VendorExchange get(PreparedCall call, MockSelection selection) {
+                return answer(call, null);
+            }
+
+            @Override
+            public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return answer(call, body);
+            }
+
+            @Override
+            public VendorExchange delete(PreparedCall call, MockSelection selection) {
+                return answer(call, null);
+            }
+        };
+
+        RunEnvelope<SubscriptionDetail> created = service(answering, "live", WITH_RECEIVER).run(CREATE, request().build(), RunOrigin.manual(),
+                null);
+
+        assertThat(created.wire().request().body()).doesNotContain(held);
+        assertThat(created.detail().subscriptionId()).isEqualTo("[secret clientSecret]");
+        // The ledger keeps no mask as an identifier: it says the id was not recorded, as for any id that holds one.
+        assertThat(ledger.only().correlation()).containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, "(not recorded, 21 characters)");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain(held);
+        assertThat(JsonSafe.mapper().writeValueAsString(created)).doesNotContain(held);
+        assertThat(created.wire().response().headers()).extracting(org.p32h.interop.epa.pave.model.WireHeader::value)
+                .containsExactly("https://onyx.example.invalid/fhir/Subscription/[secret clientSecret]/_history/1");
+    }
+
+    @Test
     void theIdOfANewSubscriptionIsReadFromTheLocationHeaderWhenTheServiceReturnsNoBodyAndIsSaidToBeUnknownWhenThereIsNone() {
         VendorExchange noBody = TestExchanges.of(CREATE, 201, null, false);
         VendorExchange located = new VendorExchange(noBody.request(), 201, List.of(new org.p32h.interop.epa.pave.model.WireHeader("Location",
@@ -1024,8 +1073,8 @@ class SubscriptionServiceTest {
         WireResponse response = result.wire().response();
         assertThat(response.body()).contains("\"header\" : [ \"Authorization: Bearer [secret callbackToken]\" ]");
         assertThat(response.maskedPlaces()).isEqualTo(1);
-        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request "
-                + "sent. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
+        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this tool "
+                + "holds. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
                 + "What is shown here is therefore not exactly what was received. The byte count is the count of what was received.");
         assertThat(response.byteLength()).isEqualTo((long) response.body().replace("[secret callbackToken]", CALLBACK_SECRET)
                 .getBytes(StandardCharsets.UTF_8).length);

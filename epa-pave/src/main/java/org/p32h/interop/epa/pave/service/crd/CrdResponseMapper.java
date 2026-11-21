@@ -78,7 +78,7 @@ public final class CrdResponseMapper {
      * @param sentOrders the orders the request carried, in the order sent. Empty when they are not known
      */
     public CrdReading read(VendorExchange received, List<SentOrder> sentOrders) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<SentOrder> orders = sentOrders == null ? List.of() : List.copyOf(sentOrders);
         List<CardView> cards = new ArrayList<>();

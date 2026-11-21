@@ -53,6 +53,33 @@ class SecretsGivenToServicesTest {
     }
 
     @Test
+    void aCallHoldsTheSecretsOfItsCollectionAndOfTheLookupConfigurationWithTheValuesInForceForItsRun() {
+        ConfigFixture fixture = ConfigFixture.on(directory).lookup("provider.headers.[X-Api-Key]", "placeholder-lookup-key-3c1d")
+                .lookup("member.headers.[X-Trace]", "placeholder-not-secret-999999").build();
+        fixture.activeEnvironmentOf("Held", EnvironmentKind.SANDBOX, "baseUrl", "https://sbx.example.invalid/fhir",
+                "clientSecret", "placeholder-env-secret-555555");
+        fixture.collectionOf("Vendor", ConfigFixture.items(ConfigFixture.item("subscription-create Happy Path", "POST", "{{baseUrl}}/Subscription")),
+                "[{\"key\": \"tenantPassphrase\", \"value\": \"placeholder-collection-secret-91c2\", \"type\": \"secret\"}]");
+        fixture.collectionOf("Other", ConfigFixture.items(ConfigFixture.item("Unrelated", "GET", "{{baseUrl}}/metadata")),
+                "[{\"key\": \"otherPassphrase\", \"value\": \"placeholder-other-secret-444444\", \"type\": \"secret\"}]");
+
+        SentSecrets held = fixture.gateway.prepare(CallIntent.of(org.p32h.interop.epa.pave.model.EpaOperation.SUBSCRIPTION_CREATE)
+                .withRunValues(Map.of("clientSecret", "placeholder-run-secret-666666"))).heldSecrets();
+        SentSecrets.Masked masked = held.mask("a placeholder-collection-secret-91c2 b placeholder-lookup-key-3c1d c placeholder-run-secret-666666 "
+                + "d placeholder-env-secret-555555 e placeholder-other-secret-444444 f placeholder-not-secret-999999");
+
+        // The collection the request came from, the lookup's credential header and the value in force for this run.
+        assertThat(masked.text()).isEqualTo("a " + Secrets.mask("tenantPassphrase") + " b [secret X-Api-Key header] c "
+                + Secrets.mask("clientSecret") + " d placeholder-env-secret-555555 e placeholder-other-secret-444444 f "
+                + "placeholder-not-secret-999999");
+        // A notification belongs to no one request, so it is masked with every collection's secrets and the environment's own value.
+        SentSecrets.Masked notified = fixture.gateway.secretsGivenToServices().mask("e placeholder-other-secret-444444 a "
+                + "placeholder-collection-secret-91c2 d placeholder-env-secret-555555");
+        assertThat(notified.places()).isEqualTo(3);
+        assertThat(held.toString()).doesNotContain("placeholder");
+    }
+
+    @Test
     void withNothingConfiguredNothingIsMasked() {
         ConfigFixture fixture = ConfigFixture.on(directory).build();
         assertThat(fixture.gateway.secretsGivenToServices().mask("anything at all").places()).isZero();

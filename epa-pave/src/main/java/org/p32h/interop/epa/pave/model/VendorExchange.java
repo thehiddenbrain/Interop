@@ -160,8 +160,9 @@ public record VendorExchange(
     }
 
     /**
-     * The same exchange with every place in its parsed body that repeats a secret of its request
-     * masked, for a mapper to read instead of the body as parsed. Every protocol and every lookup
+     * The same exchange with every place in its parsed body that repeats a secret of its request,
+     * or another secret this tool holds for the configuration it was sent under, masked, for a
+     * mapper to read instead of the body as parsed. Every protocol and every lookup
      * reads its response through this, so that the designed view and the additional fields say what
      * the wire view says.
      *
@@ -171,7 +172,7 @@ public record VendorExchange(
      * puts it in the result the browser receives. Masking the tree once, before any mapper reads
      * it, covers every value a mapper copies, including the ones nobody thought of, with the same
      * masks the wire view uses. A value used in logic sees the mask too. No identifier, code or
-     * authorization number this tool reads can hold a secret of the request without the service
+     * authorization number this tool reads can hold a secret this tool holds without the service
      * having copied it there, and then the mask is what may be shown and kept.
      *
      * <p>Strings, numbers and property names are searched. A number is searched as it is written,
@@ -281,7 +282,8 @@ public record VendorExchange(
      * keeps an unreadable body, or a quirk of a readable one, out of the wire view alone.
      *
      * <p>The body is the same text the wire view shows, so it is masked in the same way: a place
-     * that repeats a secret the request sent is shown as that secret's mask, and a note says so.
+     * that repeats a secret the request sent or this tool holds is shown as that secret's mask, and
+     * a note says so.
      */
     public List<AdditionalField> bodyFields() {
         List<AdditionalField> out = new ArrayList<>();
@@ -298,7 +300,7 @@ public record VendorExchange(
 
     /**
      * The response half of the wire view: the headers and the body as received, except that every
-     * place which repeats a secret the request sent is shown as that secret's mask. The view then
+     * place which repeats a secret the request sent or this tool holds is shown as that secret's mask. The view then
      * says how many places were masked, so that it never passes for the exact bytes received when
      * it is not. The byte count stays the count of what was received.
      *
@@ -330,7 +332,7 @@ public record VendorExchange(
     /**
      * What the wire view says about masking, or null when there is nothing to say.
      *
-     * @param tooShort   how many secrets the request sent that are too short to search for
+     * @param tooShort   how many secrets the request sent or this tool holds that are too short to search for
      * @param incomplete true when the request carried a secret whose value could not be worked out
      */
     private static String maskNote(int inHeaders, int inBody, int tooShort, boolean incomplete) {
@@ -344,7 +346,7 @@ public record VendorExchange(
                     .append("the count of what was received.");
         }
         if (tooShort > 0) {
-            note.append(places > 0 ? " This request also sent " : "This request sent ")
+            note.append(places > 0 ? " This tool also holds " : "This tool holds ")
                     .append(tooShort == 1 ? "1 secret" : tooShort + " secrets").append(" shorter than ").append(SentSecrets.SHORTEST_SEARCHED)
                     .append(" characters. A secret that short is not searched for, because it would be found by accident, so this ")
                     .append("response is not masked where it repeats ").append(tooShort == 1 ? "that one." : "one of those.");
@@ -361,8 +363,8 @@ public record VendorExchange(
 
     /** The sentence that says how many places were masked and why, worded for one place as well as for several. */
     private static String masked(int places, String where) {
-        return places == 1 ? "1 place " + where + " is masked because it repeats a secret this request sent."
-                : places + " places " + where + " are masked because they repeat a secret this request sent.";
+        return places == 1 ? "1 place " + where + " is masked because it repeats a secret this tool holds."
+                : places + " places " + where + " are masked because they repeat a secret this tool holds.";
     }
 
     public WireView wire(MemberIdForms memberId) {
