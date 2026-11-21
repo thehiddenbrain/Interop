@@ -44,6 +44,24 @@ class MemberInTextNamesTest {
     }
 
     @Test
+    void anExpectationThatIsExactlyOneOfTheToolsOutcomeCodesIsNeverRefusedAsAName() {
+        MemberDetail timeout = MemberDetail.builder().memberId("P32H-TIMEOUT").firstName("Lane").lastName("Placeholder-Timeout").build();
+        MemberDetail inactive = MemberDetail.builder().memberId("P32H-INACTIVE").firstName("Gray").lastName("Placeholder-Inactive").build();
+        // The words alone are the surname, as before.
+        assertThat(kinds("TIMEOUT", timeout)).containsExactly("the member's last name");
+        assertThat(kinds("COVERAGE_INACTIVE", inactive)).containsExactly("the member's last name");
+        // As the expectation, exactly a code of this tool: not member data.
+        assertThat(MemberInText.problems(null, null, "TIMEOUT", timeout, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problems(null, null, " COVERAGE_INACTIVE ", inactive, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problemsInBody(null, null, "TIMEOUT", List.of(timeout), "Nothing was sent.")).isEmpty();
+        // Anything else is checked as before: another case of the code, a code with more beside it, and the other fields.
+        assertThat(MemberInText.problems(null, null, "timeout", timeout, "Nothing was sent.")).containsKey("expected");
+        assertThat(MemberInText.problems(null, null, "TIMEOUT; Timeout", timeout, "Nothing was sent.")).containsKey("expected");
+        assertThat(MemberInText.problems("TIMEOUT", "TIMEOUT", "TIMEOUT", timeout, "Nothing was sent.")).containsOnlyKeys("note", "testerRef");
+        assertThat(MemberInText.problems(null, null, "AUTH_REQUIRED", timeout, "Nothing was sent.")).isEmpty();
+    }
+
+    @Test
     void theCityWithThePostalCodeIsTheAddressAndEitherAloneIsNot() {
         MemberDetail member = MemberDetail.builder().memberId("S123456789")
                 .address(new PostalAddress("1 Placeholder Street", null, "Zzcityville", "MA", "00077-1234")).build();

@@ -17,6 +17,15 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import org.p32h.interop.epa.pave.model.CrdOutcome;
+import org.p32h.interop.epa.pave.model.OutcomeCode;
+import org.p32h.interop.epa.pave.model.RunOutcome;
+import org.p32h.interop.epa.pave.model.dtr.DtrOutcome;
+import org.p32h.interop.epa.pave.model.pas.NotificationOutcome;
+import org.p32h.interop.epa.pave.model.pas.PasOutcome;
+import org.p32h.interop.epa.pave.model.pas.SubscriptionOutcome;
+import org.p32h.interop.epa.pave.model.raw.RawOutcome;
 
 /**
  * Whether the free text a run carries to the ledger holds member data the same request carries:
@@ -49,7 +58,22 @@ public final class MemberInText {
     private static final Map<String, String> LABELS = Map.of("note", "The note", "testerRef", "The tester reference", "expected",
             "The expectation");
 
+    /**
+     * Every outcome code this tool defines. An expectation that is exactly one of them was written
+     * by this tool, not by a person about a member, so it is never refused for member data: a
+     * member whose surname holds a word such as Timeout would otherwise have the right expectation
+     * TIMEOUT refused as a name. The comparison is with this list only, and exact.
+     */
+    private static final Set<String> OWN_OUTCOME_CODES = Stream.of(CrdOutcome.values(), DtrOutcome.values(), PasOutcome.values(),
+                    SubscriptionOutcome.values(), NotificationOutcome.values(), RawOutcome.values(), RunOutcome.values())
+            .flatMap(Stream::of).map(OutcomeCode::name).collect(java.util.stream.Collectors.toUnmodifiableSet());
+
     private MemberInText() {
+    }
+
+    /** True when the expectation, without the spaces around it, is exactly one of this tool's own outcome codes. */
+    static boolean ownOutcomeCode(String expected) {
+        return expected != null && OWN_OUTCOME_CODES.contains(expected.strip());
     }
 
     /**
@@ -68,6 +92,9 @@ public final class MemberInText {
         fields.put("testerRef", testerRef);
         fields.put("expected", expected);
         fields.forEach((field, text) -> {
+            if (field.equals("expected") && ownOutcomeCode(text)) {
+                return;
+            }
             List<String> kinds = kinds(text, member);
             if (!kinds.isEmpty()) {
                 problems.put(field, message(field, kinds, ending));
@@ -89,7 +116,7 @@ public final class MemberInText {
         fields.put("testerRef", testerRef);
         fields.put("expected", expected);
         fields.forEach((field, text) -> {
-            if (Texts.blank(text)) {
+            if (Texts.blank(text) || field.equals("expected") && ownOutcomeCode(text)) {
                 return;
             }
             List<String> kinds = new ArrayList<>();

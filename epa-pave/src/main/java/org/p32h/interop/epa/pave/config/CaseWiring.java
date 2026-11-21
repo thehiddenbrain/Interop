@@ -63,9 +63,12 @@ public class CaseWiring {
      */
     @Bean
     public ProtocolCaseRunner caseRunner(MemberLookup members, ProviderLookup providers, CrdService crd, DtrService dtr, PasService pas,
-                                         OutcomeCatalogue outcomes, RunSupport support, ObjectProvider<ScenarioRepository> scenarios) {
-        // A row naming a scenario that does not exist is found before the suite starts, not when its case is sent.
+                                         OutcomeCatalogue outcomes, RunSupport support, ObjectProvider<ScenarioRepository> scenarios,
+                                         EpaProperties epa) {
+        // A row naming a scenario that does not exist is found before the suite starts, not when its case is sent. On mock the
+        // member lookup reads a file on this machine, so a preview may make it; on live a preview sends nothing.
         return new ProtocolCaseRunner(members, providers)
+                .previewMembers(epa.mock() ? members : null)
                 .scenarios((protocol, id) -> {
                     ScenarioRepository repository = scenarios.getIfAvailable();
                     return repository == null || repository.list(protocol.name().toLowerCase(java.util.Locale.ROOT)).stream()

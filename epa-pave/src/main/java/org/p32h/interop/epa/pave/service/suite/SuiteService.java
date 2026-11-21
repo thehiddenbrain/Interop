@@ -214,7 +214,8 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         if (!valid.isEmpty() && definition.problems().isEmpty() && !epa.mock()) {
             // The preview sends nothing, so it cannot know whether the active configuration has a target for each operation.
             headline += " Whether the active configuration has a target for each is found when the case is sent: one with none is "
-                    + "reported as not configured.";
+                    + "reported as not configured. The note, the tester reference and the expectation are held against the member the "
+                    + "lookup returns when the case is sent, and a case whose text holds that member's details is reported as not valid then.";
         }
         return new SuitePreview(definition.name(), definition.format(), definition.runnable(), headline, rows.size(), valid.size(),
                 definition.problems(), rowProblems, problemRows.size(),

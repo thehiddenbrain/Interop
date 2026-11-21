@@ -23,6 +23,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.MemberLookup;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 
 /**
@@ -47,6 +48,7 @@ public class ProtocolCaseRunner implements CaseRunner {
     private final Map<EpaOperation, CaseStep> steps = new EnumMap<>(EpaOperation.class);
     private CaseStep chain;
     private java.util.function.BiPredicate<Protocol, String> knownScenario;
+    private MemberLookup previewMembers;
 
     public ProtocolCaseRunner(MemberLookup members, ProviderLookup providers) {
         this.members = members;
@@ -65,6 +67,17 @@ public class ProtocolCaseRunner implements CaseRunner {
      */
     public ProtocolCaseRunner scenarios(java.util.function.BiPredicate<Protocol, String> known) {
         this.knownScenario = known;
+        return this;
+    }
+
+    /**
+     * Gives the lookup a check before sending may use, so that the free text of a case is held
+     * against the member the run will look up, and a preview counts what the run will refuse.
+     * Given only where a lookup sends nothing anywhere (the mock profile): without it the service
+     * finds such text when the case runs.
+     */
+    public ProtocolCaseRunner previewMembers(MemberLookup lookup) {
+        this.previewMembers = lookup;
         return this;
     }
 
@@ -179,6 +192,15 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
         if (Texts.present(spec.scenarioId()) && knownScenario != null && !knownScenario.test(operation.protocol(), spec.scenarioId().strip())) {
             problems.add("scenarioId: There is no " + operation.protocol().name() + " scenario with that id.");
+        }
+        // The service's own check of the note, the tester reference and the expectation, with the member it will be given, in the
+        // service's own words, so the reason a preview gives is the reason the run gives.
+        if (previewMembers != null && Texts.present(MemberIds.noSpace(spec.memberId()))) {
+            MemberLookupResult found = previewMembers.lookup(spec.memberId());
+            if (found.status() == LookupStatus.FOUND && found.member() != null) {
+                MemberInText.problems(spec.note(), spec.testerRef(), spec.expected(), found.member(), "Nothing was sent.")
+                        .forEach((field, problem) -> problems.add(field + ": " + problem));
+            }
         }
         return problems;
     }

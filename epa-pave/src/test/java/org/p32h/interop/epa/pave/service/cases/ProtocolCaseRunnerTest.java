@@ -75,6 +75,10 @@ class ProtocolCaseRunnerTest {
     };
 
     private ProtocolCaseRunner runner() {
+        return runner(members);
+    }
+
+    private ProtocolCaseRunner runner(MemberLookup members) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
         EpaProperties epa = EpaProperties.of(Map.of("mode", "mock"));
@@ -115,6 +119,39 @@ class ProtocolCaseRunnerTest {
         assertThat(gateway.lastIntent().unlock()).isNull();
         // The member's name was looked up for the request and is nowhere in what the case returns.
         assertThat(JsonSafe.mapper().writeValueAsString(outcome)).doesNotContain(SURNAME).doesNotContain("1970-01-31");
+    }
+
+    /**
+     * A member whose surname holds a word that is also an outcome code: the expectation that is
+     * exactly that code is the tool's own word and is never refused as the name. Every other text
+     * is checked as before. Where the lookup sends nothing (mock), the check before sending makes
+     * it too, in the run's own words, so a preview counts what the run refuses.
+     */
+    @Test
+    void anExpectationThatIsExactlyAnOutcomeCodeIsNotANameAndTheCheckBeforeSendingRefusesWhatTheRunRefuses() {
+        MemberLookup inactive = id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id), MemberDetail.builder().memberId(id)
+                .firstName("Gray").lastName("Placeholder-Inactive").lineOfBusiness("Medicare").build(), List.of(), List.of(), List.of(),
+                null, null, "message");
+        ProtocolCaseRunner onMock = runner(inactive).previewMembers(inactive);
+        CaseSpec right = crdCase("P32H-INACTIVE").procedureCodes(List.of("T1030")).expected("COVERAGE_INACTIVE").build();
+        assertThat(onMock.refusals(right)).isEmpty();
+        CaseOutcome ran = onMock.run(right);
+        assertThat(ran.status()).isEqualTo(CaseStatus.COMPLETED);
+        assertThat(ran.finalRun().outcome()).isEqualTo("COVERAGE_INACTIVE");
+        assertThat(ran.finalRun().result()).isEqualTo(TestResult.PASS);
+
+        for (CaseSpec named : List.of(crdCase("P32H-INACTIVE").expected("COVERAGE_INACTIVE").note("asked Inactive about it").build(),
+                crdCase("P32H-INACTIVE").expected("COVERAGE_INACTIVE").testerRef("Gray Inactive").build())) {
+            List<String> before = onMock.refusals(named);
+            assertThat(before).hasSize(1);
+            assertThat(before.get(0)).contains("the member's last name").endsWith("Nothing was sent.");
+            CaseOutcome refused = onMock.run(named);
+            assertThat(refused.status()).isEqualTo(CaseStatus.INVALID);
+            assertThat(refused.reason()).contains(before.get(0));
+            // Where a lookup would leave this machine, nothing is looked up before sending, and the run still refuses it.
+            assertThat(runner(inactive).refusals(named)).isEmpty();
+            assertThat(runner(inactive).run(named).status()).isEqualTo(CaseStatus.INVALID);
+        }
     }
 
     @Test

@@ -542,7 +542,8 @@ class SuiteServiceTest {
         bed.mode = "live";
         assertThat(bed.service().preview("cases.csv", suite(row("TC-1", "S123456789", ""))).headline()).isEqualTo("1 case, and every one "
                 + "can be run. Whether the active configuration has a target for each is found when the case is sent: one with none is "
-                + "reported as not configured.");
+                + "reported as not configured. The note, the tester reference and the expectation are held against the member the "
+                + "lookup returns when the case is sent, and a case whose text holds that member's details is reported as not valid then.");
     }
 
     @Test
