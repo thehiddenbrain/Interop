@@ -50,7 +50,9 @@ class HistoryFrontendTest {
         assertThat(actions).contains("'More than 1,000 runs are listed; narrow the list to replay them. One replay sends at most 1,000.'");
         assertThat(CaseCodesFrontendTest.body(runs, "function drawActions(query, body) {"))
                 .contains("' Only the runs listed are sent, not the others that match.'")
-                .contains("' again, against the configuration in force now, and says which answers are the same and what changed.'");
+                .contains("'Sends again the '").contains("' that were not made by a replay'").doesNotContain("' that a replay did not make'")
+                .contains("', against the configuration in force now, and says which answers are the same and what changed.'")
+                .contains("query.get('replays') === 'include' ? null : ' It holds the runs made by a replay too, which the list leaves out.'");
     }
 
     @Test

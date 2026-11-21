@@ -310,7 +310,9 @@ export function createRunsList(app, context) {
                     + 'A spreadsheet opens it as it is.',
                     EXPORT_FILTERS.some(name => query.get(name)) ? ' It keeps the protocol and the test result chosen above.' : null,
                     notExported ? el('strong', null, ' It does not take the other filters above: it holds every run that matches the dates, '
-                        + 'the protocol and the test result.') : null)),
+                        + 'the protocol and the test result.') : null,
+                    // The export takes no replays filter, so the rows a sign-off gets are said whatever the list shows.
+                    query.get('replays') === 'include' ? null : ' It holds the runs made by a replay too, which the list leaves out.')),
             originals === 0 ? el('div', {class: 'history-actions__item'},
                 el('p', {class: 'small'}, 'Every run listed was made by a replay, so there is nothing here to replay. '
                     + 'Untick "Show runs made by a replay", or widen the filters.'))
@@ -320,9 +322,9 @@ export function createRunsList(app, context) {
                 : el('div', {class: 'history-actions__item'},
                     replayOpener(listed),
                     el('p', {class: 'small'},
-                        'Sends the ' + count(originals) + (originals === 1 ? ' run' : ' runs') + ' listed'
-                            + (madeByReplay > 0 ? ' that a replay did not make' : '')
-                            + ' again, against the configuration in force now, and says which answers are the same and what changed.',
+                        'Sends again the ' + count(originals) + (originals === 1 ? ' run' : ' runs') + ' listed'
+                            + (madeByReplay > 0 ? (originals === 1 ? ' that was not made by a replay' : ' that were not made by a replay') : '')
+                            + ', against the configuration in force now, and says which answers are the same and what changed.',
                         body.truncated ? ' Only the runs listed are sent, not the others that match.' : null)));
     }
 
