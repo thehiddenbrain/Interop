@@ -69,6 +69,9 @@ class HistoryFrontendTest {
         String open = CaseCodesFrontendTest.body(runs, "async function openById() {");
         assertThat(open).contains("api.get('/api/runs/' + encodeURIComponent(typed))").contains("errorPanel(answer.body)")
                 .contains("runAddress(typed)").doesNotContain("RegExp").doesNotContain(".match(").doesNotContain(".test(");
+        int chain = open.indexOf("if (typed.startsWith('chain-')) {");
+        assertThat(chain).isPositive().isLessThan(open.indexOf("api.get('/api/runs/'"));
+        assertThat(open).contains("'This is a chain id, not a run id. '").contains("el('a', {href: '#history/chains/' + encodeURIComponent(typed)}, 'Open the chain')");
     }
 
     @Test
@@ -108,7 +111,12 @@ class HistoryFrontendTest {
         assertThat(legend).contains("note--none")
                 .contains("'A dashed outline: nothing is there. No answer, nothing returned. The words inside say which.'")
                 .doesNotContain("No answer, nothing declared, nothing returned.");
-        assertThat(read("css/history.css")).contains(".history-table td.history-when-cell {\n    white-space: nowrap;");
+        // The date and the time each stay whole, and the cell wraps between them rather than running into the next column.
+        String table = read("css/history.css");
+        assertThat(CaseCodesFrontendTest.body(table, ".history-table td.history-when-cell {")).doesNotContain("nowrap").contains("padding-right");
+        assertThat(CaseCodesFrontendTest.body(table, ".history-when__part {")).contains("white-space: nowrap;");
+        assertThat(CaseCodesFrontendTest.body(table, ".history-table td.history-tester-cell {")).contains("white-space: nowrap;");
+        assertThat(read("js/history-runs.js")).contains("{class: 'history-tester-cell', title: run.testerRef}");
     }
 
     @Test

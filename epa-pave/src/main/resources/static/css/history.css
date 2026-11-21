@@ -142,19 +142,29 @@
     min-width: 1180px;
 }
 
-/* The first column holds a whole date and time on one line, so it takes its room from Where and Outcome, which wrap. */
-.history-table th:nth-child(1) { width: 18%; }
+/* The first column holds a whole date and time on one line where it can, so it takes its room from Where and Outcome, which wrap. */
+.history-table th:nth-child(1) { width: 17%; }
 .history-table th:nth-child(2) { width: 9%; }
 .history-table th:nth-child(3) { width: 8%; }
 .history-table th:nth-child(4) { width: 14%; }
 .history-table th:nth-child(5) { width: 11%; }
 .history-table th:nth-child(7) { width: 7%; }
 .history-table th:nth-child(8) { width: 11%; }
-.history-table th:nth-child(9) { width: 6%; }
+.history-table th:nth-child(9) { width: 7%; }
 
-/* A time read across a row is read on one line. */
+/*
+ * The date and the time of day are each kept whole (history-when__part); where the column is too narrow for both, the time
+ * goes under the date rather than running into the next column, and the cell keeps the gap the others keep.
+ */
 .history-table td.history-when-cell {
+    padding-right: var(--gap-3);
+}
+
+/* A short tester reference such as a ticket key is read whole; a long one is cut, and whole in its title. */
+.history-table td.history-tester-cell {
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* A number stays on one line; "not measured" in its place may wrap inside its own column. */

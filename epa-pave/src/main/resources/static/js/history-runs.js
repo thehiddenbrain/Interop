@@ -129,6 +129,12 @@ export function createRunsList(app, context) {
             fill(openProblem, el('p', {class: 'field__error'}, 'Type the id of a run, as a result or a ticket gives it, then choose Open the run.'));
             return;
         }
+        // A chain id from a ticket is no run id, but it opens: said before anything is asked. A prefix test, no pattern.
+        if (typed.startsWith('chain-')) {
+            fill(openProblem, el('p', {class: 'field__error'}, 'This is a chain id, not a run id. ',
+                el('a', {href: '#history/chains/' + encodeURIComponent(typed)}, 'Open the chain'), ' to see its runs.'));
+            return;
+        }
         const answer = await api.get('/api/runs/' + encodeURIComponent(typed));
         if (answer.kind === 'ok') {
             // The address a run link opens, so the run view, the back button and a reload behave as after a click on the list.
@@ -460,7 +466,7 @@ export function createRunsList(app, context) {
                     el('td', null, stamp(run.result)),
                     el('td', {class: 'num'}, millis(run.elapsedMillis) || none('not measured'), run.slow ? el('div', null, slowFlag()) : null),
                     el('td', null, memberShort(run)),
-                    el('td', null, run.testerRef ? run.testerRef : none('none')),
+                    el('td', run.testerRef ? {class: 'history-tester-cell', title: run.testerRef} : null, run.testerRef ? run.testerRef : none('none')),
                     el('td', null, partOf(run))))))));
     }
 
