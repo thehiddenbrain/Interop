@@ -98,6 +98,34 @@ class ChainCaseStepTest {
         return ledger.records().stream().filter(RunRecord::caseLine).toList();
     }
 
+    /**
+     * A chain row whose note or tester reference holds the looked-up member's name, or whose CRD part
+     * of the expectation does, is refused by the chain's first call; the check before sending says so
+     * in the same words, so a preview counts it as the run does. An outcome code in the expectation is
+     * no name.
+     */
+    @Test
+    void theCheckBeforeSendingRefusesAChainRowTheRunRefusesForMemberData() {
+        org.p32h.interop.epa.pave.service.MemberLookup found = id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id),
+                org.p32h.interop.epa.pave.model.MemberDetail.builder().memberId(id).firstName("Gray").lastName("Placeholder-Inactive")
+                        .lineOfBusiness("Medicare").build(), List.of(), List.of(), List.of(), null, null, "message");
+        ProtocolCaseRunner onMock = new ProtocolCaseRunner(found, providers).registerChain(chain()).previewMembers(found);
+        for (CaseSpec named : List.of(chainCase("P32H-DOC-DTR").note("asked Gray").build(),
+                chainCase("P32H-DOC-DTR").testerRef("Inactive desk").build(),
+                chainCase("P32H-DOC-DTR").expected("crd: DOCUMENTATION_REQUIRED; dtr: PACKAGE_LOADED").note("Gray Placeholder-Inactive").build())) {
+            List<String> before = onMock.refusals(named);
+            assertThat(before).hasSize(1);
+            assertThat(before.get(0)).contains("holds the member's").endsWith("Nothing was sent.");
+            CaseOutcome refused = onMock.run(named);
+            assertThat(refused.status()).isEqualTo(CaseStatus.INVALID);
+            assertThat(refused.reason()).contains(before.get(0));
+        }
+        CaseSpec right = chainCase("P32H-DOC-DTR").expected("crd: documentation_required; dtr: PACKAGE_LOADED").note("asked the desk").build();
+        assertThat(onMock.refusals(right)).isEmpty();
+        assertThat(onMock.run(right).status()).isEqualTo(CaseStatus.COMPLETED);
+        assertThat(runLines()).noneMatch(r -> "asked Gray".equals(r.note()));
+    }
+
     @Test
     void aFlowThatEndsAtCrdStopsThereAndSaysSo() {
         CaseOutcome outcome = runner().run(chainCase("P32H-NO-AUTH").expected("crd: NO_AUTH_REQUIRED").build());

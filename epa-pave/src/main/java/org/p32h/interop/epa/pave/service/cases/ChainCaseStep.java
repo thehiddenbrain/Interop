@@ -118,6 +118,12 @@ public final class ChainCaseStep implements CaseStep {
         return finish(context, expectation, done, stopped);
     }
 
+    /** The CRD part of the chain's expectation, which the first call is sent with and checked against. */
+    @Override
+    public String firstExpectation(CaseSpec spec) {
+        return ChainExpectation.parse(spec.expected(), outcomes).of(Protocol.CRD);
+    }
+
     /** The sentence for a chain row that chooses a scenario. */
     static final String SCENARIO_REFUSED = "A chain cannot choose a scenario. Each of its steps is answered by a scenario of its "
             + "own protocol, picked by the member ID. Run the step by itself to choose its scenario.";

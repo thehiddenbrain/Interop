@@ -177,6 +177,8 @@ public class ProtocolCaseRunner implements CaseRunner {
             if (noNpi) {
                 problems.add("npi: A chain starts with CRD, which needs the ordering provider's NPI.");
             }
+            // The chain's first call is CRD, which refuses such text before anything is sent, so the whole row is not valid.
+            memberInText(spec, chain.firstExpectation(spec), problems);
             return problems;
         }
         EpaOperation operation = spec.operation();
@@ -193,16 +195,26 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (Texts.present(spec.scenarioId()) && knownScenario != null && !knownScenario.test(operation.protocol(), spec.scenarioId().strip())) {
             problems.add("scenarioId: There is no " + operation.protocol().name() + " scenario with that id.");
         }
-        // The service's own check of the note, the tester reference and the expectation, with the member it will be given, in the
-        // service's own words, so the reason a preview gives is the reason the run gives.
-        if (previewMembers != null && Texts.present(MemberIds.noSpace(spec.memberId()))) {
-            MemberLookupResult found = previewMembers.lookup(spec.memberId());
-            if (found.status() == LookupStatus.FOUND && found.member() != null) {
-                MemberInText.problems(spec.note(), spec.testerRef(), spec.expected(), found.member(), "Nothing was sent.")
-                        .forEach((field, problem) -> problems.add(field + ": " + problem));
-            }
-        }
+        memberInText(spec, spec.expected(), problems);
         return problems;
+    }
+
+    /**
+     * The service's own check of the note, the tester reference and the expectation, with the member
+     * it will be given, in the service's own words, so the reason a preview gives is the reason the
+     * run gives. Made only where a lookup leaves nothing on the wire ({@link #previewMembers}).
+     *
+     * @param expected the expectation the first call is sent with
+     */
+    private void memberInText(CaseSpec spec, String expected, List<String> problems) {
+        if (previewMembers == null || Texts.blank(MemberIds.noSpace(spec.memberId()))) {
+            return;
+        }
+        MemberLookupResult found = previewMembers.lookup(spec.memberId());
+        if (found.status() == LookupStatus.FOUND && found.member() != null) {
+            MemberInText.problems(spec.note(), spec.testerRef(), expected, found.member(), "Nothing was sent.")
+                    .forEach((field, problem) -> problems.add(field + ": " + problem));
+        }
     }
 
     /** The operations this runner has a step for. */
