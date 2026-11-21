@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamConstraintsException;
 import tools.jackson.core.JsonParser;
 import tools.jackson.core.JsonToken;
 import tools.jackson.databind.DeserializationFeature;
@@ -43,6 +44,9 @@ public final class JsonSafe {
      * @param repeated     each key that an object carries more than once, with every value it was
      *                     sent with, in the order they came. Empty when no key repeats
      */
+    /** How the reason begins when a text nests deeper than the parser reads. */
+    private static final String TOO_DEEP = "The body nests its objects and lists deeper than the ";
+
     public record Parsed(JsonNode node, String error, boolean repeatedKeys, List<RepeatedKey> repeated) {
 
         public Parsed {
@@ -55,6 +59,11 @@ public final class JsonSafe {
 
         public boolean ok() {
             return node != null;
+        }
+
+        /** True when the text could not be read because it nests deeper than the parser reads, not because it is not JSON. */
+        public boolean tooDeep() {
+            return error != null && error.startsWith(TOO_DEEP);
         }
 
         /** Prints whether it parsed, never the document: it can be a response body or a token response. */
@@ -110,6 +119,14 @@ public final class JsonSafe {
             }
             return new Parsed(node, null, repeated, repeated ? repeatedKeys(text) : List.of());
         } catch (JacksonException e) {
+            // The parser stops at its nesting limit with no position, and a body past it is not
+            // invalid JSON: saying "not valid JSON" would send the tester looking for a syntax error
+            // that is not there. The limit and the place it is passed are the reason.
+            Nesting.TooDeep deep = e instanceof StreamConstraintsException ? Nesting.tooDeep(text) : null;
+            if (deep != null) {
+                return new Parsed(null, TOO_DEEP + deep.limit() + " levels this tool reads: the level past that limit opens at line "
+                        + deep.line() + ", column " + deep.column() + ". It was not read.", false);
+            }
             // The original message can quote the source text, which may be member data. Only the
             // position is kept.
             return new Parsed(null, "The body is not valid JSON" + position(e) + ".", false);

@@ -1,4 +1,4 @@
-package org.p32h.interop.epa.pave.service.compare;
+package org.p32h.interop.epa.pave.model;
 
 import tools.jackson.core.StreamReadConstraints;
 

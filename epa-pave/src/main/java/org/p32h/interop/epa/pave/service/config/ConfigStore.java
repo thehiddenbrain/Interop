@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -104,6 +105,14 @@ public class ConfigStore {
         long epoch() {
             return after.epoch();
         }
+    }
+
+    /**
+     * An upload with the answer that describes it, which was built from the configuration the
+     * upload leaves before anything was written: a description that failed to build then stops the
+     * upload instead of answering "internal error" for a file that was stored all the same.
+     */
+    record Described<U, V>(U upload, V view) {
     }
 
     /** What removing an environment or a collection did. */
@@ -278,6 +287,13 @@ public class ConfigStore {
      */
     synchronized EnvironmentUpload uploadEnvironment(String originalFileName, byte[] content, EnvironmentKind kind,
                                                      boolean acknowledgedNotProd) {
+        return uploadEnvironment(originalFileName, content, kind, acknowledgedNotProd, (stored, after) -> null).upload();
+    }
+
+    /** As {@link #uploadEnvironment(String, byte[], EnvironmentKind, boolean)}, with the answer described before the commit. */
+    synchronized <V> Described<EnvironmentUpload, V> uploadEnvironment(String originalFileName, byte[] content, EnvironmentKind kind,
+                                                                       boolean acknowledgedNotProd,
+                                                                       BiFunction<StoredEnvironment, ConfigSnapshot, V> describe) {
         if (kind == null) {
             throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
         }
@@ -307,7 +323,6 @@ public class ConfigStore {
 
         String id = Ids.named(parsed.name());
         String file = ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
-        writeAtomically(directory.resolve(file), content);
         StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file, displayName(originalFileName),
                 clock.instant().toString(), kind != EnvironmentKind.PROD && (needsConfirmation || acknowledgedNotProd), signs);
 
@@ -328,18 +343,25 @@ public class ConfigStore {
                         && plain.stream().anyMatch(each -> new UrlNormal.Destination(null, known.destination().host(), -1, "", false)
                         .sameOrigin(each))))
                 .toList();
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(),
-                remembered, before.applicationYml()), file, previous == null ? null : previous.file());
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(), remembered,
+                before.applicationYml());
 
+        // Every check that can fail runs before anything is written, so an upload that fails
+        // leaves the store as it was. A check that threw after the commit used to answer "internal
+        // error" for a file that had been stored all the same.
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
-        warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
-        warnings.addAll(leftBehind);
-        warnings.addAll(parsed.notes());
-        warnings.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+        warnings.addAll(AddressChecks.of(next.byName(stored.name()), next));
+        List<String> listedLast = new ArrayList<>(parsed.notes());
+        listedLast.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+        V view = describe.apply(stored, next);
+
+        writeAtomically(directory.resolve(file), content);
+        warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
+        warnings.addAll(listedLast);
         // The name, the kind and a count. Never a variable value.
         log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new EnvironmentUpload(stored, previous != null, warnings, current);
+        return new Described<>(new EnvironmentUpload(stored, previous != null, warnings, current), view);
     }
 
     /** Makes an uploaded environment the active one, with no restart. */
@@ -378,6 +400,12 @@ public class ConfigStore {
      * still there.
      */
     synchronized CollectionUpload uploadCollection(String originalFileName, byte[] content) {
+        return uploadCollection(originalFileName, content, (stored, after) -> null).upload();
+    }
+
+    /** As {@link #uploadCollection(String, byte[])}, with the answer described before the commit. */
+    synchronized <V> Described<CollectionUpload, V> uploadCollection(String originalFileName, byte[] content,
+                                                                     BiFunction<StoredCollection, ConfigSnapshot, V> describe) {
         PostmanCollection parsed = PostmanParser.collection(PostmanParser.decode(content));
         ConfigSnapshot before = current;
         String id = Ids.named(parsed.name());
@@ -402,7 +430,6 @@ public class ConfigStore {
                 }
             }
         }
-        writeAtomically(directory.resolve(file), content);
         StoredCollection stored = new StoredCollection(id, parsed, file, displayName(originalFileName), clock.instant().toString(),
                 mapped(parsed, corrections));
 
@@ -412,18 +439,26 @@ public class ConfigStore {
         } else {
             collections.set(collections.indexOf(previous), stored);
         }
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
-                before.remembered(), before.applicationYml()), file, previous == null ? null : previous.file());
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
+                before.remembered(), before.applicationYml());
 
+        // Every check that can fail runs before anything is written, so an upload that fails
+        // leaves the store as it was. The scan for literal credentials once threw after the commit:
+        // the upload answered "internal error", the collection was stored all the same, and every
+        // later reading of it threw again.
         warnings.addAll(secretWarnings(parsed.variables(), file));
         warnings.addAll(literalCredentialWarnings(parsed, file));
-        warnings.addAll(leftBehind);
-        warnings.addAll(parsed.notes());
-        warnings.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
+        List<String> listedLast = new ArrayList<>(parsed.notes());
+        listedLast.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
+        V view = describe.apply(stored, next);
+
+        writeAtomically(directory.resolve(file), content);
+        warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
+        warnings.addAll(listedLast);
         // The name and counts only. Never a url, a header or a body.
         log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new CollectionUpload(stored, previous != null, warnings, current);
+        return new Described<>(new CollectionUpload(stored, previous != null, warnings, current), view);
     }
 
     /**
@@ -629,8 +664,10 @@ public class ConfigStore {
      * A warning when an upload can hold member data: a variable whose name reads as a member,
      * patient or subscriber identifier, a name or a birth date, or a request with a saved example
      * response. The variables and requests are named. A value never is.
+     *
+     * <p>Package-private so that a test can make this check fail and see that the upload stores nothing.
      */
-    private List<String> memberDataWarnings(String what, List<PostmanVariable> variables, List<PostmanRequest> requests, String file) {
+    List<String> memberDataWarnings(String what, List<PostmanVariable> variables, List<PostmanRequest> requests, String file) {
         List<String> warnings = new ArrayList<>();
         String kept = " The " + what + " is kept on disk exactly as it was uploaded, values included, in the file "
                 + directory.resolve(file) + ". An environment or a collection that holds real member data must not be uploaded: use "
@@ -692,7 +729,7 @@ public class ConfigStore {
             }
         }
         List<String> warnings = new ArrayList<>();
-        requestsByHeader.forEach((header, requests) -> warnings.add("The header \"" + oneLine(header) + "\" holds a credential typed into "
+        requestsByHeader.forEach((header, requests) -> warnings.add("The header \"" + oneLine(LiteralCredentials.named(header)) + "\" holds a credential typed into "
                 + "the collection in " + requests.size() + (requests.size() == 1 ? " request" : " requests") + ", the first being \""
                 + oneLine(requests.get(0)) + "\", and it now sits in the file " + directory.resolve(file) + " in plain text. This tool "
                 + "redacts it wherever it shows the header. To keep it out of that file, replace it in Postman with a {{placeholder}} and "
@@ -709,7 +746,7 @@ public class ConfigStore {
             List<String> places = new ArrayList<>();
             LiteralCredentials.inUrl(request.url()).found().forEach(found -> places.add(found.place()));
             LiteralCredentials.inBody(request.body()).found().forEach(found -> places.add(found.place()));
-            request.formCredentials().forEach(field -> places.add("the field " + oneLine(field) + " of its " + oneLine(request.bodyMode())
+            request.formCredentials().forEach(field -> places.add("the field " + oneLine(LiteralCredentials.named(field)) + " of its " + oneLine(request.bodyMode())
                     + " body"));
             if (!places.isEmpty()) {
                 warnings.add("The request \"" + oneLine(request.qualifiedName()) + "\" holds a credential typed into the collection, in "
@@ -719,7 +756,7 @@ public class ConfigStore {
             for (PostmanExample example : request.examples()) {
                 List<String> inExample = new ArrayList<>();
                 example.headers().stream().filter(header -> HeaderMasking.literalCredential(header.name(), header.value()))
-                        .forEach(header -> inExample.add("its header " + oneLine(header.name())));
+                        .forEach(header -> inExample.add("its header " + oneLine(LiteralCredentials.named(header.name()))));
                 LiteralCredentials.inBody(example.body()).found().forEach(found -> inExample.add(found.place()));
                 if (!inExample.isEmpty()) {
                     warnings.add("The saved example \"" + oneLine(example.name()) + "\" of the request \"" + oneLine(request.qualifiedName())
@@ -733,7 +770,7 @@ public class ConfigStore {
             if (!auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
                 warnings.add("The authentication helper " + oneLine(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
                         + "typed into the collection, in its field " + String.join(" and its field ", auth.literals().stream()
-                        .map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
+                        .map(LiteralCredentials::named).map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
                         + "shows that value." + move);
             }
         }

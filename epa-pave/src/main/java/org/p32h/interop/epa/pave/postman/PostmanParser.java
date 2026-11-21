@@ -17,8 +17,10 @@ import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.Nesting;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamConstraintsException;
 import tools.jackson.core.exc.UnexpectedEndOfInputException;
 import tools.jackson.databind.JsonNode;
 
@@ -40,7 +42,8 @@ public final class PostmanParser {
     private static final String EXPORT_COLLECTION = "In Postman, open the menu of the collection, choose Export, select Collection v2.1, "
             + "and upload the file it saves.";
 
-    private static final Pattern VERSION = Pattern.compile("v\\d+(?:\\.\\d+)*");
+    /** Possessive, so that a schema text with thousands of numbers is read in a loop and not by one call per number. */
+    private static final Pattern VERSION = Pattern.compile("v\\d++(?:\\.\\d++)*+");
 
     /** The mark some editors write at the start of a UTF-8 file. Written as a number so this source stays plain ASCII. */
     private static final char BYTE_ORDER_MARK = (char) 0xFEFF;
@@ -642,6 +645,17 @@ public final class PostmanParser {
         try {
             JsonSafe.mapper().readTree(body);
         } catch (JacksonException e) {
+            // The parser reads objects and lists only so many levels deep, and a file past that is
+            // not invalid JSON. Saying so tells the tester what to change; "not valid JSON" sent
+            // them looking for a syntax error that is not there.
+            Nesting.TooDeep deep = e instanceof StreamConstraintsException ? Nesting.tooDeep(body) : null;
+            if (deep != null) {
+                throw new BadInputException("This file nests its objects and lists deeper than the " + deep.limit() + " levels this tool "
+                        + "reads: the level past that limit opens at line " + deep.line() + ", column " + deep.column() + ". It was not read, "
+                        + "and nothing was stored.", what.equals("collection")
+                        ? "In Postman, move the requests of the deepest folders into folders nearer the top, export the collection again "
+                        + "and upload that file." : "Export the " + what + " from Postman again and upload the file it saves.");
+            }
             // "At the end" allows for the few characters of a word such as true that was cut short:
             // the parser reports where that word began, not where the text ran out.
             boolean atTheEnd = e.getLocation() != null && e.getLocation().getCharOffset() >= body.stripTrailing().length() - 5;

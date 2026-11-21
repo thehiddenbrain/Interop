@@ -476,7 +476,7 @@ public class PasService {
         // they are entitled to send. They are told, so it cannot happen unnoticed.
         JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
         if (body.resolved() && !parsed.ok()) {
-            notes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly as written. "
+            notes.add("The body you supplied cannot be read as JSON once its placeholders are filled in. It was sent exactly as written. "
                     + parsed.error());
         } else if (body.resolved() && Texts.blank(sent.claimId())) {
             notes.add("The body you supplied carries no claim identifier this tool could read, so this run has no claim id. An inquiry or "

@@ -68,8 +68,8 @@ public class ScenarioRepository {
     static final String DTR = "dtr";
     static final String PAS = "pas";
 
-    /** This tool's own sentinel member IDs, compared in their no-space upper-case form. */
-    static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
+    /** This tool's own sentinel member IDs, compared in their no-space upper-case form. Possessive, so that java.util.regex reads the parts in a loop and not by one call per part. */
+    static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]++(?:-[A-Z0-9]++)*+");
 
     /**
      * Every top-level key a scenario file may hold. The protocols read their own sections from

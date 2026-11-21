@@ -25,6 +25,24 @@ class JsonSafeTest {
     }
 
     @Test
+    void aBodyNestedPastTheParsersLimitIsReportedAsThatAndNotAsInvalidJson() {
+        // A service answer of 499 levels inside the outer object is read; one level past the 500 the parser reads is refused, and
+        // the reason names the limit and the place, because the text is not malformed and "not valid JSON" would say it was.
+        assertThat(JsonSafe.parse("{\"a\":" + "[".repeat(499) + "]".repeat(499) + "}").ok()).isTrue();
+        JsonSafe.Parsed deep = JsonSafe.parse("{\"a\":" + "[".repeat(500) + "]".repeat(500) + "}");
+        assertThat(deep.ok()).isFalse();
+        assertThat(deep.tooDeep()).isTrue();
+        assertThat(deep.error()).isEqualTo("The body nests its objects and lists deeper than the 500 levels this tool reads: the level "
+                + "past that limit opens at line 1, column 505. It was not read.");
+        JsonSafe.Parsed far = JsonSafe.parse("{\n  \"a\": " + "[".repeat(5000) + "]".repeat(5000) + "\n}");
+        assertThat(far.error()).isEqualTo("The body nests its objects and lists deeper than the 500 levels this tool reads: the level "
+                + "past that limit opens at line 2, column 507. It was not read.");
+        // Malformed text is still called that, and a bracket inside a string is not a level.
+        assertThat(JsonSafe.parse("{\"cards\": [").tooDeep()).isFalse();
+        assertThat(JsonSafe.parse("{\"a\":\"" + "[".repeat(600) + "\"").error()).startsWith("The body is not valid JSON");
+    }
+
+    @Test
     void aLeadingByteOrderMarkIsSkipped() {
         // A response, a scenario file or a Postman export saved as UTF-8 with a byte order mark is still JSON.
         JsonSafe.Parsed parsed = JsonSafe.parse("\uFEFF{\"cards\":[]}");

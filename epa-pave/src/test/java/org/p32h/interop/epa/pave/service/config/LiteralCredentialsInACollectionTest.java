@@ -162,4 +162,28 @@ class LiteralCredentialsInACollectionTest {
         fixture.store.uploadCollection("literal.json", COLLECTION.getBytes(StandardCharsets.UTF_8));
         assertThat(Files.readString(fixture.store.directory().resolve(ConfigStore.STATE_FILE))).doesNotContain(CANARY);
     }
+
+    @Test
+    void aCredentialsNameOfMillionsOfCharactersIsQuotedByItsStartAndItsLength() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        String key = "k".repeat(1_999_992) + "password";
+        String header = "X".repeat(100_000) + "-Api-Key";
+        String collection = "{\"info\": {\"name\": \"Long names\", \"schema\": "
+                + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": [{\"name\": \"Submit\", "
+                + "\"request\": {\"method\": \"POST\", \"header\": [{\"key\": \"" + header + "\", \"value\": \"ZZLONGNAME-KEY-7\"}], "
+                + "\"url\": \"https://{{base}}/Claim/$submit\", \"body\": {\"mode\": \"raw\", \"raw\": "
+                + JsonSafe.mapper().writeValueAsString("{\"" + key + "\": \"ZZLONGNAME-SECRET-7\", \"note\": \"short\"}") + "}}}]}";
+        List<String> warnings = fixture.store.uploadCollection("names.json", collection.getBytes(StandardCharsets.UTF_8)).warnings();
+
+        // Still warned about, in the place it was, but the name is given by its first 60 characters and its length.
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning).startsWith("The request \"Submit\" holds a credential typed into the "
+                + "collection, in the field " + "k".repeat(60) + "... (a name of 2000000 characters) of its body. It sits in the file "));
+        assertThat(warnings).anySatisfy(warning -> assertThat(warning).startsWith("The header \"" + "X".repeat(60) + "... (a name of 100008 "
+                + "characters)\" holds a credential typed into the collection in 1 request"));
+        assertThat(warnings).allSatisfy(warning -> assertThat(warning.length()).isLessThan(1_000));
+        assertThat(String.join(" ", warnings)).doesNotContain("ZZLONGNAME-SECRET-7").doesNotContain("ZZLONGNAME-KEY-7");
+        // A name of ordinary length is quoted whole, as before.
+        assertThat(org.p32h.interop.epa.pave.postman.LiteralCredentials.named("k".repeat(60))).isEqualTo("k".repeat(60));
+        assertThat(org.p32h.interop.epa.pave.postman.LiteralCredentials.named("client_secret")).isEqualTo("client_secret");
+    }
 }

@@ -124,7 +124,7 @@ public class CrdService {
             // case they are entitled to send. They are told, so it cannot happen unnoticed.
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
             if (body.resolved() && !parsed.ok()) {
-                requestNotes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly "
+                requestNotes.add("The body you supplied cannot be read as JSON once its placeholders are filled in. It was sent exactly "
                         + "as written. " + parsed.error());
                 unreadableOnMock = epa.mock();
             }
@@ -210,7 +210,7 @@ public class CrdService {
      */
     static final NextStepView UNREADABLE_BODY_ON_MOCK = new NextStepView(NextAction.REVIEW,
             "Next: correct the body and send it again. Nothing is handed on from this answer.",
-            "On the mock profile a scenario answered, although the body you supplied is not valid JSON. That answer says nothing about "
+            "On the mock profile a scenario answered, although the body you supplied cannot be read as JSON. That answer says nothing about "
                     + "the body, so no next step is offered from it. A service would read the body as it stands.", Map.of());
 
     private Interpreted interpret(CrdRunRequest request, PreparedCall call, VendorExchange exchange, List<SentOrder> orders,

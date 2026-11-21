@@ -242,7 +242,12 @@ public record RunRecord(
      */
     private static final String ONE_SUBJECT = "(?:\\(not a code, \\d{1,9} characters\\)|[A-Za-z0-9._\\-/\\[\\]]{1,80})";
     private static final java.util.regex.Pattern SUBJECT_ITEM = java.util.regex.Pattern.compile(ONE_SUBJECT);
-    private static final String SUBJECT = ONE_SUBJECT + "(?:, " + ONE_SUBJECT + ")*";
+    /**
+     * Possessive, so that java.util.regex reads the subjects in a loop and not by one call per
+     * subject. What follows the subjects starts with a colon, which no subject holds, so nothing
+     * given back could have matched.
+     */
+    private static final String SUBJECT = ONE_SUBJECT + "(?:, " + ONE_SUBJECT + ")*+";
     private static final java.util.regex.Pattern CODE_ENTRY =
             java.util.regex.Pattern.compile("(?:(" + SUBJECT + "): )?(" + NAME + ")=(" + TOKEN + ")");
     private static final java.util.regex.Pattern NO_ANSWER_ENTRY = java.util.regex.Pattern.compile("(" + SUBJECT + "): \\(no answer\\)");
@@ -263,9 +268,10 @@ public record RunRecord(
     /**
      * One canonical address: http or https with a host and a path, or a urn, then an optional
      * {@code |version}. No query, no fragment, no user before the host, no percent escape (which
-     * could spell a space) and no white space.
+     * could spell a space) and no white space. The segments of the path are read possessively, so
+     * that java.util.regex reads them in a loop and not by one call per segment.
      */
-    private static final String CANONICAL = "(?i:https?://[A-Za-z0-9.\\-]{1,253}(?::\\d{1,5})?(?:/[A-Za-z0-9\\-._~:]*)*"
+    private static final String CANONICAL = "(?i:https?://[A-Za-z0-9.\\-]{1,253}(?::\\d{1,5})?(?:/[A-Za-z0-9\\-._~:]*+)*+"
             + "|urn:[A-Za-z0-9][A-Za-z0-9\\-]{0,31}:[A-Za-z0-9\\-._:/]{1,400})(?:\\|[A-Za-z0-9.\\-_+]{1,64})?";
     /** What the DTR service writes in place of a requested questionnaire that was not an address. */
     private static final String NOT_A_URL = "\\(not a url, \\d{1,9} characters\\)";

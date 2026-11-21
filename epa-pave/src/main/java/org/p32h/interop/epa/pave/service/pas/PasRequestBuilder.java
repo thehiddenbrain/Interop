@@ -463,7 +463,7 @@ public final class PasRequestBuilder {
         Map<String, String> fullUrls = new HashMap<>();
         for (JsonNode resource : bundled) {
             String local = JsonSafe.text(resource, "resourceType") + "/" + JsonSafe.text(resource, "id");
-            fullUrls.put(local, base != null ? base.replaceAll("/+$", "") + "/" + local : "urn:uuid:" + uuids.get());
+            fullUrls.put(local, base != null ? Texts.withoutTrailing(base, "/") + "/" + local : "urn:uuid:" + uuids.get());
         }
         Set<String> unresolved = new LinkedHashSet<>();
         for (ObjectNode resource : bundled) {

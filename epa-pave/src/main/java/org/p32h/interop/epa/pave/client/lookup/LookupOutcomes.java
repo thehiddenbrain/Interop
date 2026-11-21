@@ -144,7 +144,7 @@ final class LookupOutcomes {
         List<String> named = new ArrayList<>();
         for (String variable : variables) {
             String reason = reasons == null ? null : Texts.trimToNull(reasons.get(variable));
-            named.add("{{" + variable + "}}" + (reason == null ? "" : " (" + reason.replaceAll("[.\\s]+$", "") + ")"));
+            named.add("{{" + variable + "}}" + (reason == null ? "" : " (" + Texts.withoutTrailing(reason, "." + Texts.WHITE_SPACE) + ")"));
         }
         String placeholders = named.isEmpty() ? "a placeholder" : (named.size() == 1 ? "the placeholder " : "the placeholders ")
                 + String.join(", ", named);

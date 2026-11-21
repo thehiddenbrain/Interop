@@ -115,6 +115,9 @@ test {
     // says "build twice from clean" would be reporting the first run twice. So the result of the
     // tests is never taken from the cache: after a clean they run.
     outputs.cacheIf { false }
+    // RegexStackGuardTest reads the node graph java.util.regex compiles each pattern of the tool to,
+    // to find every repetition it evaluates by recursion. Only the test JVM is opened; the jar is not.
+    jvmArgs '--add-opens=java.base/java.util.regex=ALL-UNNAMED'
     testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
 }
 

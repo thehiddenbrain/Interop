@@ -312,7 +312,7 @@ public class DtrService {
             String names = "The questionnaire names " + kind.nextQuestionBase() + " as the base address for next-question. ";
             if (!call.url().resolved()) {
                 notes.add(names + "This tool sends to the address configured for the environment, and never takes one from a response.");
-            } else if (OnyxDtrConventions.nextQuestionAddresses(kind.nextQuestionBase()).contains(call.url().value().replaceAll("/+$", ""))) {
+            } else if (OnyxDtrConventions.nextQuestionAddresses(kind.nextQuestionBase()).contains(Texts.withoutTrailing(call.url().value(), "/"))) {
                 notes.add(names + "This request goes to an address the DTR guide derives from it.");
             } else {
                 notes.add(names + "This request goes to the address configured for the environment, " + call.url().display()
@@ -507,7 +507,7 @@ public class DtrService {
     private static void ownBodyNotes(ResolvedText body, List<String> notes) {
         JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
         if (body.resolved() && !parsed.ok()) {
-            notes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly as written. "
+            notes.add("The body you supplied cannot be read as JSON once its placeholders are filled in. It was sent exactly as written. "
                     + parsed.error());
         }
     }
