@@ -113,7 +113,8 @@ export function createChain(app, bar) {
                 el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null,
                     stateParts(stage.stateLine))))),
             // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
-            // Set without the break points code() adds, which would break the one line even where wrapping is off.
+            // The member ID is set as one word, without the break points code() adds, so it is never split at a hyphen: where the
+            // case does not fit beside the stages the bar takes a second line, and only an ID longer than a line breaks within it.
             el('span', {class: 'chain-bar__case', title: caseLine(view)}, el('span', {class: 'quiet'}, 'for '),
                 view.member ? el('code', {class: 'literal'}, view.member) : 'a member the ledger does not show',
                 view.procedureCodes && view.procedureCodes.length > 0

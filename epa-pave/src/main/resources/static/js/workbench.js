@@ -857,19 +857,6 @@ export const CODE_PICKER_ABOUT = 'In the procedure code box, the arrows choose f
     + 'Several can be pasted at once, separated by commas or spaces.';
 
 /**
- * The table of mock scenarios on an empty tab, the same on CRD, DTR and PAS. Drawn only on the
- * mock profile, by a tab that has a scenario list to show; on live there is none to draw.
- *
- * options.own: true while a request of the tester's own is chosen. The form's case is not sent
- * with such a body, so the member ID is copied, to be put into the body, and nothing is filled.
- * options.onUse(scenario), optional: called before the case is filled, so the tab can let the
- * member ID decide again in place of a scenario chosen by hand.
- *
- * "Use this case" fills the member ID, the NPI and the codes the scenario file names for its case,
- * each looked up as if typed, so the first send needs no other input. A file that names no sample
- * case fills the member ID only.
- */
-/**
  * The cases of the mock scenario table, folded, for a readout that holds a result. Null on live and when the list is not
  * read: the table and everything that fills in a sample exist on mock only. "Start a new case" in the chain bar opens it.
  */
@@ -884,6 +871,19 @@ export function anotherCaseFold(app, list, own, onUse) {
         scenarioTable(app, list, {own, onUse}));
 }
 
+/**
+ * The table of mock scenarios on an empty tab, the same on CRD, DTR and PAS. Drawn only on the
+ * mock profile, by a tab that has a scenario list to show; on live there is none to draw.
+ *
+ * options.own: true while a request of the tester's own is chosen. The form's case is not sent
+ * with such a body, so the member ID is copied, to be put into the body, and nothing is filled.
+ * options.onUse(scenario), optional: called before the case is filled, so the tab can let the
+ * member ID decide again in place of a scenario chosen by hand.
+ *
+ * "Use this case" fills the member ID, the NPI and the codes the scenario file names for its case,
+ * each looked up as if typed, so the first send needs no other input. A file that names no sample
+ * case fills the member ID only.
+ */
 export function scenarioTable(app, list, options) {
     const settings = options || {};
     const own = settings.own === true;
