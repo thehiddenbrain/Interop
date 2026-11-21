@@ -1533,7 +1533,7 @@ legend, .case-legend {
     color: var(--ink-soft);
 }
 
-/* The findings a mock run with no environment raises as a matter of course, under their own heading inside Findings. */
+/* The findings a mock run with no environment raises as a matter of course, in their own fold inside Findings. */
 .result__mock-notes {
     margin-top: var(--gap-3);
     padding-top: var(--gap-2);

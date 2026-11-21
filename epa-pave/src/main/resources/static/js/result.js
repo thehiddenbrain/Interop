@@ -349,7 +349,7 @@ function runLine(envelope) {
 /**
  * True for a finding that a run on the mock profile with no environment active raises as a matter
  * of course: the request went out without elements only an environment or a lookup supplies. It is
- * still drawn whole, under its own heading inside Findings, and counted with the rest.
+ * still drawn whole, in its own closed fold inside Findings, and counted with the rest.
  */
 export function expectedOnMock(envelope, item) {
     return Boolean(envelope) && envelope.profile === 'mock' && Boolean(item) && item.kind === 'REQUEST_INCOMPLETE'
@@ -371,9 +371,11 @@ function findingsSection(envelope) {
         node.append(el('p', {class: 'quiet'}, 'None apart from the ones expected on the mock profile, below.'));
     }
     if (onMock.length > 0) {
-        node.append(el('div', {class: 'result__mock-notes'},
-            heading(4, 'Expected on the mock profile', onMock.length),
-            el('p', {class: 'quiet'}, 'On the mock profile, with no environment active, this is expected.'),
+        // Closed, with its count and its reason on the summary: a mock run raises these every time,
+        // and open they read as the headline of a run that went right. One click shows each whole.
+        node.append(el('details', {class: 'fold result__mock-notes'},
+            el('summary', null, 'Expected on the mock profile (' + onMock.length + ')',
+                el('span', {class: 'quiet small'}, ' On the mock profile, with no environment active, this is expected.')),
             el('div', null, onMock.map(finding))));
     }
     return node;
