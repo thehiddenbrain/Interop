@@ -15,7 +15,7 @@
 // stops a code from being typed by hand. Nothing is kept: no recent codes, no cache.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code} from './dom.js';
+import {el, fill, clear, button, code, faultReport} from './dom.js';
 
 const CODE_SEPARATORS = /[\s,;|]+/;
 const PAUSE_MS = 220;
@@ -60,7 +60,8 @@ export function createCodePicker(spec) {
     const status = el('span', {class: 'visually-hidden', id: ids.status, role: 'status', aria: {live: 'polite'}});
     // Two notes of one line each: whether the list in use is the placeholder, and a list that did not answer.
     const listNote = el('p', {class: 'picker__note'});
-    const failNote = el('p', {class: 'picker__note', aria: {live: 'polite'}});
+    // A div, since a failure of this tool puts its reference and cause in it as paragraphs of their own.
+    const failNote = el('div', {class: 'picker__note', aria: {live: 'polite'}});
     // Says that a code was not added because the case holds it already, so nothing vanishes in silence.
     const repeatNote = el('p', {class: 'picker__note', aria: {live: 'polite'}});
     const node = el('div', {class: 'case-group field picker', dataset: {field: 'procedureCodes'}},
@@ -188,7 +189,7 @@ export function createCodePicker(spec) {
         if (answer.kind !== 'ok') {
             close();
             fill(failNote, 'The code list could not be searched: ' + answer.body.title + ' A code can still be typed and added by hand.',
-                reference(answer.body));
+                faultReport(answer.body));
             return;
         }
         clear(failNote);
@@ -325,7 +326,7 @@ export function createCodePicker(spec) {
             entry.line = line;
             if (answer.kind !== 'ok') {
                 entry.check = 'failed';
-                entry.sentence = answer.body.title + (answer.body.reference ? ' Reference ' + answer.body.reference + '.' : '');
+                entry.sentence = answer.body.reference ? [answer.body.title, faultReport(answer.body)] : answer.body.title;
             } else {
                 const returned = answer.body.codes || [];
                 // The server says whether the code is on the list at all, in any line and on any
@@ -472,11 +473,6 @@ export function createCodePicker(spec) {
             }
         }
     };
-}
-
-/** The reference a failure of this tool carries, so it can be found in the server's log. Nothing when there is none. */
-function reference(error) {
-    return error && error.reference ? [' Reference ', code(error.reference), '.'] : null;
 }
 
 /** One option per code: the list has a row per code and line of business, and a code is chosen once. */

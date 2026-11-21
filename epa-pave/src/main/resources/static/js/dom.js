@@ -202,6 +202,23 @@ export function copyButton(label, getText, fallbackNode) {
 }
 
 /**
+ * The reference of a failure of this tool with its cause, as the server log names them, and one
+ * button that copies both. The log can be on a machine the tester never looks at, so the cause is
+ * shown here, and reporting it is one paste. Nothing when the error carries no reference.
+ */
+export function faultReport(error) {
+    if (!error || !error.reference) {
+        return null;
+    }
+    const lines = el('div', {class: 'fault-report__lines'},
+        el('p', {class: 'fault-report__reference'}, 'Reference ', code(error.reference)),
+        error.cause ? el('p', {class: 'fault-report__cause'}, 'Cause, as the server log names it: ', code(error.cause)) : null);
+    const copied = () => 'Reference ' + error.reference + (error.cause ? '\nCause, as the server log names it: ' + error.cause : '');
+    return el('div', {class: 'fault-report'}, lines,
+        copyButton(error.cause ? 'Copy reference and cause' : 'Copy reference', copied, lines));
+}
+
+/**
  * A link taken from a response. It becomes an anchor only when its address starts with http:// or
  * https://, opens in a new tab without handing this page to it, and always shows the address
  * itself so a tester sees where it goes. Anything else is shown as the text it is.

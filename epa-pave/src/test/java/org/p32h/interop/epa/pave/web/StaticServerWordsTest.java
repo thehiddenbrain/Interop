@@ -99,6 +99,8 @@ class StaticServerWordsTest {
             new Read("app.js", "answer.body.placeholder", CodeListSelfCheck.class, "placeholder"),
             new Read("config-writes.js", "access.reason", WriteAccess.class, "reason"),
             new Read("result.js", "error.heading", ErrorView.class, "heading"),
+            new Read("dom.js", "error.cause", ErrorView.class, "cause"),
+            new Read("dom.js", "error.reference", ErrorView.class, "reference"),
             new Read("lookup.js", "field.masked", LookupField.class, "masked"),
             new Read("lookup.js", "field.note", LookupField.class, "note"),
             new Read("case-context.js", "field.masked", LookupField.class, "masked"));

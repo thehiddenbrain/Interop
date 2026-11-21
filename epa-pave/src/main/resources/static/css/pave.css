@@ -1896,7 +1896,23 @@ details.fold > :not(summary) {
     overflow-wrap: anywhere;
 }
 
-.error-panel__reference {
+/* The reference and cause of a failure of this tool: the cause is a long chain of class names,
+   which must wrap inside the panel rather than push it wider than the page. */
+.fault-report {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gap-2);
+}
+
+.fault-report__lines {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-1);
+    overflow-wrap: anywhere;
+}
+
+.fault-report__reference {
     font-weight: 600;
 }
 

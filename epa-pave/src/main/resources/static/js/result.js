@@ -19,7 +19,7 @@
 // findings are worded by the server and shown as sent. The authorization outcome and the test
 // result are two facts and are drawn as two different things: a strip in a tone, and a stamp.
 
-import {el, append, button, code, facts, table, heading, copyButton, count, millis, token} from './dom.js';
+import {el, append, button, code, facts, table, heading, copyButton, count, millis, token, faultReport} from './dom.js';
 import {shown, shownList, presenceMark, noValueMark} from './shown.js';
 import {toneClass, stamp, slowFlag, mockMark, localMark, answeredByNobody} from './marks.js';
 import {runLink} from './history-common.js';
@@ -814,8 +814,7 @@ export function errorPanel(error, options) {
         panel.append(el('p', {class: 'error-panel__action'}, error.action));
     }
     if (error.reference) {
-        panel.append(el('p', {class: 'error-panel__reference'}, 'Reference ', code(error.reference), ' ',
-            copyButton('Copy reference', () => error.reference)));
+        panel.append(faultReport(error));
     }
     if (error.fieldErrors && error.fieldErrors.length > 0) {
         panel.append(table(['Field', 'Problem'], error.fieldErrors.map(problem => [code(problem.field), problem.message]), {class: 'pairs'}));
