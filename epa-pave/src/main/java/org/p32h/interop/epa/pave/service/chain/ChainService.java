@@ -372,6 +372,8 @@ public class ChainService {
             case START_PAS, CHECK_STATUS -> Protocol.PAS;
             // Neither names a stage. One says the journey is over, the other that nothing follows from the call.
             case FLOW_ENDS, NOTHING_FURTHER -> null;
+            // A sample notification on mock follows a subscription and no request, so it names no stage either.
+            case DELIVER_SAMPLE_NOTIFICATION -> null;
             case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REPORT_NO_DETERMINATION,
                  REVIEW -> stage;
         };
@@ -386,7 +388,8 @@ public class ChainService {
         return switch (action) {
             case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN, REPORT_NO_DETERMINATION,
                  REVIEW -> true;
-            case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER -> false;
+            case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE, START_PAS, CHECK_STATUS, FLOW_ENDS, NOTHING_FURTHER,
+                 DELIVER_SAMPLE_NOTIFICATION -> false;
         };
     }
 

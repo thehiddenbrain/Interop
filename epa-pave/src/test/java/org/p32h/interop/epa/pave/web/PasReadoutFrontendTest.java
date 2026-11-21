@@ -105,7 +105,7 @@ class PasReadoutFrontendTest {
     void onMockTheStepAfterACreateLeadsToTheNotificationsCall() throws IOException {
         String show = CaseCodesFrontendTest.body(read("tab-pas.js"), "function showRun(envelope) {");
         assertThat(show).contains("if ((envelope.operation === 'SUBSCRIPTION_CREATE' || envelope.operation === 'SUBSCRIPTION_UPDATE') && envelope.answeredBy === 'SCENARIO'")
-                .contains("&& shownStep.action === 'START_PAS') {")
+                .contains("&& shownStep.action === 'DELIVER_SAMPLE_NOTIFICATION') {")
                 .contains("return {label: 'Choose the Notifications call', run: () => showMode('notifications')};");
     }
 

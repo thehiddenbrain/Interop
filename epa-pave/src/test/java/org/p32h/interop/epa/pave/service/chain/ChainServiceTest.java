@@ -567,10 +567,11 @@ class ChainServiceTest {
 
     @Test
     void everyNextActionHasItsPlaceAndNothingFurtherBelongsToNoStageAndAsksNothingOfAPerson() {
-        // The actions that name no stage, whichever stage states them: the end of the journey, and nothing further.
+        // The actions that name no stage, whichever stage states them: the sample notification on mock, which follows a
+        // subscription and no request, the end of the journey, and nothing further.
         for (Protocol stage : ChainService.STAGES) {
             assertThat(Arrays.stream(NextAction.values()).filter(action -> ChainService.target(action, stage) == null)).as(stage.name())
-                    .containsExactly(NextAction.FLOW_ENDS, NextAction.NOTHING_FURTHER);
+                    .containsExactly(NextAction.DELIVER_SAMPLE_NOTIFICATION, NextAction.FLOW_ENDS, NextAction.NOTHING_FURTHER);
         }
         // The actions that ask a person to fix or check something. Nothing further asks for nothing.
         assertThat(Arrays.stream(NextAction.values()).filter(ChainService::attention)).containsExactlyInAnyOrder(NextAction.FIX_TEST_DATA,

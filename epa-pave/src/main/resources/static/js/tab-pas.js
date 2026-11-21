@@ -804,7 +804,7 @@ function showRun(envelope) {
             // On mock the server's step after a create, or an update that names no receiver, points to the sample on the Notifications
             // call; this is the way there.
             if ((envelope.operation === 'SUBSCRIPTION_CREATE' || envelope.operation === 'SUBSCRIPTION_UPDATE') && envelope.answeredBy === 'SCENARIO'
-                && shownStep.action === 'START_PAS') {
+                && shownStep.action === 'DELIVER_SAMPLE_NOTIFICATION') {
                 return {label: 'Choose the Notifications call', run: () => showMode('notifications')};
             }
             if (shownStep.action === 'START_PAS' && envelope.protocol === 'PAS') {

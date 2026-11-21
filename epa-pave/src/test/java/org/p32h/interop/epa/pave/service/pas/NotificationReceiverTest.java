@@ -579,7 +579,8 @@ class NotificationReceiverTest {
         assertThat(handshake.nextStep().headline()).isEqualTo("Nothing to do. The subscription is answering.");
         assertThat(heartbeat.nextStep().headline()).isEqualTo("Nothing to do. The subscription is still there.");
         assertThat(ledger.records()).extracting(RunRecord::outcome).containsExactly("CREATED", "HANDSHAKE_RECEIVED", "HEARTBEAT_RECEIVED");
-        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("START_PAS", "NOTHING_FURTHER", "NOTHING_FURTHER");
+        assertThat(ledger.records()).extracting(RunRecord::nextAction).containsExactly("DELIVER_SAMPLE_NOTIFICATION", "NOTHING_FURTHER",
+                "NOTHING_FURTHER");
         assertThat(ledger.last().coverageCodes()).containsExactly("notification-kind=NOTIFICATION_BUNDLE", "notification-type=heartbeat",
                 "subscription-status=active", "payload-content=empty");
         assertThat(ledger.last().correlation()).containsExactly(Map.entry(RunRecord.CORR_SUBSCRIPTION_ID, SUBSCRIPTION),

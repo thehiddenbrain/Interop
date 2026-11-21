@@ -19,6 +19,12 @@ public enum NextAction {
     SUBMIT_RESPONSE("Complete the response"),
     /** Submit the prior authorization request, named as the PAS tab's button that sends it is. */
     START_PAS("Send PAS request"),
+    /**
+     * On mock, after a subscription a scenario answered: no service holds it and none calls back, so
+     * the way to see a notification read is the sample the Notifications call delivers. Named as the
+     * PAS tab's call and button are. It belongs to no stage of a journey: it follows no request.
+     */
+    DELIVER_SAMPLE_NOTIFICATION("Choose the Notifications call and Deliver a sample notification."),
     /** Ask for the status of a pended authorization, named as the PAS tab's button that sends the inquiry is. */
     CHECK_STATUS("Send inquiry"),
     /** The journey is complete at this step. That is itself a finding worth recording. */

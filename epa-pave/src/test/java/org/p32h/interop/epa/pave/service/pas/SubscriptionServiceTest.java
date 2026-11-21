@@ -250,7 +250,8 @@ class SubscriptionServiceTest {
         for (Map<String, String> onyx : List.of(Map.<String, String>of(), WITH_RECEIVER)) {
             RunEnvelope<SubscriptionDetail> created = service(mockClient, "mock", onyx).run(CREATE, request().build(), RunOrigin.manual(), null);
             assertThat(created.verdict().outcomeCode()).isEqualTo("CREATED");
-            assertThat(created.nextStep().action()).isEqualTo(NextAction.START_PAS);
+            assertThat(created.nextStep().action()).isEqualTo(NextAction.DELIVER_SAMPLE_NOTIFICATION);
+            assertThat(created.nextStep().action().label()).isEqualTo("Choose the Notifications call and Deliver a sample notification.");
             assertThat(created.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
                     + "the mock profile no notification arrives by itself.");
             assertThat(created.nextStep().reason()).isEqualTo("A scenario answered this create, so no service holds the subscription and "
@@ -261,7 +262,7 @@ class SubscriptionServiceTest {
         // An update that names no receiver is answered by a scenario too, and points the same way; with a receiver it is done.
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
-        assertThat(updated.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(updated.nextStep().action()).isEqualTo(NextAction.DELIVER_SAMPLE_NOTIFICATION);
         assertThat(updated.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
                 + "the mock profile no notification arrives by itself.");
         assertThat(updated.nextStep().reason()).isEqualTo("A scenario answered this update, so no service holds the subscription and "
@@ -521,7 +522,8 @@ class SubscriptionServiceTest {
                 "Mock scenario pas-10-subscription-lifecycle answered: the default for a subscription call, because no scenario was chosen.",
                 "Its id is " + ID + ".", "Status: Requested: the service has not yet activated it.", "It calls back " + RECEIVER + ", the address the request named.");
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
-        assertThat(result.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        // A scenario answered, so the step is the sample notification, not a submission (its words are the step's own).
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.DELIVER_SAMPLE_NOTIFICATION);
         // What a later read, update or delete starts from, and what a notification is matched by.
         assertThat(result.nextStep().carry()).containsExactly(Map.entry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of(ID)),
                 Map.entry(NextStepView.CARRY_RUN_ID, List.of(result.runId())));
@@ -563,7 +565,7 @@ class SubscriptionServiceTest {
         assertThat(record.result()).isEqualTo(TestResult.PASS);
         assertThat(record.testerRef()).isEqualTo("QA-17");
         assertThat(record.note()).isEqualTo("first subscription");
-        assertThat(record.nextAction()).isEqualTo("START_PAS");
+        assertThat(record.nextAction()).isEqualTo("DELIVER_SAMPLE_NOTIFICATION");
         assertThat(record.memberId()).isNull();
         assertThat(record.procedureCodes()).isEmpty();
         // The organization was typed as a value for this run, which the line names without holding it.
@@ -618,7 +620,8 @@ class SubscriptionServiceTest {
         assertThat(updated.nextStep().reason()).startsWith("The subscription was updated without a url to call back, so no notification can "
                 + "reach this tool.");
         // With a receiver named, a create leads on to a submission and an update is complete: nothing further, and no journey ended.
-        assertThat(run(CREATE, request().build()).nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(service(answeredByAService(), "mock", WITH_RECEIVER).run(CREATE, request().build(), RunOrigin.manual(), null)
+                .nextStep().action()).isEqualTo(NextAction.START_PAS);
         assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.NOTHING_FURTHER);
         // A read sends no subscription, so it has nothing to say about a receiver.
         assertThat(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null).findings()).isEmpty();
