@@ -46,6 +46,42 @@ public final class PasVerdicts {
     private PasVerdicts() {
     }
 
+    /**
+     * The verdict, told apart for an inquiry: its headline says it is the answer to an inquiry, and a
+     * line under the scenario line says which claim was asked about and which run sent it. Without
+     * it an inquiry's result reads as its submission's, word for word.
+     *
+     * <p>The claim id may be drawn here: it is on screen already, in the inquiry form and in the wire
+     * view of this run, and the verdict is not written to the ledger, so nothing more is kept.
+     *
+     * @param claimId      the claim the inquiry asked about, or null
+     * @param followsRunId the run that sent the submission asked about, or null when it is not known
+     */
+    public static VerdictView verdict(PasReading reading, VendorExchange exchange, EpaOperation operation, String claimId,
+                                      String followsRunId) {
+        VerdictView verdict = verdict(reading, exchange, operation);
+        if (operation != EpaOperation.PAS_INQUIRE) {
+            return verdict;
+        }
+        List<String> supporting = new ArrayList<>(verdict.supporting());
+        if (Texts.present(claimId)) {
+            // Right after the scenario line, which every mock result keeps first.
+            int at = RunSupport.scenarioLine(exchange) != null && !supporting.isEmpty() ? 1 : 0;
+            supporting.add(at, "Asked about claim " + claimId.strip() + (Texts.present(followsRunId) ? ", sent by run " + followsRunId.strip()
+                    : "") + ".");
+        }
+        return new VerdictView("Inquiry: " + lowered(verdict.headline()), verdict.outcomeCode(), verdict.outcomeLabel(), verdict.tone(),
+                List.copyOf(supporting), verdict.maskedReading());
+    }
+
+    /** The first letter lowered, so a headline can follow "Inquiry: ". A word in capitals, such as an acronym, is kept as it is. */
+    private static String lowered(String headline) {
+        if (headline.length() > 1 && Character.isUpperCase(headline.charAt(0)) && Character.isLowerCase(headline.charAt(1))) {
+            return Character.toLowerCase(headline.charAt(0)) + headline.substring(1);
+        }
+        return headline;
+    }
+
     public static VerdictView verdict(PasReading reading, VendorExchange exchange, EpaOperation operation) {
         PasOutcome outcome = reading.outcome();
         List<ClaimResponseView> responses = reading.detail().claimResponses();

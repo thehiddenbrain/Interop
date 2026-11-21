@@ -505,4 +505,9 @@ class CrdVerdictsTest {
             assertThat(step.headline() + " " + step.reason()).doesNotContain("cannot say what should happen next");
         }
     }
+
+    @Test
+    void anAnswerThatIsNotCdsHooksIsNotRecordedAsOneWithNoBody() {
+        assertThat(CrdOutcome.MALFORMED_RESPONSE.label()).contains("something other than a CDS Hooks response");
+    }
 }

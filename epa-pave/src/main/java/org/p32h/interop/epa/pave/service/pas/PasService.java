@@ -292,7 +292,8 @@ public class PasService {
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
-        VerdictView verdict = PasVerdicts.verdict(reading, exchange, operation);
+        VerdictView verdict = PasVerdicts.verdict(reading, exchange, operation, known.get(RunRecord.CORR_CLAIM_ID),
+                known.get(RunRecord.CORR_RUN_ID));
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 PasOutcome.values(), PasCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = support.unsignedNextStep(PasVerdicts.nextStep(reading, exchange, operation, followsRunId, runId), exchange);
