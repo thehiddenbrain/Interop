@@ -484,7 +484,9 @@ public class ConfigService {
                     : known.destination().everyPortAndPath() ? "every port and every path of the host " + known.destination().host()
                     + ", because an address of this environment could not be read the way the HTTP client reads it"
                     : known.destination().shown();
-            views.add(new ConfigViews.ProductionDestinationView(known.environment(), destination,
+            // The environment's name is held to the rule of a sentence: each address repeats it, and the
+            // answer gives the name of a stored environment whole once already, as its label.
+            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination,
                     stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
         }
         return views;

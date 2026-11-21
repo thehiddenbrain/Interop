@@ -228,6 +228,11 @@ class LongNamesInAnUploadTest {
                 + "\" is a production environment"));
         onlyLabelsAreLong(effective, Set.of(PRODUCTION, REQUEST, OTHER_REQUEST, COLLECTION, FOLDER));
         onlyLabelsAreLong(fixture.service.environments(), Set.of(ENVIRONMENT, URL_VARIABLE, PRODUCTION));
+        // Each production address repeats the name of its environment, given whole once already as a label.
+        assertThat(effective.productionDestinations()).isNotEmpty()
+                .allSatisfy(known -> assertThat(known.environment()).isEqualTo(shown(PRODUCTION, 'P')));
+        assertThat(fixture.service.environments().productionDestinations()).isNotEmpty()
+                .allSatisfy(known -> assertThat(known.environment()).isEqualTo(shown(PRODUCTION, 'P')));
     }
 
     /**
