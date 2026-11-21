@@ -269,14 +269,19 @@ class LongNamesInAnUploadTest {
         assertThat(Names.shown(null)).isNull();
         assertThat(Names.shown("Submit a claim")).isEqualTo("Submit a claim");
         assertThat(Names.shown("x".repeat(60))).isEqualTo("x".repeat(60));
-        assertThat(Names.shown("x".repeat(61))).isEqualTo("x".repeat(60) + "... (a name of 61 characters)");
-        // A character outside the basic plane is never cut in half.
+        // The start and the length of a name of up to 89 characters would be as long as the name and lose its end.
+        assertThat(Names.shown("x".repeat(61))).isEqualTo("x".repeat(61));
+        assertThat(Names.shown("x".repeat(89))).isEqualTo("x".repeat(89));
+        assertThat(Names.shown("x".repeat(90))).isEqualTo("x".repeat(60) + "... (a name of 90 characters)");
+        // A character outside the basic plane counts once and is never cut in half.
         String face = new String(Character.toChars(0x1F600));
-        assertThat(Names.shown("x".repeat(59) + face + "y")).isEqualTo("x".repeat(59) + "... (a name of 62 characters)");
+        assertThat(Names.shown("E".repeat(59) + face + "tail")).isEqualTo("E".repeat(59) + face + "tail");
+        assertThat(Names.shown("x".repeat(59) + face + "y".repeat(30))).isEqualTo("x".repeat(59) + face + "... (a name of 90 characters)");
+        assertThat(Names.shown(face.repeat(100))).isEqualTo(face.repeat(60) + "... (a name of 100 characters)");
         assertThat(Names.path(List.of("PAS", "Claims"), "Submit")).isEqualTo("PAS / Claims / Submit");
         // Each name of a path is held on its own, so ordinary names deep in folders read as before.
         String folder = "Folder of an ordinary length, forty-nine character";
         assertThat(Names.path(List.of(folder, folder), "Submit")).isEqualTo(folder + " / " + folder + " / Submit");
-        assertThat(Names.path(List.of(), "y".repeat(70))).isEqualTo("y".repeat(60) + "... (a name of 70 characters)");
+        assertThat(Names.path(List.of(), "y".repeat(100))).isEqualTo("y".repeat(60) + "... (a name of 100 characters)");
     }
 }

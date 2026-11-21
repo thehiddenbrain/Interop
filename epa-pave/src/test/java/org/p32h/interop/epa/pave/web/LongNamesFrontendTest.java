@@ -25,9 +25,12 @@ class LongNamesFrontendTest {
     void thePageHoldsOneRuleForALongNameInTheServersWords() throws IOException {
         String named = CaseCodesFrontendTest.body(read("dom.js"), "export function named(name) {");
         assertThat(named).contains("if (text.length <= 60) {").contains("return text;")
-                .contains("text.slice(0, cut) + '... (a name of ' + text.length + ' characters)'")
-                // A surrogate pair is not cut in half, as on the server.
-                .contains("code >= 0xD800 && code <= 0xDBFF ? 59 : 60");
+                // Characters are counted as code points: the second unit of a pair is not counted, and the cut falls before the 61st.
+                .contains("if (code >= 0xDC00 && code <= 0xDFFF && before >= 0xD800 && before <= 0xDBFF) {")
+                .contains("if (length === 60) {").contains("cut = i;")
+                .contains("const suffix = '... (a name of ' + length + ' characters)';")
+                // Shortened only when the start and the length are shorter than the name.
+                .contains("return length <= 60 + suffix.length ? text : text.slice(0, cut) + suffix;");
     }
 
     @Test

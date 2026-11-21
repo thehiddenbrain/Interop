@@ -17,23 +17,29 @@ import java.util.List;
  */
 public final class Names {
 
-    /** How many characters of a name a sentence quotes before it gives the length instead. */
+    /** How many characters of a long name a sentence quotes before it gives the length instead. */
     public static final int SHOWN = 60;
 
     private Names() {
     }
 
     /**
-     * A name as a sentence quotes it: whole when it has at most {@value #SHOWN} characters,
-     * otherwise its first {@value #SHOWN} characters and its length. A surrogate pair is never cut
-     * in half, so the start stays text a browser can show.
+     * A name as a sentence quotes it: its first {@value #SHOWN} characters and its length, when that
+     * is shorter than the name itself; otherwise the name whole. A name of up to 89 characters is
+     * therefore never shortened, because the start and the length would be as long and would lose
+     * its end. Characters are counted as a reader counts them, a character outside the basic plane
+     * as one, and none is cut in half, so the start stays text a browser can show.
      */
     public static String shown(String name) {
         if (name == null || name.length() <= SHOWN) {
             return name;
         }
-        int cut = Character.isHighSurrogate(name.charAt(SHOWN - 1)) ? SHOWN - 1 : SHOWN;
-        return name.substring(0, cut) + "... (a name of " + name.length() + " characters)";
+        int length = name.codePointCount(0, name.length());
+        String suffix = "... (a name of " + length + " characters)";
+        if (length <= SHOWN + suffix.length()) {
+            return name;
+        }
+        return name.substring(0, name.offsetByCodePoints(0, SHOWN)) + suffix;
     }
 
     /**

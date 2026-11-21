@@ -283,19 +283,34 @@ export function when(timestamp) {
 }
 
 /**
- * A name an uploaded file gives, as a sentence of this page quotes it: whole when it has at most 60
- * characters, otherwise its first 60 and its length, in the words the server's own sentences use. A
- * file can give a name of any length, and a sentence that quoted a long one whole ran off the side
- * of the screen. A name shown as the tester's own label, in a list, the strip or the banner, is shown whole.
+ * A name an uploaded file gives, as a sentence of this page quotes it, by the server's rule
+ * (postman/Names): its first 60 characters and its length when that is shorter than the name,
+ * otherwise the name whole, so a name of up to 89 characters keeps its end. A file can give a name
+ * of any length, and a sentence that quoted a long one whole ran off the side of the screen.
+ * Characters are counted as a reader counts them: a pair of UTF-16 units that makes one character
+ * counts once and is never cut. A name shown as the tester's own label, in a list, the strip or the
+ * banner, is shown whole.
  */
 export function named(name) {
     const text = name === undefined || name === null ? '' : String(name);
     if (text.length <= 60) {
         return text;
     }
-    const code = text.charCodeAt(59);
-    const cut = code >= 0xD800 && code <= 0xDBFF ? 59 : 60;
-    return text.slice(0, cut) + '... (a name of ' + text.length + ' characters)';
+    let length = 0;
+    let cut = text.length;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        const before = i > 0 ? text.charCodeAt(i - 1) : 0;
+        if (code >= 0xDC00 && code <= 0xDFFF && before >= 0xD800 && before <= 0xDBFF) {
+            continue;
+        }
+        if (length === 60) {
+            cut = i;
+        }
+        length++;
+    }
+    const suffix = '... (a name of ' + length + ' characters)';
+    return length <= 60 + suffix.length ? text : text.slice(0, cut) + suffix;
 }
 
 /** Turns a server value into something safe to use as part of a class name. */
