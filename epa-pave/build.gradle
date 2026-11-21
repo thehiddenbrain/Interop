@@ -6,8 +6,43 @@ plugins {
 group = 'org.p32h.interop.epa'
 version = '1.0.0'
 
+// A JDK 21 that Gradle can find is used as the toolchain, as it always was. A workstation with only
+// the Java that an IDE brings (STS 5 runs Gradle on its own Java 25) has none, and Gradle would
+// otherwise stop with a sentence about toolchain download repositories that only shows in the
+// IDE's Problems view. So the build asks Gradle's own toolchain service, and when that finds
+// nothing it compiles for Java 21 on the Java that runs Gradle, if that Java is new enough. No
+// toolchain download is configured: fetching a JDK onto a workstation is not this build's call.
+def paveJava = JavaLanguageVersion.of(21)
+def gradleJava = "Java ${System.getProperty('java.version')} at ${System.getProperty('java.home')}"
+def jdk21Found = true
+try {
+    javaToolchains.compilerFor { languageVersion = paveJava }.get()
+} catch (org.gradle.jvm.toolchain.internal.install.exceptions.ToolchainProvisioningException noneFound) {
+    jdk21Found = false
+    logger.info(noneFound.message)
+}
+// The fallback compiles in Gradle's own process, so a Java runtime without a compiler cannot do it.
+def gradleJavaProblem = !JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21) ? 'is older than 21'
+        : !ModuleLayer.boot().findModule('jdk.compiler').present ? 'is a Java runtime without a compiler' : null
+if (!jdk21Found && gradleJavaProblem != null) {
+    throw new GradleException("Gradle is running on ${gradleJava}, which ${gradleJavaProblem}, and Gradle " +
+            'found no JDK 21. PAVE needs Gradle to find a JDK 21, or to run on a JDK 21 or newer. Point ' +
+            'Gradle at a JDK 21 or newer (install a JDK 21 if there is none): in STS, set Java home to it ' +
+            'on the Import Options page of the Gradle import (tick Override workspace settings) or under ' +
+            'Window, Preferences, Gradle; from a terminal, set JAVA_HOME to it.')
+}
+if (!jdk21Found) {
+    logger.lifecycle("Gradle found no JDK 21, so PAVE is compiled for Java 21 with the Java that runs Gradle: ${gradleJava}.")
+}
+
 java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    if (jdk21Found) {
+        toolchain { languageVersion = paveJava }
+    } else {
+        // What an IDE reads as the project's source and target level.
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
 }
 
 // One property points dependency resolution at an internal mirror. settings.gradle applies the same
@@ -32,6 +67,11 @@ repositories {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs.add('-parameters')
+    if (!jdk21Found) {
+        // A newer javac with only source and target levels would still link against its own API;
+        // release keeps the class files and the API calls those of Java 21.
+        options.release = 21
+    }
 }
 
 // There is deliberately no io.spring.dependency-management plugin. Spring Boot 4 versions are
