@@ -121,6 +121,25 @@ public record MaskedReading(List<String> readings) {
     }
 
     /**
+     * The readings found in the body with one more for a value this tool took from a header of the
+     * answer, such as the id of a new subscription in its Location header, when the mask fell on it.
+     * The walk of the body does not see a header, and a conclusion read from a masked header is as
+     * much about the mask as one read from the body. Null when neither holds a mask.
+     *
+     * @param found      the readings of the body, or null when it had none
+     * @param name       what the header gave, as the line names it, such as "id, from the Location header,"
+     * @param fromHeader that value as it was read, masked with the secrets the body is masked with
+     */
+    public static MaskedReading withHeader(MaskedReading found, String name, SentSecrets.Masked fromHeader) {
+        if (fromHeader == null || fromHeader.places() == 0) {
+            return found;
+        }
+        List<String> readings = new ArrayList<>(found == null ? List.of() : found.readings());
+        readings.add(name + " was read as " + masksIn(fromHeader.text()));
+        return new MaskedReading(readings);
+    }
+
+    /**
      * Walks the answer once, from a stack of its own, so an answer as deep as the parser allows takes
      * no frame of the thread's stack per level.
      *

@@ -27,6 +27,7 @@ import {toneMark} from './marks.js';
 import {itemList, responseByLinkId} from './dtr-items.js';
 import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
 import {maskedReading} from './result.js';
+import {withoutMasks, maskedLine, notHandedOnWords, masksIn, stepRefusedWords} from './masks.js';
 
 /**
  * A session for one package result.
@@ -70,7 +71,9 @@ export function createSession(packageEnvelope, hooks) {
         packageRunId: packageEnvelope.runId,
         entries,
         active: 0,
-        carry: (packageEnvelope.nextStep && packageEnvelope.nextStep.carry) || {},
+        // Every step posts this back, so a value that holds a mask is kept out of it and said beside the next step instead.
+        carry: withoutMasks(packageEnvelope.nextStep && packageEnvelope.nextStep.carry).carry,
+        maskedCarry: withoutMasks(packageEnvelope.nextStep && packageEnvelope.nextStep.carry).masked,
         latest: {nextStep: packageEnvelope.nextStep, envelope: packageEnvelope},
         // The questionnaire the latest result is about, or null when it is the package fetch.
         latestEntry: null,
@@ -173,6 +176,25 @@ export function createSession(packageEnvelope, hooks) {
         return body;
     }
 
+    /**
+     * The masks in the questionnaire and the response so far that the next step would post, by the
+     * same choice loopBody and responseBody make, or null. The server refuses a step that posts one.
+     */
+    function postedMasks(entry, loop, respond) {
+        const texts = [];
+        if (loop) {
+            texts.push(entry.loopJson || (entry.startResponse ? entry.startResponse.json : entry.view.json));
+        }
+        if (respond) {
+            if (entry.view.kind === 'ADAPTIVE' && entry.loopJson) {
+                texts.push(entry.loopJson);
+            } else {
+                texts.push(entry.view.json, entry.startResponse ? entry.startResponse.json : null);
+            }
+        }
+        return masksIn(texts.filter(Boolean).map(text => typeof text === 'string' ? text : JSON.stringify(text)).join('\n'));
+    }
+
     function postedAnswers(entry) {
         const out = [];
         for (const [linkId, values] of entry.answers) {
@@ -220,7 +242,9 @@ export function createSession(packageEnvelope, hooks) {
         // A result that hands nothing on does not wipe what the package and the steps before it
         // handed on: posting an empty carry would lose the package run and the completed responses.
         if (carried && Object.keys(carried).length > 0) {
-            session.carry = carried;
+            const split = withoutMasks(carried);
+            session.carry = split.carry;
+            session.maskedCarry = split.masked;
         }
         session.latest = {nextStep: envelope.nextStep, envelope};
         session.latestEntry = entry.index;
@@ -377,6 +401,7 @@ export function createSession(packageEnvelope, hooks) {
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
                 step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null, here ? [' ', here] : null),
             pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
+            (session.maskedCarry || []).map(one => maskedLine(((step.carryLabels || {})[one.key] || one.key) + '. ' + notHandedOnWords(one.masks))),
             control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--primary'})) : null);
     }
 
@@ -552,6 +577,10 @@ export function createSession(packageEnvelope, hooks) {
                 + 'description above supports.'));
         }
         parts.push(el('p', {class: 'dtr-expect small'}));
+        const masks = postedMasks(entry, loop, respond);
+        if (masks) {
+            parts.push(maskedLine(stepRefusedWords(masks)));
+        }
         const row = el('div', {class: 'button-row'});
         if (loop) {
             const send = el('button', {type: 'button', class: 'button button--primary', on: {click: () => hooks.loop(entry)}}, buttonName.loop());

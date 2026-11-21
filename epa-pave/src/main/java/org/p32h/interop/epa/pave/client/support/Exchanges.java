@@ -220,7 +220,7 @@ public final class Exchanges {
      */
     public static VendorExchange fromBytes(WireRequest request, int status, List<WireHeader> responseHeaders, byte[] raw,
                                            String contentType, long elapsedMillis, boolean bodyRequired) {
-        Decoded decoded = decode(raw, contentType);
+        Decoded decoded = decode(raw, contentType, request);
         return describe(request, status, responseHeaders, decoded.text(), raw == null ? 0L : (long) raw.length, decoded.notes(),
                 elapsedMillis, bodyRequired);
     }
@@ -233,7 +233,7 @@ public final class Exchanges {
      */
     public static VendorExchange interrupted(WireRequest request, int status, List<WireHeader> responseHeaders, byte[] soFar,
                                              String contentType, long elapsedMillis) {
-        Decoded decoded = decode(soFar, contentType);
+        Decoded decoded = decode(soFar, contentType, request);
         long count = soFar == null ? 0L : soFar.length;
         boolean success = status >= 200 && status < 300;
         OnyxFailureType failure = status >= 500 ? OnyxFailureType.SERVER_ERROR
@@ -249,7 +249,8 @@ public final class Exchanges {
     private record Decoded(String text, List<String> notes) {
     }
 
-    private static Decoded decode(byte[] raw, String contentType) {
+    /** @param request whose secrets the name of the charset is masked with when a note names it */
+    private static Decoded decode(byte[] raw, String contentType, WireRequest request) {
         if (raw == null || raw.length == 0) {
             return new Decoded(null, List.of());
         }
@@ -274,7 +275,9 @@ public final class Exchanges {
         } catch (java.nio.charset.CharacterCodingException e) {
             String text = new String(raw, charset);
             long replaced = text.chars().filter(c -> c == 0xFFFD).count();
-            return new Decoded(text, List.of("The body is not valid " + charset.name() + (named ? ", the charset its Content-Type names" : "")
+            // The name comes from a header of the answer, so it is shown through the mask the wire view shows that header through.
+            String shown = request == null ? charset.name() : request.secrets().mask(charset.name()).text();
+            return new Decoded(text, List.of("The body is not valid " + shown + (named ? ", the charset its Content-Type names" : "")
                     + ". " + replaced + " character" + (replaced == 1 ? "" : "s") + " that could not be read "
                     + (replaced == 1 ? "is" : "are") + " shown as a replacement mark, so the text below is not exactly what was sent."));
         }

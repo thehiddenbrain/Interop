@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.SentClaim;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -556,6 +557,14 @@ public class PasService {
     }
 
     private static void claimIdShape(RunInputs inputs, String field, String claimId) {
+        String masks = CarriedMasks.in(claimId);
+        // A mask handed on is refused with its reason by the checks every request shares; one typed into the field is refused here.
+        if (masks != null) {
+            if (!field.startsWith("carry.")) {
+                inputs.require(false, field, CarriedMasks.typed("a claim id", masks));
+            }
+            return;
+        }
         inputs.require(Texts.blank(claimId) || CLAIM_ID.matcher(claimId.strip()).matches(), field,
                 "A claim id is one word of up to 64 letters, digits, dots, hyphens, underscores and colons. It is written to the "
                         + "ledger as it stands, so it cannot be free text.");

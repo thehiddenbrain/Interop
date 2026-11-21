@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.run;
 
 import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.FieldError;
@@ -160,6 +161,13 @@ public final class RunInputs {
                             errors.add(new FieldError(field, problem));
                         }
                     });
+        }
+        // A value an answer gave that repeats a secret this tool holds is handed on as its mask, and a request built from a mask
+        // would ask the service about something nobody named. Refused here, before the gateway is asked, so whether the step came
+        // from a screen, a chain or a suite, nothing is sent and the reason is the same.
+        CarriedMasks.Found masked = CarriedMasks.first(request.carry());
+        if (masked != null) {
+            errors.add(new FieldError("carry." + masked.key(), CarriedMasks.refusal(masked)));
         }
         String chainId = Texts.trimToNull(request.chainId());
         if (chainId != null && !RunRequest.NEW_CHAIN.equals(chainId) && !RunStamps.isChainId(chainId)) {

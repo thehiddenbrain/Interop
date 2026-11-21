@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.dtr.OnyxDtrClient;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.MaskedReading;
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
@@ -567,6 +568,8 @@ public class DtrService {
         RunInputs inputs = new RunInputs(support.clock()).common(request);
         DtrAnswers.Posted posted = null;
         if (!RunSupport.ownBody(request)) {
+            // Only a step that builds its body from these two sends them; the tester's own body goes in their place.
+            noMaskHandedOn(inputs, request.questionnaire(), request.questionnaireResponse());
             posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
             posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
             authorNamed(inputs, posted, request);
@@ -586,6 +589,7 @@ public class DtrService {
 
     private DtrAnswers.Posted validateResponse(DtrResponseRequest request) {
         RunInputs inputs = new RunInputs(support.clock()).common(request);
+        noMaskHandedOn(inputs, request.questionnaire(), request.questionnaireResponse());
         DtrAnswers.Posted posted = DtrAnswers.read(request.questionnaire(), request.questionnaireResponse(), request.answers());
         posted.errors().forEach(error -> inputs.require(false, error.field(), error.message()));
         if (posted.errors().isEmpty()) {
@@ -602,6 +606,23 @@ public class DtrService {
                 .throwIfInvalid();
         return posted;
     }
+
+    /**
+     * The questionnaire and the response so far come back from the answers of the steps before,
+     * read with their masks in place, so a text of the package that repeats a held secret is
+     * posted back as its mask. Built into the next request it would ask the service about a text
+     * nobody wrote, so the step is refused as a chain step built from a masked hand-over is.
+     */
+    private static void noMaskHandedOn(RunInputs inputs, String questionnaire, String questionnaireResponse) {
+        String inQuestionnaire = CarriedMasks.in(questionnaire);
+        inputs.require(inQuestionnaire == null, "questionnaire", CarriedMasks.refusal("The questionnaire", inQuestionnaire, AGAIN));
+        String inResponse = CarriedMasks.in(questionnaireResponse);
+        inputs.require(inResponse == null, "questionnaireResponse",
+                CarriedMasks.refusal("The QuestionnaireResponse so far", inResponse, AGAIN));
+    }
+
+    /** What a tester can do about a masked questionnaire or response: neither is typed on the form. */
+    static final String AGAIN = "Settle the secret in the Config tab, then fetch the questionnaire package again.";
 
     /**
      * An answer this tool marks as given or changed by a person must name its author: invariant

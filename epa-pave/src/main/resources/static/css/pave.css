@@ -866,6 +866,15 @@ legend, .case-legend {
     overflow-wrap: anywhere;
 }
 
+/* A value an answer gave masked, beside the field it did not fill or the hand-over it left: the same rule, at the size of a note. */
+.masked-carry {
+    margin: var(--gap-1) 0 0;
+    padding-left: var(--gap-2);
+    border-left: 4px solid currentColor;
+    max-width: 82ch;
+    overflow-wrap: anywhere;
+}
+
 /* The same caution, folded into one line of a list: the rule on the left, without the weight of the full line. */
 .masked-mark {
     padding-left: var(--gap-1);

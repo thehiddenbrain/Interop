@@ -629,6 +629,75 @@ class SubscriptionServiceTest {
         assertThat(unknown.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_SUBSCRIPTION_ID);
     }
 
+    @Test
+    void anIdGivenOnlyInTheLocationHeaderThatRepeatsAHeldSecretIsCarriedShownAndKeptMaskedWithTheLineAndAMarkedNextStep() {
+        String held = "subscr-held-placeholder-1";
+        VendorExchange noBody = TestExchanges.of(CREATE, 201, null, false);
+        VendorExchange located = TestExchanges.holding(new VendorExchange(noBody.request(), 201,
+                List.of(new org.p32h.interop.epa.pave.model.WireHeader("Location", "https://onyx.example.invalid/fhir/Subscription/" + held
+                        + "/_history/1")), null, null, null, null, 12L, noBody.failureType(), null, java.util.Set.of(), null, null, List.of()),
+                org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("heldSub", held).build());
+
+        RunEnvelope<SubscriptionDetail> created = service(stub(located), "live", WITH_RECEIVER).run(CREATE, request().build(),
+                RunOrigin.manual(), null);
+
+        assertThat(created.verdict().outcomeCode()).isEqualTo("CREATED");
+        assertThat(created.nextStep().carry()).containsEntry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of("[secret heldSub]"));
+        assertThat(created.detail().subscriptionId()).isEqualTo("[secret heldSub]");
+        assertThat(created.detail().idSource()).isEqualTo("the Location header of the response");
+        assertThat(created.verdict().supporting()).contains("Its id is [secret heldSub].");
+        assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id, from the Location "
+                + "header, was read as [secret heldSub].");
+        assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(created.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+        assertThat(ledger.last().findings()).contains("MASKED_READING");
+        assertThat(ledger.last().correlation().get(RunRecord.CORR_SUBSCRIPTION_ID)).doesNotContain(held);
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.last())).doesNotContain(held);
+        assertThat(JsonSafe.mapper().writeValueAsString(created)).doesNotContain(held);
+    }
+
+    @Test
+    void aHeldSecretThatCoversTheIdAndMoreOfTheLocationHeaderLeavesNoPartOfTheIdInClear() {
+        String id = "sub-held-z4p8";
+        // Each secret covers the id and a part of the path around it, so masking the id alone found nothing to mask.
+        Map<String, String> expected = Map.of("Subscription/" + id, "[secret heldSup]", "held-z4p8/_history", "sub-[secret heldSup]");
+        for (Map.Entry<String, String> held : expected.entrySet()) {
+            VendorExchange noBody = TestExchanges.of(CREATE, 201, null, false);
+            VendorExchange located = TestExchanges.holding(new VendorExchange(noBody.request(), 201,
+                    List.of(new org.p32h.interop.epa.pave.model.WireHeader("Content-Location", "https://onyx.example.invalid/fhir/Subscription/"
+                            + id + "/_history/1")), null, null, null, null, 12L, noBody.failureType(), null, java.util.Set.of(), null, null,
+                    List.of()), org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("heldSup", held.getKey()).build());
+
+            RunEnvelope<SubscriptionDetail> created = service(stub(located), "live", WITH_RECEIVER).run(CREATE, request().build(),
+                    RunOrigin.manual(), null);
+
+            assertThat(created.verdict().outcomeCode()).as(held.getKey()).isEqualTo("CREATED");
+            assertThat(created.nextStep().carry()).as(held.getKey()).containsEntry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of(held.getValue()));
+            assertThat(created.detail().subscriptionId()).isEqualTo(held.getValue());
+            assertThat(created.verdict().supporting()).contains("Its id is " + held.getValue() + ".");
+            assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id, from the Location "
+                    + "header, was read as [secret heldSup].");
+            assertThat(created.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(JsonSafe.mapper().writeValueAsString(created)).as(held.getKey()).doesNotContain("held-z4p8");
+            assertThat(JsonSafe.mapper().writeValueAsString(ledger.last())).doesNotContain("held-z4p8");
+        }
+    }
+
+    @Test
+    void aMaskInTheSubscriptionIdFieldIsRefusedAsAMaskAndNothingIsSent() {
+        CountingClient client = new CountingClient();
+        SubscriptionService service = service(client, "live", WITH_RECEIVER);
+        for (EpaOperation operation : List.of(GET, UPDATE, DELETE)) {
+            assertThatThrownBy(() -> service.run(operation, about("[secret heldSub]").build(), RunOrigin.manual(), null)).as(operation.name())
+                    .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
+                            .containsExactly("This is not a subscription id but a mask, [secret heldSub]: an answer gave the value masked "
+                                    + "because it repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the "
+                                    + "secret in the Config tab."));
+        }
+        assertThat(client.calls.get()).isZero();
+        assertThat(ledger.records()).isEmpty();
+    }
+
     // ---- read, list, update, delete ----
 
     @Test
