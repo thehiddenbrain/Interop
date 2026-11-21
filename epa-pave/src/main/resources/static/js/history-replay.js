@@ -15,7 +15,7 @@ import {maskedReading} from './result.js';
 // The order in which the summary lists the statuses the server counts, and the report groups its
 // entries: what changed first, what was the same last. A status this page does not list is still
 // shown, after these, under the name the server gave it.
-const ORDER = ['changed', 'not-comparable', 'blocked', 'not-configured', 'invalid', 'error', 'not-replayable', 'same'];
+const ORDER = ['changed', 'not-comparable', 'blocked', 'not-signed-in', 'not-configured', 'invalid', 'error', 'not-replayable', 'same'];
 
 // The groups drawn closed under their count. A replay of a day is mostly the same as before, and
 // dozens of open rows of "Same" would push the few that changed off the screen.

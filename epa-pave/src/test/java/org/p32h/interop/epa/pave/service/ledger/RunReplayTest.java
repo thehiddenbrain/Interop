@@ -247,6 +247,26 @@ class RunReplayTest {
         assertThat(gateway.epoch()).isEqualTo(4L);
     }
 
+    // ---- not signed in ----
+
+    @Test
+    void aRunThatCouldNotSignInWhenSentAgainIsNotSentAgainNotChanged() {
+        RunReplay replay = replay();
+        recorded(draft("run-1", clock));
+        // The runner completes the case, but its record says nothing went out: the token endpoint gave no access token.
+        runner.answer = spec -> runner.completed(spec, again -> again.outcome(org.p32h.interop.epa.pave.model.RunOutcome.NOT_SIGNED_IN)
+                .errorType("TOKEN_ENDPOINT_FAULT").httpStatus(null).coverageCodes(List.of()).nextAction("CHECK_ENVIRONMENT"));
+        ReplayReport report = replay.replay(null, null, List.of("run-1"));
+        assertThat(report.summary()).containsEntry("not-signed-in", 1).containsEntry("changed", 0).containsEntry("same", 0);
+        ReplayEntry entry = only(report);
+        assertThat(entry.status()).isEqualTo(ReplayStatus.NOT_SIGNED_IN);
+        assertThat(entry.differences()).isEmpty();
+        assertThat(entry.reason()).isEqualTo("Not sent again: this tool could not sign in, so nothing reached the service and nothing is "
+                + "compared. Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to "
+                + "the service.");
+        assertThat(entry.replayRunId()).isNotNull();
+    }
+
     // ---- changed, and how ----
 
     private ReplayEntry changedBy(UnaryOperator<RunRecord.Builder> change) {
@@ -1109,6 +1129,8 @@ class RunReplayTest {
         expected.put("not-replayable", 2);
         expected.put("blocked", 1);
         expected.put("not-configured", 1);
+        // Every status is counted, so the one for a run that could not sign in is there with nothing in it.
+        expected.put("not-signed-in", 0);
         expected.put("invalid", 0);
         expected.put("error", 0);
         assertThat(report.summary()).containsExactlyEntriesOf(expected);

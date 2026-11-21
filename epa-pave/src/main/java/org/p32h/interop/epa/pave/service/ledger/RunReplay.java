@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Protocol;
+import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -13,6 +14,7 @@ import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
+import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.error.Faults;
@@ -495,6 +497,12 @@ public class RunReplay {
         // ledger and one that has not are compared like for like. See TrackingPolicy.settled.
         RunRecord original = TrackingPolicy.settled(asRead);
         RunRecord replayed = TrackingPolicy.settled(asReturned);
+        if (RunOutcome.NOT_SIGNED_IN.name().equals(replayed.outcome())) {
+            // The runner completes such a case, but nothing went out: comparing it would report the service as changed.
+            return new ReplayEntry(original.runId(), ReplayStatus.NOT_SIGNED_IN, "Not sent again: this tool could not sign in, so nothing "
+                    + "reached the service and nothing is compared. " + RunSupport.notSignedInInstruction(replayed.errorType()),
+                    replayed.runId(), List.of(), outcome.notRecorded(), original, replayed);
+        }
         if (replayed.operation() != original.operation()) {
             return new ReplayEntry(original.runId(), ReplayStatus.ERROR, "The runner answered with the record of another operation ("
                     + replayed.operation().label() + "), so the two cannot be compared.", replayed.runId(), List.of(),
