@@ -2323,7 +2323,9 @@ launch file without a word: there, use Run As, Java Application on `PaveApplicat
 screen shows `Reference <id>` and "Cause, as the server log names it:" with a line such as
 `jakarta.servlet.ServletException <- java.lang.NoClassDefFoundError <- ...; java.lang.NoClassDefFoundError says: <a class name>`.
 Press `Copy reference and cause` and send what it copies with what you were doing. The same line is
-the first line of the log entry `Unhandled exception, reference` in the Console. Seen in a copy of
+the first line of the log entry `Unhandled exception, reference` in the Console. A suite that this
+tool stopped, and a notification it failed to read, show the same `Reference <id>`, cause and button
+under their own sentence. Seen in a copy of
 the jar with one class removed by hand, on Linux; the cause on the one Windows workstation that met
 this error is not known (D-275, D-277). What the cause means, from reading, not from a fix seen to
 work:
@@ -2485,8 +2487,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   the plain `./gradlew clean build` twice, a build from a fresh clone with the build cache off, the
   start with `GET /api/mode`, and the changed paths. A file cannot hold the result of a build of
   the commit it is part of, so their results are in the pull request description (part 2). The last
-  whole build this README can name is that of `6a6fe2f`, whose code is the code handed over, through
-  the shared wrapper: 2,937 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276, D-277).
+  whole build this README can name is that of `ef069d9`, whose code is the code handed over, through
+  the shared wrapper: 2,965 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276 to
+  D-278); `6a6fe2f` gave 2,937.
   Before the screen changes, `647b102`, `ace5914` and `05acbf7` gave 2,872 tests, and `902e0d9` 2,870,
   each with 0 failures, 0 errors and 2 skipped.
   Every build on the machine this README was checked on went through a wrapper that adds
@@ -2544,8 +2547,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **A mirror that needs credentials and a token server** were not tried.
 - **Two tests are skipped** when the build runs as root, because a read-only folder is not
-  read-only for root. The same refusals are covered by tests that do run. Two tests of the screens
-  run a script with Node.js and are skipped, without failing, where no `node` is on the path.
+  read-only for root. The same refusals are covered by tests that do run. Six tests of the screens
+  run a piece of a script with Node.js and are skipped, without failing, where no `node` is on the
+  path; the build then counts them as skipped, beside the two above.
 - **The tests write into a temporary folder of their own**: a JUnit extension gives every test JVM
   its own `config-store` and `run-history` and removes them at the end, so after `clean build` the
   project directory holds nothing new but `build/` (checked by the fix's author only). Both folders
@@ -2642,10 +2646,11 @@ repeat every finding id; it leaves out nothing a tester has to know.
   from the vendor's own token request (switch it on with the start-up arguments the Config tab
   gives). Outside the CRD, DTR and PAS forms (History, Config, suites, the sample notification) a
   refused form still puts the cursor on the first marked field rather than on the summary.
-- **Two failures of this tool still show their reference without the cause** (D-277): a suite that
-  stops ("This tool failed while running the suite. Reference <id>."), and the receiver's verdict on
-  a notification ("Report the reference <id>."). The server log's first line for each names the
-  cause; find it there by the reference.
+- **A suite that this tool stops, and a notification it fails to read, now show the cause** beside
+  the reference, with `Copy reference and cause` (D-277, "Later:"). The case that was running when the
+  suite stopped reads "Tool failure: ...", with "The same failure as the stop above. Reference <id>";
+  the cases after it read "Not run: the suite stopped before this case.". The results CSV keeps the
+  reference in its sentence and has no cause. Seen only in copies of the jar damaged by hand on Linux.
 
 - **On the CRD tab, discovery is refused when text is left in the procedure code box** ("Nothing
   was sent: "MRI" was typed in the procedure code box and not added to the case."), although
@@ -2836,8 +2841,18 @@ repeat every finding id; it leaves out nothing a tester has to know.
   these records found it, and the two sentences now name the run view's "What next" row. The screens themselves were walked in
   Chromium by agents that did not build them, at 1440 by 900 and in part at 1024 by 768, on mock and
   on live with the sample environment and collection and no real service; the internal error's cause
-  was seen in a copy of the jar with a class removed by hand. Apart from these, the commits after
-  `902e0d9` change this README, `PROGRESS.md` and `DECISIONS.md` only.
+  was seen in a copy of the jar with a class removed by hand.
+- **Since then also the cause of a suite stop and of a notification, and no exception message in the
+  log** (D-277, "Later:", and D-278; `22a41bc` to `ef069d9`): the suite results and the opened
+  notification, three next step sentences, the handling of failures on every thread, and tests. The
+  whole build of `ef069d9` through the same wrapper: 2,965 tests, 0 failures, 0 errors, 2 skipped.
+  For this README the quoted sentences were looked for again in the sources of `ef069d9`, by a script
+  and then by hand for those the script did not find whole (most are built from parts in the code);
+  the ones these steps changed appeared in it only in "Limitations", which is rewritten. The suite
+  stop, the running row and the notification were seen by agents in Chromium against copies of the
+  jar with a class removed by hand, on mock; nobody walked the other screens again for these steps.
+  Apart from these, the commits after `902e0d9` change this README, `PROGRESS.md` and
+  `DECISIONS.md` only.
 - **Windows.** What this README says of Windows is the operator's report (one workstation, STS, an
   upload that fails, D-275) or what an agent saw on a Windows Java under Wine 9.0 on Linux, on
   `f82e32e` and on `8463174`: the tool started, about 60 uploads, both proofs, the start with and
@@ -2897,9 +2912,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran with
   `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run for
-  this revision. The last whole build this README names is that of `6a6fe2f`, the code at the head,
-  through that wrapper (`clean build`): 2,937 tests, 0 failures, 0 errors, 2 skipped, BUILD
-  SUCCESSFUL (D-276, D-277). Before the screen changes, `647b102` with the JDK 21 present gave 2,872
+  this revision. The last whole build this README names is that of `ef069d9`, the code at the head,
+  through that wrapper (`clean build`): 2,965 tests, 0 failures, 0 errors, 2 skipped, BUILD
+  SUCCESSFUL (D-276 to D-278). Before the screen changes, `647b102` with the JDK 21 present gave 2,872
   tests, 0 failures, 0 errors, 2 skipped (D-274); `6201644` gave the same counts with the JDK 21 hidden and Gradle
   on a Java 25 (simulated), and with it present; `ace5914` and `05acbf7` gave the same counts, and
   `902e0d9` 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style

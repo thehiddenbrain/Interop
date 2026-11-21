@@ -4,17 +4,21 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**The head** is `6a6fe2f` on the branch `ui-round1`, with the commit that adds these records. It holds
+**The head** is `ef069d9` on the branch `ui-round1`, with the commit that adds these records. It holds
 `e70af34` (the records of D-275 and their check, on the code of `8463174`) and, since then, the first
 round of screen changes and the internal error that names its cause (D-276, D-277): `2590656` to
 `99a939c` built the letters A to K of the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and
 `87dee6f` corrected what the walk, the audit and the checks found, and `56c3e64`, `4fb199f`,
 `e0f3333`, `425e16a` and `6a6fe2f` made the cause of an internal error named on the screen and on the
-first line of the log entry. **The last whole build** is that of `6a6fe2f`, through the shared wrapper
-(`clean build`): 2937 tests in 267 result files, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL.
-At `e70af34` there were 2872 tests; on the way, 2896 after the first batch, 2908 after the second,
-2909, 2916 and 2930 after the corrections and the error cause, each with 0 failures, 0 errors and 2
-skipped. The integrator's gates on the head run after these records. The rest of this section
+first line of the log entry. Since the records of those two (`d289335`, `343086f`), two more steps:
+`22a41bc` to `253928e` gave the stop of a suite and the notification receiver's verdict their cause
+(D-277, "Later:"), and `cbffaf1` to `ef069d9` closed every path by which the message of an exception
+could reach the log, after a check found the suite's thread printing one (D-278; the first correction
+is `7cbc0f8`). **The last whole build** is that of `ef069d9`, through the shared wrapper (`clean
+build`): 2965 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872
+tests; on the way, 2896 after the first batch, 2908 after the second, 2909, 2916 and 2930 after the
+corrections and the error cause, 2937 at `6a6fe2f`, 2946 after `f3a93dd`, 2951 after `253928e` and
+2962 after `d4b2023`, each with 0 failures, 0 errors and 2 skipped. The integrator's gates on the head run after these records. The rest of this section
 describes the line up to `e70af34`, from `902e0d9` on.
 
 This describes revision `902e0d9` on branch `epa-pave`, which is on the remote, before the commit that
@@ -70,11 +74,15 @@ of screen changes made after the operator's verdict without waiting for their an
 looked for, planned, attacked, built, walked, audited, corrected and checked, what a tester now sees,
 where the builders left the plan, what the checks saw of the hard rules and what is left. D-277
 records that an internal error now names its cause on the screen and on the first line of the log
-entry, a narrow change to D-036, with what the tests and a damaged copy of the jar showed.
+entry, a narrow change to D-036, with what the tests and a damaged copy of the jar showed, and in its
+"Later:" the stop of a suite and the notification verdict that now name it too. D-278 records that
+the Java runtime could print the message of an exception into the log around `Faults` since suites
+were built, and how every thread of the tool was closed against it, with what the tests and copies of
+the jar with a class removed showed and what is left.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, the code changes of
-D-276 and D-277 (above), and before them three code changes:
+D-276, D-277 and D-278 (above), and before them three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
 `HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
 tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
@@ -90,7 +98,7 @@ Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b10
 `classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
 `-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
 whole build was run on it. At `e70af34` the code was that of `647b102` with that launch file; since then the code has changed
-with D-276 and D-277 (the head, above), whose last whole build is that of `6a6fe2f`; the
+with D-276, D-277 and D-278 (the head, above), whose last whole build is that of `ef069d9`; the
 integrator's gates run after this file, and their result is in the pull request description.
 
 **What was seen on a Windows Java under Wine** (D-275). Nothing ran on Windows itself on the build
@@ -125,8 +133,9 @@ has looked.
    It is on the branch `ui-round1` and reaches `epa-pave`, the branch of the operator's clone, only
    when `ui-round1` is merged. For the operator to get it, once that merge is done: pull `epa-pave`,
    start again, upload once more and send what the button copies.
-   **The cause is still not known.** A suite that stops and the notification receiver's verdict still
-   give the reference without the cause.
+   **The cause is still not known.** A suite that stops and the notification receiver's verdict now
+   give the cause beside the reference as well (D-277, "Later:"), seen in damaged copies of the jar on
+   Linux only.
 2. **The operator's verdict after that first session**, the only judgement of the tool by the person
    it was built for: "the whole UI and app sucks", and not what the effort spent on it should have
    produced (D-275). No particulars yet; the integrator asked for the three worst things. **Built in
@@ -185,7 +194,7 @@ has looked.
    - the next step still says only that the tool cannot say what should happen next for CRD
      documentation required that cannot be acted on, authorization not stated, an unrecognised code and
      mixed decisions, for DTR, and for a request sent as it is;
-   - History, its "Next action" filter and the chain view show a PAS run with no decision as "Look at the
+   - History's run view, in its "What next" row, and the chain view show a PAS run with no decision as "Look at the
      response detail. The tool cannot say what should happen next.", where the PAS tab gives two lines;
    - on mock, the next step of a played HTTP 500, a played unreachable service and the DTR package played
      malformed still says to check the environment or to report a defect in the service, though its
@@ -210,8 +219,9 @@ has looked.
    `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two responses
    were completed from one package, nothing says which the PAS submission carried (D-181).
 10. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
-   presences is held by tests that read the script's text (NEW-6), and the test of the code box refusal
-   runs through Node and is skipped where no `node` is on the path. A test that searched a line holding
+   presences is held by tests that read the script's text (NEW-6), and six tests run a piece of a
+   screen's script with Node (the code box refusal and `withoutReference` among them) and are skipped
+   where no `node` is on the path. A test that searched a line holding
    random tokens failed by chance once in about a hundred builds and was corrected (`6b7abba`); a build
    green twice does not prove no other such test is left. No test holds that a replay on mock uses the
    rewritten scenario sentence.
@@ -263,13 +273,31 @@ has looked.
    Of D-276 and D-277, not seen by anyone: the operator looking at them, a person using them,
    Windows, a real service on live, the per-session unlock (the installation's floor forbids it),
    the Postman sign-in helper sentence on screen, G and H at 1024 by 768, the History replay view of
-   a cause and an internal error answered by the outermost filter in a browser, and a suite row's
-   cause other than with an answer rewritten by the browser script.
+   a cause and an internal error answered by the outermost filter in a browser, a suite row of a case
+   that failed alone other than with an answer rewritten by the browser script, and the next step of
+   a run this tool failed to read after its call ("... and report the reference and the cause.").
 13. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
     the tool has no sign-in.
+14. **What the last two steps left** (D-277, "Later:", and D-278).
+   - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
+     made to fire on the real jar; tests hold them, each seen to fail without its guard.
+   - On live, a service answer that echoes the value of a secret the request did not carry (a
+     `clientSecret` while signing in is off, say) is shown unmasked on screen, in the returned fields
+     and the wire view; only secrets the request carried are masked (D-179). The log and the ledger
+     do not hold it. For the integrator to decide; not changed.
+   - Shutting the tool down while a suite runs interrupts the case being written: the ledger logs a
+     write failure (types only) and that case's line may be lost.
+   - A failure inside one of `ApiExceptionHandler`'s own methods is kept out of the log only by the
+     logger level of Spring's handler resolver, and named nowhere. A `VirtualMachineError` in the
+     server's error report would reach the server's own log with its frames.
+   - A start that fails quotes the configuration field at fault, so a member ID written into the name
+     of the active environment, a stored file name or a mock scenario's `behavior` field would be
+     printed there. Left as Spring reports it, by decision (D-278).
+   - The self-check, most of the code picker and the History list could not be tried with a class
+     removed: the copy did not start.
 
 ### Gates, first
 
@@ -1421,7 +1449,7 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
   the pull request description. Since then `05acbf7` (D-271): 2872 tests, 0 failures, 0 errors, 2
   skipped, through the same wrapper, built by the change's author; and `ace5914` (D-272), whose code
   was the code at the head before the screen changes of D-276 and D-277: 2872 tests, 0 failures, 0 errors, 2 skipped, the
-  same way, by its author. The last whole build of the code at the head is that of `6a6fe2f`: 2937
+  same way, by its author. The last whole build of the code at the head is that of `ef069d9`: 2965
   tests, 0 failures, 0 errors, 2 skipped, the same way, by the author of its last change.
 
 | Step | State |

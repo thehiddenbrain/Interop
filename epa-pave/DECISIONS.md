@@ -32,7 +32,8 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0, a fetch of new commits from GitHub in STS** |
 | D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** |
 | D-276 | The operator's verdict was answered with a first round of screen changes, without waiting for the three worst things they were asked for | A look, a doubt, a plan, an attack, two batches, a walk, an audit and three rounds of correction and check, all by agents. On mock one click gives a case that can be sent; a good run no longer looks wrong; the form opens with what a send needs; DTR questions come first; a result is ordered and folded; Config opens with "Ready to send?" and says that signing in is off; a failed call names its address and cause. **The operator has not seen it, no person has used it, nothing of it ran on Windows.** Left: long results, History, reload, the values the vendor's file lacks, a sign-in |
-| D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still give the reference without the cause |
+| D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
+| D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. Every thread of the tool now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log. Not proven on the real jar: the net and two guards, held by tests only |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -282,6 +283,9 @@ types and stack frames under a reference the browser also receives.
 Later: narrowed on purpose by D-277. The first line of that log entry and the answer to the browser
 name the chain of exception types, and a few throwables whose message the Java runtime or the IDE's
 compiler writes about the program itself give that message; every other message stays out.
+Later: D-278. From the build of suites until `7cbc0f8`, the Java runtime itself could print the
+message of an `Error` thrown during a suite into the log, around the one place that writes failures;
+every thread of the tool now ends in one entry under a reference, and the rule holds there too.
 
 **D-037. Records that hold member data or wire JSON redact their `toString`.**
 A record's default `toString` prints every component, so logging such an object once would put
@@ -4756,6 +4760,9 @@ listed in `PROGRESS.md` as what a tester meets. Checked in the source of `902e0d
   (`CrdVerdicts`), for DTR (`DtrVerdicts`) and for a request sent as it is (`RawService`).
 - History, its "Next action" filter and the chain view show a PAS run with no decision under the label of
   `NextAction.REVIEW`, where the PAS tab gives the two lines.
+  Later (D-278's records): History has no filter of that name. Its Runs view filters by dates,
+  protocol, operation, outcome, test result, tester reference, chain id and suite run id; the label
+  stands in the run view's "What next" row.
 - A notification posted by hand to the receiver on mock is recorded as answered by a mock scenario, and
   lines written between `98effa6` and `428eff5` with `SERVICE` beside a scenario id are read as written.
 - A replay of a run id that does not exist answers with the general action (`RunReplay`), and the
@@ -5842,4 +5849,202 @@ the screen: a deliberate, narrow change to D-036.**
   problem" or a class not found, the README's STS section says what to try first.
 - **Tests.** 2,916 before this change, 2,930 after it, 2,937 after its corrections at `6a6fe2f`, each
   whole build with 0 failures, 0 errors and 2 skipped.
+- The commits that record this change this file, `PROGRESS.md` and the README only.
+
+Later: the two places this entry leaves open are closed (`22a41bc` to `253928e`, on `ui-round1`).
+The paragraph "Limits, said plainly" above is the history; what follows corrects it.
+- **What a tester now sees.** Under the stop of a whole suite, "This tool failed while running the
+  suite.", then `Reference <id>`, "Cause, as the server log names it: <cause>" and `Copy reference and
+  cause`, which copies both lines. Under a notification this tool failed to read, the verdict
+  "Something arrived at the receiver, and this tool then failed while reading it." with the lines
+  "This is a defect in this tool, not a finding about what was sent. Report the reference and the
+  cause below. The server log holds the detail under the same reference." and "The payload is shown
+  below as it arrived.", then the same three lines and button, and the next step "Next: read the
+  payload below as it arrived, and report the reference and the cause." To get there the receiver
+  now catches a `LinkageError` as well while it reads, so that a missing class still leaves the
+  notification held and recorded; a `VirtualMachineError` is still not caught.
+- **The reference is given once on the screen.** Where that block stands under a sentence of the
+  server, the screen drops " Reference <id>." from the sentence, turns "Report the reference <id>."
+  into "Report the reference and the cause below." and "The reason gives the reference." into "The
+  reference and the cause are below the reason." (`withoutReference` in `dom.js`; "below" alone when
+  there is no cause). So the suite row reason no longer ends with the reference, the History replay
+  entry reads "... A request may have been sent. Report the reference and the cause below.", and the
+  status line of a suite row of a tool failure reads "Tool failure: this tool failed while running
+  the case, so whether a request left is not known. The reference and the cause are below the
+  reason." Its Elapsed cell reads "not known", no longer "no call". The next step of a run this
+  tool failed to read after the call reads "Next: read the response as received, below, and report
+  the reference and the cause."
+- **The case that was running when the tool ended a suite** read "Not run: the suite stopped before
+  this case." with "no call", although its request may have left. It now reads as a tool failure
+  ("Tool failure: ... The reference is below the reason.", the reason "This tool failed while running
+  the case. Whether a request left for it is not known, and nothing can be said about the service
+  from this row. Look for it in History before running it again.") and is counted as one: "Stopped
+  after 1 of 6 cases. 1 tool failure, 5 not run." A suite that this tool ends on its last case reads
+  as stopped, not finished ("Stopped after 1 of 1 case. 1 tool failure."; seen in tests only). The
+  cases after it still read "Not run: the suite stopped before this case." with "no call". That row
+  first carried the stop's reference and cause a second time; decided by the integrator, one failure
+  is said once (D-278): the row reads "The same failure as the stop above. Reference <id>", and the
+  cause and the button stand only in the stop block.
+- **Seen in a real browser (Chromium) against copies of the jar damaged by hand on Linux, on mock:**
+  the suite stop and the running row (with `CrdRunRequest$Builder` or `CrdRequestBuilder$Built`
+  removed: the screen names the missing class, the clipboard holds both lines, no frame is on the
+  screen or in any answer of the API), and the notification verdict (`NotificationReader$StatusRead` or
+  `NotificationReading$Status` removed, a heartbeat posted by `curl`: answered 200, held as a tool
+  error). **Seen only with an answer rewritten by the browser script**, because the real jar cannot be
+  made to fail there: the History replay entry, one run and dates, and a suite row of a case that
+  failed alone. The next step of `RunSupport` was not seen in a browser.
+- **What is unchanged, and holds no cause.** The sentence the server returns, in the API answer and
+  in the results CSV, keeps "Reference <id>." and "The reason gives the reference."; the CSV has no
+  column for the cause and holds none; the ledger lines hold neither the cause nor the reference. The
+  cause is held in memory only, with the suite run and the notification. The only browser storage
+  key stayed `pave.tab`.
+- **Tests.** 2,946 after `f3a93dd`, 2,951 after `253928e`. `FaultReportFrontendTest` runs
+  `withoutReference` with Node on ten sentences and asserts each output; it is skipped where Node is
+  not installed, where the checks that read the scripts as text still run. The independent check of
+  the first fix found that two of those text checks stayed green when the behaviour they name was
+  broken; they were strengthened and were then seen to fail on the same breakage.
+- **What the check of this step found beside it** is D-278: the suite's thread printed the messages
+  of an `Error`.
+
+**D-278. The message of an exception could reach the log around the one place that writes
+failures: what was wrong, since when, what was decided and built, what the runs showed, and what is
+left.**
+- **What was wrong.** `service/error/Faults` is the one place that writes a failure: a reference, the
+  chain of exception types, frames, and a detail only for the narrow list of D-277. `SuiteService`
+  caught an `Error` around a whole suite, logged it there correctly, and then threw it on, on its own
+  thread `suite-runner`, which had no handler. Nothing above the run caught it, so the Java runtime
+  printed it itself to standard error, which is where the log goes: "Exception in thread
+  "suite-runner"", the whole chain with every message, every "Caused by:" and every frame. A test
+  made an `ExceptionInInitializerError` around an `IllegalStateException("no plan for S123456789")`
+  end a suite on that thread, and the log held "Caused by: java.lang.IllegalStateException: no plan
+  for S123456789". In a copy of the jar with a class removed, the log held the runtime's own printing
+  of the `NoClassDefFoundError` under the tool's entry.
+- **Since when.** Since suites were built (`df3adcd`, D-103 to D-110): the rethrow and the thread
+  without a handler were both in that commit. Corrected in `7cbc0f8`, during the step that closed
+  D-277's two places.
+- **Why no check saw it before.** The tests of suites run the suite on a held executor of the test
+  bed, on the test's own thread, and caught the `Error` there (`assertThatThrownBy`), so no default
+  handler ever ran in a test; one of them asserted that the placeholder member ID was in no log and
+  passed for that reason. The independent check of D-277's last step was the first to run a suite on
+  the service's real thread with such an `Error`, and the first to read the runtime's printing as a
+  leak.
+- **What it means against the hard rules, said plainly.** It broke the rule of D-036 that the
+  message of an exception is never logged, and with it the rule that no member data is logged: an
+  `Error` during a suite whose chain holds a message that quotes a member ID would have put that ID
+  into the log, with every frame. A missing class alone gives a class name, which D-277 allows; an
+  `ExceptionInInitializerError` gives whatever its cause says. **Whether any real run ever printed a
+  message that way is not known.** It needs an `Error` during a suite, and no ledger or log of the
+  operator's has been seen.
+- **Decided by the integrator** (point by point): (1) find every thread on which code of the tool
+  runs and what becomes there of a `RuntimeException` and of an `Error`; (2) no such path writes the
+  message of a throwable to the log or to standard error, apart from the narrow list of D-277: the
+  tool's own code logs it once through `Faults` under a reference and lets it go no further, and
+  where a framework would log an exception by itself it gets the tool's handling or never reaches it;
+  (3) a net under the whole process, a handler for throwables nothing caught that writes one entry
+  through `Faults` and nothing else; (4) a start that fails is reported as Spring reports it, because
+  its messages speak of the configuration and a tester needs them, unless one can carry a secret or
+  member data, which was to be tried; (5) the suite screen says one failure once (D-277, "Later:").
+  Also decided: the test that waits for the suite's thread to finish polls with a cap and stays as
+  it is; it asserts nothing about timing.
+- **The threads, and what becomes of a throwable on each.**
+  - `suite-runner` (`SuiteService`): a failure of one case is caught per case and one from the run
+    loop with any `Error`, each logged through `Faults` under a reference and not thrown on;
+    anything that still escapes goes to the net, set as this thread's own handler.
+  - The embedded server's request threads: `ApiExceptionHandler` logs what a controller throws
+    (Spring wraps an `Error` in a `ServletException`) through `Faults` and answers 500 with the
+    cause. Beneath it the outermost filter, `ResponseHeadersFilter`, now catches what a nested error
+    dispatch throws and what fails while its own answer is written; such a write failure gets one
+    line, "The answer under reference <id> could not be written: <types>", and nothing goes on to the
+    server, which would have logged it with its message ("Servlet.service() ... threw exception").
+    Spring's own warning when an exception handler itself fails is kept out by the logger level ERROR
+    already set in `application.yml`. `JsonErrorReportValve` catches what it meets; the server
+    swallows anything else its report throws, except a `VirtualMachineError`. The notification
+    receiver catches its own failures (D-277, "Later:").
+  - The thread that closes the application (`SpringApplicationShutdownHook`): `TomcatBaseDirectory`
+    and `SuiteService` now catch everything while they stop and log it through `Faults` under a
+    reference ("Stopping the suites failed inside this tool, reference <id>: ..."). Before, Spring
+    logged "Invocation of ... method failed on bean ...", with the message.
+  - The main thread: the net is installed first; a failed start is Spring's report (point 4).
+  - Threads where only framework code runs, each named in a thread dump of the real jar or in its
+    output: the JDK HTTP client's threads (their failures come back to the request thread, where
+    `ExchangeExecutor` logs types only), Tomcat's `Catalina-utility` threads, `container-0`, the
+    acceptor and poller, `tomcat-shutdown`. The tool registers nothing that runs on them; anything
+    that escapes falls to the net. `src/main` has no `@Scheduled`, `@Async`, timer, virtual thread,
+    event listener or lifecycle bean of its own (searched).
+- **What was built.** `service/error/UncaughtFailures`, the net: one entry, "A thread of this tool
+  ended on a failure that nothing caught, thread <name>, reference <id>: <types and frames>", and
+  nothing else; if even that fails it is swallowed silently. `PaveApplication.main` installs it
+  before Spring starts, which is the entry point of the jar, of `bootRun` and of the launch file
+  STS uses. The suite's thread has it as its own handler (`cbffaf1`). The outermost filter's last
+  word (`7b4bc3d`). Stopping that never throws into Spring (`06384e4`). The suite row that points to
+  the stop (`d4b2023`). Tests for the two guards the check found untested (`ccef212`, `ef069d9`). No
+  screen sentence changed apart from the suite row; the new log lines are in the server log only.
+- **What the tests showed.** Each new test throws, on the thread it guards, an
+  `ExceptionInInitializerError` around "no plan for S123456789" and, apart, a `RuntimeException` with
+  that message, captures the log and standard error, and asserts one entry under a reference, no
+  "Caused by:" and no placeholder. Each was seen to fail with its correction taken out: by the agent
+  that built it, by an independent check (every correction undone in turn in a copy), and for the two
+  last tests by a third agent. The net's own guard needed a test in a child Java process, because
+  the runtime writes its line about a failing handler to the process's error stream, beneath what a
+  test in the same process can capture.
+- **What the runs of the real jar showed.** Copies of the built jar, each with one class removed by
+  hand, on mock and in part on live, the path triggered and every line the process printed searched
+  for "Exception in thread", "Caused by:", a frame, "Servlet.service()", "threw exception",
+  "Unexpected error occurred" and an ERROR or WARN from a logger that is not the tool's. The builder
+  and the independent check each chose their own classes; the table names the builder's.
+
+  | Path | Class removed | What it answered | What the output held |
+  | --- | --- | --- | --- |
+  | Upload of an environment | `ProductionSigns` | 500 with reference and cause | one tool entry, nothing else |
+  | Upload of a collection | `OperationDetector` | 500 | the same |
+  | Activation | `ProductionDestinations$Scan` | 500 | the same |
+  | CRD, DTR, PAS submit, PAS inquire | a builder class of each | 500 | the same |
+  | Subscription create, list | `SubscriptionRequestBuilder$Built`, `SubscriptionReading` | 500 | the same |
+  | Member and provider lookup | `MemberResponseMapping`, `ProviderResponseMapping` | 500 | the same |
+  | Code picker | `ProcedureCodeService$HeldBack` | 500 | the same |
+  | History replay | `RunReplay$1` | 500 | the same |
+  | Readiness list of Config | `ConfigViews` | 500 | the same |
+  | Suite | `CrdRequestBuilder$Built` | stopped, "This tool failed while running the suite. Reference <id>." | one entry on `suite-runner`, no "Exception in thread" |
+  | Notification receiver | `NotificationReading$Status` | 200, held with a fault reference | one receiver entry, nothing else |
+  | Self-check of the code list | none could be removed | the copy did not start | Spring's start report only |
+
+  Every count of the searches was 0, and the placeholder member ID and secret appeared in no output
+  through an exception message. Beside the removed classes: a stand-in on a loopback port answered
+  every live call in 8 broken ways (the check: 14 ways, for 14 calls), each quoting the placeholders;
+  damaged request bodies and uploads in 34 kinds. No exception message carried either placeholder
+  into the log; the one line that held the member ID placeholder was an INFO line naming an uploaded
+  environment by the name its file gives itself. A shutdown with a
+  suite running printed none of the searched lines.
+- **Start failures, tried and left as Spring reports them.** A damaged `config-store/store.json` in
+  13 forms and damaged scenario files, on mock and on live, with a placeholder secret and member ID
+  inside: the secret never appeared when it sat in a value. The start message quotes a field of the
+  configuration itself, so a member ID put there would be printed: the name of the active
+  environment, the stored file's path, and on mock a scenario file's `behavior` field. These are
+  names and keywords the tool or the tester wrote, not request data, and were left as they are. A
+  port already in use reads "Web server failed to start. Port 8392 was already in use.", with no
+  "Exception in thread".
+- **What the independent check found, and what was done.** It found no path that puts a message in
+  the log, saw the suite screen and the older hard rules hold in Chromium on mock and on live, and
+  `smoke.py` ended "ALL PROOFS HELD". Four minor findings: (1) the guard in `SuiteService.close` had
+  no test that failed without it: a test now closes a Spring context holding a suite whose stop
+  throws (`ccef212`); (2) the net's own guard had none: two tests (`ef069d9`); (3) the list of
+  threads left out Tomcat's utility, container and shutdown threads: completed above, no code
+  change; (4) on live, a service answer that echoes the value of a secret the request did not carry
+  is shown unmasked on screen, in the returned fields and the wire view (D-179 masks only the secrets
+  the request carried; neither the log nor the ledger holds it): recorded for the integrator, not
+  changed. A third agent saw (1) and (2) fail when undone and nothing else break.
+- **Limits, said plainly.** The net, the guard in `SuiteService.close` and the net's own guard were
+  never made to fire on the real jar, which cannot be made to fail there from outside; they are held
+  by tests. The self-check, most of the code picker and the History list could not be broken by
+  removing a class without the copy failing to start. A failure inside one of `ApiExceptionHandler`'s
+  own methods is kept out of the log only by that logger level, and is named nowhere. A
+  `VirtualMachineError` thrown by the server's error report would reach the server's own log with
+  its frames. The builder's screenshots of the pointer row were taken on a jar built before its last
+  commit; the check's are of the final jar. Nothing of this ran on Windows.
+- **Left, seen while checking.** A shutdown during a suite interrupts the case being written, and
+  the ledger then logs "A ledger write failed for <its file>: java.nio.channels.ClosedByInterruptException"
+  (types only); that case's ledger line may be lost. Pre-existing, not changed. And finding (4) above.
+- **Tests.** 2,951 before this step, 2,962 after `d4b2023`, 2,965 at `ef069d9`, the last whole clean
+  build, through the shared runner, with 0 failures, 0 errors and 2 skipped. The jar of `d4b2023` and
+  of `ef069d9` is the same byte for byte (the last two commits change tests only).
 - The commits that record this change this file, `PROGRESS.md` and the README only.
