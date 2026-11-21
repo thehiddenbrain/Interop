@@ -20,10 +20,8 @@ import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
@@ -441,18 +439,27 @@ public class JsonlRunLedger implements RunLedger {
      * True when the file ends without a line break, or when that cannot be found out. A spare line
      * break costs an empty line that every reader skips. A missing one would join the new record
      * to a torn one and lose both.
+     *
+     * <p>Read through the {@code java.io} package for the reason {@link #append} gives: an interrupt
+     * that arrives while the byte is read would close a channel, and every such interrupt would
+     * add a spare line break.
+     *
+     * <p>Not private, so that a test can ask it on an interrupted thread.
      */
-    private static boolean endsMidLine(Path file) {
-        try (SeekableByteChannel channel = Files.newByteChannel(file, StandardOpenOption.READ)) {
-            long size = channel.size();
+    static boolean endsMidLine(Path file) {
+        if (!Files.exists(file)) {
+            return false;
+        }
+        try (java.io.RandomAccessFile in = new java.io.RandomAccessFile(file.toFile(), "r")) {
+            long size = in.length();
             if (size == 0) {
                 return false;
             }
-            ByteBuffer last = ByteBuffer.allocate(1);
-            channel.position(size - 1);
-            return channel.read(last) != 1 || last.get(0) != '\n';
-        } catch (NoSuchFileException e) {
-            return false;
+            in.seek(size - 1);
+            return in.read() != '\n';
+        } catch (java.io.FileNotFoundException e) {
+            // Gone between the two looks, or never readable: the same answer as above for a file that is not there.
+            return !Files.notExists(file);
         } catch (IOException | RuntimeException e) {
             return true;
         }

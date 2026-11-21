@@ -422,6 +422,26 @@ class JsonlRunLedgerTest {
         }
     }
 
+    /**
+     * An interrupt can arrive while an append runs, after the flag was taken down. Read through a
+     * channel, the last byte then could not be read, and every such interrupt added an empty line.
+     */
+    @Test
+    void whetherTheFileEndsMidLineIsReadTheSameOnAnInterruptedThread() throws IOException {
+        ledger(home, clock).record(draft("run-1", clock).build());
+        Path file = todayFile();
+        try {
+            Thread.currentThread().interrupt();
+            assertThat(JsonlRunLedger.endsMidLine(file)).isFalse();
+            Files.writeString(file, "{\"recordType\":\"run\",\"runId\":\"run-to", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            assertThat(JsonlRunLedger.endsMidLine(file)).isTrue();
+            assertThat(JsonlRunLedger.endsMidLine(file.resolveSibling("runs-1999-01-01.jsonl"))).isFalse();
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
     @Test
     void aLineTornBeforeTheLastStartIsReportedAsSoonAsTheLedgerStarts() throws IOException {
         ledger(home, clock).record(draft("run-1", clock).build());
