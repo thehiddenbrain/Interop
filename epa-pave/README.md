@@ -12,6 +12,57 @@ Config), run on the tester's own machine. Out of the box it runs on the **mock p
 answer comes from synthetic scenario files, nothing leaves the machine, and no credential or
 configuration is needed.
 
+## First run checklist
+
+Six steps from nothing to a working screen on the mock profile, each a command and its correct
+output. Nothing here reaches a real service.
+
+**1. Check the Java: 21 or newer.** `java -version`. Correct output names version 21 or newer, for
+example `openjdk version "21.0.13.0.3" 2026-10-24`. If it is older, install a JDK 21 and set
+`JAVA_HOME` to it; [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says what each
+Java does.
+
+**2. Get the code.** `git clone --branch epa-pave https://github.com/thehiddenbrain/Interop.git`,
+then `cd Interop/epa-pave` and `ls run.sh`. Correct output: `run.sh`. Every command below is run from
+`epa-pave/`; the application at the root of the repository is a different project. Cloning from STS
+instead? Follow (b) of step 2 of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
+
+**3. Build and run the tests.** `./gradlew clean build` (on Windows `gradlew.bat clean build`). The
+first build downloads Gradle and the dependencies (behind a corporate network see
+[Running on a corporate workstation](#running-on-a-corporate-workstation)) and takes a few minutes.
+Correct output ends with `BUILD SUCCESSFUL in ...`; the time and the task counts differ by machine.
+
+**4. Start the tool.** `./run.sh`. Correct output includes these two lines, after which the terminal
+stays busy while the tool runs:
+
+```
+Tomcat started on port 8057 (http) with context path '/'
+Started PaveApplication in 2.674 seconds (process running for 3.151)
+```
+
+Two warnings that `config-store` and `run-history` lie inside the git working tree need no action:
+`.gitignore` covers both. If port 8057 is taken, start with `./run.sh mock --server.port=8091` and use
+8091 below. On Windows: `run.cmd`, which has never been run. If it fails, run
+`gradlew.bat bootJar` and then `java -jar build\libs\epa-pave-1.0.0.jar --spring.profiles.active=mock`.
+From STS, start it as [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says.
+
+**5. Ask the tool what it is**, from a second terminal: `curl -s localhost:8057/api/mode`. Correct
+output is one line of JSON that begins `{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock"`.
+`"mode":"mock"` is what to check: nothing you do now reaches a real service.
+
+**6. Open `http://localhost:8057/` and send the first case.** Correct output: `PAVE 1.0.0` at the top
+left; `Profile mock`, `Target onyx`, `Environment none active` and `Ledger 0 runs today (UTC)` at the
+top right; a hatched strip beginning "Mock profile. Scenario files answer in place of the service.";
+the tabs CRD, DTR, PAS, History and Config, with CRD open. Its right half says "Nothing has been
+sent from this tab yet." above a table of mock cases, each with `Use this case`.
+
+On the CRD tab choose "Use this case" on row 1, then "Send CRD request". Correct output: the orange
+strip reads "Prior authorization is required."
+
+To reach the vendor's service, upload its Postman environment and collection on the Config tab
+(see [Configuration through Postman](#configuration-through-postman)). To stop the tool, press
+Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
+
 ## Before you rely on it
 
 - **Nothing here has been run against the vendor's service.** Every result anyone has seen came
@@ -80,169 +131,6 @@ configuration is needed.
   the revision named at the end, with what was not checked. Read
   "[What this README was checked against](#what-this-readme-was-checked-against)" before relying
   on a sentence here.
-
-## First run checklist
-
-Six steps from nothing to a working screen on the mock profile. Each shows the exact command and
-what correct output looks like. The output shown is what these commands printed when this README
-was checked (see the last section for where and on which revision).
-
-**1. Check which Java is installed: 21, or newer.**
-
-```
-java -version
-```
-
-Correct output starts with `openjdk version "21` or `java version "21` (what this README was checked
-on), or names a newer JDK (see below), for example:
-
-```
-openjdk version "21.0.13.0.3" 2026-10-24
-OpenJDK Runtime Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)
-OpenJDK 64-Bit Server VM (build 21.0.13.0.3+1-1-24.04.1-Ubuntu, mixed mode, sharing)
-```
-
-What each Java gets, since D-274 (the code at the head):
-- **A JDK 21:** nothing changed. Gradle finds it and compiles and runs the tests on it, as before.
-- **A JDK newer than 21, and no JDK 21 that Gradle finds:** it builds PAVE too. The build compiles
-  for Java 21 with the Java that runs Gradle and says so in one line, "Gradle found no JDK 21, so
-  PAVE is compiled for Java 21 with the Java that runs Gradle: ...". Seen on Linux with only a Java
-  25 visible (a simulation: the machine's JDK 21 hidden): on `6201644` the whole build passed with
-  its 2,872 tests and the jar it made ran on that Java 25 and passed both proofs (that commit worded
-  the line "No JDK 21 was found, so ..."); on `647b102`, which gave the line its present wording,
-  only `classes` was run that way.
-- **Older than 21, and no JDK 21 that Gradle finds** (or a Java runtime without a compiler): PAVE
-  does not build. The build stops at once with "Gradle is running on Java ..., which is older than
-  21, and Gradle found no JDK 21. ..." (seen on `647b102` from a terminal on a Java 17, the JDK 21
-  hidden), or, on a Java 21 runtime that has no compiler, with "... which is a Java runtime without a
-  compiler, and Gradle found no JDK 21. ..." (seen the same way). Install a JDK 21 and set
-  `JAVA_HOME` to it.
-
-A checkout from before D-274 with no JDK 21 stops instead with "Cannot find a Java installation on
-your machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
-configured." (D-273).
-
-**2. Get the code and go into the project directory.**
-
-```
-git clone --branch epa-pave https://github.com/thehiddenbrain/Interop.git
-cd Interop/epa-pave
-ls run.sh
-```
-
-Correct output of the last command is `run.sh`.
-
-PAVE lives in the `epa-pave/` directory. The application at the root of the repository is a
-different project; leave it alone. Every command below is run from `epa-pave/`. Cloning from inside
-STS instead? Follow (b) of step 2 of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse):
-two of its Git wizard's choices are wrong for this project.
-
-**3. Build and run the tests.**
-
-```
-./gradlew clean build
-```
-
-On Windows: `gradlew.bat clean build`. The first build downloads Gradle 9.5.0 and the
-dependencies, so it needs to reach `services.gradle.org` and Maven Central, or the internal
-mirrors described under [Running on a corporate workstation](#running-on-a-corporate-workstation).
-It runs about 2,872 tests and takes a few minutes. Correct output ends with:
-
-```
-> Task :verifyParametersFlag
-> Task :check
-> Task :build
-
-BUILD SUCCESSFUL in 3m 39s
-12 actionable tasks: 9 executed, 3 from cache
-Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.5.0/userguide/configuration_cache_enabling.html
-```
-
-The time and the task counts differ from machine to machine. `BUILD SUCCESSFUL` is what matters.
-Two tests are skipped when the build runs as root (see [Limitations](#limitations)).
-
-Working in STS? Run this build once before the import, then read
-[STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) for the import and how to start the
-tool from there.
-
-**4. Start the tool.**
-
-```
-./run.sh
-```
-
-The script checks for Java 21 or newer (it stops on an older one), builds the jar if it is not there
-yet, and starts PAVE on the mock profile on port 8057. With a Java newer than 21 and no jar yet, it
-first prints a two-line note: the build compiles with a JDK 21 toolchain when Gradle finds one, and
-otherwise compiles for Java 21 with this Java when it is a JDK, and says so. Only those two lines
-changed in D-274; `run.sh` has not been run since, and `run.cmd` never has. Correct output includes these lines, and then the terminal stays busy while
-the tool runs:
-
-```
-Starting PAVE 1.0.0 on http://localhost:8057/ (mock profile). Stop it with Ctrl+C.
-...
-The following 1 profile is active: "mock"
-...
-The bundled placeholder code list is in use. Every row in it is synthetic. Set codelist.file to the real export.
-...
-Tomcat started on port 8057 (http) with context path '/'
-Started PaveApplication in 2.674 seconds (process running for 3.151)
-```
-
-Started from inside the clone, it also prints two warnings, one for `config-store` and one for
-`run-history`: "... lies inside the git working tree ... Check that the tree's .gitignore covers
-it, or start the tool from a directory outside the tree." Both folders are listed in the
-project's `.gitignore`, so in a clone of this branch the warnings need no action.
-
-If it says `Port 8057 was already in use`, something else is on that port: start with
-`./run.sh mock --server.port=8091` and use 8091 in place of 8057 below.
-
-**On Windows**, run `run.cmd`, or `run.cmd mock "--server.port=8091"` for another port. **`run.cmd`
-has never been run**: no Windows machine was available, so it was only read. If it stops with an
-error, or does not print the lines above, start PAVE without it, from `epa-pave\`:
-
-```
-gradlew.bat bootJar
-java -jar build\libs\epa-pave-1.0.0.jar --spring.profiles.active=mock
-```
-
-The same two commands, with `./gradlew` and `build/libs/...`, start PAVE on Linux as `run.sh`
-does. Started through `run.cmd`, Ctrl+C is followed by the prompt `Terminate batch job (Y/N)?`;
-answer `Y`.
-
-**From STS**, start it as [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says, in
-place of `run.sh` or `run.cmd`; that was seen on Linux with Spring Tools 5.4.0, not on Windows.
-
-**5. Ask the tool what it is, from a second terminal.**
-
-```
-curl -s localhost:8057/api/mode
-```
-
-Correct output (the `epoch` number is the configuration epoch: it differs from one start to the
-next and changes when the configuration changes, but two calls in a row answer the same number):
-
-```
-{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock","target":"onyx","environment":{"active":false},"epoch":1795177156113,"writeAccess":{"production":false,"writesAllowed":true,"floorAllows":false,"reason":"No environment is active. On the mock profile nothing is sent, so writes are allowed."},"bindAddress":"127.0.0.1","bindNote":"This tool listens on this machine only (127.0.0.1), so nothing on another machine, a vendor's service included, can call its notification receiver. To let a service call it, set server.address to an address that service can reach, and read the README section on the receiver first."}
-```
-
-`"mode":"mock"` is the line to check: nothing you do now reaches a real service. `bindNote` says
-who can reach the tool (see [Who can reach this tool](#who-can-reach-this-tool)). Where it says to
-set `server.address`, do not do so before PAVE has a sign-in (D-270): the tool's own text was not
-changed when that was decided.
-
-**6. Open the tool in a browser.**
-
-Open `http://localhost:8057/`.
-
-Correct output is the PAVE page: `PAVE 1.0.0` at the top left; at the top right `Profile mock`,
-`Target onyx`, `Environment none active` and `Ledger 0 runs today (UTC)`; under it a hatched strip
-that begins "Mock profile. Scenario files answer in place of the service."; and the five tabs CRD,
-DTR, PAS, History and Config, with CRD open. The right half of the CRD tab says "Nothing has been
-sent from this tab yet." and lists the member IDs that select each mock scenario. Go on with
-[Using the screens](#using-the-screens).
-
-To stop the tool, press Ctrl+C in the terminal where it runs.
 
 ## What PAVE is, and what it is not
 
@@ -2096,6 +1984,28 @@ Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own
 installed as step 1 of the checklist says, STS found it by itself at startup (Window, Preferences,
 Java, Installed JREs) and every launch ran on it.
 
+**Which Java builds PAVE.**
+
+What each Java gets, since D-274 (the code at the head):
+- **A JDK 21:** nothing changed. Gradle finds it and compiles and runs the tests on it, as before.
+- **A JDK newer than 21, and no JDK 21 that Gradle finds:** it builds PAVE too. The build compiles
+  for Java 21 with the Java that runs Gradle and says so in one line, "Gradle found no JDK 21, so
+  PAVE is compiled for Java 21 with the Java that runs Gradle: ...". Seen on Linux with only a Java
+  25 visible (a simulation: the machine's JDK 21 hidden): on `6201644` the whole build passed with
+  its 2,872 tests and the jar it made ran on that Java 25 and passed both proofs (that commit worded
+  the line "No JDK 21 was found, so ..."); on `647b102`, which gave the line its present wording,
+  only `classes` was run that way.
+- **Older than 21, and no JDK 21 that Gradle finds** (or a Java runtime without a compiler): PAVE
+  does not build. The build stops at once with "Gradle is running on Java ..., which is older than
+  21, and Gradle found no JDK 21. ..." (seen on `647b102` from a terminal on a Java 17, the JDK 21
+  hidden), or, on a Java 21 runtime that has no compiler, with "... which is a Java runtime without a
+  compiler, and Gradle found no JDK 21. ..." (seen the same way). Install a JDK 21 and set
+  `JAVA_HOME` to it.
+
+A checkout from before D-274 with no JDK 21 stops instead with "Cannot find a Java installation on
+your machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
+configured." (D-273).
+
 **What the machine needs: since D-274, STS 5 alone (seen with 5.4.0 on Linux, simulated).** Where
 Gradle finds no JDK 21, the build compiles for Java 21 with the Java that runs Gradle, which in STS 5
 is the Java 25 that STS brings, and says so in one line: "Gradle found no JDK 21, so PAVE is compiled
@@ -2834,6 +2744,22 @@ repeat every finding id; it leaves out nothing a tester has to know.
 
 ## What this README was checked against
 
+- **From the first run checklist** (moved here so the checklist keeps only steps and their
+  correct output). Its output lines are what the commands printed when this README was checked.
+  `java -version` there printed `openjdk version "21.0.13.0.3" 2026-10-24`, `OpenJDK Runtime
+  Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)`. `./gradlew clean build` ran about 2,872 tests
+  and ended `BUILD SUCCESSFUL in 3m 39s`, `12 actionable tasks: 9 executed, 3 from cache`; two tests
+  are skipped when the build runs as root (see [Limitations](#limitations)). `run.sh` also printed
+  `Starting PAVE 1.0.0 on http://localhost:8057/ (mock profile). Stop it with Ctrl+C.`, the active
+  profile "mock" and the placeholder code list line; with a Java newer than 21 and no jar yet it
+  first prints a two-line note about the toolchain. Only those two lines changed in D-274; `run.sh`
+  has not been run since, and `run.cmd` never has (no Windows machine was available, so it was only
+  read). Started through `run.cmd`, Ctrl+C is followed by `Terminate batch job (Y/N)?`; answer `Y`.
+  STS was seen on Linux with Spring Tools 5.4.0, not on Windows. The full answer of `GET /api/mode`
+  carries an `epoch` that differs from one start to the next, and a `bindNote` that says to set
+  `server.address` for a service to reach the receiver: do not do so before PAVE has a sign-in
+  (D-270); the tool's own text was not changed when that was decided (see
+  [Who can reach this tool](#who-can-reach-this-tool)).
 - **Revision:** `902e0d9`, the head of `epa-pave` when this README was last checked in full against
   the running tool, with this README added; the code changes made since, and what was run on them,
   are in the next three bullets. That is
