@@ -170,8 +170,8 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         // A url that is not an absolute address is the tester's setting, found before anything is sent. It is named by the
         // setting, never by its value, which an environment can fill with something that should not be repeated.
         if (!absoluteHttpAddress(tokenUrl.value())) {
-            return TokenResult.failed("Authentication is switched on but onyx.auth.token-url, as configured, is not an absolute http or "
-                    + "https address, so this tool could not use it. The request was not sent.", TokenFailure.SETTING_MISSING);
+            // Said as what an address this tool can use is, so the sentence is true of a port no connection can use as well.
+            return TokenResult.failed(TOKEN_URL_NOT_USABLE, TokenFailure.SETTING_MISSING);
         }
         boolean noId = !clientId.resolved() || Texts.blank(clientId.value());
         boolean noSecret = !clientSecret.resolved() || Texts.blank(clientSecret.value());
@@ -205,6 +205,11 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
                 : new Cached(key, grant.accessToken(), clock.instant().plusSeconds(grant.expiresInSeconds() - REFRESH_SKEW_SECONDS));
         return new TokenResult(grant.accessToken(), null, null);
     }
+
+    /** The refusal of a token url this tool cannot use. It names the setting and never its value. */
+    static final String TOKEN_URL_NOT_USABLE = "Authentication is switched on but onyx.auth.token-url, as configured, is not an address "
+            + "this tool can use: it must be an absolute http or https address with a host, and a port from 1 to 65535 if it names one. "
+            + "The request was not sent.";
 
     /** True for an absolute http or https url with a host and a usable port; false for anything else, a text that is no url at all included. */
     static boolean absoluteHttpAddress(String url) {

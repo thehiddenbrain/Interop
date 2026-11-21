@@ -239,8 +239,10 @@ class OnyxTokenServiceTest {
                 "http://127.0.0.1:99999/oauth2/token", "https://auth.example.invalid:0/t"}) {
             gateway.variable("tokenUrl", notAbsolute);
             OnyxTokenService.TokenResult result = service(enabled()).token();
+            // One sentence that is true of each: an address with a port no connection can use is absolute, so it is not called otherwise.
             assertThat(result.failure()).as(notAbsolute).isEqualTo("Authentication is switched on but onyx.auth.token-url, as configured, is "
-                    + "not an absolute http or https address, so this tool could not use it. The request was not sent.");
+                    + "not an address this tool can use: it must be an absolute http or https address with a host, and a port from 1 to "
+                    + "65535 if it names one. The request was not sent.").doesNotContain(notAbsolute);
             assertThat(result.cause()).isEqualTo(OnyxTokenService.TokenFailure.SETTING_MISSING);
         }
         server.verify();
