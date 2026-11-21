@@ -471,9 +471,23 @@ async function sendStep(entry, kind) {
     clearExpectation(answer.body);
     session.applyResult(entry, kind, answer.body);
     show(answer.body);
-    // The tester is answering questions, and the next ones are where they work, not at the top of
-    // the result. The line at the head of the questionnaire repeats what the step answered.
-    session.node.scrollIntoView({block: 'start'});
+    // The verdict of the step is read first. Where the page itself scrolls (a narrow window) the
+    // result is brought to the top; a readout that scrolls on its own is already at its top.
+    const shown = session.node.closest('.result');
+    if (shown) {
+        shown.scrollIntoView({block: 'start'});
+    }
+    // After an adaptive step that asked a new question, the tester goes on at that question, which
+    // can sit below the fold because the questions already asked are kept above it.
+    const asked = kind === 'loop' && answer.body.verdict && answer.body.verdict.outcomeCode === 'NEXT_QUESTION' ? session.firstUnanswered() : null;
+    if (asked) {
+        const input = asked.querySelector('input, select, textarea');
+        if (!input) {
+            asked.tabIndex = -1;
+        }
+        (input || asked).focus({preventScroll: false});
+        return;
+    }
     // The button that was pressed is redrawn with the result, so the focus is put on the line that
     // says what the step answered, from where the questions are the next stops of the Tab key.
     const said = session.node.querySelector('.dtr-laststep');

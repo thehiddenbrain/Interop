@@ -22,10 +22,10 @@
 // says it is as of that step, and a hand-over to PAS is withdrawn, because PAS would receive the
 // response as last completed, without them.
 
-import {el, fill, clear, button, code} from './dom.js';
+import {el, fill, clear, button, code, aboutStep} from './dom.js';
 import {toneMark} from './marks.js';
 import {itemList, responseByLinkId} from './dtr-items.js';
-import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
+import {changesBlock, notAppliedLine, kindWord} from './dtr-detail.js';
 import {maskedReading} from './result.js';
 
 /**
@@ -84,6 +84,7 @@ export function createSession(packageEnvelope, hooks) {
         resultControl,
         refreshExpectation,
         problemSlot: () => session.node.querySelector('.dtr-step-problem'),
+        firstUnanswered,
         entry: () => entries[session.active]
     };
 
@@ -242,13 +243,30 @@ export function createSession(packageEnvelope, hooks) {
     function render() {
         const entry = entries[session.active];
         fill(session.node,
-            el('h4', {class: 'section-heading'}, 'Answering the questionnaire' + (entries.length === 1 ? '' : 's')),
-            // Said once, here, where the questions start.
-            el('p', {class: 'dtr-honest'}, 'There is no SMART launch here and no patient record: you type each answer yourself. '
-                + 'Answers marked as pre-populated came from the payer\'s service.'),
             entries.length > 1 ? el('div', {class: 'dtr-package-slot'}, packageList()) : null,
-            entry ? questionnaireView(entry) : null);
+            entry ? questionnaireView(entry) : null,
+            // The questions come first on the screen; this explains them and is one click away.
+            aboutStep(el('p', {class: 'dtr-honest'}, 'There is no SMART launch here and no patient record: you type each answer yourself. '
+                + 'Answers marked as pre-populated came from the payer\'s service.')));
         sync();
+    }
+
+    /**
+     * The first question of the open questionnaire with neither an answer typed nor one in the
+     * response, or null. After an adaptive step it is the question just asked, where the tester goes on.
+     */
+    function firstUnanswered() {
+        const entry = entries[session.active];
+        if (!entry) {
+            return null;
+        }
+        for (const node of session.node.querySelectorAll('.dtr-question')) {
+            const linkId = node.dataset.linkId;
+            if (linkId && !entry.answers.has(linkId) && node.querySelector('.dtr-held--none')) {
+                return node;
+            }
+        }
+        return null;
     }
 
     /**
@@ -365,17 +383,22 @@ export function createSession(packageEnvelope, hooks) {
         }
         const step = latest.nextStep;
         const pending = withheld();
-        const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
-        // The server's next step names the button by the label of its action, which is the button's
-        // own name on this tab, so only where the button is is said here.
-        const here = step.action === 'SUBMIT_RESPONSE' || step.action === 'ANSWER_NEXT_QUESTION' ? 'The button is below the questions.' : null;
-        // After a step the tab scrolls to the questions, past the verdict, so a reading from a mask is said again here, beside
-        // the step that rests on it.
+        // After an adaptive step the focus can go down to the question just asked, past the verdict, so a reading from a mask
+        // is said again here, beside the step that rests on it.
         const verdict = latest.envelope && latest.envelope.verdict;
+        if (step.action === 'SUBMIT_RESPONSE' || step.action === 'ANSWER_NEXT_QUESTION') {
+            // The button is right under the questions and the result's own Next step row says the same sentence.
+            const alone = verdict && verdict.maskedReading ? maskedReading(verdict.maskedReading) : null;
+            if (alone) {
+                return el('div', {class: 'dtr-next'}, alone);
+            }
+            return null;
+        }
+        const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
         return el('div', {class: 'dtr-next'},
             verdict ? maskedReading(verdict.maskedReading) : null,
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
-                step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null, here ? [' ', here] : null),
+                step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null),
             pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
             control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--primary'})) : null);
     }
@@ -412,9 +435,9 @@ export function createSession(packageEnvelope, hooks) {
         parts.push(aboutLine(entry));
         parts.push(el('div', {class: 'dtr-q__head', dataset: {field: adaptive ? 'questionnaireResponse' : 'questionnaire'}},
             el('p', {class: 'dtr-q__title', tabIndex: -1}, entry.view.subject, ' ',
-                el('span', {class: 'dtr-kind dtr-kind--' + String(kind).toLowerCase()}, kindWord(entry.view))),
-            el('p', {class: 'small quiet'}, entry.view.canonical ? code(entry.view.canonical) : 'It has no url.', ' ', entry.view.kindBasis || null)));
-        parts.push(notApplied(entry.view));
+                el('span', {class: 'dtr-kind dtr-kind--' + String(kind).toLowerCase()}, kindWord(entry.view)))));
+        // The url, why it is of its kind and each rule by name are in the DTR response detail below.
+        parts.push(notAppliedLine(entry.view));
         if (!usable) {
             parts.push(el('p', null, el('strong', null, 'This questionnaire cannot be answered.'),
                 ' The problems the server found, and its items as returned, are in the detail below.'));

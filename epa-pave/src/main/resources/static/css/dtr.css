@@ -123,6 +123,25 @@
     gap: var(--gap-3);
 }
 
+/* A slot with nothing to say takes no gap of the column above the questions. */
+.dtr-next-slot:empty,
+.dtr-changed:empty {
+    display: none;
+}
+
+/* The title sits close to the line under it, so the questions start sooner. */
+.dtr-q__head {
+    margin-bottom: calc(var(--gap-1) - var(--gap-3));
+}
+
+/* One line in place of the list of rules not applied, which stays in the response detail. */
+.dtr-notapplied-line {
+    padding-top: var(--gap-1);
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-small);
+    color: var(--ink);
+}
+
 .dtr-q__title {
     font: 600 var(--text-large)/1.3 var(--font-display);
     color: var(--ink-strong);
