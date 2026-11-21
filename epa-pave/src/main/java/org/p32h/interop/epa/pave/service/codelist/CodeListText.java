@@ -2,7 +2,6 @@ package org.p32h.interop.epa.pave.service.codelist;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
  * How the text of a code list cell or header is read, compared and shown. Kept in one place so
@@ -16,9 +15,6 @@ final class CodeListText {
     static final int LISTED = 10;
 
     private static final int SHOWN_LENGTH = 60;
-
-    /** One or more groups in round or square brackets at the very end of a compared form, which holds no spaces by then. */
-    private static final Pattern BRACKETED_ENDING = Pattern.compile("(?:[(\\[][^()\\[\\]]*[)\\]])+$");
 
     private CodeListText() {
     }
@@ -89,8 +85,42 @@ final class CodeListText {
      */
     static String headerBase(String text) {
         String written = headerKey(text);
-        String shortened = BRACKETED_ENDING.matcher(written).replaceFirst("");
+        String shortened = withoutBracketedEnding(written);
         return shortened.isEmpty() ? written : shortened;
+    }
+
+    /**
+     * The text without the groups in round or square brackets that end it, a group being an
+     * opening bracket, no bracket, and a closing one. What the pattern
+     * {@code (?:[(\[][^()\[\]]*[)\]])+$} removed with replaceFirst, read from the end in one
+     * pass: that pattern called itself once per group, and tried again from every bracket, so a
+     * header of many thousand brackets overflowed the stack or ran for minutes. Like the pattern's
+     * {@code $}, the end may also be just before one line terminator that ends the text.
+     */
+    static String withoutBracketedEnding(String text) {
+        int length = text.length();
+        int end;
+        if (length > 0 && (text.charAt(length - 1) == ')' || text.charAt(length - 1) == ']')) {
+            end = length;
+        } else if (text.endsWith("\r\n")) {
+            end = length - 2;
+        } else if (length > 0 && "\n\r\u0085\u2028\u2029".indexOf(text.charAt(length - 1)) >= 0) {
+            end = length - 1;
+        } else {
+            return text;
+        }
+        int start = end;
+        while (start > 0 && (text.charAt(start - 1) == ')' || text.charAt(start - 1) == ']')) {
+            int opening = start - 2;
+            while (opening >= 0 && "()[]".indexOf(text.charAt(opening)) < 0) {
+                opening--;
+            }
+            if (opening < 0 || (text.charAt(opening) != '(' && text.charAt(opening) != '[')) {
+                break;
+            }
+            start = opening;
+        }
+        return start == end ? text : text.substring(0, start) + text.substring(end);
     }
 
     private static String compared(String text, boolean header) {
