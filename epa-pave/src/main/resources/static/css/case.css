@@ -545,3 +545,18 @@
 .sending__elapsed {
     font-variant-numeric: tabular-nums;
 }
+
+/* The vendor's sample on DTR and PAS, drawn as CRD draws it beside its comparison. */
+.vendor-sample {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.vendor-sample__title {
+    font-weight: 600;
+    color: var(--ink-strong);
+}

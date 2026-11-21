@@ -612,6 +612,8 @@ export function createWorkbench(app, panel, spec) {
             ownRequest = createOwnRequest({
                 protocol: ownSpec.protocol, sendButton: ownSpec.sendButton, sendLabel: ownSpec.sendLabel,
                 isMock: () => app.isMock(),
+                say: text => { status.textContent = text; },
+                track: (...controls) => bench.track(...controls),
                 changed: () => {
                     caseNote.hidden = !ownRequest.active();
                     // The refusal of an empty box is out of date as soon as the box or the choice changes.
