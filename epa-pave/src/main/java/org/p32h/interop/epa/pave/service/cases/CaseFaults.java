@@ -66,7 +66,7 @@ public final class CaseFaults {
         String reference = UUID.randomUUID().toString();
         // The exception types and frames only. Never its message, and never the case, which holds a member ID.
         log.error("A case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
-        return new CaseRun.Interruption(CaseStatus.NOT_RUNNABLE, toolFailed(what, reference), reference);
+        return new CaseRun.Interruption(CaseStatus.NOT_RUNNABLE, toolFailed(what, reference), reference, Faults.cause(e));
     }
 
     /**

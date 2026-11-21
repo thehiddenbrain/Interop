@@ -239,6 +239,8 @@ class ChainCaseStepTest {
         assertThat(outcome.runs()).extracting(RunRecord::operation).containsExactly(EpaOperation.CRD_ORDER_SIGN);
         assertThat(outcome.reason()).startsWith("CRD order-sign was sent; this tool then failed on DTR questionnaire package, so whether "
                 + "that request left is not known").endsWith("Reference " + outcome.faultReference() + ".");
+        // The cause goes with the reference, by type: the exception's message stays out.
+        assertThat(outcome.faultCause()).isEqualTo("java.lang.IllegalStateException");
         assertThat(caseLines()).singleElement().extracting(RunRecord::result).isEqualTo(TestResult.UNVERIFIED);
         // The lookup note says the request went out with the ID alone, because one did.
         assertThat(outcome.notes()).contains("The member lookup does not know this member ID. The request was sent with the member ID alone.");

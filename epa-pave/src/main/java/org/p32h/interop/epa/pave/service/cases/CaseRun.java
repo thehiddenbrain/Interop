@@ -50,7 +50,15 @@ public record CaseRun(List<RunEnvelope<?>> envelopes, String stopped, TestResult
      *                       when this tool failed
      * @param reason         what was sent and what was not, and why, in plain words
      * @param faultReference the reference logged with a failure of this tool, or null for any other cause
+     * @param faultCause     with a failure of this tool, the first line of its log entry: the chain
+     *                       of exception types and the detail {@code Faults.cause} allows. The log
+     *                       can be on a machine the tester never looks at. Null for any other cause
      */
-    public record Interruption(CaseStatus status, String reason, String faultReference) {
+    public record Interruption(CaseStatus status, String reason, String faultReference, String faultCause) {
+
+        /** An interruption that is not a failure of this tool. */
+        public Interruption(CaseStatus status, String reason, String faultReference) {
+            this(status, reason, faultReference, null);
+        }
     }
 }

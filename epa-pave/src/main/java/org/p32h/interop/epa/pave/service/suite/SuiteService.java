@@ -412,7 +412,8 @@ public class SuiteService implements AutoCloseable {
                     log.error("A suite case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
                     outcome = new CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Whether a request "
                             + "left for it is not known, and nothing can be said about the service from this row. Look for it in History "
-                            + "before running it again. Reference " + reference + ".", List.of(), List.of(), List.of(), null, reference);
+                            + "before running it again. Reference " + reference + ".", List.of(), List.of(), List.of(), null, reference,
+                            Faults.cause(e));
                 }
                 synchronized (run) {
                     // The member ID has done its work. From here the row points to the ledger by run id.
@@ -515,7 +516,7 @@ public class SuiteService implements AutoCloseable {
                 earlier == null ? null : outcomes.label(earlier.protocol(), earlier.outcome()),
                 earlierResult, changed, steps, outcome.faultReference(), sent.isEmpty() ? null : entry.chain ? chainFault(outcome, found)
                 : found == null ? null : found.fault(),
-                nextStep(last));
+                nextStep(last)).withFaultCause(outcome.faultCause());
     }
 
     /**

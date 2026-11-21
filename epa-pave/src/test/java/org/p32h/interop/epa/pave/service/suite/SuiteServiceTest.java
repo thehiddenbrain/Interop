@@ -650,6 +650,7 @@ class SuiteServiceTest {
             assertThat(row.status()).isEqualTo(CaseStatus.NOT_RUNNABLE);
             // A failure of the tool is not a case that cannot be run, and it never says nothing was sent.
             assertThat(row.faultReference()).isNotBlank();
+            assertThat(row.faultCause()).isEqualTo("java.lang.IllegalStateException");
             assertThat(row.reason()).startsWith("This tool failed while running the case. Whether a request left for it is not known")
                     .endsWith("Reference " + row.faultReference() + ".");
             assertThat(row.statusLine()).isEqualTo("Tool failure: this tool failed while running the case, so whether a request left is "

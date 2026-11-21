@@ -256,6 +256,9 @@ class ProtocolCaseRunnerTest {
         assertThat(outcome.reason()).startsWith("This tool failed while running CRD order-sign. Whether a request left for it is not known")
                 .endsWith("Reference " + outcome.faultReference() + ".").doesNotContain("Nothing was sent");
         assertThat(outcome.reason()).doesNotContain(SURNAME).doesNotContain("S123456789");
+        // The first line of the log entry, so the screen can name the cause with the reference.
+        assertThat(outcome.faultCause()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(output.getAll()).contains("reference " + outcome.faultReference() + ": java.lang.IllegalStateException");
         assertThat(output.getAll()).contains("A case failed inside this tool").doesNotContain(SURNAME).doesNotContain("S123456789");
     }
 

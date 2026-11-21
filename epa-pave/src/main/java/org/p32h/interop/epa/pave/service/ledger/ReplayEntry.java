@@ -28,10 +28,16 @@ import java.util.List;
  *                    page. Left out when no run was made
  * @param nextStep    the next step that run named, as its protocol endpoint returned it. Left out
  *                    when no run was made
+ * @param faultReference when this tool failed while running it again, the reference the failure
+ *                    was logged under. Left out otherwise
+ * @param faultCause  with that reference, the first line of its log entry: the chain of exception
+ *                    types and the detail the log allows, so the tester can report the cause from
+ *                    the screen. A replay is answered and not kept, so the ledger never holds it
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReplayEntry(String runId, ReplayStatus status, String reason, String replayRunId, List<ReplayDifference> differences,
-                          List<String> notRecorded, RunRecord original, RunRecord replayed, VerdictView verdict, NextStepView nextStep) {
+                          List<String> notRecorded, RunRecord original, RunRecord replayed, VerdictView verdict, NextStepView nextStep,
+                          String faultReference, String faultCause) {
 
     public ReplayEntry {
         differences = differences == null ? List.of() : List.copyOf(differences);
@@ -40,12 +46,19 @@ public record ReplayEntry(String runId, ReplayStatus status, String reason, Stri
 
     public ReplayEntry(String runId, ReplayStatus status, String reason, String replayRunId, List<ReplayDifference> differences,
                        List<String> notRecorded, RunRecord original, RunRecord replayed) {
-        this(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, null, null);
+        this(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, null, null, null, null);
     }
 
     /** The same entry with what the run that was sent again found. */
     ReplayEntry withFound(VerdictView found, NextStepView next) {
-        return new ReplayEntry(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, found, next);
+        return new ReplayEntry(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, found, next,
+                faultReference, faultCause);
+    }
+
+    /** The same entry with the reference and the cause of a failure of this tool, when there was one. */
+    ReplayEntry withFault(String reference, String cause) {
+        return new ReplayEntry(runId, status, reason, replayRunId, differences, notRecorded, original, replayed, verdict, nextStep,
+                reference, reference == null ? null : cause);
     }
 
     /**

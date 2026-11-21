@@ -939,6 +939,12 @@ class RunReplayTest {
         // The log has the kind of failure under the same reference, and not the message.
         String reference = failed.reason().substring(failed.reason().indexOf("reference ") + 10, failed.reason().length() - 1);
         assertThat(output.getAll()).contains(reference).contains("IllegalStateException").doesNotContain(MEMBER_ID).doesNotContain("response body");
+        // The screen names the cause with the reference, as the first line of the log entry does.
+        assertThat(failed.faultReference()).isEqualTo(reference);
+        assertThat(failed.faultCause()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(output.getAll()).contains("reference " + reference + ": java.lang.IllegalStateException");
+        assertThat(report.results().get(1).faultReference()).isNull();
+        assertThat(report.results().get(1).faultCause()).isNull();
     }
 
     @Test

@@ -7,7 +7,7 @@
 // sentence, and never as a failure: it has no test result at all.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText} from './dom.js';
+import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText, faultReport} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
@@ -402,6 +402,8 @@ export function createSuites(app, context) {
         cells.push([
             el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
             row.reason ? el('div', null, row.reason) : null,
+            // A failure of this tool: its cause beside the reference, as the server log names it, and one copy of both.
+            faultReport({reference: row.faultReference, cause: row.faultCause}),
             (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
             (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
             runIdsOf(row)

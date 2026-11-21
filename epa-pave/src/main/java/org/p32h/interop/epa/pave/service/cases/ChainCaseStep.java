@@ -184,7 +184,7 @@ public final class ChainCaseStep implements CaseStep {
                     + "known, and nothing can be said about the service from it. Look for it in History before running the case again. "
                     + "Reference " + cause.faultReference() + "."
                     : CaseFaults.sent(done) + "; " + operation.label() + " was not sent. " + cause.reason();
-            throw new Interrupted(new CaseRun.Interruption(cause.status(), reason, cause.faultReference()));
+            throw new Interrupted(new CaseRun.Interruption(cause.status(), reason, cause.faultReference(), cause.faultCause()));
         }
         done.add(result);
         return result;

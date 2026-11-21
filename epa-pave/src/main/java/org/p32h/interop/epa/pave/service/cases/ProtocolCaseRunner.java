@@ -85,12 +85,12 @@ public class ProtocolCaseRunner implements CaseRunner {
             if (!spec.unrecognised().isEmpty()) {
                 // A misspelt key would otherwise be dropped, and a case with no "expected" runs unverified without a word.
                 return ended(spec, CaseStatus.INVALID, "The case has keys this tool does not know: "
-                        + String.join(", ", spec.unrecognised().keySet()) + ". Check their spelling.", lookups, null);
+                        + String.join(", ", spec.unrecognised().keySet()) + ". Check their spelling.", lookups, null, null);
             }
             String cannot = cannotRun(spec);
             if (cannot != null) {
                 return ended(spec, Texts.present(cannot) && spec.operation() == null && !spec.chain() ? CaseStatus.INVALID
-                        : CaseStatus.NOT_RUNNABLE, cannot, lookups, null);
+                        : CaseStatus.NOT_RUNNABLE, cannot, lookups, null, null);
             }
             CaseStep step = spec.chain() ? chain : steps.get(spec.operation());
             CaseContext context = new CaseContext(spec, member(spec, lookups), provider(spec, lookups), codes(spec), RunOrigin.of(spec));
@@ -98,7 +98,7 @@ public class ProtocolCaseRunner implements CaseRunner {
         } catch (RuntimeException e) {
             String what = spec.chain() ? "the chain" : spec.operation() == null ? null : spec.operation().label();
             CaseRun.Interruption cause = CaseFaults.classify(e, what, spec.configEpoch() != null);
-            return ended(spec, cause.status(), cause.reason(), lookups, cause.faultReference());
+            return ended(spec, cause.status(), cause.reason(), lookups, cause.faultReference(), cause.faultCause());
         }
     }
 
@@ -212,7 +212,8 @@ public class ProtocolCaseRunner implements CaseRunner {
         if (run.interrupted() != null) {
             // The steps already sent stay in the outcome with their runs. The case as a whole stopped before a step that was due.
             CaseRun.Interruption cause = run.interrupted();
-            return new CaseOutcome(spec, cause.status(), cause.reason(), records, notRecorded, notes, null, cause.faultReference());
+            return new CaseOutcome(spec, cause.status(), cause.reason(), records, notRecorded, notes, null, cause.faultReference(),
+                    cause.faultCause());
         }
         RunEnvelope<?> last = run.last();
         if (RunSupport.isBlocked(last)) {
@@ -250,9 +251,10 @@ public class ProtocolCaseRunner implements CaseRunner {
         return null;
     }
 
-    private static CaseOutcome ended(CaseSpec spec, CaseStatus status, String reason, Lookups lookups, String faultReference) {
+    private static CaseOutcome ended(CaseSpec spec, CaseStatus status, String reason, Lookups lookups, String faultReference,
+                                     String faultCause) {
         // Nothing went out, or nothing is known to have gone out, so no note may say that it did.
-        return new CaseOutcome(spec, status, reason, List.of(), List.of(), lookups.notes(false), null, faultReference);
+        return new CaseOutcome(spec, status, reason, List.of(), List.of(), lookups.notes(false), null, faultReference, faultCause);
     }
 
     /**

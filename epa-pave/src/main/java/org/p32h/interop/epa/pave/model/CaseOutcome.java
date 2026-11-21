@@ -27,6 +27,9 @@ import java.util.List;
  *                    tester can tell a failure of the tool from a case that cannot be run and
  *                    quote it. Null otherwise. Whether a request left before the failure is not
  *                    known, and the reason says so
+ * @param faultCause  with that reference, the first line of its log entry: the chain of exception
+ *                    types and the detail the log allows, so the tester can report the cause from
+ *                    the screen. Null otherwise. It is shown and never written to the ledger
  * @param verdict     the verdict of the last step that ran, as its protocol endpoint returned it.
  *                    Null when no step ran or none answered with one
  * @param nextStep    the next step the last step named, as its protocol endpoint returned it. Null
@@ -34,7 +37,8 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
-                          List<String> notes, TestResult overall, String faultReference, VerdictView verdict, NextStepView nextStep) {
+                          List<String> notes, TestResult overall, String faultReference, VerdictView verdict, NextStepView nextStep,
+                          String faultCause) {
 
     public CaseOutcome {
         runs = runs == null ? List.of() : List.copyOf(runs);
@@ -43,8 +47,13 @@ public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<
     }
 
     public CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
+                       List<String> notes, TestResult overall, String faultReference, String faultCause) {
+        this(spec, status, reason, runs, notRecorded, notes, overall, faultReference, null, null, faultCause);
+    }
+
+    public CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
                        List<String> notes, TestResult overall, String faultReference) {
-        this(spec, status, reason, runs, notRecorded, notes, overall, faultReference, null, null);
+        this(spec, status, reason, runs, notRecorded, notes, overall, faultReference, null);
     }
 
     public CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<RunRecord> runs, List<String> notRecorded,
@@ -54,7 +63,7 @@ public record CaseOutcome(CaseSpec spec, CaseStatus status, String reason, List<
 
     /** The same outcome with the verdict and the next step of the last step that ran. */
     public CaseOutcome withFound(VerdictView lastVerdict, NextStepView lastNextStep) {
-        return new CaseOutcome(spec, status, reason, runs, notRecorded, notes, overall, faultReference, lastVerdict, lastNextStep);
+        return new CaseOutcome(spec, status, reason, runs, notRecorded, notes, overall, faultReference, lastVerdict, lastNextStep, faultCause);
     }
 
     /** True when this tool failed while running the case, which is not the same as a case that cannot be run. */

@@ -6,7 +6,7 @@
 // Only same, changed and not-comparable say anything about the service. The other statuses say
 // that nothing was compared, and they are drawn as that, never as a failure.
 
-import {el, code, count, when, table, millis} from './dom.js';
+import {el, code, count, when, table, millis, faultReport} from './dom.js';
 import {toneMark} from './marks.js';
 import {stamp} from './marks.js';
 import {runLink, outcomeOf, whatRan, none, whereRan} from './history-common.js';
@@ -89,6 +89,7 @@ function whyCell(entry, vocabulary) {
     const differences = entry.differences || [];
     return [
         entry.reason ? el('p', null, entry.reason) : null,
+        faultReport({reference: entry.faultReference, cause: entry.faultCause}),
         differences.length > 0 ? differenceTable(differences, entry, vocabulary) : null,
         (entry.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
         !entry.reason && differences.length === 0 && entry.status === 'same'
@@ -124,6 +125,7 @@ function entryDetail(entry, vocabulary) {
         el('p', {class: 'history-replay__headline history-replay__status--' + (compared ? entry.status : 'unsent')}, statusWords(entry.status),
             compared ? null : el('span', {class: 'history-replay__headline-note'}, entry.replayed ? ' Not compared.' : ' Nothing was compared.')),
         entry.reason ? el('p', null, entry.reason) : null,
+        faultReport({reference: entry.faultReference, cause: entry.faultCause}),
         entry.status === 'same' && !entry.reason ? el('p', null, 'Everything the ledger compares came back the same.') : null,
         (entry.differences || []).length > 0 ? differenceTable(entry.differences, entry, vocabulary) : null,
         (entry.notRecorded || []).map(text => el('div', {class: 'ledger ledger--missing', role: 'alert'},

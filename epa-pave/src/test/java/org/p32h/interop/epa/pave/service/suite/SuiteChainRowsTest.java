@@ -124,6 +124,10 @@ class SuiteChainRowsTest {
         SuiteRunView run = run(chainRow("T1", "P32H-PA-REQ", ""));
         SuiteCaseResult row = run.results().get(0);
         assertThat(row.faultReference()).isNotBlank();
+        assertThat(row.faultCause()).isEqualTo("java.lang.IllegalStateException");
+        // The row shows the cause; the ledger keeps the runs and never the cause or the reference.
+        assertThat(org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(bed.ledger.records()))
+                .contains("CRD_ORDER_SIGN").doesNotContain("IllegalStateException").doesNotContain(row.faultReference());
         assertThat(row.statusLine()).isEqualTo("Tool failure part way: CRD order-sign was sent; this tool then failed, so whether the next "
                 + "request left is not known. The reason gives the reference.");
         assertThat(run.counts().toolFailed()).isEqualTo(1);

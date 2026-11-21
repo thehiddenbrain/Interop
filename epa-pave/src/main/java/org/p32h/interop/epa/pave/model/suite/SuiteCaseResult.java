@@ -56,6 +56,10 @@ import org.p32h.interop.epa.pave.model.Tone;
  * @param countedIn      the count group of the suite run this row is counted in, written as the
  *                       name of that count, such as {@code passed} or {@code notConfigured}. The
  *                       run's {@code countGroups} gives its words
+ * @param faultCause     with a fault reference, the first line of its log entry: the chain of
+ *                       exception types and the detail the log allows, shown with the reference so
+ *                       that reporting the failure is one paste. Null otherwise. Suite runs are
+ *                       held in memory only, and the results file and the ledger do not carry it
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuiteCaseResult(
@@ -90,7 +94,8 @@ public record SuiteCaseResult(
         String faultReference,
         Boolean outcomeFault,
         String nextStep,
-        SuiteCountGroup countedIn) {
+        SuiteCountGroup countedIn,
+        String faultCause) {
 
     public SuiteCaseResult {
         steps = steps == null ? List.of() : List.copyOf(steps);
@@ -108,14 +113,23 @@ public record SuiteCaseResult(
                            String faultReference, Boolean outcomeFault, String nextStep) {
         this(row, caseId, what, chain, state, status, statusLine, expected, outcome, outcomeLabel, tone, result, elapsedMillis, slow,
                 runId, runIds, chainId, httpStatus, findings, nextAction, reason, notes, notRecorded, previousOutcome,
-                previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, null);
+                previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, null, null);
     }
 
     /** The same row, counted in the given group. */
     public SuiteCaseResult countedIn(SuiteCountGroup group) {
         return new SuiteCaseResult(row, caseId, what, chain, state, status, statusLine, expected, outcome, outcomeLabel, tone, result,
                 elapsedMillis, slow, runId, runIds, chainId, httpStatus, findings, nextAction, reason, notes, notRecorded,
-                previousOutcome, previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, group);
+                previousOutcome, previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, group,
+                faultCause);
+    }
+
+    /** The same row, with the cause logged under its fault reference. */
+    public SuiteCaseResult withFaultCause(String cause) {
+        return new SuiteCaseResult(row, caseId, what, chain, state, status, statusLine, expected, outcome, outcomeLabel, tone, result,
+                elapsedMillis, slow, runId, runIds, chainId, httpStatus, findings, nextAction, reason, notes, notRecorded,
+                previousOutcome, previousOutcomeLabel, previousResult, changed, steps, faultReference, outcomeFault, nextStep, countedIn,
+                cause);
     }
 
     /** True when some of the case's steps went out and the case did not complete or end blocked. */

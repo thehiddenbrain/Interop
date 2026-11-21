@@ -338,7 +338,8 @@ public class RunReplay {
             // Logs the kinds of exception and where they were thrown. Never a message, which can quote a request or a response.
             log.error("Running a recorded run again failed inside this tool, reference {}: {}", reference, Faults.describe(e));
             return ReplayEntry.withNoRecord(original, ReplayStatus.ERROR, "This tool failed while running this again, so nothing can be said "
-                    + "about the answer. A request may have been sent. Report the reference " + reference + ".");
+                    + "about the answer. A request may have been sent. Report the reference " + reference + ".").withFault(reference,
+                    Faults.cause(e));
         }
         if (outcome == null) {
             return ReplayEntry.withNoRecord(original, ReplayStatus.ERROR, "The runner gave no answer for this run, so nothing can be said about "
@@ -482,7 +483,7 @@ public class RunReplay {
         }
         RunRecord replayed = outcome.finalRun();
         return new ReplayEntry(original.runId(), status, reason, replayed == null ? null : replayed.runId(), List.of(), outcome.notRecorded(),
-                original, replayed);
+                original, replayed).withFault(outcome.faultReference(), outcome.faultCause());
     }
 
     private static ReplayEntry compared(RunRecord asRead, RunRecord asReturned, CaseOutcome outcome) {
