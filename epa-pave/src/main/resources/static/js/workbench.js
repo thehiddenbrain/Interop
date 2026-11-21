@@ -583,6 +583,11 @@ export function createWorkbench(app, panel, spec) {
             // A body of the tester's own is said under the verdict by the result view itself, on every protocol.
             fill(result, renderResult(envelope, {...settings,
                 nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
+            // Once a result is drawn the case table of the empty state is gone, so on mock the cases stay one click away under it.
+            const another = typeof settings.anotherCase === 'function' ? settings.anotherCase() : null;
+            if (another) {
+                result.append(another);
+            }
             drawBeforeSending();
             readout.scrollTop = 0;
             // In one column the page scrolls, not the readout, and the window still shows the bottom of the form that was
@@ -861,6 +866,21 @@ export const CODE_PICKER_ABOUT = 'In the procedure code box, the arrows choose f
  * each looked up as if typed, so the first send needs no other input. A file that names no sample
  * case fills the member ID only.
  */
+/**
+ * The cases of the mock scenario table, folded, for a readout that holds a result. Null on live and when the list is not
+ * read: the table and everything that fills in a sample exist on mock only. "Start a new case" in the chain bar opens it.
+ */
+export function anotherCaseFold(app, list, own, onUse) {
+    if (!app.isMock() || !list || !list.available || list.scenarios.length === 0) {
+        return null;
+    }
+    return el('details', {class: 'fold another-case'}, el('summary', null, 'Start another case on mock (' + list.scenarios.length + ')'),
+        el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'),
+        scenarioListNotes(list),
+        scenarioTable(app, list, {own, onUse}));
+}
+
 export function scenarioTable(app, list, options) {
     const settings = options || {};
     const own = settings.own === true;

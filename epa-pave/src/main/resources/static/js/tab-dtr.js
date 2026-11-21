@@ -14,7 +14,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, aboutStep} from './dom.js';
 import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded, anotherCaseFold} from './workbench.js';
 import {sameCase} from './handover.js';
 import {maskedLine, notHandedOnWords} from './masks.js';
 import {dtrDetail} from './dtr-detail.js';
@@ -518,7 +518,8 @@ function show(envelope) {
         detail: shownEnvelope => dtrDetail(shownEnvelope),
         // While questionnaires are being answered, the hand-over to PAS is the session's: it is
         // withdrawn while the answers on screen differ from the ones last completed.
-        nextStepControl: step => (session ? session.resultControl(step) : null)
+        nextStepControl: step => (session ? session.resultControl(step) : null),
+        anotherCase: () => anotherCaseFold(app, vocabulary.scenarios, bench.ownRequestActive(), letTheMemberIdDecide)
     });
     if (session) {
         // The result's own next-step button is drawn afresh, so whether it is offered is settled again.

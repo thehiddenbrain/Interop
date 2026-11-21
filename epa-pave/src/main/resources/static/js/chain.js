@@ -157,7 +157,18 @@ export function createChain(app, bar) {
         // What the closed case carried to its next step belongs to that case and goes with it.
         app.forgetCarried();
         draw();
-        app.notice(['The chain ' + closed + ' is closed in this page. ', keptIn(closed), ' The next run from this case starts a new chain.'],
+        // On mock the cases are under the result of the tab in view, folded; they are opened, so the next case is one click away.
+        const cases = document.querySelector('[role="tabpanel"]:not([hidden]) details.another-case');
+        if (cases) {
+            cases.open = true;
+            cases.scrollIntoView({block: 'start'});
+            const summary = cases.querySelector('summary');
+            if (summary) {
+                summary.focus({preventScroll: true});
+            }
+        }
+        app.notice(['The chain ' + closed + ' is closed in this page. ', keptIn(closed), ' The next run from this case starts a new chain.',
+            cases ? ' The cases of the mock profile are open under the result: "Use this case" fills the form with another one.' : null],
             {plain: true});
     }
 

@@ -15,7 +15,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, aboutStep} from './dom.js';
 import {textField, selectField, formProblem, showFormProblem, refusedSaying, markFieldErrors, clearFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded, anotherCaseFold} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -771,6 +771,9 @@ function showRun(envelope) {
     shownOperation = envelope.operation || null;
     bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
         detail: detailFor(vocabulary),
+        // A submission or an inquiry is a case of its own; the subscription calls and notifications have no case table.
+        anotherCase: () => mode === 'submit' || mode === 'inquire'
+            ? anotherCaseFold(app, vocabulary.byUse.get(useOf(mode)), bench.ownRequestActive(), letTheMemberIdDecide) : null,
         // Asking for the status and sending a submission again are this tab's own steps. The shared
         // control never offers to carry a PAS result into the PAS tab.
         nextStepControl: shownStep => {

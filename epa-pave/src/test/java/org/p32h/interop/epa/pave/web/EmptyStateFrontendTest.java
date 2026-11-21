@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -43,6 +45,36 @@ class EmptyStateFrontendTest {
         // Only where the page scrolls: a readout that scrolls on its own is put at its top instead.
         assertThat(show.lastIndexOf("if (getComputedStyle(readout).overflowY === 'visible') {", scroll)).isPositive();
         assertThat(show.indexOf("readout.scrollTop = 0;")).isLessThan(scroll);
+    }
+
+    /**
+     * A result replaces the empty state and its case table, so on mock the cases stay under every result, folded, and
+     * "Start a new case" opens them. On live the fold is never built: the table fills in a sample.
+     */
+    @Test
+    void onMockTheCasesStayUnderEveryResultAndStartANewCaseOpensThem() throws IOException, InterruptedException {
+        String show = body("workbench.js", "showResult(envelope, options) {");
+        assertThat(show).contains("const another = typeof settings.anotherCase === 'function' ? settings.anotherCase() : null;")
+                .contains("result.append(another);");
+        assertThat(read("tab-crd.js")).contains("anotherCase: () => anotherCaseFold(app, vocabulary.scenarios, bench.ownRequestActive(), letTheMemberIdDecide)");
+        assertThat(read("tab-dtr.js")).contains("anotherCase: () => anotherCaseFold(app, vocabulary.scenarios, bench.ownRequestActive(), letTheMemberIdDecide)");
+        assertThat(read("tab-pas.js")).contains("anotherCaseFold(app, vocabulary.byUse.get(useOf(mode)), bench.ownRequestActive(), letTheMemberIdDecide)");
+        String start = CaseCodesFrontendTest.body(read("chain.js"), "function startNewCase() {");
+        assertThat(start).contains("details.another-case").contains("cases.open = true;");
+        String fold = body("workbench.js", "export function anotherCaseFold(app, list, own, onUse) {");
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here; the text checks above still apply.");
+        String script = "const el = (tag, props, ...children) => tag + (props ? '.' + props.class : '');\n"
+                + "const scenarioListNotes = () => null; const scenarioTable = () => null;\n"
+                + fold.replaceFirst("^export ", "") + "\n}\n"
+                + "const list = {available: true, scenarios: [{}, {}]};\n"
+                + "console.log(JSON.stringify([anotherCaseFold({isMock: () => true}, list, false), anotherCaseFold({isMock: () => false}, list, false),"
+                + " anotherCaseFold({isMock: () => true}, {available: false, scenarios: []}, false), anotherCaseFold({isMock: () => true}, null, false)]));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[\"details.fold another-case\",null,null,null]");
     }
 
     @Test

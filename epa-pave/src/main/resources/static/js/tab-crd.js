@@ -11,7 +11,7 @@ import {el, fill, clear, button, code, facts, table, heading, aboutStep} from '.
 import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection, maskedReading} from './result.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT, sinceLoaded} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, sinceLoaded, anotherCaseFold} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -303,7 +303,8 @@ async function send() {
         comparison.fold();
         // The request that went out is in the wire view of the result, so the one shown beforehand is put away.
         clear(slots.preview);
-        bench.showResult(answer.body, {detailTitle: 'CRD response detail', detail: envelope => crdDetail(envelope, vocabulary)});
+        bench.showResult(answer.body, {detailTitle: 'CRD response detail', detail: envelope => crdDetail(envelope, vocabulary),
+            anotherCase: () => anotherCaseFold(app, vocabulary.scenarios, bench.ownRequestActive(), letTheMemberIdDecide)});
     }
 }
 
