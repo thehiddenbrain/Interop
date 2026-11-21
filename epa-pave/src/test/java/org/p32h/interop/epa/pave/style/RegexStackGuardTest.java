@@ -51,7 +51,8 @@ import org.p32h.interop.epa.pave.PaveApplication;
  *       {@link #MOST_RECURSIVE_ITERATIONS} times. This reads the node graph java.util.regex
  *       builds, so it needs the package opened to this test, which build.gradle does.</li>
  *   <li>It runs on long hostile texts in a thread whose stack is 256 KB, a quarter of a request
- *       thread's: a million of one character for each class of characters it names, a million of
+ *       thread's: a million of one character for each class of characters it names, each also with
+ *       one other character after it, a million of
  *       alternating quotes, backslashes, braces, dots, digits and white space, and texts of 20,000
  *       characters that start with each literal stretch of the pattern and repeat a letter, a
  *       digit, a space or a backslash with each character and stretch it names. No
@@ -105,9 +106,7 @@ class RegexStackGuardTest {
      */
     static final List<Inline> INLINE = List.of(
             inline("client/crd/OnyxCrdConventions.java", "replaceAll", "[^a-z0-9]"),
-            inline("client/dtr/OnyxDtrConventions.java", "replaceAll", "/+$"),
             inline("client/dtr/OnyxDtrConventions.java", "replaceAll", "[^a-z0-9]"),
-            inline("client/lookup/LookupOutcomes.java", "replaceAll", "[.\\s]+$"),
             inline("client/lookup/MemberResponseMapping.java", "replaceAll", "[^a-z0-9]"),
             inline("client/lookup/ProviderResponseMapping.java", "replaceAll", "[^a-z0-9]"),
             inline("client/lookup/Spelling.java", "split", "\\."),
@@ -126,8 +125,6 @@ class RegexStackGuardTest {
             inline("model/RunRecord.java", "split", "/"),
             inline("model/RunRecord.java", "split", ";"),
             inline("postman/Ids.java", "replaceAll", "[^a-z0-9]+"),
-            inline("postman/Ids.java", "replaceAll", "^-+|-+$"),
-            inline("postman/Ids.java", "replaceAll", "-+$"),
             inline("postman/OperationDetector.java", "replaceAll", "[^a-z0-9]"),
             inline("postman/OperationDetector.java", "split", "/"),
             inline("postman/UrlNormal.java", "replaceFirst", "^0+(?=.)"),
@@ -144,7 +141,6 @@ class RegexStackGuardTest {
             inline("service/compare/CompareRules.java", "split", "\\."),
             inline("service/config/ConfigStore.java", "replaceAll", "[\\p{Cntrl}]"),
             inline("service/config/ConfigStoreGateway.java", "split", "&"),
-            inline("service/config/ConfigStoreGateway.java", "replaceAll", "/+$"),
             inline("service/config/ConfigStoreGateway.java", "matches", "[A-Z]{1,12}"),
             inline("service/config/MemberDataNames.java", "split", "(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+"),
             inline("service/config/ProductionDestinations.java", "split", "(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+"),
@@ -158,13 +154,11 @@ class RegexStackGuardTest {
             built("service/dtr/DtrAnswers.java", "matches", "TIME", "\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?"),
             inline("service/dtr/DtrProfileCheck.java", "split", " "),
             inline("service/dtr/DtrResponseShape.java", "split", ","),
-            inline("service/dtr/DtrService.java", "replaceAll", "/+$"),
             built("service/dtr/EnableWhenEvaluator.java", "matches", "DATE", "\\d{4}(-\\d{2}(-\\d{2})?)?"),
             inline("service/ledger/JsonlRunLedger.java", "replaceAll", "[\\s_.\\-\\p{Pd}\\p{Cf}]"),
             inline("service/lookup/ProviderLookupService.java", "matches", "\\d{10}"),
             inline("service/pas/NotificationReceiver.java", "matches", "\\(not recorded, \\d+ characters\\)"),
             inline("service/pas/PasRequestBuilder.java", "matches", "[A-TV-Z][0-9][0-9AB](\\.?[0-9A-TV-Z]{1,4})?"),
-            inline("service/pas/PasRequestBuilder.java", "replaceAll", "/+$"),
             inline("service/pas/PasResources.java", "replaceAll", "[^a-z0-9]"),
             inline("service/pas/PasResources.java", "matches", "\\d{5}"),
             inline("service/pas/PasResources.java", "matches", "\\d{4}[FTU]"),
@@ -255,6 +249,22 @@ class RegexStackGuardTest {
             // character would only show the quadratic find of BARE_HOST, five seconds at a time.
             List<Text> shaped = texts(pattern.pattern()).stream().filter(text -> text.length() == SHAPED).toList();
             assertThat(run(pattern, shaped, true)).as(each.getKey()).anySatisfy(failure -> assertThat(failure).contains("StackOverflowError"));
+        }
+    }
+
+    /**
+     * The runs that something else follows have teeth: each strip that was written as a pattern
+     * anchored at the end, kept here as it was, takes longer than the bound on a million of the
+     * character it strips followed by one other, as it would on a url or a reason ending in a long
+     * run of slashes or white space with a character after it. A loop from the end replaced them.
+     */
+    @Test
+    void theGuardFailsOnTheStripsThatWereQuadraticOnALongRunThatSomethingFollows() throws Exception {
+        for (String old : List.of("/+$", "[.\\s]+$", "-+$")) {
+            Pattern pattern = Pattern.compile(old);
+            assertThat(recursiveRepetitions(pattern)).as(old).isEmpty();
+            List<Text> tails = texts(old).stream().filter(text -> !text.tail().isEmpty()).toList();
+            assertThat(run(pattern, tails, false)).as(old).anySatisfy(failure -> assertThat(failure).contains("then \"!\": over the bound"));
         }
     }
 
@@ -505,11 +515,24 @@ class RegexStackGuardTest {
     private static final String ALTERNATED = "\"\\{}.1 ";
 
     /** A hostile text, built only when it is run so that a pattern's texts are never all held at once. */
-    record Text(String label, String start, String unit, int length) {
+    record Text(String label, String start, String unit, int length, String tail) {
+
+        Text(String label, String start, String unit, int length) {
+            this(label, start, unit, length, "");
+        }
 
         String text() {
-            return start + unit.repeat(Math.max(1, (length - start.length()) / unit.length()));
+            return start + unit.repeat(Math.max(1, (length - start.length()) / unit.length())) + tail;
         }
+    }
+
+    /**
+     * What follows a long run in the texts that end in something else. A pattern anchored at the end
+     * of a run, such as {@code /+$}, is tried again from every character of the run when the text
+     * does not end there, which is quadratic: a million slashes and one other character run for hours.
+     */
+    static String tailAfter(String single) {
+        return single.equals("!") ? "#" : "!";
     }
 
     static List<Text> texts(String regex) {
@@ -520,6 +543,7 @@ class RegexStackGuardTest {
         regex.chars().filter(c -> c > ' ' && c < 127 && !Character.isLetterOrDigit(c)).forEach(c -> singles.add(String.valueOf((char) c)));
         for (String single : singles) {
             out.add(new Text("a million of " + shown(single), "", single, MILLION));
+            out.add(new Text("a million of " + shown(single) + " then " + shown(tailAfter(single)), "", single, MILLION, tailAfter(single)));
         }
         for (int i = 0; i < ALTERNATED.length(); i++) {
             for (int j = i + 1; j < ALTERNATED.length(); j++) {

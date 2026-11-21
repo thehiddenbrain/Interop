@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.postman;
 
+import org.p32h.interop.epa.pave.model.Texts;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -41,9 +42,10 @@ public final class Ids {
      */
     public static String named(String name) {
         String exact = name == null ? "" : name.strip();
-        String readable = exact.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+        String readable = exact.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
+        readable = Texts.withoutTrailing(Texts.withoutLeading(readable, "-"), "-");
         if (readable.length() > 40) {
-            readable = readable.substring(0, 40).replaceAll("-+$", "");
+            readable = Texts.withoutTrailing(readable.substring(0, 40), "-");
         }
         return (readable.isEmpty() ? "unnamed" : readable) + "-" + hash(exact, 8);
     }

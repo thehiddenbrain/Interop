@@ -240,7 +240,7 @@ public final class OnyxDtrConventions {
      * questionnaire.
      */
     public static List<String> nextQuestionAddresses(String base) {
-        String trimmed = base.strip().replaceAll("/+$", "");
+        String trimmed = Texts.withoutTrailing(base.strip(), "/");
         return List.of(trimmed + "/Questionnaire/$next-question", trimmed + "/$next-question");
     }
 

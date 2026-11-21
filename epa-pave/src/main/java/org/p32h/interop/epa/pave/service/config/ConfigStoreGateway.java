@@ -858,7 +858,7 @@ public class ConfigStoreGateway implements OperationGateway {
             new TreeMap<>(endpoint.headers()).forEach((name, value) -> headers.add(new PostmanHeader(name, value, false)));
             return new Target(Source.FALLBACK, null, null, base, base, headers, "application.yml: " + property, null);
         }
-        String template = base.replaceAll("/+$", "") + operation.fallbackPath();
+        String template = Texts.withoutTrailing(base, "/") + operation.fallbackPath();
         String described = "application.yml: " + property + " followed by " + operation.fallbackPath();
         if (operation == EpaOperation.SUBSCRIPTION_GET && !Texts.present(intent.urlValues().get(ID)) && template.endsWith(ID_TOKEN)) {
             // With no id this operation lists. The template still shows where an id would go.
