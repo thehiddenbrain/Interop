@@ -33,7 +33,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** |
 | D-276 | The operator's verdict was answered with a first round of screen changes, without waiting for the three worst things they were asked for | A look, a doubt, a plan, an attack, two batches, a walk, an audit and three rounds of correction and check, all by agents. On mock one click gives a case that can be sent; a good run no longer looks wrong; the form opens with what a send needs; DTR questions come first; a result is ordered and folded; Config opens with "Ready to send?" and says that signing in is off; a failed call names its address and cause. **The operator has not seen it, no person has used it, nothing of it ran on Windows.** Left: long results, History, reload, the values the vendor's file lacks, a sign-in |
 | D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
-| D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. Every thread of the tool now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log. Not proven on the real jar: the net and two guards, held by tests only |
+| D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -285,7 +285,9 @@ name the chain of exception types, and a few throwables whose message the Java r
 compiler writes about the program itself give that message; every other message stays out.
 Later: D-278. From the build of suites until `7cbc0f8`, the Java runtime itself could print the
 message of an `Error` thrown during a suite into the log, around the one place that writes failures;
-every thread of the tool now ends in one entry under a reference, and the rule holds there too.
+every thread of the tool now ends in one entry under a reference while it runs, and the rule holds
+there too, except a start that fails, which Spring reports with its configuration messages (D-278),
+and the two narrow paths named in D-278's limits.
 
 **D-037. Records that hold member data or wire JSON redact their `toString`.**
 A record's default `toString` prints every component, so logging such an object once would put
@@ -5899,7 +5901,7 @@ The paragraph "Limits, said plainly" above is the history; what follows corrects
   cause is held in memory only, with the suite run and the notification. The only browser storage
   key stayed `pave.tab`.
 - **Tests.** 2,946 after `f3a93dd`, 2,951 after `253928e`. `FaultReportFrontendTest` runs
-  `withoutReference` with Node on ten sentences and asserts each output; it is skipped where Node is
+  `withoutReference` with Node on ten inputs (nine sentences and an absent one) and asserts each output; it is skipped where Node is
   not installed, where the checks that read the scripts as text still run. The independent check of
   the first fix found that two of those text checks stayed green when the behaviour they name was
   broken; they were strengthened and were then seen to fail on the same breakage.
@@ -5913,7 +5915,8 @@ left.**
   chain of exception types, frames, and a detail only for the narrow list of D-277. `SuiteService`
   caught an `Error` around a whole suite, logged it there correctly, and then threw it on, on its own
   thread `suite-runner`, which had no handler. Nothing above the run caught it, so the Java runtime
-  printed it itself to standard error, which is where the log goes: "Exception in thread
+  printed it itself to standard error, which the console and the captured output show beside the log
+  (the log itself goes to standard output): "Exception in thread
   "suite-runner"", the whole chain with every message, every "Caused by:" and every frame. A test
   made an `ExceptionInInitializerError` around an `IllegalStateException("no plan for S123456789")`
   end a suite on that thread, and the log held "Caused by: java.lang.IllegalStateException: no plan
@@ -5922,10 +5925,10 @@ left.**
 - **Since when.** Since suites were built (`df3adcd`, D-103 to D-110): the rethrow and the thread
   without a handler were both in that commit. Corrected in `7cbc0f8`, during the step that closed
   D-277's two places.
-- **Why no check saw it before.** The tests of suites run the suite on a held executor of the test
-  bed, on the test's own thread, and caught the `Error` there (`assertThatThrownBy`), so no default
-  handler ever ran in a test; one of them asserted that the placeholder member ID was in no log and
-  passed for that reason. The independent check of D-277's last step was the first to run a suite on
+- **Why no check saw it before.** Until `22a41bc` no test made an `Error` during a suite at all. The
+  two tests that step added ran the suite on the test bed's held executor, on the test's own thread,
+  and caught the `Error` there (`assertThatThrownBy`), so no default handler ran; one of them asserted
+  that the placeholder member ID was in no log and passed for that reason. The independent check of D-277's last step was the first to run a suite on
   the service's real thread with such an `Error`, and the first to read the runtime's printing as a
   leak.
 - **What it means against the hard rules, said plainly.** It broke the rule of D-036 that the
@@ -5965,12 +5968,14 @@ left.**
     reference ("Stopping the suites failed inside this tool, reference <id>: ..."). Before, Spring
     logged "Invocation of ... method failed on bean ...", with the message.
   - The main thread: the net is installed first; a failed start is Spring's report (point 4).
-  - Threads where only framework code runs, each named in a thread dump of the real jar or in its
-    output: the JDK HTTP client's threads (their failures come back to the request thread, where
-    `ExchangeExecutor` logs types only), Tomcat's `Catalina-utility` threads, `container-0`, the
-    acceptor and poller, `tomcat-shutdown`. The tool registers nothing that runs on them; anything
-    that escapes falls to the net. `src/main` has no `@Scheduled`, `@Async`, timer, virtual thread,
-    event listener or lifecycle bean of its own (searched).
+  - Threads where only framework code runs. Seen in a thread dump of the real jar on mock, taken
+    with no outbound call, or in its output: Tomcat's `Catalina-utility` threads, `container-0`, the
+    acceptor and poller, `tomcat-shutdown`. Known from reading the code, not from that dump: the JDK
+    HTTP client's threads (their failures come back to the request thread, where `ExchangeExecutor`
+    logs types only). The tool registers nothing that runs on them; anything that escapes falls to
+    the net. `src/main` has no `@Scheduled`, `@Async`, timer, virtual thread, event listener, or
+    `Lifecycle` or `SmartLifecycle` bean of its own (searched); the lifecycle callbacks it does have
+    run on the main thread and the shutdown thread listed above.
 - **What was built.** `service/error/UncaughtFailures`, the net: one entry, "A thread of this tool
   ended on a failure that nothing caught, thread <name>, reference <id>: <types and frames>", and
   nothing else; if even that fails it is swallowed silently. `PaveApplication.main` installs it
@@ -5979,12 +5984,18 @@ left.**
   word (`7b4bc3d`). Stopping that never throws into Spring (`06384e4`). The suite row that points to
   the stop (`d4b2023`). Tests for the two guards the check found untested (`ccef212`, `ef069d9`). No
   screen sentence changed apart from the suite row; the new log lines are in the server log only.
-- **What the tests showed.** Each new test throws, on the thread it guards, an
+- **What the tests showed.** Most new tests throw, on the thread they guard, an
   `ExceptionInInitializerError` around "no plan for S123456789" and, apart, a `RuntimeException` with
-  that message, captures the log and standard error, and asserts one entry under a reference, no
-  "Caused by:" and no placeholder. Each was seen to fail with its correction taken out: by the agent
-  that built it, by an independent check (every correction undone in turn in a copy), and for the two
-  last tests by a third agent. The net's own guard needed a test in a child Java process, because
+  that message, capture the log and standard error, and assert one entry under a reference, no
+  "Caused by:" and no placeholder; the test of an answer that cannot be written throws an
+  `IllegalStateException("writer for S123456789")`. The net's own guard is tested with throwables that
+  cannot be described (a `getStackTrace()` that returns null, a `getCause()` that throws): those tests
+  assert that nothing escapes and nothing is printed, and no entry is written for such a throwable.
+  The suite row's pointer is tested by reading the script's text. Each test whose correction could be
+  taken out was seen to fail without it: by the agent that built it, by an independent check (every
+  correction undone in turn in a copy), and for the last three tests, written after that check, by a
+  third agent. The exception is the test of a `RuntimeException` in one case of a suite: it guards a
+  per-case catch that already held, so it has no run that failed before the change. The net's own guard needed a test in a child Java process, because
   the runtime writes its line about a failing handler to the process's error stream, beneath what a
   test in the same process can capture.
 - **What the runs of the real jar showed.** Copies of the built jar, each with one class removed by
@@ -6008,8 +6019,10 @@ left.**
   | Notification receiver | `NotificationReading$Status` | 200, held with a fault reference | one receiver entry, nothing else |
   | Self-check of the code list | none could be removed | the copy did not start | Spring's start report only |
 
-  Every count of the searches was 0, and the placeholder member ID and secret appeared in no output
-  through an exception message. Beside the removed classes: a stand-in on a loopback port answered
+  Every count of the searches was 0 for the paths that started, and there the placeholder member ID
+  and secret appeared in no output through an exception message. The self-check's start failure is
+  Spring's report, with its "Caused by:" lines; the start failures are below, and one of them printed
+  the member ID placeholder through Spring's start message. Beside the removed classes: a stand-in on a loopback port answered
   every live call in 8 broken ways (the check: 14 ways, for 14 calls), each quoting the placeholders;
   damaged request bodies and uploads in 34 kinds. No exception message carried either placeholder
   into the log; the one line that held the member ID placeholder was an INFO line naming an uploaded

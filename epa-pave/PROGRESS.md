@@ -12,9 +12,10 @@ round of screen changes and the internal error that names its cause (D-276, D-27
 `e0f3333`, `425e16a` and `6a6fe2f` made the cause of an internal error named on the screen and on the
 first line of the log entry. Since the records of those two (`d289335`, `343086f`), two more steps:
 `22a41bc` to `253928e` gave the stop of a suite and the notification receiver's verdict their cause
-(D-277, "Later:"), and `cbffaf1` to `ef069d9` closed every path by which the message of an exception
-could reach the log, after a check found the suite's thread printing one (D-278; the first correction
-is `7cbc0f8`). **The last whole build** is that of `ef069d9`, through the shared wrapper (`clean
+(D-277, "Later:"), and `cbffaf1` to `ef069d9` closed every path found by which the message of an
+exception could reach the log while the tool runs, after a check found the suite's thread printing one
+(D-278; the first correction is `7cbc0f8`); a start that fails is still Spring's own report, with its
+messages, by decision, and two narrow paths are named in D-278's limits. **The last whole build** is that of `ef069d9`, through the shared wrapper (`clean
 build`): 2965 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872
 tests; on the way, 2896 after the first batch, 2908 after the second, 2909, 2916 and 2930 after the
 corrections and the error cause, 2937 at `6a6fe2f`, 2946 after `f3a93dd`, 2951 after `253928e` and

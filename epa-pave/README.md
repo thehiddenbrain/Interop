@@ -2843,8 +2843,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   on live with the sample environment and collection and no real service; the internal error's cause
   was seen in a copy of the jar with a class removed by hand.
 - **Since then also the cause of a suite stop and of a notification, and no exception message in the
-  log** (D-277, "Later:", and D-278; `22a41bc` to `ef069d9`): the suite results and the opened
-  notification, three next step sentences, the handling of failures on every thread, and tests. The
+  log while the tool runs** (D-277, "Later:", and D-278; `22a41bc` to `ef069d9`; a start that fails
+  is still Spring's report, with its messages, by decision, and two narrow paths are named in D-278's
+  limits): the suite results and the opened notification, two next step sentences, the handling of failures on every thread, and tests. The
   whole build of `ef069d9` through the same wrapper: 2,965 tests, 0 failures, 0 errors, 2 skipped.
   For this README the quoted sentences were looked for again in the sources of `ef069d9`, by a script
   and then by hand for those the script did not find whole (most are built from parts in the code);
