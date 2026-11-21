@@ -410,11 +410,14 @@ export function createSession(packageEnvelope, hooks) {
         // After an adaptive step the focus can go down to the question just asked, past the verdict, so a reading from a mask
         // is said again here, beside the step that rests on it.
         const verdict = latest.envelope && latest.envelope.verdict;
+        // A value the steps leave out of the carry because it is masked is named only here on the session, so the line goes
+        // with every step, also the two whose sentence the session leaves to the result.
+        const notCarried = (session.maskedCarry || []).map(one => maskedLine(((step.carryLabels || {})[one.key] || one.key) + '. ' + notHandedOnWords(one.masks)));
         if (step.action === 'SUBMIT_RESPONSE' || step.action === 'ANSWER_NEXT_QUESTION') {
             // The button is right under the questions and the result's own Next step row says the same sentence.
             const alone = verdict && verdict.maskedReading ? maskedReading(verdict.maskedReading) : null;
-            if (alone) {
-                return el('div', {class: 'dtr-next'}, alone);
+            if (alone || notCarried.length > 0) {
+                return el('div', {class: 'dtr-next'}, alone, notCarried);
             }
             return null;
         }
@@ -424,7 +427,7 @@ export function createSession(packageEnvelope, hooks) {
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
                 step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null),
             pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
-            (session.maskedCarry || []).map(one => maskedLine(((step.carryLabels || {})[one.key] || one.key) + '. ' + notHandedOnWords(one.masks))),
+            notCarried,
             control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--primary'})) : null);
     }
 

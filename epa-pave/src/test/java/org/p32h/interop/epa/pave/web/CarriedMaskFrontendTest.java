@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -57,6 +59,43 @@ class CarriedMaskFrontendTest {
                 .contains("const split = withoutMasks(carried);\n            session.carry = split.carry;");
         assertThat(CaseCodesFrontendTest.body(dtr, "function nextStepLine() {")).contains("notHandedOnWords(one.masks)");
         assertThat(dtr).doesNotContain("session.carry = carried;");
+    }
+
+    /**
+     * A package fetch and an adaptive step end on SUBMIT_RESPONSE or ANSWER_NEXT_QUESTION, which leave their sentence to the
+     * result. The value they leave out of the carry because it is masked is still named on the session for those two: the
+     * function is run, not read, so moving the line back into the other branch alone fails here.
+     */
+    @Test
+    void theValueLeftOutOfTheCarryIsNamedOnTheSessionAfterAFetchAndAnAdaptiveStep() throws IOException, InterruptedException {
+        String line = CaseCodesFrontendTest.body(read("js/dtr-questionnaire.js"), "function nextStepLine() {");
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here, so the line cannot be run.");
+        String script = "const el = (tag, props, ...children) => { const parts = children.flat(Infinity).filter(c => c !== null && c !== undefined);"
+                + " return parts.length === 0 && tag === 'div' ? '<div/>' : '<' + tag + '>' + parts.join('') + '</' + tag + '>'; };\n"
+                + "const maskedLine = text => '[line:' + text + ']';\n"
+                + "const notHandedOnWords = masks => 'not handed on ' + masks;\n"
+                + "const maskedReading = reading => reading ? '[reading]' : null;\n"
+                + "const button = label => '[button:' + label + ']';\n"
+                + "const withheld = () => [];\nconst hooks = {};\nlet session = {};\n"
+                + line + "\n}\n"
+                + "const out = [];\n"
+                + "for (const action of ['SUBMIT_RESPONSE', 'ANSWER_NEXT_QUESTION', 'START_PAS']) {\n"
+                + "  session = {latest: {nextStep: {action, headline: 'H', carryLabels: {questionnaire: 'Questionnaire address'}}, envelope: {verdict: {}}},"
+                + " maskedCarry: [{key: 'questionnaire', masks: '[secret clientSecret]'}]};\n"
+                + "  out.push(nextStepLine());\n"
+                + "  session = {latest: {nextStep: {action}, envelope: {verdict: {}}}, maskedCarry: []};\n"
+                + "  out.push(String(nextStepLine()));\n"
+                + "}\n"
+                + "console.log(JSON.stringify(out));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        String named = "[line:Questionnaire address. not handed on [secret clientSecret]]";
+        assertThat(out).isEqualTo("[\"<div>" + named + "</div>\",\"null\",\"<div>" + named + "</div>\",\"null\","
+                + "\"<div><p><span>Still to do, as the latest result says: </span><strong>H</strong></p>" + named + "</div>\","
+                + "\"<div><p><span>Still to do, as the latest result says: </span><strong></strong></p></div>\"]");
     }
 
     @Test
