@@ -313,10 +313,10 @@ public class ApiExceptionHandler {
                 "Percent-encode a percent sign that is part of a value, as %25, and send the request again."));
     }
 
-    /** The browser went away while the answer was being written. There is nobody left to answer and nothing to log. */
+    /** The client went away while the answer was being written. There is nobody left to answer: one line at INFO. */
     @ExceptionHandler(AsyncRequestNotUsableException.class)
-    public void clientWentAway(AsyncRequestNotUsableException e) {
-        // Nothing to do: the connection is closed.
+    public void clientWentAway(AsyncRequestNotUsableException e, HttpServletRequest request) {
+        ClientGone.log(request, e);
     }
 
     @ExceptionHandler(MultipartException.class)
@@ -362,7 +362,14 @@ public class ApiExceptionHandler {
      * quote a request or response body, and those hold member data.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorView> unexpected(Exception e) {
+    public ResponseEntity<ErrorView> unexpected(Exception e, HttpServletRequest request) {
+        if (ClientGone.is(e)) {
+            // Writing the answer failed because the client had closed the connection, and the framework
+            // wrapped that in a failure to write the message, which is matched here before its cause.
+            // Not a defect: one line at INFO and no answer, since nobody is there to read one.
+            ClientGone.log(request, e);
+            return null;
+        }
         String reference = UUID.randomUUID().toString();
         log.error("Unhandled exception, reference {}: {}", reference, describe(e));
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.INTERNAL,

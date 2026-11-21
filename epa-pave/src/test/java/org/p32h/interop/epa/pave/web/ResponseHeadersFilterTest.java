@@ -87,7 +87,10 @@ class ResponseHeadersFilterTest {
                     new org.apache.catalina.connector.ClientAbortException()));
         });
         assertThat(response.getContentAsString()).isEmpty();
-        assertThat(output.getAll()).doesNotContain("Unhandled").doesNotContain("ERROR");
+        assertThat(output.getAll()).doesNotContain("Unhandled").doesNotContain("ERROR").doesNotContain("reference")
+                .contains("The client closed the connection before the answer was written: GET (a request that matched no route of this "
+                        + "tool), org.springframework.web.context.request.async.AsyncRequestNotUsableException <- "
+                        + "org.apache.catalina.connector.ClientAbortException" + System.lineSeparator());
     }
 
     @Test

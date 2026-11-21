@@ -391,6 +391,57 @@ class JsonlRunLedgerTest {
         assertThat(ledger.health().unreadableFiles()).containsExactly(java.util.Map.entry(todayFile().getFileName().toString(), 1));
     }
 
+    /**
+     * The tool's stop interrupts a thread whose call is still out once its time is up, and that
+     * thread then records the call. A channel closes itself on an interrupt, and the line was lost.
+     */
+    @Test
+    void aWriteOnAThreadWhoseInterruptFlagIsSetWritesTheWholeLineAndLeavesTheFlagSet() {
+        JsonlRunLedger ledger = ledger(home, clock);
+        try {
+            // The first line of the day creates the file; the second is appended to it.
+            Thread.currentThread().interrupt();
+            LedgerReceipt first = ledger.record(draft("run-1", clock).build());
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+            LedgerReceipt second = ledger.record(draft("run-2", clock).build());
+            assertThat(Thread.interrupted()).isTrue();
+
+            assertThat(first.recorded()).isTrue();
+            assertThat(first.message()).isNull();
+            assertThat(second.recorded()).isTrue();
+            assertThat(second.runsToday()).isEqualTo(2);
+            assertThat(text(todayFile())).isEqualTo(JsonSafe.mapper().writeValueAsString(first.record()) + "\n"
+                    + JsonSafe.mapper().writeValueAsString(second.record()) + "\n");
+            LedgerHealth health = ledger.health();
+            assertThat(health.failedWrites()).isZero();
+            assertThat(health.unreadableLines()).isZero();
+            assertThat(health.unreadableFiles()).isEmpty();
+            assertThat(ledger.query(RunQuery.all())).extracting(RunRecord::runId).containsExactly("run-2", "run-1");
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    /**
+     * An interrupt can arrive while an append runs, after the flag was taken down. Read through a
+     * channel, the last byte then could not be read, and every such interrupt added an empty line.
+     */
+    @Test
+    void whetherTheFileEndsMidLineIsReadTheSameOnAnInterruptedThread() throws IOException {
+        ledger(home, clock).record(draft("run-1", clock).build());
+        Path file = todayFile();
+        try {
+            Thread.currentThread().interrupt();
+            assertThat(JsonlRunLedger.endsMidLine(file)).isFalse();
+            Files.writeString(file, "{\"recordType\":\"run\",\"runId\":\"run-to", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            assertThat(JsonlRunLedger.endsMidLine(file)).isTrue();
+            assertThat(JsonlRunLedger.endsMidLine(file.resolveSibling("runs-1999-01-01.jsonl"))).isFalse();
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
     @Test
     void aLineTornBeforeTheLastStartIsReportedAsSoonAsTheLedgerStarts() throws IOException {
         ledger(home, clock).record(draft("run-1", clock).build());

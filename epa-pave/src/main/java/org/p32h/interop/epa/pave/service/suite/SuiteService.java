@@ -12,6 +12,9 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
@@ -56,6 +59,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.stereotype.Service;
 
 /**
@@ -80,7 +86,7 @@ import org.springframework.stereotype.Service;
  * Nothing here logs a case.
  */
 @Service
-public class SuiteService implements AutoCloseable {
+public class SuiteService implements AutoCloseable, ApplicationListener<ContextClosedEvent> {
 
     private static final Logger log = LoggerFactory.getLogger(SuiteService.class);
 
@@ -92,6 +98,13 @@ public class SuiteService implements AutoCloseable {
     static final String STOPPED_BY_TESTER = "Stopped on request.";
     static final String STOPPED_BY_SHUTDOWN = "The tool was shut down while the suite was running.";
 
+    /** The longest any bound on the stop may be when the web server gives none of its own. */
+    static final Duration LONGEST_STOP = Duration.ofSeconds(30);
+    /** How long the stop still waits for the suite's thread once it has been interrupted. */
+    static final Duration AFTER_INTERRUPT = Duration.ofSeconds(5);
+    /** The least the stop waits for the suite's thread before it takes it for one still running a case. */
+    static final Duration IDLE_END = Duration.ofMillis(500);
+
     private final ObjectProvider<CaseRunner> caseRunner;
     private final ObjectProvider<RunLedger> ledger;
     private final OperationGateway gateway;
@@ -101,19 +114,36 @@ public class SuiteService implements AutoCloseable {
     private final RunSupport support;
     private final Executor executor;
     private final ExecutorService owned;
+    /** How long a case in flight may take to finish once the tool begins to stop. See {@link #stopBound}. */
+    private final Duration stopBound;
+    /** When the stop began, by {@link System#nanoTime()}, or null while the tool runs. Read and written under {@link #lock}. */
+    private Long stopBegan;
 
     private final Object lock = new Object();
     private final LinkedHashMap<String, Run> runs = new LinkedHashMap<>();
 
     @Autowired
     public SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
-                        EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support) {
-        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, null);
+                        EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, OnyxProperties onyx,
+                        @Value("${server.shutdown:graceful}") String shutdown,
+                        @Value("${spring.lifecycle.timeout-per-shutdown-phase:30s}") Duration shutdownPhase) {
+        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, null, stopBound(shutdown, shutdownPhase, onyx));
     }
 
     /** @param executor runs a suite. Null for the service's own single background thread */
     SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
                  EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, Executor executor) {
+        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, executor, LONGEST_STOP);
+    }
+
+    /**
+     * @param executor  runs a suite. Null for the service's own single background thread
+     * @param stopBound how long a case in flight may take to finish once the tool begins to stop
+     */
+    SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
+                 EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, Executor executor,
+                 Duration stopBound) {
+        this.stopBound = stopBound;
         this.caseRunner = caseRunner;
         this.ledger = ledger;
         this.gateway = gateway;
@@ -124,6 +154,7 @@ public class SuiteService implements AutoCloseable {
         if (executor == null) {
             // One thread, so cases run strictly one after another. A daemon, so it never keeps the tool from closing.
             this.owned = Executors.newSingleThreadExecutor(task -> {
+                // Daemon still: the stop waits for it within its bound (see close), and then the tool must end.
                 Thread thread = new Thread(task, "suite-runner");
                 thread.setDaemon(true);
                 // The JVM's default handler prints messages, which can quote a member ID. Set here as
@@ -265,6 +296,10 @@ public class SuiteService implements AutoCloseable {
                     Texts.trimToNull(testerRef), earlier, previous);
             runs.put(run.id, run);
             trim();
+            if (stopBegan != null) {
+                // The tool has begun to stop, so no case of it starts.
+                run.requestStop(STOPPED_BY_SHUTDOWN);
+            }
         }
         try {
             executor.execute(() -> runAll(run, runner));
@@ -306,23 +341,95 @@ public class SuiteService implements AutoCloseable {
     }
 
     /**
-     * Stops whatever is running. Called when the tool shuts down. Never throws: Spring logs what a
+     * How long a case in flight may take to finish once the tool begins to stop: what the web
+     * server gives a request in flight, so a case of a suite gets what a run from a screen gets.
+     * With the graceful stop, which is Spring Boot's default, that is the time each phase of the
+     * stop may take ({@code spring.lifecycle.timeout-per-shutdown-phase}, 30 seconds unless set).
+     * When the server stops at once it gives none, and the bound is then the longest one call to a
+     * service can take, its connect and read timeouts together, and never more than 30 seconds.
+     */
+    static Duration stopBound(String shutdown, Duration shutdownPhase, OnyxProperties onyx) {
+        if (!"immediate".equalsIgnoreCase(Texts.orElse(shutdown, "").strip())) {
+            return shutdownPhase == null || shutdownPhase.isNegative() ? LONGEST_STOP : shutdownPhase;
+        }
+        Duration call = Duration.ofMillis(Math.max(0L, (long) onyx.connectTimeoutMs() + onyx.readTimeoutMs()));
+        return call.compareTo(LONGEST_STOP) > 0 ? LONGEST_STOP : call;
+    }
+
+    /**
+     * The tool begins to stop: Spring says so before it stops the web server. From here no case
+     * of a suite starts, and the bound of the case in flight runs from now, beside the grace the
+     * web server gives its requests, not after it. Never throws: Spring logs what a listener
+     * throws with its message.
+     */
+    @Override
+    public void onApplicationEvent(ContextClosedEvent event) {
+        try {
+            beginStop();
+        } catch (RuntimeException | Error e) {
+            // A reference and the exception types and frames only, as every failure of this tool.
+            log.error("Stopping the suites failed inside this tool, reference {}: {}", UUID.randomUUID(), Faults.describe(e));
+        }
+    }
+
+    /** Asks every suite to stop after its case in flight, and notes when the stop began. Returns that moment. */
+    private long beginStop() {
+        synchronized (lock) {
+            if (stopBegan == null) {
+                stopBegan = System.nanoTime();
+            }
+            for (Run run : runs.values()) {
+                run.requestStop(STOPPED_BY_SHUTDOWN);
+            }
+            return stopBegan;
+        }
+    }
+
+    /**
+     * Stops whatever is running. Called when the tool shuts down. A case in flight may finish, and
+     * so write its ledger line, until {@link #stopBound} after the stop began; no further case
+     * starts. Only then is the suite's thread interrupted, and a call still out ends saying no
+     * answer had arrived. The stop always ends: a thread that is still alive {@link #AFTER_INTERRUPT}
+     * later is left, as a daemon, to end with the process. Never throws: Spring logs what a
      * destroy method throws with its message, and a message can quote a member ID.
      */
     @Override
     public void close() {
         try {
-            synchronized (lock) {
-                for (Run run : runs.values()) {
-                    run.requestStop(STOPPED_BY_SHUTDOWN);
+            try {
+                stopAndWait();
+            } catch (InterruptedException e) {
+                // Whoever stops the tool wants it stopped now: the thread is interrupted at once, and the flag is put back.
+                Thread.currentThread().interrupt();
+                if (owned != null) {
+                    owned.shutdownNow();
                 }
-            }
-            if (owned != null) {
-                owned.shutdownNow();
             }
         } catch (RuntimeException | Error e) {
             // A reference and the exception types and frames only, as every failure of this tool.
             log.error("Stopping the suites failed inside this tool, reference {}: {}", UUID.randomUUID(), Faults.describe(e));
+        }
+    }
+
+    private void stopAndWait() throws InterruptedException {
+        long began = beginStop();
+        if (owned == null) {
+            return;
+        }
+        owned.shutdown();
+        // The web server's grace may already have used up the bound. An idle thread still needs a moment to end
+        // after the shutdown, and is not to be taken for a case that is running.
+        long left = Math.max(IDLE_END.toNanos(), stopBound.toNanos() - (System.nanoTime() - began));
+        if (owned.awaitTermination(left, TimeUnit.NANOSECONDS)) {
+            return;
+        }
+        // The bound and nothing of the case, which holds a member ID and is never logged.
+        log.info("A suite case was still running when the time for the stop ran out ({} seconds). Its thread is interrupted.",
+                stopBound.toSeconds());
+        owned.shutdownNow();
+        if (!owned.awaitTermination(AFTER_INTERRUPT.toNanos(), TimeUnit.NANOSECONDS)) {
+            // Nothing of the case either.
+            log.info("The suite case did not end after its thread was interrupted. The tool stops without waiting for it.");
         }
     }
 

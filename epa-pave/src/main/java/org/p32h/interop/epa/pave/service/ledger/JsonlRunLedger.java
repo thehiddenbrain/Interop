@@ -20,10 +20,8 @@ import org.p32h.interop.epa.pave.service.ledger.DayFiles.DayFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
@@ -360,8 +358,29 @@ public class JsonlRunLedger implements RunLedger {
         return new LedgerReceipt(appended.failure() == null, line, appended.failure(), appended.runsToday());
     }
 
-    /** Appends one line to today's file. Never throws. */
+    /**
+     * Appends one line to today's file. Never throws.
+     *
+     * <p>An interrupt does not cost the line. The tool's stop interrupts a thread that is still
+     * waiting for a service when its time is up, and the thread then records that call. A channel
+     * of the NIO package closes itself when its thread is interrupted, during the write or already
+     * before it, which lost that line ({@code ClosedByInterruptException}). So the flag is taken
+     * down for the length of the append and put back afterwards, for the caller to see, and the
+     * line itself goes through a stream of the {@code java.io} package, which an interrupt that
+     * arrives during the write does not close.
+     */
     private Appended append(Supplier<byte[]> line, boolean run, String what) {
+        boolean interrupted = Thread.interrupted();
+        try {
+            return appendUninterrupted(line, run, what);
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private Appended appendUninterrupted(Supplier<byte[]> line, boolean run, String what) {
         synchronized (lock) {
             // The day is read inside the lock, so a line is never written to yesterday's file after today's was started.
             Path file = todayFile();
@@ -377,11 +396,19 @@ public class JsonlRunLedger implements RunLedger {
                     System.arraycopy(bytes, 0, separated, 1, bytes.length);
                     bytes = separated;
                 }
-                // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
-                try (FileChannel channel = FileChannel.open(file, java.util.EnumSet.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                        StandardOpenOption.APPEND), OwnerOnly.file())) {
-                    writeFully(channel, bytes);
-                    channel.force(true);
+                if (!existed) {
+                    try {
+                        // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
+                        Files.createFile(file, OwnerOnly.file());
+                    } catch (java.nio.file.FileAlreadyExistsException another) {
+                        // Another instance of the tool started the day's file first. It is appended to as it is.
+                    }
+                }
+                // Opened for appending, so every write lands at the end, and the whole line goes in
+                // one write. The sync of the descriptor is what the channel's force did.
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file.toFile(), true)) {
+                    out.write(bytes);
+                    out.getFD().sync();
                 }
                 if (!existed) {
                     syncDirectory();
@@ -412,18 +439,27 @@ public class JsonlRunLedger implements RunLedger {
      * True when the file ends without a line break, or when that cannot be found out. A spare line
      * break costs an empty line that every reader skips. A missing one would join the new record
      * to a torn one and lose both.
+     *
+     * <p>Read through the {@code java.io} package for the reason {@link #append} gives: an interrupt
+     * that arrives while the byte is read would close a channel, and every such interrupt would
+     * add a spare line break.
+     *
+     * <p>Not private, so that a test can ask it on an interrupted thread.
      */
-    private static boolean endsMidLine(Path file) {
-        try (SeekableByteChannel channel = Files.newByteChannel(file, StandardOpenOption.READ)) {
-            long size = channel.size();
+    static boolean endsMidLine(Path file) {
+        if (!Files.exists(file)) {
+            return false;
+        }
+        try (java.io.RandomAccessFile in = new java.io.RandomAccessFile(file.toFile(), "r")) {
+            long size = in.length();
             if (size == 0) {
                 return false;
             }
-            ByteBuffer last = ByteBuffer.allocate(1);
-            channel.position(size - 1);
-            return channel.read(last) != 1 || last.get(0) != '\n';
-        } catch (NoSuchFileException e) {
-            return false;
+            in.seek(size - 1);
+            return in.read() != '\n';
+        } catch (java.io.FileNotFoundException e) {
+            // Gone between the two looks, or never readable: the same answer as above for a file that is not there.
+            return !Files.notExists(file);
         } catch (IOException | RuntimeException e) {
             return true;
         }
@@ -497,6 +533,9 @@ public class JsonlRunLedger implements RunLedger {
         synchronized (lock) {
             try {
                 bytes = Files.readAllBytes(file);
+            } catch (java.nio.channels.ClosedByInterruptException e) {
+                // The thread was interrupted, which says nothing about the file: it is not counted unreadable.
+                throw e;
             } catch (IOException e) {
                 // A file that cannot be read at all is counted once, so the health of the ledger never reads as clean.
                 unreadableByFile.put(name, 1);

@@ -6,7 +6,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
-import org.apache.catalina.connector.ClientAbortException;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.slf4j.Logger;
@@ -14,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -90,7 +88,8 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
         } catch (IOException | ServletException | RuntimeException | Error e) {
             if (clientWentAway(e)) {
-                // The browser closed the connection. There is nobody to answer and nothing wrong with this tool.
+                // The client closed the connection. There is nobody to answer and nothing wrong with this tool.
+                ClientGone.log(request, e);
                 return;
             }
             String reference = UUID.randomUUID().toString();
@@ -110,11 +109,6 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
     }
 
     static boolean clientWentAway(Throwable error) {
-        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
-            if (t instanceof ClientAbortException || t instanceof AsyncRequestNotUsableException) {
-                return true;
-            }
-        }
-        return false;
+        return ClientGone.is(error);
     }
 }
