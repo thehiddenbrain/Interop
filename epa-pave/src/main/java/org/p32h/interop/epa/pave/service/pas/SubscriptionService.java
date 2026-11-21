@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorView;
@@ -334,7 +335,10 @@ public class SubscriptionService {
         } else if (operation != EpaOperation.SUBSCRIPTION_GET) {
             inputs.require(id != null, "subscriptionId", "Name the subscription by its id.");
         }
-        inputs.require(id == null || SUBSCRIPTION_ID.matcher(id).matches(), "subscriptionId",
+        // A mask in the field is told apart from an id of the wrong form: it is a value an answer gave masked, and typing the id is the fix.
+        String masks = CarriedMasks.in(id);
+        inputs.require(masks == null, "subscriptionId", CarriedMasks.typed("a subscription id", masks));
+        inputs.require(id == null || masks != null || SUBSCRIPTION_ID.matcher(id).matches(), "subscriptionId",
                 "A subscription id is one word of up to 64 letters, digits, dots, hyphens, underscores and colons. It is written to the "
                         + "ledger as it stands, so it cannot be free text.");
         inputs.require(sendsBody(operation) || !RunSupport.ownBody(request), "rawBody",

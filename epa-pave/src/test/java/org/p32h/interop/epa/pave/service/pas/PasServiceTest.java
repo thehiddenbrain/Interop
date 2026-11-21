@@ -233,6 +233,36 @@ class PasServiceTest {
     }
 
     @Test
+    void aMaskHandedOnOrTypedAsTheClaimIdOrAsAnyValueHandedOnIsRefusedWithItsReasonAndNothingIsSent() {
+        CountingClient client = new CountingClient();
+        PasService service = service(client, "live", Map.of(), Map.of());
+        // The claim id an inquiry follows, handed on from an answer that repeated a held secret.
+        assertThatThrownBy(() -> service.runInquire(inquiry("S123456789").carry(Map.of(NextStepView.CARRY_CLAIM_ID,
+                List.of("[secret claimWord]"))).build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("carry.claimId");
+                    assertThat(error.message()).isEqualTo("Claim identifier, handed on from the step before, was given masked, as "
+                            + "[secret claimWord], because the answer it came from repeats a secret this tool holds. A mask is never sent, "
+                            + "so this step was not sent. Type the value on the form, or settle the secret in the Config tab.");
+                }));
+        // A completed questionnaire response handed on from DTR with a mask inside it.
+        assertThatThrownBy(() -> service.runSubmit(submission("S123456789").carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
+                List.of("{\"resourceType\":\"QuestionnaireResponse\",\"questionnaire\":\"http://example.invalid/Questionnaire/[secret qWord]\"}")))
+                .build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
+                        .anyMatch(message -> message.startsWith("Completed questionnaire responses, handed on from the step before, was given "
+                                + "masked, as [secret qWord],")));
+        // The same mask typed into the claim id field is said to be a mask, not an id of the wrong form.
+        assertThatThrownBy(() -> service.runInquire(inquiry("S123456789").claimId("[secret claimWord]").build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
+                        .containsExactly("This is not a claim id but a mask, [secret claimWord]: an answer gave the value masked because it "
+                                + "repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the secret in the "
+                                + "Config tab."));
+        assertThat(client.calls.get()).isZero();
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
     void theSameAnswerWithAHeldSecretItDoesNotRepeatIsReadAsApprovedWithNoMaskedReading() {
         org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
                 .variable("clientSecret", "placeholder-secret-value-7f3a").build();

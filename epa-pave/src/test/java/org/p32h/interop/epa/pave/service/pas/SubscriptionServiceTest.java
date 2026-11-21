@@ -656,6 +656,21 @@ class SubscriptionServiceTest {
         assertThat(JsonSafe.mapper().writeValueAsString(created)).doesNotContain(held);
     }
 
+    @Test
+    void aMaskInTheSubscriptionIdFieldIsRefusedAsAMaskAndNothingIsSent() {
+        CountingClient client = new CountingClient();
+        SubscriptionService service = service(client, "live", WITH_RECEIVER);
+        for (EpaOperation operation : List.of(GET, UPDATE, DELETE)) {
+            assertThatThrownBy(() -> service.run(operation, about("[secret heldSub]").build(), RunOrigin.manual(), null)).as(operation.name())
+                    .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
+                            .containsExactly("This is not a subscription id but a mask, [secret heldSub]: an answer gave the value masked "
+                                    + "because it repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the "
+                                    + "secret in the Config tab."));
+        }
+        assertThat(client.calls.get()).isZero();
+        assertThat(ledger.records()).isEmpty();
+    }
+
     // ---- read, list, update, delete ----
 
     @Test
