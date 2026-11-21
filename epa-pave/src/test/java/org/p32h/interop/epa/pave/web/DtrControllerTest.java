@@ -135,7 +135,7 @@ class DtrControllerTest {
         // What happened, as an outcome apart from the test result.
         assertThat(result.at("/verdict/headline").asString()).isEqualTo("The questionnaire package was loaded with one questionnaire.");
         assertThat(result.at("/verdict/outcomeCode").asString()).isEqualTo("PACKAGE_LOADED");
-        assertThat(result.at("/verdict/tone").asString()).isEqualTo("ACTION");
+        assertThat(result.at("/verdict/tone").asString()).isEqualTo("NEUTRAL");
         // What was expected, and whether it matched.
         assertThat(result.at("/expectation/expected").asString()).isEqualTo("PACKAGE_LOADED");
         assertThat(result.at("/expectation/result").asString()).isEqualTo("pass");
