@@ -360,8 +360,29 @@ public class JsonlRunLedger implements RunLedger {
         return new LedgerReceipt(appended.failure() == null, line, appended.failure(), appended.runsToday());
     }
 
-    /** Appends one line to today's file. Never throws. */
+    /**
+     * Appends one line to today's file. Never throws.
+     *
+     * <p>An interrupt does not cost the line. The tool's stop interrupts a thread that is still
+     * waiting for a service when its time is up, and the thread then records that call. A channel
+     * of the NIO package closes itself when its thread is interrupted, during the write or already
+     * before it, which lost that line ({@code ClosedByInterruptException}). So the flag is taken
+     * down for the length of the append and put back afterwards, for the caller to see, and the
+     * line itself goes through a stream of the {@code java.io} package, which an interrupt that
+     * arrives during the write does not close.
+     */
     private Appended append(Supplier<byte[]> line, boolean run, String what) {
+        boolean interrupted = Thread.interrupted();
+        try {
+            return appendUninterrupted(line, run, what);
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    private Appended appendUninterrupted(Supplier<byte[]> line, boolean run, String what) {
         synchronized (lock) {
             // The day is read inside the lock, so a line is never written to yesterday's file after today's was started.
             Path file = todayFile();
@@ -377,11 +398,19 @@ public class JsonlRunLedger implements RunLedger {
                     System.arraycopy(bytes, 0, separated, 1, bytes.length);
                     bytes = separated;
                 }
-                // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
-                try (FileChannel channel = FileChannel.open(file, java.util.EnumSet.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                        StandardOpenOption.APPEND), OwnerOnly.file())) {
-                    writeFully(channel, bytes);
-                    channel.force(true);
+                if (!existed) {
+                    try {
+                        // A day's file is created for its owner only, where the file system has owners. See OwnerOnly.
+                        Files.createFile(file, OwnerOnly.file());
+                    } catch (java.nio.file.FileAlreadyExistsException another) {
+                        // Another instance of the tool started the day's file first. It is appended to as it is.
+                    }
+                }
+                // Opened for appending, so every write lands at the end, and the whole line goes in
+                // one write. The sync of the descriptor is what the channel's force did.
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file.toFile(), true)) {
+                    out.write(bytes);
+                    out.getFD().sync();
                 }
                 if (!existed) {
                     syncDirectory();
@@ -497,6 +526,9 @@ public class JsonlRunLedger implements RunLedger {
         synchronized (lock) {
             try {
                 bytes = Files.readAllBytes(file);
+            } catch (java.nio.channels.ClosedByInterruptException e) {
+                // The thread was interrupted, which says nothing about the file: it is not counted unreadable.
+                throw e;
             } catch (IOException e) {
                 // A file that cannot be read at all is counted once, so the health of the ledger never reads as clean.
                 unreadableByFile.put(name, 1);
