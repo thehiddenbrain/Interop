@@ -270,8 +270,17 @@ public final class Expectations {
         return elements == null || elements.isEmpty() ? "name=code" : elements.iterator().next() + "=code";
     }
 
+    /**
+     * The outcome code a term names, in the form an outcome code is spelt: Coverage inactive,
+     * coverage_inactive and COVERAGE-INACTIVE all name COVERAGE_INACTIVE. Whatever else reads an
+     * expectation as an outcome uses this, so that it reads a term exactly as the comparison does.
+     */
+    public static String outcomeKey(String term) {
+        return term == null ? "" : term.strip().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+    }
+
     private static OutcomeCode findOutcome(String term, OutcomeCode[] vocabulary) {
-        String wanted = term.strip().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+        String wanted = outcomeKey(term);
         if (vocabulary != null) {
             for (OutcomeCode candidate : vocabulary) {
                 if (candidate.name().equals(wanted)) {

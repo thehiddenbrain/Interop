@@ -54,8 +54,15 @@ class MemberInTextNamesTest {
         assertThat(MemberInText.problems(null, null, "TIMEOUT", timeout, "Nothing was sent.")).isEmpty();
         assertThat(MemberInText.problems(null, null, " COVERAGE_INACTIVE ", inactive, "Nothing was sent.")).isEmpty();
         assertThat(MemberInText.problemsInBody(null, null, "TIMEOUT", List.of(timeout), "Nothing was sent.")).isEmpty();
-        // Anything else is checked as before: another case of the code, a code with more beside it, and the other fields.
-        assertThat(MemberInText.problems(null, null, "timeout", timeout, "Nothing was sent.")).containsKey("expected");
+        // Spelt as the comparison of an expectation still reads it as the code: in lower case, or with a space for the underscore.
+        assertThat(MemberInText.problems(null, null, "timeout", timeout, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problems(null, null, "Timeout", timeout, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problems(null, null, "coverage_inactive", inactive, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problems(null, null, "Coverage inactive", inactive, "Nothing was sent.")).isEmpty();
+        assertThat(MemberInText.problemsInBody(null, null, "timeout", List.of(timeout), "Nothing was sent.")).isEmpty();
+        // Anything else is checked as before: a word that is no code, a code with more beside it, and the other fields.
+        assertThat(MemberInText.problems(null, null, "Inactive", inactive, "Nothing was sent.")).containsKey("expected");
+        assertThat(MemberInText.problems(null, null, "inactive coverage", inactive, "Nothing was sent.")).containsKey("expected");
         assertThat(MemberInText.problems(null, null, "TIMEOUT; Timeout", timeout, "Nothing was sent.")).containsKey("expected");
         assertThat(MemberInText.problems("TIMEOUT", "TIMEOUT", "TIMEOUT", timeout, "Nothing was sent.")).containsOnlyKeys("note", "testerRef");
         assertThat(MemberInText.problems(null, null, "AUTH_REQUIRED", timeout, "Nothing was sent.")).isEmpty();

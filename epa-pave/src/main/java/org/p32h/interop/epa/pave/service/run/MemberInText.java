@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.service.run;
 
+import org.p32h.interop.epa.pave.model.Expectations;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIds;
@@ -59,10 +60,12 @@ public final class MemberInText {
             "The expectation");
 
     /**
-     * Every outcome code this tool defines. An expectation that is exactly one of them was written
-     * by this tool, not by a person about a member, so it is never refused for member data: a
-     * member whose surname holds a word such as Timeout would otherwise have the right expectation
-     * TIMEOUT refused as a name. The comparison is with this list only, and exact.
+     * Every outcome code this tool defines. An expectation that is one of them names an outcome of
+     * this tool, not something about a member, so it is never refused for member data: a member
+     * whose surname holds a word such as Timeout would otherwise have the right expectation TIMEOUT
+     * refused as a name. The comparison is with this list only, after the one change the
+     * comparison of an expectation itself makes ({@link Expectations#outcomeKey}), so that
+     * timeout, which the run reads as TIMEOUT, is not refused where TIMEOUT is not.
      */
     private static final Set<String> OWN_OUTCOME_CODES = Stream.of(CrdOutcome.values(), DtrOutcome.values(), PasOutcome.values(),
                     SubscriptionOutcome.values(), NotificationOutcome.values(), RawOutcome.values(), RunOutcome.values())
@@ -71,9 +74,9 @@ public final class MemberInText {
     private MemberInText() {
     }
 
-    /** True when the expectation, without the spaces around it, is exactly one of this tool's own outcome codes. */
+    /** True when the expectation, read as the comparison of an expectation reads a term, is one of this tool's own outcome codes. */
     static boolean ownOutcomeCode(String expected) {
-        return expected != null && OWN_OUTCOME_CODES.contains(expected.strip());
+        return expected != null && OWN_OUTCOME_CODES.contains(Expectations.outcomeKey(expected));
     }
 
     /**

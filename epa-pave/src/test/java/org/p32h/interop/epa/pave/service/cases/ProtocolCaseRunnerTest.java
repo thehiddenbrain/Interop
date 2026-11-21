@@ -139,6 +139,12 @@ class ProtocolCaseRunnerTest {
         assertThat(ran.status()).isEqualTo(CaseStatus.COMPLETED);
         assertThat(ran.finalRun().outcome()).isEqualTo("COVERAGE_INACTIVE");
         assertThat(ran.finalRun().result()).isEqualTo(TestResult.PASS);
+        // Written in lower case, which the comparison reads as the same code: run, compared and passed, not refused as a name.
+        CaseSpec lower = crdCase("P32H-INACTIVE").procedureCodes(List.of("T1030")).expected("coverage_inactive").build();
+        assertThat(onMock.refusals(lower)).isEmpty();
+        CaseOutcome ranLower = onMock.run(lower);
+        assertThat(ranLower.status()).isEqualTo(CaseStatus.COMPLETED);
+        assertThat(ranLower.finalRun().result()).isEqualTo(TestResult.PASS);
 
         for (CaseSpec named : List.of(crdCase("P32H-INACTIVE").expected("COVERAGE_INACTIVE").note("asked Inactive about it").build(),
                 crdCase("P32H-INACTIVE").expected("COVERAGE_INACTIVE").testerRef("Gray Inactive").build())) {
