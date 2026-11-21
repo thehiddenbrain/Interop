@@ -10,8 +10,10 @@ import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -282,7 +284,6 @@ public final class EnableWhenEvaluator {
         Run run = new Run(QuestionnaireJson.flatten(roots), answers == null ? Map.of() : answers);
         Form form = new Form(roots);
         for (Item item : run.items) {
-            // Never null here. Only a call made while the same item is still being worked out returns null.
             form.byPath.put(item.path(), run.state(item));
         }
         return form;
@@ -322,93 +323,178 @@ public final class EnableWhenEvaluator {
             return item.linkId() == null || !item.question() ? List.of() : answers.getOrDefault(item.linkId(), List.of());
         }
 
-        /** The state of an item, or null when working it out came back round to the item itself. */
+        /**
+         * The state of an item, worked out with everything it waits on.
+         *
+         * <p>An item waits on its group and on each question its conditions read, and those wait on theirs. A
+         * questionnaire can chain thousands of items that way in a flat list, which the parser's nesting limit
+         * does not bound, so nothing here calls itself once per item: {@link #settle(Item)} works the items an
+         * item waits on out first, from a stack of this run's own, deepest first and in the order in which a
+         * recursive reading would come to them. When an item is then worked out, each item it asks for is either
+         * known or still on that stack, and one still on the stack answers null, which is what a recursive
+         * reading answered when it came back round to an item it was still working out.
+         */
         private ItemState state(Item item) {
             ItemState done = states.get(item);
             if (done != null) {
                 return done;
             }
-            if (!visiting.add(item)) {
+            settle(item);
+            return states.get(item);
+        }
+
+        /**
+         * An item that the one being worked out asks for: its state, or null while it is still on the stack.
+         * {@link #waitsOn(Item)} has listed it beforehand, so an item that is neither is a fault of this class.
+         */
+        private ItemState known(Item item) {
+            ItemState done = states.get(item);
+            if (done != null || visiting.contains(item)) {
+                return done;
+            }
+            throw new IllegalStateException("An item was asked for before it was worked out.");
+        }
+
+        /** One item on the stack of {@link #settle(Item)}, with how many of the items it waits on have been looked at. */
+        private static final class Waiting {
+
+            private final Item item;
+            private final List<Item> on;
+            private int next;
+
+            private Waiting(Item item, List<Item> on) {
+                this.item = item;
+                this.on = on;
+            }
+        }
+
+        private void settle(Item start) {
+            Deque<Waiting> stack = new ArrayDeque<>();
+            visiting.add(start);
+            stack.push(new Waiting(start, waitsOn(start)));
+            while (!stack.isEmpty()) {
+                Waiting top = stack.peek();
+                if (top.next < top.on.size()) {
+                    Item needed = top.on.get(top.next++);
+                    if (!states.containsKey(needed) && visiting.add(needed)) {
+                        stack.push(new Waiting(needed, waitsOn(needed)));
+                    }
+                    continue;
+                }
+                stack.pop();
+                try {
+                    states.put(top.item, work(top.item));
+                } finally {
+                    visiting.remove(top.item);
+                }
+            }
+        }
+
+        /** The items working out this one asks for, in the order it asks: its group, then the question each condition reads. */
+        private List<Item> waitsOn(Item item) {
+            List<Item> out = new ArrayList<>();
+            if (item.parent() != null) {
+                out.add(item.parent());
+            }
+            for (JsonNode entry : JsonSafe.elements(item.node(), "enableWhen")) {
+                Item read = reads(entry);
+                if (read != null) {
+                    out.add(read);
+                }
+            }
+            return out;
+        }
+
+        /**
+         * The item a condition reads, or null when the condition is turned down before it reads one. It applies
+         * the same tests, in the same order, as {@link #condition}, so that an item is never worked out early
+         * here that the recursive reading would only have worked out later.
+         */
+        private Item reads(JsonNode entry) {
+            String question = JsonSafe.presentText(entry, "question");
+            String operator = JsonSafe.presentText(entry, "operator");
+            String key = QuestionnaireJson.valueKey(entry, "answer");
+            if (question == null || operator == null || !DtrCodes.inValueSet(DtrCodes.OPERATOR, operator)
+                    || key == null || JsonSafe.nullOrMissing(entry.get(key))) {
                 return null;
             }
-            try {
-                ItemState parent = item.parent() == null ? null : state(item.parent());
-                List<Condition> conditions = new ArrayList<>();
-                List<DtrNotApplied.Rule> through = new ArrayList<>();
-                for (JsonNode entry : JsonSafe.elements(item.node(), "enableWhen")) {
-                    conditions.add(condition(entry, through));
-                }
-                ItemEnabled own = ItemEnabled.ENABLED;
-                String reason = null;
-                if (!conditions.isEmpty()) {
-                    boolean anyTrue = conditions.stream().anyMatch(c -> c.state() == ConditionState.TRUE);
-                    boolean anyFalse = conditions.stream().anyMatch(c -> c.state() == ConditionState.FALSE);
-                    boolean anyUnknown = conditions.stream().anyMatch(c -> c.state() == ConditionState.NOT_EVALUATED);
-                    String behavior = JsonSafe.presentText(item.node(), "enableBehavior");
-                    boolean several = conditions.size() > 1;
-                    if (!several || "all".equals(behavior)) {
-                        own = anyFalse ? ItemEnabled.DISABLED : anyUnknown ? ItemEnabled.UNDETERMINED : ItemEnabled.ENABLED;
-                    } else if ("any".equals(behavior)) {
-                        own = anyTrue ? ItemEnabled.ENABLED : anyUnknown ? ItemEnabled.UNDETERMINED : ItemEnabled.DISABLED;
-                    } else if (!anyFalse && !anyUnknown) {
-                        // Every condition holds, so the item is enabled whichever way they were meant to combine.
-                        own = ItemEnabled.ENABLED;
-                    } else if (!anyTrue && !anyUnknown) {
-                        own = ItemEnabled.DISABLED;
-                    } else {
-                        own = ItemEnabled.UNDETERMINED;
-                        reason = "Undetermined: the item has several conditions that do not agree, and it states no enableBehavior of "
-                                + "all or any to combine them by. It is still shown.";
-                    }
-                    if (reason == null) {
-                        reason = switch (own) {
-                            case ENABLED -> several ? ("any".equals(behavior) ? "Enabled: at least one of its conditions holds."
-                                    : "Enabled: every one of its conditions holds.") : "Enabled: its condition holds.";
-                            case DISABLED -> several ? ("any".equals(behavior) ? "Disabled: none of its conditions holds."
-                                    : "Disabled: at least one of its conditions does not hold.") : "Disabled: its condition does not hold.";
-                            case UNDETERMINED -> "Undetermined: a condition that decides it could not be evaluated. It is still shown.";
-                        };
-                    }
-                }
-                List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));
-                if (own == ItemEnabled.UNDETERMINED) {
-                    // A condition that reads an answer a rule this tool does not apply would fill in decides nothing here, so neither
-                    // does the item: whether it still needs an answer rests on that rule.
-                    through.stream().filter(rule -> !rules.contains(rule)).forEach(rules::add);
-                }
-                List<DtrNotApplied.Rule> shownBy = rules.stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN).toList();
-                if (!shownBy.isEmpty() && own != ItemEnabled.DISABLED) {
-                    own = ItemEnabled.UNDETERMINED;
-                    reason = "Undetermined: whether it is shown is decided by " + DtrNotApplied.names(shownBy) + ", which this tool does not "
-                            + "apply. It is still shown, and it is never reported as a required question with no answer.";
-                } else if (rules.size() > shownBy.size()) {
-                    String decided = "Its " + (rules.stream().anyMatch(rule -> rule.effect() == DtrNotApplied.Effect.VALUE) ? "answer" : "being required")
-                            + " is decided by " + DtrNotApplied.names(rules) + ", which this tool does not apply, so it is never reported as a "
-                            + "required question with no answer.";
-                    reason = reason == null ? decided : reason + " " + decided;
-                }
-                if (parent != null) {
-                    // What decides whether a group is shown decides it for everything in the group.
-                    parent.notApplied().stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN && !rules.contains(rule))
-                            .forEach(rules::add);
-                }
-                ItemEnabled enabled = own;
-                if (item.parent() != null) {
-                    ItemEnabled above = parent == null ? ItemEnabled.UNDETERMINED : parent.enabled();
-                    if (above == ItemEnabled.DISABLED) {
-                        enabled = ItemEnabled.DISABLED;
-                        reason = "Disabled: the group it sits in is disabled.";
-                    } else if (above == ItemEnabled.UNDETERMINED && own != ItemEnabled.DISABLED) {
-                        enabled = ItemEnabled.UNDETERMINED;
-                        reason = "Undetermined: whether the group it sits in is enabled could not be worked out. It is still shown.";
-                    }
-                }
-                ItemState state = new ItemState(item, enabled, reason, conditions, given(item), rules);
-                states.put(item, state);
-                return state;
-            } finally {
-                visiting.remove(item);
+            return byLinkId.get(question);
+        }
+
+        /** Works out one item. Called with its group and every question it reads already known or still on the stack. */
+        private ItemState work(Item item) {
+            ItemState parent = item.parent() == null ? null : known(item.parent());
+            List<Condition> conditions = new ArrayList<>();
+            List<DtrNotApplied.Rule> through = new ArrayList<>();
+            for (JsonNode entry : JsonSafe.elements(item.node(), "enableWhen")) {
+                conditions.add(condition(entry, through));
             }
+            ItemEnabled own = ItemEnabled.ENABLED;
+            String reason = null;
+            if (!conditions.isEmpty()) {
+                boolean anyTrue = conditions.stream().anyMatch(c -> c.state() == ConditionState.TRUE);
+                boolean anyFalse = conditions.stream().anyMatch(c -> c.state() == ConditionState.FALSE);
+                boolean anyUnknown = conditions.stream().anyMatch(c -> c.state() == ConditionState.NOT_EVALUATED);
+                String behavior = JsonSafe.presentText(item.node(), "enableBehavior");
+                boolean several = conditions.size() > 1;
+                if (!several || "all".equals(behavior)) {
+                    own = anyFalse ? ItemEnabled.DISABLED : anyUnknown ? ItemEnabled.UNDETERMINED : ItemEnabled.ENABLED;
+                } else if ("any".equals(behavior)) {
+                    own = anyTrue ? ItemEnabled.ENABLED : anyUnknown ? ItemEnabled.UNDETERMINED : ItemEnabled.DISABLED;
+                } else if (!anyFalse && !anyUnknown) {
+                    // Every condition holds, so the item is enabled whichever way they were meant to combine.
+                    own = ItemEnabled.ENABLED;
+                } else if (!anyTrue && !anyUnknown) {
+                    own = ItemEnabled.DISABLED;
+                } else {
+                    own = ItemEnabled.UNDETERMINED;
+                    reason = "Undetermined: the item has several conditions that do not agree, and it states no enableBehavior of "
+                            + "all or any to combine them by. It is still shown.";
+                }
+                if (reason == null) {
+                    reason = switch (own) {
+                        case ENABLED -> several ? ("any".equals(behavior) ? "Enabled: at least one of its conditions holds."
+                                : "Enabled: every one of its conditions holds.") : "Enabled: its condition holds.";
+                        case DISABLED -> several ? ("any".equals(behavior) ? "Disabled: none of its conditions holds."
+                                : "Disabled: at least one of its conditions does not hold.") : "Disabled: its condition does not hold.";
+                        case UNDETERMINED -> "Undetermined: a condition that decides it could not be evaluated. It is still shown.";
+                    };
+                }
+            }
+            List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));
+            if (own == ItemEnabled.UNDETERMINED) {
+                // A condition that reads an answer a rule this tool does not apply would fill in decides nothing here, so neither
+                // does the item: whether it still needs an answer rests on that rule.
+                through.stream().filter(rule -> !rules.contains(rule)).forEach(rules::add);
+            }
+            List<DtrNotApplied.Rule> shownBy = rules.stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN).toList();
+            if (!shownBy.isEmpty() && own != ItemEnabled.DISABLED) {
+                own = ItemEnabled.UNDETERMINED;
+                reason = "Undetermined: whether it is shown is decided by " + DtrNotApplied.names(shownBy) + ", which this tool does not "
+                        + "apply. It is still shown, and it is never reported as a required question with no answer.";
+            } else if (rules.size() > shownBy.size()) {
+                String decided = "Its " + (rules.stream().anyMatch(rule -> rule.effect() == DtrNotApplied.Effect.VALUE) ? "answer" : "being required")
+                        + " is decided by " + DtrNotApplied.names(rules) + ", which this tool does not apply, so it is never reported as a "
+                        + "required question with no answer.";
+                reason = reason == null ? decided : reason + " " + decided;
+            }
+            if (parent != null) {
+                // What decides whether a group is shown decides it for everything in the group.
+                parent.notApplied().stream().filter(rule -> rule.effect() == DtrNotApplied.Effect.SHOWN && !rules.contains(rule))
+                        .forEach(rules::add);
+            }
+            ItemEnabled enabled = own;
+            if (item.parent() != null) {
+                ItemEnabled above = parent == null ? ItemEnabled.UNDETERMINED : parent.enabled();
+                if (above == ItemEnabled.DISABLED) {
+                    enabled = ItemEnabled.DISABLED;
+                    reason = "Disabled: the group it sits in is disabled.";
+                } else if (above == ItemEnabled.UNDETERMINED && own != ItemEnabled.DISABLED) {
+                    enabled = ItemEnabled.UNDETERMINED;
+                    reason = "Undetermined: whether the group it sits in is enabled could not be worked out. It is still shown.";
+                }
+            }
+            return new ItemState(item, enabled, reason, conditions, given(item), rules);
         }
 
         /**
@@ -437,7 +523,7 @@ public final class EnableWhenEvaluator {
             if (dependency == null) {
                 return notEvaluated(question, operator, key, "the questionnaire has no item with the linkId it names");
             }
-            ItemState looked = state(dependency);
+            ItemState looked = known(dependency);
             if (looked == null) {
                 return notEvaluated(question, operator, key, "the condition depends on its own item, directly or through other conditions");
             }
