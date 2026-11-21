@@ -35,7 +35,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
 | D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
 | D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and for longer texts (3,000 characters in the tests) every later reading of the store threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion the guard can see is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
-| D-280 | What the checks of the upload fix left was corrected, in three branches each built, checked on the real jar by an agent that wrote none of it, corrected and checked again, and merged | An answer is now masked wherever it repeats a secret the tool holds, carried or not; a verdict read from a mask says so under its headline; an id read from a header is masked; a mask fills no field and is never sent. **An older leak was found and closed:** a credential typed into the address to call back or a lookup url was shown in clear in "In force now" and on the PAS tab since those were built; whether a real one was ever shown is not known. A stop now waits up to 30 s for a call that is out and keeps its ledger line; a client that went away is one INFO line, not an unhandled exception; the unexplained answer was right and very slow on a very large store (open); long names and a slow pattern no longer grow an answer or a run. Seen on the jars of each branch against stand-ins on this machine; the merged head `6ab0e69` was built (3,093 tests), not run. **Not seen: Windows, the vendor's service** |
+| D-280 | What the checks of the upload fix left was corrected, in three branches each built, checked on the real jar by an agent that wrote none of it, corrected and checked again, and merged | An answer is now masked wherever it repeats a secret the tool holds, carried or not; a verdict read from a mask says so under its headline; an id read from a header is masked; a mask fills no field and is never sent. **An older leak was found and closed:** a credential typed into the address to call back or a lookup url was shown in clear in "In force now" and on the PAS tab since those were built; whether a real one was ever shown is not known. A stop now waits up to 30 s for a call that is out and keeps its ledger line; a client that went away is one INFO line, not an unhandled exception; the unexplained answer was right and very slow on a very large store (open); a long name is quoted by its start and its length in every sentence (labels stay whole), and the slow pattern no longer sees a part over 128 characters. Seen on the jars of each branch against stand-ins on this machine; the merged head `6ab0e69` was built (3,093 tests), not run. **Not seen: Windows, the vendor's service** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -6338,8 +6338,8 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     warning still quotes the name of a request or of a saved example whole, however long (a
     1,000,000-character request name gave a warning of 1,000,696 characters); and
     `RunRecord.IDENTIFIER_OR_DATE` takes seconds on a questionnaire address of megabytes.
-    Later: D-280, for each of the four. The environment list was right and very slow on a store of
-    about 32 MB (488 to 637 s), and the script read a body its previous call had left: an open
+    Later: D-280, for each of the four. The environment list was right and very slow on the store
+    left by the corpus uploads: an answer of about 32 MB in 488 to 637 s, and the script read a body its previous call had left: an open
     performance item, no fault of the answer. A client that gives up is one INFO line. Every name a
     file supplies is quoted by its start and its length when long. A part of an address over 128
     characters is not handed to the pattern, and the address is not recorded.
@@ -6367,9 +6367,9 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   slow answer logged as "Unhandled exception"; a credential warning that quoted the name of a request
   or of a saved example whole; and `RunRecord.IDENTIFIER_OR_DATE` slow on a questionnaire address of
   megabytes. **The integrator ordered all of them corrected**, in three branches built side by side
-  from `ba4661b`: `echo-secrets`, `stop-and-gone` and `long-names`. Each was built by one agent,
-  checked on the real jar by an agent that wrote none of it, corrected by a third, and checked again
-  by a fourth. The first branch went through that twice more, for two further steps that its checks
+  from `ba4661b`: `echo-secrets`, `stop-and-gone` and `long-names`. Each was built, checked on the
+  real jar by an agent that wrote none of it, corrected, and checked again by another agent that
+  wrote none of it. The first branch went through that twice more, for two further steps that its checks
   called for. Every live check used a stand-in on a loopback port; nothing of this ran on Windows or
   against the vendor's service.
 
@@ -6526,8 +6526,8 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
     form, or settle the secret in the Config tab." The hand-over a DTR step posts back is stripped the
     same way, the stripped values named beside "Still to do".
   - On the server, every run request refuses a hand-over value holding a mask, under any key: before, a
-    suite chain passed the CRD and DTR hand-over straight on (a check saw the package fetched for a
-    masked address). Now: "<label>, handed on from the step before, was given masked, as [secret X],
+    suite chain passed the CRD and DTR hand-over straight on (the builder's test, run against the old
+    code, shows the package fetched for a masked address). Now: "<label>, handed on from the step before, was given masked, as [secret X],
     because the answer it came from repeats a secret this tool holds. A mask is never sent, so this
     step was not sent. Type the value on the form, or settle the secret in the Config tab." A suite row
     reads, for example, "CRD order-sign was sent; DTR questionnaire package was not sent. carry.questionnaire: ...".
@@ -6564,8 +6564,9 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   or 20 MB with a backslash every 300 characters and no secret in it took 0.13 to 0.33 s. The client
   reads an answer to its end (no cap); the receiver reads at most 8 MiB. The class comment of
   `SentSecrets` says this. Making that case linear was not attempted, as decided, because it could not be
-  proved to mask exactly what the search masks. 600,000 random texts masked the same on the new
-  search and the old (the second check's own run).
+  proved to mask exactly what the search masks. 600,000 random texts masked the same on the automaton
+  of `cc5f0a3` and on the tree walk of `f10c267` (the second check's own run); against the old
+  per-secret search, unit tests compare 3,000 texts each.
 - **What the proofs showed, each with its limit.** On the live profile against stand-ins of the
   agents' own on 127.0.0.1, with placeholder secrets; jars of `f10c267`, `cc5f0a3`, `2a4f9d2`, `0cb3c0b`,
   `130b2e8` and `14fc20f`, each identified by its checksum.
@@ -6678,7 +6679,8 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   refused requests reset at once never made it fire on the jar) and the guard in `StopMark`. The
   check's finding that `JsonlRunLedger.writeFully` was dead did not hold: the start's write check calls
   it.
-- **The answer nobody explained.** After 89 uploads, `GET /api/config/environments` was right and very
+- **The answer nobody explained.** On the store left by a new run of the corpus uploads (91 files,
+  without the three slowest; 80 answered 200), `GET /api/config/environments` was right and very
   slow: 200, the documented shape, 23 or 24 environments, about 32 to 33 MB, in 527 to 637 s on the
   builder's run and 488 s on the check's. The script's own time limit was 600 s, and its helper then read
   the body file its previous call had left, which had no `environments`. On a fresh store the three
@@ -6689,7 +6691,7 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   slowest files of the corpus as well, every later upload waited behind one inside the store's lock
   (D-279), and that run was stopped after about 18 minutes.
 
-*4. Long names* (`long-names`, `055decb`, then `4a02252` to `38ac780`)
+*4. Long names* (`long-names`, `055decb`, `a8e2b0f`, `4a02252`, `de883a5`, `87f4a6e`, `5d35ce2`, `38ac780`)
 - **What was wrong, and since when.** D-279 shortened field, header, query and helper names in the
   credential warning (`d7f9aba`); every other name a file supplies was quoted whole in the sentences of
   an upload, since those sentences were written (the credential warnings since `00e6e48`): a request name
@@ -6736,8 +6738,8 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   five-million bound (that sweep took 786 s against its 245 s); `QuestionnaireAddressPartTest` holds the
   case. Measured on live: 5.1 to 1.0 s for `0-`, 3.1 to 0.9 s for `Jan` (the check: 4.5 to 7.8 s before,
   1.1 to 1.6 s after); the ledger line 830 characters.
-- **Left.** **History no longer keeps an ordinary questionnaire address with a part of 129 to 400
-  characters**, which it kept before (84 of 50,000 seeded addresses, none lost the other way). A 5 MB
+- **Left.** **History no longer keeps an ordinary questionnaire address with a part of 129 characters or
+  more**, which it kept before, whole (84 of 50,000 seeded addresses widened, none lost). A 5 MB
   address split into short parts by `/` still writes a 5 MB ledger line and takes 3.3 to 3.6 s on old and
   new jars alike, which is not this pattern; it sits with D-279's open item on the size of the browser
   answer.

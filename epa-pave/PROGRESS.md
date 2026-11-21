@@ -344,8 +344,8 @@ has looked.
    - The self-check, most of the code picker and the History list could not be tried with a class
      removed: the copy did not start.
 15. **What the upload fix left** (D-279).
-   - **The four it named as open are settled** (D-280): the environment list after 89 uploads was
-     right and very slow (line 16); a client that gives up is one INFO line; every name a file
+   - **The four it named as open are settled** (D-280): the environment list a script could not
+     read was right and very slow (line 16); a client that gives up is one INFO line; every name a file
      supplies is quoted by its start and its length when long; and a part of a questionnaire address
      over 128 characters is no longer handed to `RunRecord.IDENTIFIER_OR_DATE`.
    - **The smallest supported thread stack is 512 KB.** A 64-bit Java gives 1 MB unless told
@@ -382,7 +382,7 @@ has looked.
      sent: ...") and marks its next step; the headline itself is still the masked reading. It was so
      before for a secret the request carried.
    - **The environment list is slow on a very large store**: 200 with the documented answer, but 488
-     to 637 s and about 32 MB after the 89 uploads of a test corpus, against 8 to 10 s on a fresh
+     to 637 s for an answer of about 32 MB on the store a new run of a test corpus left, against 8 to 10 s on a fresh
      store, because the view of every environment is built on each call. An open performance item,
      no fault of the answer.
    - **The cost of the secret search has a worst case**: wherever backslashes lie closer together than

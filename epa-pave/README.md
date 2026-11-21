@@ -713,7 +713,7 @@ What the wire view hides: credential headers (`Authorization`, `Cookie`, API key
 most their scheme, and a secret this tool holds that the service sends back is masked wherever it
 is repeated in the response, in a value, a property name or a header, whether or not this request
 carried it: the secret variables of the active environment, of the collection and of
-`application.yml`, a value given for this run, a credential typed into a request of the collection,
+`application.yml` (a value given for this run under a secret name taking their place), a credential typed into a request of the collection,
 the client secret, the access token, and the credentials of the address to call back and of both
 lookups. The mask names the secret, for example `[secret clientSecret]`, and the wire view says how
 many places were masked ("... masked because they repeat a secret this tool holds."). The designed
@@ -2795,7 +2795,7 @@ repeat every finding id; it leaves out nothing a tester has to know.
 - Concurrency in the configuration store (two uploads or a switch at the same moment) is reasoned
   about and not tested.
 - **The list of environments is slow on a very large store** (`GET /api/config/environments`, the
-  Config tab): after 89 uploads of a test corpus it took 8 to 11 minutes and about 32 MB, against
+  Config tab): on the store a run of a test corpus left it took 8 to 11 minutes for an answer of about 32 MB, against
   8 to 10 seconds on a fresh store, and then answered right (D-280).
 - Masking an answer of megabytes that repeats most of a long secret, with backslashes closer together
   than that secret is long, can take seconds to minutes (2 MB about 9 s against a secret of 1,000
@@ -2821,7 +2821,7 @@ repeat every finding id; it leaves out nothing a tester has to know.
   your own records no member, NPI or line of business, and nothing on its line tells two such runs
   apart. After the ledger folder was restored, the server kept saying it cannot write until the
   next write succeeded. A folder that cannot be created stops the tool at start. A stop with Ctrl+C
-  waits up to 30 seconds for a call that is out and keeps its line; a kill, or the stop button of an
+  waits up to 30 seconds for a call that is out and keeps its line (seen on Linux; not tried on Windows); a kill, or the stop button of an
   IDE on Windows, does not (D-280). A questionnaire address with a part longer than 128 characters is
   written `(not recorded, N characters)`, also an ordinary one that was kept before.
 - **Lookups** have never met the real member API or provider directory. A name returned in one
