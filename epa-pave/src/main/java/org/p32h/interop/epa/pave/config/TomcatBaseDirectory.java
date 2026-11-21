@@ -5,7 +5,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.UUID;
 import java.util.stream.Stream;
+import org.p32h.interop.epa.pave.service.error.Faults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -45,19 +47,27 @@ public class TomcatBaseDirectory implements WebServerFactoryCustomizer<TomcatSer
         return directory;
     }
 
+    /**
+     * Never throws: Spring logs what a destroy method throws with its message, and this runs while
+     * the tool stops, when a class missing from a jar replaced under a running tool is first found.
+     */
     @Override
     public void destroy() {
         Path made = directory;
-        if (made == null || !Files.exists(made)) {
-            return;
-        }
-        try (Stream<Path> walk = Files.walk(made)) {
-            for (Path each : walk.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(each);
+        try {
+            if (made == null || !Files.exists(made)) {
+                return;
             }
-        } catch (IOException | RuntimeException e) {
-            // The path and the exception type only. The folder holds no member data, only the server's scratch space.
-            log.warn("The embedded server's working folder {} could not be removed ({})", made, e.getClass().getSimpleName());
+            try (Stream<Path> walk = Files.walk(made)) {
+                for (Path each : walk.sorted(Comparator.reverseOrder()).toList()) {
+                    Files.deleteIfExists(each);
+                }
+            }
+        } catch (IOException | RuntimeException | Error e) {
+            // The path, a reference and the exception types and frames only. The folder holds no
+            // member data, only the server's scratch space, but a message is never given.
+            log.warn("The embedded server's working folder {} could not be removed, reference {}: {}", made, UUID.randomUUID(),
+                    Faults.describe(e));
         }
     }
 }

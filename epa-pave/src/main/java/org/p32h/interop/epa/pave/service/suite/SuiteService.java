@@ -305,16 +305,24 @@ public class SuiteService implements AutoCloseable {
         return SuiteResultsCsv.of(find(suiteRunId).view(true));
     }
 
-    /** Stops whatever is running. Called when the tool shuts down. */
+    /**
+     * Stops whatever is running. Called when the tool shuts down. Never throws: Spring logs what a
+     * destroy method throws with its message, and a message can quote a member ID.
+     */
     @Override
     public void close() {
-        synchronized (lock) {
-            for (Run run : runs.values()) {
-                run.requestStop(STOPPED_BY_SHUTDOWN);
+        try {
+            synchronized (lock) {
+                for (Run run : runs.values()) {
+                    run.requestStop(STOPPED_BY_SHUTDOWN);
+                }
             }
-        }
-        if (owned != null) {
-            owned.shutdownNow();
+            if (owned != null) {
+                owned.shutdownNow();
+            }
+        } catch (RuntimeException | Error e) {
+            // A reference and the exception types and frames only, as every failure of this tool.
+            log.error("Stopping the suites failed inside this tool, reference {}: {}", UUID.randomUUID(), Faults.describe(e));
         }
     }
 
