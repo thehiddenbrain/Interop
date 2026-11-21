@@ -14,7 +14,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, aboutStep} from './dom.js';
 import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -103,6 +103,10 @@ function onShow() {
     bench.showCase();
     drawCarried();
     drawOverrideNote();
+    if (!bench.hasResult()) {
+        // A hand-over that arrived while the tab was hidden changes what the empty readout says.
+        drawEmptyState();
+    }
 }
 
 /* ---------- the vocabulary: scenarios, outcomes and element names, all fetched ---------- */
@@ -419,7 +423,7 @@ async function fetchPackage() {
     lastOperation = 'dtr-questionnaire-package';
     placeProblem(null);
     const answer = await bench.call(() => api.postJson('/api/dtr/package', packageRequest()).then(noteRefusal),
-        {saying: 'Fetching the questionnaire package.', control: controls.send});
+        {saying: 'Fetching the questionnaire package.', control: controls.send, result: true});
     if (!answer) {
         return;
     }
@@ -458,7 +462,7 @@ async function sendStep(entry, kind) {
         : 'Putting the response together. Nothing is sent to the payer.';
     const slot = session.problemSlot();
     placeProblem(slot);
-    const answer = await bench.call(() => api.postJson(path, request).then(reply => placeAnswerProblems(reply, posted)), {saying, control: null});
+    const answer = await bench.call(() => api.postJson(path, request).then(reply => placeAnswerProblems(reply, posted)), {saying, control: null, result: kind === 'loop'});
     if (!answer) {
         sayAgain(slot, actionName(kind === 'loop' ? 'ANSWER_NEXT_QUESTION' : 'SUBMIT_RESPONSE'));
         return;
@@ -550,25 +554,43 @@ async function showLoopPreview(entry) {
 
 /* ---------- before the first run ---------- */
 
+/** The server's label of an outcome, or the code itself while the list is not read. */
+function labelOf(code) {
+    return (vocabulary.outcomes.get(code) || {}).label || code;
+}
+
 function drawEmptyState() {
     const own = bench.ownRequestActive();
-    const parts = [
-        el('p', {class: 'empty-state__lead'}, 'No questionnaire package has been fetched from this tab yet.'),
-        // Said once, where it is seen first. Once a package is here, it is said where its questions start.
-        el('p', {class: 'dtr-honest dtr-honest--lead'},
-            'There is no SMART launch here and no patient record: you type each answer yourself. Answers marked as pre-populated come from the payer\'s service.'),
-        el('p', null, own
-            ? 'Paste the package request body in the form, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
-            : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Fetch the questionnaire package".')
-    ];
     const list = vocabulary.scenarios;
     const mockList = app.isMock() && list && list.available && list.scenarios.length > 0;
-    if (mockList) {
-        parts.push(el('p', null, own
-            ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
-            : 'On mock, each member ID picks the answer. Pick a case:'));
-        parts.push(scenarioListNotes(list));
-        parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
+    const handed = own ? null : usableHandover();
+    const parts = [];
+    if (handed) {
+        // The case is in the form already: the next thing to do is to fetch, and a case from the
+        // table would replace the one handed on, so the table is folded away.
+        parts.push(handedOnLead(handed, 'Handed on from the ' + handed.fromProtocol + ' result', 'Fetch the questionnaire package',
+            () => controls.send.click()));
+        if (mockList) {
+            parts.push(el('details', {class: 'fold'}, el('summary', null, 'Start another case on mock (' + list.scenarios.length + ')'),
+                el('p', null, 'On mock, each member ID picks the answer. Pick a case:'),
+                scenarioListNotes(list),
+                scenarioTable(app, list, {own, onUse: letTheMemberIdDecide})));
+        }
+    } else {
+        parts.push(sinceLoaded('DTR', 'No questionnaire package has been fetched from this tab since the page was loaded.', labelOf),
+            // Said once, where it is seen first. Once a package is here, it is said under its questions.
+            el('p', {class: 'dtr-honest dtr-honest--lead'},
+                'There is no SMART launch here and no patient record: you type each answer yourself. Answers marked as pre-populated come from the payer\'s service.'),
+            el('p', null, own
+                ? 'Paste the package request body in the form, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
+                : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Fetch the questionnaire package".'));
+        if (mockList) {
+            parts.push(el('p', null, own
+                ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+                : 'On mock, each member ID picks the answer. Pick a case:'));
+            parts.push(scenarioListNotes(list));
+            parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
+        }
     }
     parts.push(aboutStep(
         own ? null : el('p', null, 'What CRD handed on goes with it. The questions then appear here to be answered, one step at a time for an adaptive '

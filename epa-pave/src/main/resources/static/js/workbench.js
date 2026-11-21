@@ -22,7 +22,8 @@
 // A tab that uses either merges bench.requestFields() into every request it posts, after the case's
 // own fields, the preview included.
 
-import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
+import * as api from './api.js';
+import {el, fill, clear, button, code, facts, table, heading, copyButton, when} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, refusedSaying, unmark, fieldLabel, mirrorMarks, UNMARKED, MARKED} from './forms.js';
 import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
@@ -31,6 +32,7 @@ import {idForms} from './lookup.js';
 import {createOwnRequest} from './own-request.js';
 import {createRunValues} from './run-values.js';
 import {sourceWords} from './config-parts.js';
+import {runLink} from './history-common.js';
 
 /**
  * The text a send is refused for, or empty when it may go: what was typed in the procedure code box
@@ -329,6 +331,41 @@ export function createWorkbench(app, panel, spec) {
         result.setAttribute('aria-busy', state ? 'true' : 'false');
     }
 
+    // The read timeout of a call to the service, in seconds, as /api/config/effective states it, or
+    // null when it is not known. Read again on every change of the configuration; never guessed.
+    let readTimeout = null;
+    async function readTimeoutSetting() {
+        const answer = await api.get('/api/config/effective');
+        const settings = answer.kind === 'ok' && answer.body && Array.isArray(answer.body.settings) ? answer.body.settings : [];
+        const row = settings.find(setting => setting.property === 'onyx.read-timeout-ms');
+        const millis = row && row.set ? Number(row.value) : NaN;
+        readTimeout = Number.isFinite(millis) && millis > 0 ? Math.round(millis / 1000) : null;
+    }
+    readTimeoutSetting();
+    app.whenConfigChanges(readTimeoutSetting);
+
+    /**
+     * Puts the sending panel in the readout while a call is out, keeping what it held. The counter
+     * is hidden from screen readers: the status line has announced the call once already.
+     */
+    function showSending(saying) {
+        const kept = Array.from(result.childNodes);
+        const scrolled = readout.scrollTop;
+        const elapsed = el('span', {class: 'sending__elapsed', aria: {hidden: 'true'}});
+        const started = Date.now();
+        const tick = () => {
+            const seconds = Math.floor((Date.now() - started) / 1000);
+            elapsed.textContent = 'Waiting ' + seconds + ' s.'
+                + (readTimeout !== null ? ' The read timeout is ' + readTimeout + ' s (onyx.read-timeout-ms).' : '');
+        };
+        tick();
+        const node = el('div', {class: 'empty-state empty-state--sending'},
+            el('p', {class: 'empty-state__lead'}, saying),
+            el('p', {class: 'small'}, elapsed));
+        result.replaceChildren(node);
+        return {node, kept, scrolled, timer: setInterval(tick, 1000)};
+    }
+
     const bench = {
         /** The form, for listening to changes in it. */
         form,
@@ -424,6 +461,8 @@ export function createWorkbench(app, panel, spec) {
          * options.sendsCase, optional: false for a call that carries nothing of the case, so text
          * left in the procedure code box does not hold it up; left out, the call is taken to send
          * the case whenever the case is shown on this tab.
+         * options.result, optional: true for a call that goes to the service and draws a result, so
+         * the readout says it is waiting, and for how long, instead of what it held before.
          * Returns the answer when it is a completed call or a result, otherwise null: by then the
          * form has been marked or the refusal shown, and there is nothing left for the tab to do.
          */
@@ -465,6 +504,9 @@ export function createWorkbench(app, panel, spec) {
                 ? document.activeElement : null);
             setBusy(true, options.control);
             status.textContent = options.saying;
+            // A live call can wait many seconds, and the readout would go on saying what it held
+            // before (nothing sent yet, or the last result) as if it were the answer.
+            const waiting = options.result === true ? showSending(options.saying) : null;
             let answer;
             try {
                 // The request is built first and the case read after it, so the case kept is the one that went out.
@@ -472,6 +514,14 @@ export function createWorkbench(app, panel, spec) {
                 sentCase = app.caseContext.summary();
                 answer = await sending;
             } finally {
+                if (waiting) {
+                    // Whatever the answer, what the readout held comes back; a result then replaces it.
+                    clearInterval(waiting.timer);
+                    if (result.contains(waiting.node)) {
+                        result.replaceChildren(...waiting.kept);
+                        readout.scrollTop = waiting.scrolled;
+                    }
+                }
                 // Whatever happened, the controls come back: a tester is never left with a dead form.
                 setBusy(false, options.control);
                 // Before anything else is drawn, so a form problem can still move the focus to the
@@ -878,4 +928,36 @@ export function sentinelCell(scenario) {
         npis.length > 0 ? el('div', {class: 'small'}, 'or the NPI ', list(npis)) : null,
         fromCrd.length > 0 ? el('div', {class: 'small'}, 'or the CRD member ', fromCrd.length === 1 ? 'ID ' : 'IDs ', list(fromCrd), ', for a journey begun at CRD') : null
     ];
+}
+
+/**
+ * What a tab says first when work was handed on to it from another tab: where it came from, and
+ * a quiet button that presses the form's own send button, so the send goes the usual way and the
+ * form's button stays the one primary button with that name on the tab.
+ */
+export function handedOnLead(handed, heading, label, send) {
+    return el('div', {class: 'empty-state__handed'},
+        el('p', {class: 'empty-state__lead'}, 'Handed on from the ' + handed.fromProtocol + ' run ', code(handed.fromRunId), '.'),
+        el('p', null, 'What it handed on is in the form, under "' + heading + '". Choose "' + label + '".'),
+        button(label, send, {class: 'button--quiet'}));
+}
+
+/**
+ * The lead of an empty readout, true after a reload too, with the newest run of the protocol in
+ * the ledger read from the server each time: the page keeps nothing of a run across a reload.
+ * Only the run id, its time and its outcome are drawn, never what it was about.
+ */
+export function sinceLoaded(protocol, words, labelOf) {
+    const newest = el('p', {class: 'small', hidden: true});
+    api.get('/api/runs?protocol=' + protocol.toLowerCase() + '&limit=1').then(answer => {
+        const runs = answer.kind === 'ok' && answer.body && Array.isArray(answer.body.runs) ? answer.body.runs : [];
+        const run = runs[0];
+        if (!run || !run.runId) {
+            return;
+        }
+        fill(newest, 'The newest ' + protocol + ' run in the ledger: ', runLink(run.runId), ', ', when(run.timestamp), ', ', labelOf(run.outcome),
+            '. It may be from another tab or another tester. Open it to read its result.');
+        newest.hidden = false;
+    });
+    return el('div', null, el('p', {class: 'empty-state__lead'}, words), newest);
 }

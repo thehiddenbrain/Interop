@@ -15,7 +15,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, aboutStep} from './dom.js';
 import {textField, selectField, formProblem, showFormProblem, refusedSaying, markFieldErrors, clearFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -147,6 +147,10 @@ function onShow() {
     takeHandover();
     drawWrites();
     notifications.start();
+    if (!bench.hasResult()) {
+        // A hand-over that arrived while the tab was hidden changes what the empty readout says.
+        drawEmptyState();
+    }
 }
 
 /* ---------- the four kinds of call ---------- */
@@ -301,7 +305,7 @@ function submitRequest() {
 async function sendSubmit() {
     // What the hand-over held when the request left, so the result says what went with it even if the tester changes it afterwards.
     const answers = controls.handover.answersState();
-    const answer = await call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit});
+    const answer = await call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit, result: true});
     if (answer) {
         showRun(answer.body);
         showAnswersSent(answer.body, answers);
@@ -394,7 +398,7 @@ function inquiryRequest() {
 }
 
 async function sendInquiry() {
-    const answer = await call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire});
+    const answer = await call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire, result: true});
     if (answer) {
         showRun(answer.body);
     }
@@ -506,7 +510,7 @@ async function subscriptionCall(kind) {
         update: 'Updating the subscription.', delete: 'Deleting the subscription.'}[kind];
     const control = {create: controls.create, list: controls.list, read: controls.read, update: controls.update, delete: controls.remove}[kind];
     // A subscription call carries nothing of the case, so text left in its code box does not hold it up.
-    const answer = await call(send, {saying: words, control, sendsCase: false});
+    const answer = await call(send, {saying: words, control, sendsCase: false, result: true});
     if (answer) {
         showRun(answer.body);
     }
@@ -851,13 +855,22 @@ async function showPreview(kind) {
 
 /* ---------- before the first run ---------- */
 
+/** The server's label of an outcome, or the code itself while the list is not read. */
+function labelOf(code) {
+    return (vocabulary.outcomes.get(code) || {}).label || code;
+}
+
 function drawEmptyState() {
     if (!bench) {
         return;
     }
-    const parts = [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
     const own = bench.ownRequestActive();
-    if (mode === 'submit') {
+    const handed = mode === 'submit' && !own ? controls.handover.current() : null;
+    const parts = [handed
+        ? handedOnLead(handed, 'Handed on from ' + (handed.fromProtocol || 'an earlier step'), 'Send PAS request', () => controls.submit.click())
+        : sinceLoaded('PAS', 'Nothing has been sent from this tab since the page was loaded.', labelOf)];
+    // With a case handed on, the lead above says what to do.
+    if (mode === 'submit' && !handed) {
         parts.push(el('p', null, own
             ? 'Paste the request body in the form, then choose "Send PAS request". The member, provider and codes on the form are not sent with it.'
             : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Send PAS request".'));
@@ -867,7 +880,7 @@ function drawEmptyState() {
     } else if (mode === 'subscriptions') {
         parts.push(el('p', null, 'A subscription asks the service to call this tool back when a decision changes. Create one, list what the service holds, '
             + 'or read, update or delete one by its id.'));
-    } else {
+    } else if (mode === 'notifications') {
         parts.push(el('p', null, 'Notifications appear in the list above as the receiver takes them in.'));
     }
     const notes = vocabulary.operations.filter(item => (mode === 'submit' && item.operation === 'PAS_SUBMIT')
@@ -883,10 +896,10 @@ function drawEmptyState() {
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {
-        parts.push(el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
-            : 'On mock, each member ID picks the answer. Pick a case:'));
-        parts.push(scenarioListNotes(list));
-        parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
+        const pick = [el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'), scenarioListNotes(list), scenarioTable(app, list, {own, onUse: letTheMemberIdDecide})];
+        // With a case handed on, a case from the table would replace it, so the table is folded away.
+        parts.push(handed ? el('details', {class: 'fold'}, el('summary', null, 'Start another case on mock (' + list.scenarios.length + ')'), pick) : pick);
     }
     const listed = mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0;
     parts.push(aboutStep(
