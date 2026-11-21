@@ -35,10 +35,12 @@ class FaultReportFrontendTest {
         assertThat(read("suites.js")).contains("const rowFault = {reference: row.faultReference, cause: row.faultCause};")
                 .contains("faultReport(rowFault),");
         String replay = read("history-replay.js");
-        assertThat(CaseCodesFrontendTest.body(replay, "function whyCell(entry, vocabulary) {"))
-                .contains("faultReport({reference: entry.faultReference, cause: entry.faultCause})");
-        assertThat(CaseCodesFrontendTest.body(replay, "function entryDetail(entry, vocabulary) {"))
-                .contains("faultReport({reference: entry.faultReference, cause: entry.faultCause})");
+        assertThat(CaseCodesFrontendTest.body(replay, "function faultOf(entry) {"))
+                .contains("return {reference: entry.faultReference, cause: entry.faultCause};");
+        for (String view : new String[] {"function whyCell(entry, vocabulary) {", "function entryDetail(entry, vocabulary) {"}) {
+            assertThat(CaseCodesFrontendTest.body(replay, view)).contains("faultReport(faultOf(entry)),")
+                    .contains("withoutReference(entry.reason, faultOf(entry))");
+        }
         // The error panel of every call made from a screen, and the code list.
         assertThat(read("result.js")).contains("panel.append(faultReport(error));");
         assertThat(read("code-picker.js")).contains("faultReport(answer.body)");
