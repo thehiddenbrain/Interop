@@ -173,6 +173,63 @@ class DtrServiceTest {
                 .questionnaire(packageResult.detail().questionnaires().get(0).json()).answers(List.of(answers));
     }
 
+    // ---- a verdict read from a mask says so where it is read ----
+
+    /** A part of scenario dtr-02 as a service would send it: its package answer, or the answer of its first question. */
+    private static String adaptive(String... path) {
+        try (java.io.InputStream in = DtrServiceTest.class.getResourceAsStream("/scenarios/dtr/dtr-02-adaptive-branching.json")) {
+            JsonNode node = JsonSafe.mapper().readTree(in);
+            for (String step : path) {
+                node = node.get(step);
+            }
+            return node.toString();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private RunEnvelope<DtrDetail> packageHolding(SentSecrets secrets) {
+        VendorExchange answer = TestExchanges.holding(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 200, adaptive("response")),
+                secrets);
+        return service(stub(answer), "live", Map.of()).runPackage(DtrFixtures.packageRequest("S123456789").build(), RunOrigin.manual(), null);
+    }
+
+    private RunEnvelope<DtrDetail> nextQuestionHolding(SentSecrets secrets) {
+        RunEnvelope<DtrDetail> fetched = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-ADAPT").build(), RunOrigin.manual(), null);
+        VendorExchange answer = TestExchanges.holding(DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 200,
+                adaptive("steps", "first-question", "response")), secrets);
+        return service(stub(answer), "live", Map.of()).runNextQuestion(following(fetched, "P32H-DTR-ADAPT").build(), RunOrigin.manual(), null);
+    }
+
+    @Test
+    void aPackageAndANextQuestionReadThroughAMaskSaySoInTheVerdictAndTheNextStep() {
+        // Environment secrets whose values are words the readings decide by. No request carried them.
+        RunEnvelope<DtrDetail> packaged = packageHolding(SentSecrets.builder().variable("qWord", "Questionnaire").build());
+        // The word is also part of every url of a questionnaire, and those are compared too: each is named.
+        assertThat(packaged.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: ")
+                .contains("resourceType was read as [secret qWord]").contains("url was read as [secret qWord]");
+        RunEnvelope<DtrDetail> asked = nextQuestionHolding(SentSecrets.builder().variable("progressWord", "in-progress").build());
+        assertThat(asked.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: status was read as "
+                + "[secret progressWord].");
+        for (RunEnvelope<DtrDetail> result : List.of(packaged, asked)) {
+            assertThat(result.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(result.ledger().record().findings()).contains("MASKED_READING");
+        }
+    }
+
+    @Test
+    void theSameAnswersWithAHeldSecretTheyDoNotRepeatCarryNoMaskedReading() {
+        SentSecrets unrelated = SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").build();
+        for (RunEnvelope<DtrDetail> result : List.of(packageHolding(unrelated), nextQuestionHolding(unrelated))) {
+            assertThat(result.verdict().maskedReading()).isNull();
+            assertThat(result.nextStep().headline()).doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+        }
+        assertThat(packageHolding(unrelated).verdict().outcomeCode()).isEqualTo("PACKAGE_LOADED");
+        assertThat(nextQuestionHolding(unrelated).verdict().outcomeCode()).isEqualTo("NEXT_QUESTION");
+    }
+
     private static OnyxDtrClient stub(VendorExchange exchange) {
         return new OnyxDtrClient() {
             @Override

@@ -198,77 +198,14 @@ public record VendorExchange(
     }
 
     /**
-     * The names of the values the mappers decide by: what kind of resource a body or an entry is,
-     * its status, the decision and outcome of a ClaimResponse, the indicator of a card, the type of
-     * a bundle and the use of a claim. A mask in one of them changes what a mapper reads.
-     */
-    private static final Set<String> READ_BY = Set.of("resourceType", "status", "disposition", "outcome", "indicator", "type", "use");
-
-    /**
-     * One sentence for beside the reading of this exchange when a mask falls on a value a mapper
+     * The sentence for beside the reading of this exchange when a mask falls on a value a mapper
      * decides by, or on the name of such a value, or null when none does. Asked of the exchange as
-     * received, before {@link #withReturnedSecretsMasked()}.
-     *
-     * <p>A mapper reads the masked body, so a service that repeats a secret this tool holds as, for
-     * example, the resourceType of its answer is read as having sent the mask. The verdict and the
-     * note then describe a body the service did not send, and the tester must be told why. Only the
-     * masks are named, never what they stand for: the name of a property that was masked is not
-     * given either, because it is the secret.
+     * received, before {@link #withReturnedSecretsMasked()}. {@link MaskedReading} says which values
+     * those are and why the tester must be told.
      */
     public String maskedReadingNote() {
-        if (json == null || request == null || request.secrets() == null || request.secrets().searched() == 0 || !json.isContainer()) {
-            return null;
-        }
-        SentSecrets secrets = request.secrets();
-        java.util.LinkedHashSet<String> readings = new java.util.LinkedHashSet<>();
-        Deque<JsonNode> pending = new ArrayDeque<>();
-        pending.push(json);
-        while (!pending.isEmpty()) {
-            JsonNode node = pending.pop();
-            if (node.isObject()) {
-                for (java.util.Map.Entry<String, JsonNode> property : node.properties()) {
-                    JsonNode value = property.getValue();
-                    SentSecrets.Masked name = secrets.mask(property.getKey());
-                    if (name.places() > 0 && READ_BY.contains(property.getKey())) {
-                        readings.add("the name of a value this tool reads by was read as " + masksIn(name.text()));
-                    } else if (READ_BY.contains(property.getKey()) && (value.isString() || value.isNumber())) {
-                        SentSecrets.Masked read = secrets.mask(value.isString() ? value.stringValue() : value.toString());
-                        if (read.places() > 0) {
-                            readings.add(property.getKey() + " was read as " + masksIn(read.text()));
-                        }
-                    }
-                    if (value.isContainer()) {
-                        pending.push(value);
-                    }
-                }
-            } else {
-                for (JsonNode element : node) {
-                    if (element.isContainer()) {
-                        pending.push(element);
-                    }
-                }
-            }
-        }
-        if (readings.isEmpty()) {
-            return null;
-        }
-        return "This answer was read with its masks in place, and a value this tool reads it by repeats a secret this tool holds: "
-                + String.join("; ", readings) + ". What is said about it here was read from the mask, not from what the service sent.";
-    }
-
-    /** The masks a masked text holds, by themselves, so that nothing of the text around them is repeated. */
-    private static String masksIn(String masked) {
-        List<String> masks = new ArrayList<>();
-        int at = masked.indexOf("[secret ");
-        while (at >= 0) {
-            int end = masked.indexOf(']', at);
-            if (end < 0) {
-                break;
-            }
-            masks.add(masked.substring(at, end + 1));
-            at = masked.indexOf("[secret ", end + 1);
-        }
-        return String.join(" and ", masks);
+        MaskedReading masked = MaskedReading.of(this);
+        return masked == null ? null : masked.note();
     }
 
     /** A note with the sentence about masked readings after it, either one alone when the other is absent. */

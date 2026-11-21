@@ -25,6 +25,8 @@ class FindingGroupTest {
                 FindingKind.CODE_LIST_NOT_COMPARED));
         expected.put(FindingGroup.NOTIFICATION, List.of(FindingKind.UNMATCHED_NOTIFICATION, FindingKind.UNCHECKED_NOTIFICATION));
         expected.put(FindingGroup.TIMING, List.of(FindingKind.SLOW_RESPONSE));
+        // A conclusion read from a mask: a heading of its own, because it is about this tool's reading, not the service.
+        expected.put(FindingGroup.READING, List.of(FindingKind.MASKED_READING));
         expected.forEach((group, kinds) -> kinds.forEach(kind -> assertThat(FindingGroup.of(kind)).as(kind.name()).isEqualTo(group)));
         assertThat(expected.values().stream().mapToInt(List::size).sum()).isEqualTo(FindingKind.values().length);
 
@@ -34,6 +36,7 @@ class FindingGroupTest {
         assertThat(FindingGroup.CODE_LIST.heading()).isEqualTo("The code list beside the service");
         assertThat(FindingGroup.NOTIFICATION.heading()).isEqualTo("About a notification that arrived");
         assertThat(FindingGroup.TIMING.heading()).isEqualTo("About the time the call took");
+        assertThat(FindingGroup.READING.heading()).isEqualTo("About how this tool read the response");
     }
 
     @Test

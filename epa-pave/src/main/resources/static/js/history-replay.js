@@ -10,6 +10,7 @@ import {el, code, count, when, table, millis, faultReport, withoutReference} fro
 import {toneMark} from './marks.js';
 import {stamp} from './marks.js';
 import {runLink, outcomeOf, whatRan, none, whereRan} from './history-common.js';
+import {maskedReading} from './result.js';
 
 // The order in which the summary lists the statuses the server counts. A status this page does not
 // list is still shown, after these, under the name the server gave it.
@@ -143,6 +144,8 @@ function entryDetail(entry, vocabulary) {
             // What the service said this time and what to do next, in the server's words for the new run.
             // A refusal is worded once: when the reason above is the verdict's own headline, it is not set out twice.
             entry.verdict && entry.verdict.headline !== entry.reason ? el('p', {class: 'history-replay__verdict'}, toneMark(entry.verdict.tone), ' ', el('strong', null, entry.verdict.headline)) : null,
+            // The run sent again was read from a mask where the original may have been: said under its verdict, as on its own tab.
+            entry.verdict ? maskedReading(entry.verdict.maskedReading) : null,
             // The lines under the headline say who answered: on mock, which scenario, and that a
             // replay is answered by the scenario the original run recorded, so the same answer is no news.
             entry.verdict && Array.isArray(entry.verdict.supporting) && entry.verdict.supporting.length > 0 && entry.verdict.headline !== entry.reason

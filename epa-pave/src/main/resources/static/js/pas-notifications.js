@@ -17,7 +17,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, when, whenText, count, faultReport, withoutReference} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
 import {outcome, mockMark} from './marks.js';
-import {additionalFieldsTable, issuesTable} from './result.js';
+import {additionalFieldsTable, issuesTable, maskedReading} from './result.js';
 import {selectField, textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {runLink} from './history-common.js';
 import {coded, claimResponseBlock, otherResourcesPart} from './pas-detail.js';
@@ -321,7 +321,8 @@ export function createNotifications(spec) {
                 step.reason ? el('p', {class: 'small'}, step.reason) : null),
             more);
         const row = el('li', {class: 'pas-note' + (fresh ? ' pas-note--fresh' : ''), tabIndex: -1, aria: {label: 'Notification of ' + whenText(item.receivedAt)}},
-            line, meta, decided, sampleNotes, inquiry ? el('p', null, inquiry) : null, opened);
+            // Under the line that names the outcome, folded or open: that outcome was read from a mask.
+            line, maskedReading(verdict.maskedReading), meta, decided, sampleNotes, inquiry ? el('p', null, inquiry) : null, opened);
         const setOpen = open => {
             opened.hidden = !open;
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');

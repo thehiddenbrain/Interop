@@ -1231,6 +1231,65 @@ class CrdServiceTest {
         assertThat(discovery.additionalFields()).anySatisfy(field -> assertThat(field.path()).contains("x-" + Secrets.mask("access token")));
     }
 
+    // ---- a verdict read from a mask says so where it is read ----
+
+    /** The answer of scenario crd-01 as a service would send it: prior authorization required, by the code auth-needed. */
+    private static String paRequiredAnswer() {
+        try (java.io.InputStream in = CrdServiceTest.class.getResourceAsStream("/scenarios/crd/crd-01-pa-required.json")) {
+            return JsonSafe.mapper().readTree(in).get("response").toString();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void aVerdictReadByACodeThatRepeatsAHeldSecretSaysSoUnderItsHeadlineAndMarksTheNextStep() {
+        // An environment secret whose value happens to be the code the verdict is read by. No request carried it.
+        VendorExchange echoed = TestExchanges.holding(TestExchanges.crd(200, paRequiredAnswer()),
+                SentSecrets.builder().variable("paWord", "auth-needed").build());
+        RunEnvelope<CrdDetail> result = service(stub(echoed), "live", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
+
+        assertThat(result.verdict().maskedReading()).isEqualTo("Read from a mask, not from what the service sent: valueCode was read as "
+                + "[secret paWord]. The variable or setting the mask names holds a value that the answers of this service use as an "
+                + "ordinary word, so the reading above may be wrong. Look at that value in the Config tab.");
+        assertThat(result.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+        assertThat(ledger.only().findings()).contains("MASKED_READING");
+        assertThat(result.wire().response().body()).doesNotContain("auth-needed");
+    }
+
+    @Test
+    void theSameAnswerWithAHeldSecretItDoesNotRepeatCarriesNoMaskedReading() {
+        VendorExchange plain = TestExchanges.holding(TestExchanges.crd(200, paRequiredAnswer()),
+                SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").build());
+        RunEnvelope<CrdDetail> result = service(stub(plain), "live", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
+
+        assertThat(result.verdict().outcomeCode()).isEqualTo("AUTH_REQUIRED");
+        assertThat(result.verdict().maskedReading()).isNull();
+        assertThat(result.nextStep().headline()).doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(result.findings()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+        assertThat(JsonSafe.mapper().writeValueAsString(result.verdict())).doesNotContain("maskedReading");
+    }
+
+    @Test
+    void discoveryReadThroughAMaskedNameSaysSoAndWithoutOneSaysNothing() {
+        String url = "https://example.org/p32h-placeholder/cds-services";
+        String body = "{\"services\":[{\"hook\":\"order-sign\",\"id\":\"crd-order-sign\",\"title\":\"T\",\"description\":\"D\"}]}";
+        java.util.function.Function<SentSecrets, CrdDiscovery> discover = secrets -> service(stub(Exchanges.fromResponse(
+                new WireRequest("GET", url, url, List.of(), null, true, null, secrets), 200, List.of(), body, 5L, true)), "live", Map.of())
+                .discover();
+
+        // A secret whose value is the name the list is read under: the answer reads as one that lists no services.
+        CrdDiscovery masked = discover.apply(SentSecrets.builder().variable("listWord", "services").build());
+        assertThat(masked.services()).isEmpty();
+        assertThat(masked.maskedReading()).startsWith("Read from a mask, not from what the service sent: the name of a value this tool "
+                + "reads by was read as [secret listWord].");
+
+        CrdDiscovery plain = discover.apply(SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").build());
+        assertThat(plain.services()).hasSize(1);
+        assertThat(plain.maskedReading()).isNull();
+    }
+
     private static OnyxCrdClient stub(VendorExchange exchange) {
         return new OnyxCrdClient() {
             @Override

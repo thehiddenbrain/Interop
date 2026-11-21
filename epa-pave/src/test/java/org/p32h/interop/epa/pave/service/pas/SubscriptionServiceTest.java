@@ -303,6 +303,43 @@ class SubscriptionServiceTest {
         }
     }
 
+    // ---- a verdict read from a mask says so where it is read ----
+
+    private RunEnvelope<SubscriptionDetail> holding(EpaOperation operation, org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        String body = SubscriptionResponseMapperTest.subscription(ID, "active", SubscriptionResponseMapperTest.channel());
+        VendorExchange answer = TestExchanges.holding(TestExchanges.of(operation, 200, body, operation == GET), secrets);
+        return service(stub(answer), "live", WITH_RECEIVER).run(operation, operation == CREATE ? request().build() : about(ID).build(),
+                RunOrigin.manual(), null);
+    }
+
+    @Test
+    void eachSubscriptionCallReadThroughAMaskedStatusSaysSoInTheVerdictAndTheNextStep() {
+        // An environment secret whose value is the status a subscription is read by. No request carried it.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("statusWord", "active").build();
+        for (EpaOperation operation : List.of(CREATE, GET, UPDATE, DELETE)) {
+            RunEnvelope<SubscriptionDetail> result = holding(operation, word);
+            assertThat(result.verdict().maskedReading()).as(operation.name()).startsWith("Read from a mask, not from what the service sent: "
+                    + "status was read as [secret statusWord].");
+            assertThat(result.nextStep().headline()).as(operation.name()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings().get(0).kind()).as(operation.name()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(result.ledger().record().findings()).as(operation.name()).contains("MASKED_READING");
+        }
+    }
+
+    @Test
+    void eachSubscriptionCallWithAHeldSecretItsAnswerDoesNotRepeatCarriesNoMaskedReading() {
+        org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("clientSecret", "placeholder-secret-value-7f3a").build();
+        for (EpaOperation operation : List.of(CREATE, GET, UPDATE, DELETE)) {
+            RunEnvelope<SubscriptionDetail> result = holding(operation, unrelated);
+            assertThat(result.verdict().maskedReading()).as(operation.name()).isNull();
+            assertThat(result.nextStep().headline()).as(operation.name())
+                    .doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings()).as(operation.name()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+        }
+    }
+
     private static SubscriptionClient stub(VendorExchange exchange) {
         return new SubscriptionClient() {
             @Override

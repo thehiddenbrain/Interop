@@ -81,6 +81,20 @@ final class ProviderResponseMapping {
     static final List<Spelling> STATE_FLAT = Spelling.list("state", "stateCode");
     static final List<Spelling> POSTAL_CODE_FLAT = Spelling.list("postalCode", "zip", "zipCode");
 
+    /**
+     * The fields whose values the result is read by: the NPI, compared with the one asked for, and
+     * whether the provider is in network, by its status and its yes or no.
+     */
+    static final List<List<Spelling>> DECIDED_BY = List.of(NPI, NETWORK_STATUS, IN_NETWORK);
+
+    /** Every field the mapping reads. Whether a record is a provider at all is read by which of them carry a value. */
+    static final List<List<Spelling>> READ = List.of(NPI, FIRST_NAME, LAST_NAME, ORGANIZATION_NAME, NAME, SPECIALTY, TAXONOMY_CODE,
+            NETWORK_STATUS, IN_NETWORK, PHONE, LINE_1_IN_ADDRESS, LINE_2_IN_ADDRESS, CITY_IN_ADDRESS, STATE_IN_ADDRESS,
+            POSTAL_CODE_IN_ADDRESS, PHONE_IN_ADDRESS, LINE_1_FLAT, LINE_2_FLAT, CITY_FLAT, STATE_FLAT, POSTAL_CODE_FLAT);
+
+    /** The names a record and its address are found under. */
+    static final List<String> WRAPPED_IN = java.util.stream.Stream.concat(WRAPPERS.stream(), ADDRESS_OBJECTS.stream()).toList();
+
     /** Names so common in any JSON that a value under one does not show the answer is a provider. */
     static final Set<Spelling> GENERIC = Set.copyOf(Spelling.list("name", "state", "network"));
 
@@ -108,6 +122,13 @@ final class ProviderResponseMapping {
      * @param npi      the NPI that was asked for, already checked
      */
     static ProviderLookupResult map(VendorExchange received, String npi) {
+        ProviderLookupResult result = read(received, npi);
+        // What the result concludes is read with the masks in place, so it says so where a mask fell on a value it rests on.
+        org.p32h.interop.epa.pave.model.MaskedReading masked = LookupMasks.find(received, DECIDED_BY, READ, WRAPPED_IN);
+        return masked == null ? result : result.withMaskedReading(masked.line());
+    }
+
+    private static ProviderLookupResult read(VendorExchange received, String npi) {
         // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.

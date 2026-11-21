@@ -65,5 +65,12 @@ public enum FindingKind {
      * The collection request carries a pre-request script. It was not run, so a value Postman would
      * have computed was not computed. A failure with no other visible cause often traces to this.
      */
-    PRE_REQUEST_SCRIPT_NOT_RUN
+    PRE_REQUEST_SCRIPT_NOT_RUN,
+    /**
+     * A value this tool reads the answer by, or its name, repeats a secret this tool holds, so it
+     * was read as the mask and what was concluded from it is about the mask, not about what the
+     * service sent. Raised where the verdict says so, so that a suite row and History, which keep
+     * the kinds of finding alone, say it too.
+     */
+    MASKED_READING
 }

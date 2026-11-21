@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
 import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.AdditionalField;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
@@ -229,6 +230,14 @@ public class CrdService {
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = followedFrom(CrdVerdicts.nextStep(reading, exchange, runId), runId);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
+        // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
+        // and the findings say so where each is read.
+        MaskedReading masked = MaskedReading.of(exchange);
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
@@ -315,7 +324,8 @@ public class CrdService {
     public CrdDiscovery discover() {
         PreparedCall call = gateway.prepare(CallIntent.of(EpaOperation.CRD_DISCOVERY));
         // The services are read through the mask, as a run's response is, so a secret the service repeats is not shown here.
-        VendorExchange exchange = client.discover(call).withReturnedSecretsMasked();
+        VendorExchange received = client.discover(call);
+        VendorExchange exchange = received.withReturnedSecretsMasked();
         List<CrdDiscovery.Service> services = new ArrayList<>();
         // Every value of a key the body repeats is listed, as on a run, so an earlier value is not on the wire view alone.
         List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
@@ -334,8 +344,10 @@ public class CrdService {
             }
             additional.addAll(tracked.unconsumed());
         }
+        // Which services are listed is read with the masks in place, so the list says so where a mask fell on a name it is read by.
+        MaskedReading masked = MaskedReading.of(received);
         return new CrdDiscovery(call.url(), services, additional, exchange.wire(null), support.faultView(exchange, List.of()),
-                exchange.request() == null || exchange.request().sent() ? null : exchange.request().note());
+                exchange.request() == null || exchange.request().sent() ? null : exchange.request().note(), masked == null ? null : masked.line());
     }
 
     /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */

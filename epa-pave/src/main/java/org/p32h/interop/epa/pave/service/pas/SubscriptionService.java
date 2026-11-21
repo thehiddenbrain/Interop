@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.ExpectationView;
@@ -261,6 +262,14 @@ public class SubscriptionService {
                 SubscriptionOutcome.values(), PasCodes.SUBSCRIPTION_ELEMENTS);
         NextStepView nextStep = SubscriptionVerdicts.nextStep(reading, exchange, operation, subscriptionId, followsRunId,
                 sendsBody ? callbackProblem : null, ownBody, runId);
+        // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
+        // and the findings say so where each is read.
+        MaskedReading masked = MaskedReading.of(exchange);
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
         // The error panel is for a fault. An id the service does not know is a finding about the
         // id and is presented as an answer, even though it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;

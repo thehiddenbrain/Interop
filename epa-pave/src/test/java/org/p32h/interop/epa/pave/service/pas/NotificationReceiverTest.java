@@ -266,6 +266,29 @@ class NotificationReceiverTest {
     }
 
     @Test
+    void aNotificationWhoseVerdictIsReadThroughAMaskSaysSoUnderItsHeadlineAndMarksItsNextStep() {
+        String body = bundle(status(SUBSCRIPTION, "event-notification"), NotificationJson.claimResponse("cr-word-1", null, "A1"));
+        // A secret the configuration gives services whose value is the resource type the decision is read from.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("crWord", "ClaimResponse").build();
+        NotificationView masked = new NotificationReceiver(withSecrets(gateway, word), support, ledgerProvider(), scenarios)
+                .receive(NotificationReceiver.Inbound.of(body));
+        assertThat(masked.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: resourceType was read "
+                + "as [secret crWord].");
+        assertThat(masked.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(masked.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+        assertThat(ledger.records().get(ledger.records().size() - 1).findings()).contains("MASKED_READING");
+
+        org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("clientSecret", "placeholder-secret-value-7f3a").build();
+        NotificationView plain = new NotificationReceiver(withSecrets(gateway, unrelated), support, ledgerProvider(), scenarios)
+                .receive(NotificationReceiver.Inbound.of(body));
+        assertThat(plain.verdict().maskedReading()).isNull();
+        assertThat(plain.nextStep().headline()).doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(plain.findings()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+    }
+
+    @Test
     void aNotificationThatRepeatsASecretOfACollectionOrOfTheLookupConfigurationIsMaskedByTheRealGateway(
             @org.junit.jupiter.api.io.TempDir Path directory) {
         org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = org.p32h.interop.epa.pave.service.config.ConfigFixture.on(directory)

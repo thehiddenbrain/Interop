@@ -22,7 +22,10 @@ public enum FindingGroup {
     NOTIFICATION("About a notification that arrived",
             "A notification this tool could not tie to a run, or could not check. It is kept and shown."),
     TIMING("About the time the call took",
-            "The call completed and took longer than the threshold.");
+            "The call completed and took longer than the threshold."),
+    READING("About how this tool read the response",
+            "A value the response was read by repeats a secret this tool holds, so it was read as the mask. What follows from it is "
+                    + "about the mask, not about what the service sent.");
 
     private final String heading;
     private final String meaning;
@@ -54,6 +57,7 @@ public enum FindingGroup {
             case CODE_LIST_DISAGREES_ON_AUTH, CODE_LIST_DISAGREES_ON_VENDOR, CODE_LIST_NOT_COMPARED -> CODE_LIST;
             case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> NOTIFICATION;
             case SLOW_RESPONSE -> TIMING;
+            case MASKED_READING -> READING;
         };
     }
 }
