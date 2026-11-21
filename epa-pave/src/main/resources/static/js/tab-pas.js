@@ -943,7 +943,9 @@ function drawEmptyState() {
     const handed = mode === 'submit' && !own ? controls.handover.current() : null;
     const parts = [handed
         ? handedOnLead(handed, 'Handed on from ' + (handed.fromProtocol || 'an earlier step'), 'Send PAS request', () => controls.submit.click())
-        : sinceLoaded('PAS', 'Nothing has been sent from this tab since the page was loaded.', labelOf)];
+        // On the Subscriptions call the newest run is a subscription run, not a PAS submit or inquiry.
+        : mode === 'subscriptions' ? sinceLoaded('subscription', 'Nothing has been sent from this tab since the page was loaded.', labelOf, 'subscription')
+            : sinceLoaded('PAS', 'Nothing has been sent from this tab since the page was loaded.', labelOf)];
     // With a case handed on, the lead above says what to do.
     if (mode === 'submit' && !handed) {
         parts.push(el('p', null, own

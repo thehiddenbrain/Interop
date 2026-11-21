@@ -976,17 +976,20 @@ export function handedOnLead(handed, heading, label, send) {
  * the ledger read from the server each time: the page keeps nothing of a run across a reload.
  * Only the run id, its time and its outcome are drawn, never what it was about.
  */
-export function sinceLoaded(protocol, words, labelOf) {
+export function sinceLoaded(protocol, words, labelOf, asked) {
     const newest = el('p', {class: 'small', hidden: true});
-    api.get('/api/runs?protocol=' + protocol.toLowerCase() + '&limit=1').then(answer => {
+    api.get('/api/runs?protocol=' + (asked || protocol.toLowerCase()) + '&limit=1').then(answer => {
         const runs = answer.kind === 'ok' && answer.body && Array.isArray(answer.body.runs) ? answer.body.runs : [];
         const run = runs[0];
         if (!run || !run.runId) {
             return;
         }
-        fill(newest, 'The newest ' + protocol + ' run in the ledger: ', runLink(run.runId), ', ', when(run.timestamp), ', ', labelOf(run.outcome),
-            '. It may be from another tab or another tester. Open it to read its result.');
+        // Read once, when the tab is drawn, so it says when; the outcome is a clause of its own, not glued into the sentence.
+        fill(newest, 'The newest ' + protocol + ' run in the ledger when this tab was drawn: ', runLink(run.runId), ', ', when(run.timestamp),
+            '. Outcome: ', String(labelOf(run.outcome)), '. It may be from another tab or another tester. Open it to read its result.');
         newest.hidden = false;
     });
-    return el('div', null, el('p', {class: 'empty-state__lead'}, words), newest);
+    // A call still waiting when the page was reloaded is not lost: the server finishes it and records it.
+    return el('div', null, el('p', {class: 'empty-state__lead'}, words), newest,
+        el('p', {class: 'small quiet'}, 'A call sent before a reload still finishes and is recorded; History lists it once it has.'));
 }

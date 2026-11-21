@@ -77,9 +77,35 @@ class EmptyStateFrontendTest {
         assertThat(out).isEqualTo("[\"details.fold another-case\",null,null,null]");
     }
 
+    /** The line is drawn, not only written: run under node with a stub ledger answering one run. */
+    @Test
+    void theNewestRunLineIsDrawnWithItsIdTimeAndOutcomeInAClauseOfItsOwnWhenNodeRunsIt() throws IOException, InterruptedException {
+        String since = body("workbench.js", "export function sinceLoaded(protocol, words, labelOf, asked) {");
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here; the text checks still apply.");
+        String script = "const asked = [];\n"
+                + "const api = {get: url => { asked.push(url); return Promise.resolve({kind: 'ok', body: {runs: [{runId: 'run-1', timestamp: 'T',"
+                + " outcome: 'SERVICE_ERROR', memberId: 'S123456789', npi: '1234567893'}]}}); }};\n"
+                + "const flat = parts => parts.flat(Infinity).filter(p => p !== null && p !== undefined).map(p => typeof p === 'object' ? p.text : p).join('');\n"
+                + "const el = (tag, props, ...children) => ({children, hidden: props && props.hidden, get text() { return flat(this.children); }});\n"
+                + "const fill = (node, ...parts) => { node.children = parts; };\n"
+                + "const runLink = id => '<' + id + '>'; const when = t => 'at ' + t;\n"
+                + since.replaceFirst("^export ", "") + "\n}\n"
+                + "const shown = sinceLoaded('subscription', 'Nothing yet.', code => code === 'SERVICE_ERROR' ? 'The service failed' : code, 'subscription');\n"
+                + "setTimeout(() => console.log(JSON.stringify({asked, text: shown.text})), 0);";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("{\"asked\":[\"/api/runs?protocol=subscription&limit=1\"],\"text\":\"Nothing yet.The newest subscription run in the "
+                + "ledger when this tab was drawn: <run-1>, at T. Outcome: The service failed. It may be from another tab or another tester. Open "
+                + "it to read its result.A call sent before a reload still finishes and is recorded; History lists it once it has.\"}");
+        assertThat(out).doesNotContain("S123456789").doesNotContain("1234567893");
+    }
+
     @Test
     void theNewestRunIsNamedByItsIdItsTimeAndItsOutcomeAndNothingOfItsCase() throws IOException {
-        String since = body("workbench.js", "export function sinceLoaded(protocol, words, labelOf) {");
+        String since = body("workbench.js", "export function sinceLoaded(protocol, words, labelOf, asked) {");
         assertThat(since).contains("run.runId").contains("run.timestamp").contains("labelOf(")
                 .doesNotContain("memberId").doesNotContain("npi").doesNotContain("procedureCodes")
                 .contains("'&limit=1'");
