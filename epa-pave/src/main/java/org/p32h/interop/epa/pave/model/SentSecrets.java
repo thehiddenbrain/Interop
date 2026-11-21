@@ -29,12 +29,22 @@ import java.util.Map;
  *
  * <p>Every secret is searched for in the same single pass over the text, along a tree of their
  * characters, so the cost of masking an answer of megabytes does not grow with the number of
- * secrets held. Where the text holds no backslash near a place, failure links between the
- * branches of the tree keep that cost to one step per character, also for a secret whose beginning
- * fills the text. Near a backslash each start is walked along the tree, because an escape can be
- * read in two ways; there a text written wholly in escapes still costs up to the length of the
- * longest secret per character (2 MB of escapes against one held secret of 1000 characters took
- * about five seconds when it was measured).
+ * secrets held. At a start with no backslash at it or within the length of the longest secret
+ * after it, failure links between the branches of the tree keep that cost to one step per
+ * character, also for a secret whose beginning fills the text. Every other start is walked along
+ * the tree, because an escape can be read in two ways, and that walk costs up to the length of the
+ * longest secret. So the old cost of up to the length of the longest secret per character applies
+ * wherever backslashes lie closer together than that length, not only in a text written wholly in
+ * escapes: one escaped backslash every 900 characters is enough against a held secret of 1,000.
+ * The walk goes on only while the text matches the beginning of a secret, so an ordinary answer
+ * with escapes in it stays fast; the cost is reached by a text that repeats most of a long secret
+ * over and over. Measured on one machine, with an escaped backslash just closer together than the
+ * secret is long and the rest of the text the secret's first character: against one held secret
+ * of 1,000 characters, 2 MB took about 9 s, 8 MiB (the most the notification receiver reads)
+ * about 36 s and 20 MB about 90 s; against one of 2,000 characters, as long as an access token
+ * can be, 8 MiB took about 77 s and 20 MB about 190 s. No cap stops a service from sending more:
+ * the client reads an answer to its end. An ordinary answer of 20 MB with a backslash every few
+ * hundred characters and no secret in it took about a third of a second against either.
  *
  * <p>This holds real secret values. It is never serialised and never printed, and it has no method
  * that hands a value back: all it offers is to mask a text.
