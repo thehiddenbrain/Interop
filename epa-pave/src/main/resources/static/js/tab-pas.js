@@ -848,12 +848,13 @@ function showRun(envelope) {
 
 /**
  * Whether the result of a submission offers the way to Send inquiry for it: after a fault, where the
- * server's step is to check the environment. Never after a submission that did not reach the service,
- * played or live: nothing was submitted, the screen has said so, and there is nothing to ask about.
+ * server's step is to check the environment and hands on the claim identifier. The server hands on
+ * none after a submission that cannot have reached the service, played or live, since nothing was
+ * submitted; a connection that broke after it opened may have delivered it, and keeps the way. The
+ * outcome alone cannot tell the two apart: both are UNREACHABLE.
  */
 export function offersInquiryWay(envelope, step, hasClaim) {
-    const unreached = !!envelope.verdict && envelope.verdict.outcomeCode === 'UNREACHABLE';
-    return step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && !!hasClaim && !unreached;
+    return step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && !!hasClaim;
 }
 
 /** The part of the readout that holds the result. */

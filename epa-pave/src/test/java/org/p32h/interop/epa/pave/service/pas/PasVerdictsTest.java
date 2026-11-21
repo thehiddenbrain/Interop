@@ -413,6 +413,8 @@ class PasVerdictsTest {
         assertThat(again.headline()).isEqualTo(SEND_AGAIN);
         assertThat(again.reason()).isEqualTo("Nothing was submitted, because the request did not reach the payer. It is safe to send the same "
                 + "request again.");
+        // Nothing was submitted, so no claim identifier is handed on to ask about; the run it came from still is.
+        assertThat(again.carry()).doesNotContainKey(NextStepView.CARRY_CLAIM_ID);
 
         // The connection failed after it was opened. The same outcome, and the opposite advice.
         String brokenHow = "The request could not be completed (IOException).";

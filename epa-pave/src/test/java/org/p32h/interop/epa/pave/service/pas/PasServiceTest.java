@@ -1354,6 +1354,8 @@ class PasServiceTest {
         assertThat(refused.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
         assertThat(refused.nextStep().reason()).isEqualTo("Nothing was submitted, because the request did not reach the payer. It is safe to "
                 + "send the same request again.");
+        // Nothing to ask about: the claim identifier is not handed on, so the screen offers no inquiry for it.
+        assertThat(refused.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_CLAIM_ID);
 
         // An inquiry that timed out changed nothing on the far side, so it carries no such warning.
         RunEnvelope<PasDetail> inquiry = service(stub(TestExchanges.timeout(EpaOperation.PAS_INQUIRE)), "live", Map.of(), Map.of())

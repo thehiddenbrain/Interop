@@ -432,8 +432,12 @@ public final class PasVerdicts {
                             + " This is a finding about the environment, not about the member or the code.", carry);
         }
         if (exchange.reached() == Reached.NO) {
+            // No claim identifier is handed on: the payer never received this one, so there is nothing to ask its status about,
+            // and the screen offers the inquiry only for a submission whose step hands one on.
+            Map<String, List<String>> unsent = new LinkedHashMap<>(carry);
+            unsent.remove(NextStepView.CARRY_CLAIM_ID);
             return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                    "Nothing was submitted, because the request did not reach the payer. It is safe to send the same request again.", carry);
+                    "Nothing was submitted, because the request did not reach the payer. It is safe to send the same request again.", unsent);
         }
         return new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then choose Send inquiry before sending again.",
                 "The payer may have received the submission and acted on it. Ask for its status with Send inquiry first: sending it "

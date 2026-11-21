@@ -66,7 +66,10 @@ class PasReadoutFrontendTest {
 
     /**
      * A submission that did not reach the service offers no inquiry, on live as on mock: nothing was
-     * submitted. Run with Node, so narrowing the condition to played faults again turns this red.
+     * submitted, and the server's step hands on no claim identifier for it. One whose connection broke
+     * after it opened is UNREACHABLE too, may have arrived, and keeps the way to the inquiry. Run with
+     * Node, so a condition that drops the way for every UNREACHABLE, or only for a played one, turns
+     * this red.
      */
     @Test
     void aSubmissionThatDidNotReachTheServiceOffersNoInquiryPlayedOrLiveWhenNodeRunsIt() throws IOException, InterruptedException {
@@ -76,9 +79,11 @@ class PasReadoutFrontendTest {
                 .replaceFirst("^export ", "") + "\n}";
         String check = "{action: 'CHECK_ENVIRONMENT'}";
         String cases = String.join(",\n",
-                // Unreached, live and played: no inquiry.
+                // Cannot have reached the service, live and played: the server hands on no claim identifier, so no inquiry.
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", false]",
+                "[{operation: 'PAS_SUBMIT', answeredBy: 'SCENARIO', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", false]",
+                // The connection broke after it opened, live and played: UNREACHABLE, may have arrived, the claim is handed on.
                 "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
-                "[{operation: 'PAS_SUBMIT', profile: 'live', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
                 "[{operation: 'PAS_SUBMIT', answeredBy: 'SCENARIO', verdict: {outcomeCode: 'UNREACHABLE'}}, " + check + ", true]",
                 // A failure or a timeout, live and played: the submission may have arrived, so the inquiry is offered.
                 "[{operation: 'PAS_SUBMIT', answeredBy: 'SERVICE', verdict: {outcomeCode: 'SERVICE_ERROR'}}, " + check + ", true]",
@@ -93,7 +98,7 @@ class PasReadoutFrontendTest {
         assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
         String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
         assertThat(process.exitValue()).as(out).isZero();
-        assertThat(out).isEqualTo("[false,false,false,true,true,false,false,false,true]");
+        assertThat(out).isEqualTo("[false,false,true,true,true,true,false,false,false,true]");
     }
 
     @Test
