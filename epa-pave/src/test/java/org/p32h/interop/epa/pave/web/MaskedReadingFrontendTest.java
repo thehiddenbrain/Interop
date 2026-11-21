@@ -72,6 +72,15 @@ class MaskedReadingFrontendTest {
     }
 
     @Test
+    void theDtrLineOfWhatIsStillToDoRepeatsItBecauseAStepScrollsPastTheVerdict() throws IOException {
+        String source = read("js/dtr-questionnaire.js");
+        assertThat(source).contains("import {maskedReading} from './result.js';");
+        String still = CaseCodesFrontendTest.body(source, "function nextStepLine() {");
+        int line = still.indexOf("verdict ? maskedReading(verdict.maskedReading) : null,");
+        assertThat(line).isPositive().isLessThan(still.indexOf("'Still to do, as the latest result says: '"));
+    }
+
+    @Test
     void aNextStepMarkedAsRestingOnTheMaskIsStillKnownForTheErrorPanelsOwnAction() throws IOException {
         assertThat(read("js/result.js")).contains("step.headline.endsWith(': ' + error.action.replace(/^Next: /, ''))");
     }
