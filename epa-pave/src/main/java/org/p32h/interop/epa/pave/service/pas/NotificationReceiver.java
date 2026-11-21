@@ -486,12 +486,15 @@ public class NotificationReceiver {
                     .correlatedRunId(read.links().submissionRunId()).claimId(read.claimId())
                     .claimResponseId(reading.identifiers().claimResponseId()).correlationNotes(read.links().notes()).findings(read.findings())
                     .additionalFields(reading.additionalFields());
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError e) {
             // This tool failed to read what arrived. It still arrived: it gets its line, and the
-            // payload is still kept for the screen. The exception types and frames only are logged,
-            // never its message, which can quote the payload.
+            // payload is still kept for the screen. A LinkageError is caught too: a class missing
+            // from the build would otherwise lose the notification and its line, and name its cause
+            // only in a log the tester may never see. The exception types and frames only are
+            // logged, with no message beyond what Faults.cause allows: a message can quote the payload.
             String reference = UUID.randomUUID().toString();
             log.error("The receiver failed while reading a notification, reference {}: {}", reference, Faults.describe(e));
+            view.fault(reference, Faults.cause(e));
             outcome = RunOutcome.TOOL_ERROR;
             draft.outcome(outcome).coverageCodes(List.of()).correlation(Map.of()).findings(List.of()).nextAction(NextAction.REVIEW);
             view.verdict(VerdictView.of(outcome, "Something arrived at the receiver, and this tool then failed while reading it.",

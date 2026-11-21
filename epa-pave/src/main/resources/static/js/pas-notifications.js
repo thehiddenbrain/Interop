@@ -14,7 +14,7 @@
 // gives are shown with its own note, so a short list is never taken to mean nothing arrived.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading, when, whenText, count} from './dom.js';
+import {el, fill, clear, button, code, facts, table, heading, when, whenText, count, faultReport, withoutReference} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
 import {outcome, mockMark} from './marks.js';
 import {additionalFieldsTable, issuesTable} from './result.js';
@@ -300,6 +300,7 @@ export function createNotifications(spec) {
             '. ',
             item.correlatedRunId ? ['About the submission ', runLink(item.correlatedRunId), item.claimId ? [' (claim ', code(item.claimId), ')'] : null, '.'] : null);
         const supporting = verdict.supporting || [];
+        const fault = {reference: item.faultReference, cause: item.faultCause};
         const more = el('details', {class: 'fold pas-note__more'},
             el('summary', null, 'Everything in this notification', el('span', {class: 'quiet'}, count(item.bytesReceived) + ' bytes received')));
         let drawn = false;
@@ -311,7 +312,9 @@ export function createNotifications(spec) {
         });
         const opened = el('div', {class: 'pas-note__open', id: openId, hidden: true},
             el('p', {class: 'pas-note__headline'}, verdict.headline),
-            supporting.length > 0 ? el('ul', {class: 'note-list small'}, supporting.map(text => el('li', null, text))) : null,
+            supporting.length > 0 ? el('ul', {class: 'note-list small'}, supporting.map(text => el('li', null, withoutReference(text, fault)))) : null,
+            // A failure of this tool while reading: its cause beside the reference, as the server log names it, and one copy of both.
+            faultReport(fault),
             links,
             el('div', {class: 'pas-note__next'},
                 el('p', null, el('strong', null, step.headline || 'No next step was stated.')),

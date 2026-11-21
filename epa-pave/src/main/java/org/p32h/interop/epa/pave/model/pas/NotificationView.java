@@ -54,6 +54,12 @@ import java.util.List;
  * @param ledger             what the ledger did with the notification's line
  * @param errorsPresence     what the notification held for its errors: not returned, null, empty or a
  *                           value, which the list of errors alone cannot say
+ * @param faultReference     when this tool failed while reading what arrived, the reference its log
+ *                           entry carries. Null otherwise
+ * @param faultCause         with that reference, the first line of the log entry: the chain of
+ *                           exception types and the detail {@code Faults.cause} allows, shown beside
+ *                           the reference because the server log can be on a machine the tester
+ *                           never looks at. Held here only: the ledger line never carries either
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record NotificationView(
@@ -92,7 +98,9 @@ public record NotificationView(
         List<String> payloadNotes,
         List<AdditionalField> additionalFields,
         LedgerReceipt ledger,
-        Presence errorsPresence) {
+        Presence errorsPresence,
+        String faultReference,
+        String faultCause) {
 
     public NotificationView {
         events = events == null ? List.of() : List.copyOf(events);
@@ -153,6 +161,8 @@ public record NotificationView(
         private List<AdditionalField> additionalFields = List.of();
         private LedgerReceipt ledger;
         private Presence errorsPresence;
+        private String faultReference;
+        private String faultCause;
 
         private Builder() {
         }
@@ -332,6 +342,13 @@ public record NotificationView(
             return this;
         }
 
+        /** A failure of this tool while reading, with the cause its log entry names. */
+        public Builder fault(String reference, String cause) {
+            this.faultReference = reference;
+            this.faultCause = cause;
+            return this;
+        }
+
         public Builder ledger(LedgerReceipt value) {
             this.ledger = value;
             return this;
@@ -345,7 +362,8 @@ public record NotificationView(
             return new NotificationView(id, receivedAt, sample, scenarioId, verdict, nextStep, kind, type, subscriptionStatus, subscription,
                     subscriptionId, topic, eventsSinceSubscriptionStart, events, errors, payloadContent, bundleType, bundleId, bundleTimestamp,
                     claimResponses, otherResources, issues, subscriptionRunId, correlatedRunId, claimId, claimResponseId, correlationNotes,
-                    findings, payload, bytesReceived, bytesKept, truncated, payloadNotes, additionalFields, ledger, errorsPresence);
+                    findings, payload, bytesReceived, bytesKept, truncated, payloadNotes, additionalFields, ledger, errorsPresence,
+                    faultReference, faultCause);
         }
     }
 }

@@ -845,7 +845,58 @@ class NotificationReceiverTest {
         // The log holds the exception type under a reference, and nothing of the payload the message quoted.
         assertThat(output.getAll()).contains("java.lang.IllegalStateException").doesNotContain("exploded").doesNotContain(SUBSCRIPTION)
                 .doesNotContain("claimresponse-claim-test-1").doesNotContain("resourceType");
-        assertThat(view.verdict().supporting().get(0)).contains("Report the reference");
+        assertThat(view.verdict().supporting().get(0)).contains("Report the reference " + view.faultReference() + ".");
+        // The cause is the type only: the message quoted the payload.
+        assertThat(view.faultCause()).isEqualTo("java.lang.IllegalStateException");
+        assertThat(output.getAll()).contains("reference " + view.faultReference() + ": java.lang.IllegalStateException" + System.lineSeparator());
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aMissingClassWhileReadingNamesItsCauseOnTheNotificationAndNotOnTheLedgerLine(CapturedOutput output) {
+        String missing = "org/p32h/interop/epa/pave/service/pas/NotificationReading$Status";
+        NotificationReceiver broken = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios, text -> {
+            throw new NoClassDefFoundError(missing);
+        });
+        NotificationView view = broken.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, "claimresponse-claim-test-1")));
+
+        // Still received, recorded and held, as any failure of this tool while reading.
+        assertThat(view.verdict().outcomeCode()).isEqualTo("TOOL_ERROR");
+        assertThat(view.faultReference()).isNotBlank();
+        assertThat(view.faultCause()).isEqualTo("java.lang.NoClassDefFoundError; java.lang.NoClassDefFoundError says: " + missing);
+        assertThat(broken.list(null).notifications()).singleElement()
+                .satisfies(held -> assertThat(held.faultCause()).isEqualTo(view.faultCause()));
+        RunRecord record = ledger.only();
+        assertThat(record.outcome()).isEqualTo("TOOL_ERROR");
+        String line = JsonSafe.mapper().writeValueAsString(record);
+        assertThat(line).doesNotContain(view.faultReference()).doesNotContain("NoClassDefFoundError").doesNotContain(missing);
+        String json = JsonSafe.mapper().writeValueAsString(view);
+        assertThat(json).doesNotContain("\tat ").doesNotContain("    at ");
+        assertThat(output.getAll()).contains("The receiver failed while reading a notification, reference " + view.faultReference() + ": "
+                + view.faultCause() + System.lineSeparator());
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aFailureWhileReadingWhoseMessageQuotesAMemberIdGivesTheTypeOnly(CapturedOutput output) {
+        NotificationReceiver broken = new NotificationReceiver(gateway, support, ledgerProvider(), scenarios, text -> {
+            throw new IllegalArgumentException("no member S123456789 in " + text);
+        });
+        NotificationView view = broken.receive(NotificationReceiver.Inbound.of(idOnly(SUBSCRIPTION, "claimresponse-claim-test-1")));
+        assertThat(view.faultCause()).isEqualTo("java.lang.IllegalArgumentException");
+        // The member ID was in the message only, never in what arrived, so it must be nowhere in the view.
+        assertThat(JsonSafe.mapper().writeValueAsString(view)).doesNotContain("S123456789").doesNotContain("no member");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain("S123456789").doesNotContain("IllegalArgumentException");
+        assertThat(output.getAll()).doesNotContain("S123456789").doesNotContain("no member");
+    }
+
+    @Test
+    void aNotificationReadWithoutAFailureCarriesNoFault() {
+        createSubscription();
+        NotificationView view = receive(bundle(status(SUBSCRIPTION, "heartbeat")));
+        assertThat(view.faultReference()).isNull();
+        assertThat(view.faultCause()).isNull();
+        assertThat(JsonSafe.mapper().writeValueAsString(view)).doesNotContain("faultReference").doesNotContain("faultCause");
     }
 
     @Test

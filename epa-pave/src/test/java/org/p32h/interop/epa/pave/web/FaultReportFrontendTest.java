@@ -63,4 +63,13 @@ class FaultReportFrontendTest {
                 .contains("if (!sentence || !fault || !fault.reference) {");
         assertThat(read("suites.js")).contains("withoutReference(row.reason, rowFault)").contains("faultReport(rowFault)");
     }
+
+    @Test
+    void aNotificationThisToolFailedToReadShowsTheCauseWithTheReference() throws IOException {
+        // The verdict gave "Report the reference <id>." alone, with no cause and no copy button.
+        String notifications = read("pas-notifications.js");
+        assertThat(notifications).contains("const fault = {reference: item.faultReference, cause: item.faultCause};")
+                .contains("supporting.map(text => el('li', null, withoutReference(text, fault)))")
+                .contains("faultReport(fault),");
+    }
 }
