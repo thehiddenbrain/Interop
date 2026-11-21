@@ -262,7 +262,9 @@ public record RunRecord(
      * authorization number or a run id. One token, so neither a sentence nor an address with a
      * query can be one.
      */
-    private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z0-9\\-._:/|]{1,128}");
+    /** The longest identifier this record keeps: a claim id, an authorization number, a part of a questionnaire address. */
+    private static final int LONGEST_IDENTIFIER = 128;
+    private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z0-9\\-._:/|]{1," + LONGEST_IDENTIFIER + "}");
     private static final java.util.regex.Pattern SPACED_IDENTIFIER =
             java.util.regex.Pattern.compile(" *[A-Za-z0-9\\-._:/|]+(?: +[A-Za-z0-9\\-._:/|]+){0,3} *");
     /**
@@ -438,6 +440,16 @@ public record RunRecord(
                 }
             }
             for (String part : parts) {
+                // A path segment is as long as the service makes it, and the pattern took five
+                // seconds on one of five million characters. What it is meant to find is short: a
+                // date of at most 18 characters ("September 30, 2026") or an identifier, which this
+                // record takes to be at most LONGEST_IDENTIFIER characters. A longer part is
+                // neither, and it is not handed to the pattern. It is not a code either, and it
+                // could hold anything, so the address is not recorded, as an address that holds an
+                // identifier is not.
+                if (part.length() > LONGEST_IDENTIFIER) {
+                    return true;
+                }
                 if (!UUID_SHAPE.matcher(part).matches() && IDENTIFIER_OR_DATE.matcher(part).find()) {
                     return true;
                 }
@@ -689,7 +701,7 @@ public record RunRecord(
                 // An authorization number can be written in up to four groups with spaces between
                 // them, as a member ID can, and the ledger keeps it without them. A tab, a line
                 // break or more groups than that is not one identifier.
-                out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= 128
+                out.put(key, SPACED_IDENTIFIER.matcher(value).matches() && MemberIds.noSpace(value).length() <= LONGEST_IDENTIFIER
                         ? value : notKept("not recorded", value));
             } else {
                 out.put(key, IDENTIFIER.matcher(value).matches() && !identifyingPlace(value, sought) ? value : notKept("not recorded", value));
