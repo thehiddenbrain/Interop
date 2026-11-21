@@ -326,12 +326,29 @@ public final class PasVerdicts {
      */
     public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
                                         String runId) {
-        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, operation, followsRunId, runId),
+        NextStepView real = asIfReal(reading, exchange, operation, followsRunId, runId);
+        NextStepView step = PlayedFaults.rehearsed(exchange, reading.outcome(), real,
                 operation.write()
                         ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
                         + "sending it again. Sending it again without checking could create a second request."
                         : PlayedFaults.aboutTheEnvironment("the member or the code"));
+        // After a played fault that a real service could have received, there are two ways on: another case, or the inquiry
+        // rehearsed. They are said in one line, in that order, so the screen does not offer two next steps side by side. A played
+        // unreachable service received nothing, and a submission with no claim identifier has nothing to ask about.
+        if (PlayedFaults.played(exchange, reading.outcome()) && operation.write() && real.action() == NextAction.CHECK_ENVIRONMENT
+                && reading.outcome() != PasOutcome.UNREACHABLE && !real.carry().getOrDefault(NextStepView.CARRY_CLAIM_ID, List.of()).isEmpty()) {
+            String why = exchange.playedTimeout()
+                    ? "Had this been a real service, the payer might have received the submission, and sending it again without checking "
+                    + "could create a second request. " + PICK_ANOTHER_OR_INQUIRE + "Send inquiry would check whether the payer has it."
+                    : "On mock a scenario played this answer, to show how this tool reads it; the line under the verdict names it. "
+                    + PICK_ANOTHER_OR_INQUIRE + "had this been a real service, Send inquiry would check whether the payer has the submission.";
+            step = new NextStepView(step.action(), step.headline(), why, step.carry(), step.carryLabels());
+        }
+        return step;
     }
+
+    /** The start of the one sentence that gives both ways on after a played fault a real service could have received. */
+    static final String PICK_ANOTHER_OR_INQUIRE = "Pick another case to go on, or rehearse the inquiry: ";
 
     /** The next step as it would be after a real service gave this answer. */
     private static NextStepView asIfReal(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,

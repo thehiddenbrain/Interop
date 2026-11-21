@@ -80,12 +80,35 @@ class PlayedFaultNextStepTest {
             String headline = answer.at("/nextStep/headline").asString();
             String reason = answer.at("/nextStep/reason").asString();
             assertThat(headline).as(played[1]).startsWith(REHEARSAL);
-            assertThat(reason).as(played[1]).contains("Pick another case to go on.").doesNotContain(played[2]);
+            assertThat(reason).as(played[1]).contains("Pick another case to go on").doesNotContain(played[2]);
             assertThat(answer.at("/nextStep/action").asString()).as(played[1]).isEqualTo(played[3]);
             assertThat(supporting(answer)).as(played[1]).doesNotContain(CONNECTION_LINE);
             // The line that names the scenario is still the first under the verdict, which the reason points to.
             assertThat(supporting(answer).get(0)).as(played[1]).contains(played[2]);
         }
+    }
+
+    /**
+     * After a played PAS fault a real service could have received, the two ways on are one line:
+     * another case first, then the inquiry rehearsed. A played unreachable service received
+     * nothing and offers no inquiry.
+     */
+    @Test
+    void aPlayedPasFaultGivesBothWaysOnInOneLineInOrder() throws Exception {
+        String failed = post("/api/pas/submit", "P32H-PAS-ERR500").at("/nextStep/reason").asString();
+        assertThat(failed).isEqualTo("On mock a scenario played this answer, to show how this tool reads it; the line under the verdict names "
+                + "it. Pick another case to go on, or rehearse the inquiry: had this been a real service, Send inquiry would check whether "
+                + "the payer has the submission.");
+        String timedOut = post("/api/pas/submit", "P32H-PAS-TIMEOUT").at("/nextStep/reason").asString();
+        assertThat(timedOut).isEqualTo("Had this been a real service, the payer might have received the submission, and sending it again "
+                + "without checking could create a second request. Pick another case to go on, or rehearse the inquiry: Send inquiry would "
+                + "check whether the payer has it.");
+        for (String reason : List.of(failed, timedOut)) {
+            assertThat(reason.split("Pick another case", -1)).hasSize(2);
+            assertThat(reason.split("Send inquiry", -1)).hasSize(2);
+        }
+        assertThat(post("/api/pas/submit", "P32H-PAS-DOWN").at("/nextStep/reason").asString()).doesNotContain("inquiry")
+                .endsWith("Pick another case to go on.");
     }
 
     @Test

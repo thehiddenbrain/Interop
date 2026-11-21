@@ -827,14 +827,20 @@ function showRun(envelope) {
     // On mock the fault was played: the way to the inquiry is said as part of the rehearsal, as the step above it is.
     const played = envelope.answeredBy === 'SCENARIO';
     if (row && offersInquiryWay(envelope, step, hasClaim)) {
-        row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
-            played ? 'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '
-                + 'claim identifier of this submission, to rehearse it. '
-                : 'Send inquiry, in the form, is already filled with the claim identifier of this submission. ',
-            button('Choose Send inquiry', () => {
-                showMode('inquire');
-                controls.inquiryClaimId.input.focus();
-            }, {class: 'button--text'})));
+        const choose = button('Choose Send inquiry', () => {
+            showMode('inquire');
+            controls.inquiryClaimId.input.focus();
+        }, {class: 'button--text'});
+        // On mock the server's reason already gives both ways on in one line, the inquiry second, so the way to it ends that line.
+        const reason = played ? row.closest('.nextstep').querySelector('.nextstep__reason') : null;
+        if (reason) {
+            reason.append(' It is filled in the form with the claim identifier of this submission. ', choose);
+        } else {
+            row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
+                played ? 'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '
+                    + 'claim identifier of this submission, to rehearse it. '
+                    : 'Send inquiry, in the form, is already filled with the claim identifier of this submission. ', choose));
+        }
     }
     drawFollowing();
     markOther();
