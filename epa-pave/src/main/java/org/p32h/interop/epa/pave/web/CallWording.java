@@ -123,6 +123,6 @@ final class CallWording {
         } else if (action != null && call != Call.SEND) {
             action = action.replace("Nothing was sent. ", "").replace("send again", call.again());
         }
-        return new ErrorView(view.kind(), title, action, view.httpStatus(), view.fieldErrors(), view.issues(), view.reference(), view.heading());
+        return new ErrorView(view.kind(), title, action, view.httpStatus(), view.fieldErrors(), view.issues(), view.reference(), view.heading(), view.cause());
     }
 }

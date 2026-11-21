@@ -355,18 +355,19 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Anything else is a defect in this tool. The browser gets a reference and no detail. The log
-     * gets the same reference with the exception types and stack frames, but not the exception
-     * messages: a message can quote a request or response body, and those hold member data.
+     * Anything else is a defect in this tool. The browser gets a reference and the cause on one
+     * line, the same line the log entry begins with, so that whoever meets the failure can report
+     * it without the server log. The log adds the stack frames, which never reach the browser.
+     * Neither gets an exception message beyond what {@link Faults#cause} allows: a message can
+     * quote a request or response body, and those hold member data.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorView> unexpected(Exception e) {
         String reference = UUID.randomUUID().toString();
         log.error("Unhandled exception, reference {}: {}", reference, describe(e));
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.INTERNAL,
-                "This tool hit an internal error and could not complete the request.",
-                "Report the reference below with what you were doing. The server log holds the detail under the same reference.")
-                .withReference(reference));
+                "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION)
+                .withReference(reference).withCause(Faults.cause(e)));
     }
 
     /** Exception types and the top frames of each, with no messages. */

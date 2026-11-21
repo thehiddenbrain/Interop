@@ -64,7 +64,11 @@ class ResponseHeadersFilterTest {
             assertThat(body.get("title").stringValue()).isEqualTo("This tool hit an internal error and could not complete the request.");
             String reference = body.get("reference").stringValue();
             assertThat(reference).isNotBlank();
-            assertThat(response.getContentAsString()).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("Exception");
+            // The cause is named by type, as the first line of the log entry names it, and by no message:
+            // these exceptions are not among those whose message may be given.
+            assertThat(body.get("cause").stringValue()).isEqualTo(thrown.getClass().getName());
+            assertThat(response.getContentAsString()).doesNotContain("S123456789").doesNotContain("Zzlastname").doesNotContain("\tat ")
+                    .doesNotContain("    at ");
             // The answer is a new one: what the handler had set for its own answer is gone, and the five headers are back.
             assertThat(response.getHeader("Content-Disposition")).isNull();
             assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");

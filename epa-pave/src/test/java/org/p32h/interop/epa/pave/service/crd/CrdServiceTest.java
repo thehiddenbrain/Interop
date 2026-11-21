@@ -774,6 +774,11 @@ class CrdServiceTest {
         assertThat(result.error().reference()).isNotBlank();
         // The exception's own message is never shown: it can quote a body.
         assertThat(result.error().title() + result.error().action() + result.verdict().headline()).doesNotContain("code list exploded");
+        // The cause is named on screen by type, without the message, and the ledger never gets it:
+        // the ledger line is about the run, and a cause is about this tool.
+        assertThat(result.error().cause()).contains("java.lang.IllegalStateException").doesNotContain("code list exploded");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain("IllegalStateException")
+                .doesNotContain(result.error().cause());
         assertThat(result.wire().request().body()).contains("\"hook\"");
         assertThat(result.wire().response().body()).contains("\"no-auth\"");
         assertThat(result.wire().response().status()).isEqualTo(200);

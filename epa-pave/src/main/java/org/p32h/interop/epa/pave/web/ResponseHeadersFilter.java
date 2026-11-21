@@ -90,12 +90,12 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
                 return;
             }
             String reference = UUID.randomUUID().toString();
-            // Exception types and frames under a reference, never a message: a message can quote the request.
+            // Exception types and frames under a reference, never a message beyond what Faults.cause
+            // allows: a message can quote the request. The browser gets the first line, without frames.
             log.error("Unhandled exception at the edge, reference {}: {}", reference, Faults.describe(e));
             EdgeAnswers.write(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorKind.INTERNAL,
-                    "This tool hit an internal error and could not complete the request.",
-                    "Report the reference below with what you were doing. The server log holds the detail under the same reference.",
-                    reference);
+                    "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION, reference,
+                    Faults.cause(e));
         }
     }
 

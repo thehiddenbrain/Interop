@@ -25,11 +25,19 @@ final class EdgeAnswers {
 
     /** The shared shape as JSON. {@code reference} may be null. */
     static String json(ErrorKind kind, String title, String action, String reference) {
+        return json(kind, title, action, reference, null);
+    }
+
+    /** The shared shape as JSON, with the cause of a failure of this tool. {@code reference} and {@code cause} may be null. */
+    static String json(ErrorKind kind, String title, String action, String reference, String cause) {
         StringBuilder out = new StringBuilder("{\"kind\":\"").append(kind.name()).append("\",\"title\":");
         quote(out, title).append(",\"action\":");
         quote(out, action).append(",\"fieldErrors\":[],\"issues\":[]");
         if (reference != null) {
             quote(out.append(",\"reference\":"), reference);
+        }
+        if (cause != null) {
+            quote(out.append(",\"cause\":"), cause);
         }
         return out.append('}').toString();
     }
@@ -40,6 +48,12 @@ final class EdgeAnswers {
      */
     static void write(HttpServletResponse response, int status, ErrorKind kind, String title, String action, String reference)
             throws IOException {
+        write(response, status, kind, title, action, reference, null);
+    }
+
+    /** As {@link #write(HttpServletResponse, int, ErrorKind, String, String, String)}, with the cause of a failure of this tool. */
+    static void write(HttpServletResponse response, int status, ErrorKind kind, String title, String action, String reference,
+                      String cause) throws IOException {
         if (response.isCommitted()) {
             return;
         }
@@ -48,7 +62,7 @@ final class EdgeAnswers {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getWriter().write(json(kind, title, action, reference));
+        response.getWriter().write(json(kind, title, action, reference, cause));
         response.flushBuffer();
     }
 

@@ -18,10 +18,15 @@ import java.util.List;
  *                    kind, so that the page words nothing of its own: by default the kind's own
  *                    heading ({@link #headingOf}), and a heading of its own where the kind alone
  *                    would say something untrue, such as a timeout a mock scenario played
+ * @param cause       for a failure of this tool only, the chain of exception types on one line as
+ *                    the server log names it under the reference, with a detail only where the
+ *                    Java runtime wrote it about the program ({@code Faults.cause}). Never a
+ *                    stack frame. It lets the person who meets the failure report its cause
+ *                    without the server log, which may be on a machine they do not look at
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ErrorView(ErrorKind kind, String title, String action, Integer httpStatus, List<FieldError> fieldErrors,
-                        List<IssueView> issues, String reference, String heading) {
+                        List<IssueView> issues, String reference, String heading, String cause) {
 
     public ErrorView {
         fieldErrors = fieldErrors == null ? List.of() : List.copyOf(fieldErrors);
@@ -29,10 +34,16 @@ public record ErrorView(ErrorKind kind, String title, String action, Integer htt
         heading = Texts.present(heading) ? heading : headingOf(kind);
     }
 
+    /** An error with no cause named, which is every error but a failure of this tool. */
+    public ErrorView(ErrorKind kind, String title, String action, Integer httpStatus, List<FieldError> fieldErrors,
+                     List<IssueView> issues, String reference, String heading) {
+        this(kind, title, action, httpStatus, fieldErrors, issues, reference, heading, null);
+    }
+
     /** An error headed as its kind is. */
     public ErrorView(ErrorKind kind, String title, String action, Integer httpStatus, List<FieldError> fieldErrors,
                      List<IssueView> issues, String reference) {
-        this(kind, title, action, httpStatus, fieldErrors, issues, reference, null);
+        this(kind, title, action, httpStatus, fieldErrors, issues, reference, null, null);
     }
 
     /** The heading of an error of this kind. Null for no kind, which the page then names by its absence. */
@@ -63,19 +74,23 @@ public record ErrorView(ErrorKind kind, String title, String action, Integer htt
     }
 
     public ErrorView withHttpStatus(Integer status) {
-        return new ErrorView(kind, title, action, status, fieldErrors, issues, reference, heading);
+        return new ErrorView(kind, title, action, status, fieldErrors, issues, reference, heading, cause);
     }
 
     public ErrorView withIssues(List<IssueView> newIssues) {
-        return new ErrorView(kind, title, action, httpStatus, fieldErrors, newIssues, reference, heading);
+        return new ErrorView(kind, title, action, httpStatus, fieldErrors, newIssues, reference, heading, cause);
     }
 
     public ErrorView withReference(String newReference) {
-        return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, newReference, heading);
+        return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, newReference, heading, cause);
     }
 
     public ErrorView withHeading(String newHeading) {
-        return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, reference, newHeading);
+        return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, reference, newHeading, cause);
+    }
+
+    public ErrorView withCause(String newCause) {
+        return new ErrorView(kind, title, action, httpStatus, fieldErrors, issues, reference, heading, newCause);
     }
 
     /** Prints the kind and the status. The issues are a response's text, and a field error can quote what was typed. */

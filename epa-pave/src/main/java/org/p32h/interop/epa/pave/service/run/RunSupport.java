@@ -389,9 +389,8 @@ public class RunSupport {
                 .additionalFields(exchange.bodyFields())
                 .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
                 .error(ErrorView.of(ErrorKind.INTERNAL, "This tool hit an internal error after the service had been called.",
-                                "Report the reference below with what you were doing. The server log holds the detail under the same "
-                                        + "reference. The request was sent: do not assume it had no effect.")
-                        .withReference(reference).withHttpStatus(exchange.httpStatus()))
+                                Faults.REPORT_ACTION + " The request was sent: do not assume it had no effect.")
+                        .withReference(reference).withCause(Faults.cause(error)).withHttpStatus(exchange.httpStatus()))
                 .ledger(receipt)
                 .timing(timing(exchange))
                 .build();
@@ -553,17 +552,17 @@ public class RunSupport {
                     ? "From a real service this status would mean the credentials were not accepted, or none were sent."
                     : code == 404 ? "From a real service this status would usually mean the url or the service id is wrong."
                     : "From a real service, read the issues it returned and correct the request."), view.httpStatus(), view.fieldErrors(),
-                    view.issues(), view.reference(), PLAYED_REJECTION_HEADING);
+                    view.issues(), view.reference(), PLAYED_REJECTION_HEADING, view.cause());
             case SERVER_ERROR -> new ErrorView(view.kind(), view.title(), nothingLeft + "From a real service it would be a fault in the "
                     + "environment, to report with the time and the run id.", view.httpStatus(), view.fieldErrors(), view.issues(),
-                    view.reference(), PLAYED_FAILURE_HEADING);
+                    view.reference(), PLAYED_FAILURE_HEADING, view.cause());
             case UNAVAILABLE -> new ErrorView(view.kind(), view.title(), nothingLeft + "With a real service, check the url on the Config "
                     + "tab, the network and any proxy or trust store settings.", view.httpStatus(), view.fieldErrors(), view.issues(),
-                    view.reference(), PLAYED_UNREACHABLE_HEADING);
+                    view.reference(), PLAYED_UNREACHABLE_HEADING, view.cause());
             case MALFORMED_RESPONSE -> new ErrorView(view.kind(), view.title(), nothingLeft + (exchange.responseBody() == null
                     ? "From a real service, a success with nothing in it would be a defect in the service to report."
                     : "The body is shown " + asReceived(exchange) + ". From a real service it would be a defect in the service to report."),
-                    view.httpStatus(), view.fieldErrors(), view.issues(), view.reference(), PLAYED_UNREADABLE_HEADING);
+                    view.httpStatus(), view.fieldErrors(), view.issues(), view.reference(), PLAYED_UNREADABLE_HEADING, view.cause());
             default -> view;
         };
     }

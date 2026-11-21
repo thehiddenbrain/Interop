@@ -260,8 +260,10 @@ class ApiExceptionHandlerTest {
         String body = mvc.perform(get("/throw/boom")).andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.kind").value("INTERNAL"))
                 .andExpect(jsonPath("$.reference").isNotEmpty())
+                // The cause is named by type so it can be reported without the server log; its message is not given.
+                .andExpect(jsonPath("$.cause").value("java.lang.IllegalStateException"))
                 .andReturn().getResponse().getContentAsString();
-        assertThat(body).doesNotContain("Placeholder-Surname").doesNotContain("1970-01-01").doesNotContain("IllegalStateException")
+        assertThat(body).doesNotContain("Placeholder-Surname").doesNotContain("1970-01-01")
                 .doesNotContain("at org.p32h").doesNotContain(".java:");
         // What was actually logged: the reference the browser was given, the exception type, and
         // nothing of the exception's own message, which here stands for member data.
