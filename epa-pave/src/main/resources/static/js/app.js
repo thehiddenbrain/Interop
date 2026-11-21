@@ -10,6 +10,7 @@ import {createCaseContext} from './case-context.js';
 import {createChain} from './chain.js';
 import {openLegend} from './legend.js';
 import {useServerWords} from './result.js';
+import {withoutMasks} from './masks.js';
 import crdTab from './tab-crd.js';
 import dtrTab from './tab-dtr.js';
 import pasTab from './tab-pas.js';
@@ -51,7 +52,9 @@ const app = {
     navigate,
     /** Leaves something for a tab to pick up when it is next shown: the hand-over between steps. */
     carryTo(tabId, payload) {
-        state.carried.set(tabId, payload);
+        // A value that holds a mask is never handed on. It is kept apart, as masked, so the tab that takes the hand-over says which and why.
+        const split = withoutMasks(payload ? payload.carry : null);
+        state.carried.set(tabId, payload ? {...payload, carry: split.carry, masked: split.masked} : payload);
     },
     /** What was carried to a tab, or null. It stays until the next hand-over replaces it or a new case starts. */
     carriedTo(tabId) {
