@@ -261,6 +261,13 @@ code, pre, .literal {
     vertical-align: top;
 }
 
+/* In the sentence of the unlock panel the name is read and copied whole, so it only wraps there. */
+.environment-name--inline {
+    display: inline;
+    max-height: none;
+    overflow: visible;
+}
+
 /* The ledger indicator leads to the History tab, where the ledger's state is set out in full. */
 .strip-item__link {
     text-decoration-color: var(--line);

@@ -76,5 +76,10 @@ class LongNamesFrontendTest {
                 .contains("max-width: 100%;");
         String item = css.substring(css.indexOf(".strip-item--environment {"), css.indexOf("}", css.indexOf(".strip-item--environment {")));
         assertThat(item).contains("white-space: normal;");
+        // The unlock panel gives the name whole in its sentence; there it wraps, or a long one made the page a million pixels wide.
+        assertThat(read("config-writes.js")).contains("'To send a write to ', el('strong', {class: 'environment-name environment-name--inline'}, environment.name)");
+        String inline = css.substring(css.indexOf(".environment-name--inline {"), css.indexOf("}", css.indexOf(".environment-name--inline {")));
+        assertThat(inline).contains("display: inline;").contains("overflow: visible;");
+        assertThat(css.indexOf(".environment-name--inline {")).isGreaterThan(css.indexOf(".environment-name {"));
     }
 }
