@@ -235,7 +235,8 @@ class OnyxTokenServiceTest {
 
         // No absolute address: the setting is named, never its value, and nothing is sent.
         server.reset();
-        for (String notAbsolute : new String[] {"auth-placeholder/oauth2/token", "/oauth2/token", "ftp://auth.example.invalid/t", "http:// x"}) {
+        for (String notAbsolute : new String[] {"auth-placeholder/oauth2/token", "/oauth2/token", "ftp://auth.example.invalid/t", "http:// x",
+                "http://127.0.0.1:99999/oauth2/token", "https://auth.example.invalid:0/t"}) {
             gateway.variable("tokenUrl", notAbsolute);
             OnyxTokenService.TokenResult result = service(enabled()).token();
             assertThat(result.failure()).as(notAbsolute).isEqualTo("Authentication is switched on but onyx.auth.token-url, as configured, is "

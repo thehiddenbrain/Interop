@@ -206,7 +206,7 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         return new TokenResult(grant.accessToken(), null, null);
     }
 
-    /** True for an absolute http or https url with a host; false for anything else, a text that is no url at all included. */
+    /** True for an absolute http or https url with a host and a usable port; false for anything else, a text that is no url at all included. */
     static boolean absoluteHttpAddress(String url) {
         java.net.URI uri;
         try {
@@ -215,7 +215,11 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             return false;
         }
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
-        return uri.isAbsolute() && (scheme.equals("http") || scheme.equals("https")) && Texts.present(uri.getHost());
+        // A port outside the range a connection can use parses, and the client then fails in a way this tool cannot place, which
+        // would be said of the endpoint; it is the address as configured that cannot be used.
+        int port = uri.getPort();
+        boolean usablePort = port == -1 || (port >= 1 && port <= 65535);
+        return uri.isAbsolute() && (scheme.equals("http") || scheme.equals("https")) && Texts.present(uri.getHost()) && usablePort;
     }
 
     /**
