@@ -51,6 +51,7 @@ class LongNamesInAnUploadTest {
     private static final String ENVIRONMENT = "N".repeat(LONG) + " prod";
     private static final String PRODUCTION = "P".repeat(LONG);
     private static final String URL_VARIABLE = "U".repeat(LONG) + "_url";
+    private static final String PLACEHOLDER = "H".repeat(LONG);
 
     /** The longest sentence any of these may give: the longest the tool writes about a short name is under 900. */
     private static final int LONGEST_SENTENCE = 2_000;
@@ -227,6 +228,40 @@ class LongNamesInAnUploadTest {
                 + "\" is a production environment"));
         onlyLabelsAreLong(effective, Set.of(PRODUCTION, REQUEST, OTHER_REQUEST, COLLECTION, FOLDER));
         onlyLabelsAreLong(fixture.service.environments(), Set.of(ENVIRONMENT, URL_VARIABLE, PRODUCTION));
+    }
+
+    /**
+     * A placeholder's name is the file's too: a url and a header that need a value for one of a
+     * million characters once gave two notes of "In force now" a million characters each.
+     */
+    @Test
+    void theSentencesOfWhatIsInForceQuoteALongPlaceholderByItsStartAndItsLength() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.service.uploadEnvironment("sandbox.json", environment("Sandbox", "baseUrl", "https://pas.example.invalid/fhir"),
+                EnvironmentKind.SANDBOX, true);
+        fixture.store.activate("Sandbox");
+        ObjectNode root = JsonSafe.mapper().createObjectNode();
+        root.putObject("info").put("name", "Placeholders").put("schema",
+                "https://schema.getpostman.com/json/collection/v2.1.0/collection.json");
+        ObjectNode item = root.putArray("item").addObject();
+        item.put("name", "PAS submit");
+        ObjectNode request = item.putObject("request");
+        request.put("method", "POST");
+        request.putArray("header").addObject().put("key", "X-Tenant").put("value", "{{" + PLACEHOLDER + "}}");
+        request.putObject("url").put("raw", "{{baseUrl}}/{{" + PLACEHOLDER + "}}/Claim/$submit");
+        request.putObject("body").put("mode", "raw").put("raw", "{\"resourceType\": \"Bundle\"}");
+        fixture.service.uploadCollection("placeholders.json", JsonSafe.mapper().writeValueAsString(root).getBytes(StandardCharsets.UTF_8));
+
+        ConfigViews.Effective effective = fixture.service.effective(null);
+        String braced = "{{" + shown(PLACEHOLDER, 'H') + "}}";
+        assertThat(effective.operations()).anySatisfy(row -> assertThat(row.note()).startsWith("The url still needs a value for "
+                + braced + ", the header X-Tenant still needs a value for " + braced + ", and the active environment is \"Sandbox\".")
+                .contains(" Give " + braced + " a value in an environment on the Config tab"));
+        // The list of what is missing keeps each name whole: it is the label a value is given against.
+        assertThat(effective.operations()).filteredOn(row -> row.target() != null).singleElement()
+                .satisfies(row -> assertThat(row.target().unresolved()).containsExactly(PLACEHOLDER));
+        String url = "https://pas.example.invalid/fhir/{{" + PLACEHOLDER + "}}/Claim/$submit";
+        onlyLabelsAreLong(effective, Set.of(PLACEHOLDER, url, "{{baseUrl}}/{{" + PLACEHOLDER + "}}/Claim/$submit", "{{" + PLACEHOLDER + "}}"));
     }
 
     @Test

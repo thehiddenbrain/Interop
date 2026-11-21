@@ -597,8 +597,12 @@ public class ConfigService {
                 + "refused here too." + whereToGive(names);
     }
 
+    /**
+     * Placeholders as a sentence names them. A placeholder's name is the file's, of any length, so
+     * each is held to {@link Names#shown(String)}; the target's list of them keeps each whole.
+     */
     private static String braced(List<String> names) {
-        return String.join(", ", names.stream().map(name -> "{{" + name + "}}").toList());
+        return String.join(", ", names.stream().map(name -> "{{" + Names.shown(name) + "}}").toList());
     }
 
     private static TargetView target(CallPlan plan) {
