@@ -871,6 +871,16 @@ class CrdServiceTest {
     }
 
     @Test
+    void aBodyNestedPastTheParsersLimitIsSentAsWrittenAndTheNoteGivesThatReasonNotInvalidJson() {
+        String deep = "{\"hook\": \"order-sign\", \"x\": " + "[".repeat(500) + "]".repeat(500) + "}";
+        RunEnvelope<CrdDetail> result = service().run(CrdRunRequest.builder().rawBody(deep).build(), RunOrigin.manual(), null);
+        assertThat(result.wire().request().body()).isEqualTo(deep);
+        assertThat(result.detail().requestNotes()).singleElement().isEqualTo("The body you supplied cannot be read as JSON once its "
+                + "placeholders are filled in. It was sent exactly as written. The body nests its objects and lists deeper than the 500 "
+                + "levels this tool reads: the level past that limit opens at line 1, column 528. It was not read.");
+    }
+
+    @Test
     void onMockABodyThatIsNotJsonOffersNoNextStepFromTheScenarioThatAnsweredItAndOnLiveTheAnswerDecides() {
         // Case CASE-06: the sentinel in the text chose a scenario that requires prior authorization. That answer says nothing
         // about a body no service could read, so PAS is not offered from it and nothing is handed on.
@@ -879,8 +889,8 @@ class CrdServiceTest {
         assertThat(onMock.verdict().outcomeCode()).isEqualTo("AUTH_REQUIRED");
         assertThat(onMock.nextStep().action()).isEqualTo(NextAction.REVIEW);
         assertThat(onMock.nextStep().headline()).isEqualTo("Next: correct the body and send it again. Nothing is handed on from this answer.");
-        assertThat(onMock.nextStep().reason()).isEqualTo("On the mock profile a scenario answered, although the body you supplied is not "
-                + "valid JSON. That answer says nothing about the body, so no next step is offered from it. A service would read the body "
+        assertThat(onMock.nextStep().reason()).isEqualTo("On the mock profile a scenario answered, although the body you supplied cannot "
+                + "be read as JSON. That answer says nothing about the body, so no next step is offered from it. A service would read the body "
                 + "as it stands.");
         assertThat(onMock.nextStep().carry()).isEmpty();
         assertThat(ledger.last().nextAction()).isEqualTo(NextAction.REVIEW.name());
