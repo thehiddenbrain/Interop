@@ -173,6 +173,11 @@ public class ExchangeExecutor {
         return classify(error).type();
     }
 
+    /** True when the failure happened before the far side was reached: refused, unresolved, no route, or a failed handshake. */
+    static boolean notReached(Throwable error) {
+        return classify(error).reached() == Reached.NO;
+    }
+
     /**
      * What kind of failure an exception is, and whether the request can have reached the service.
      *

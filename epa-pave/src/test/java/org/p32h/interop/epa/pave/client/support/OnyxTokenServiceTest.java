@@ -147,7 +147,13 @@ class OnyxTokenServiceTest {
         assertThat(service(Map.of("enabled", "true", "token-url", "{{undefinedUrl}}", "client-id", "a", "client-secret", "b")).token().failure())
                 .contains("placeholder");
         assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL, "client-id", "{{clientId}}", "client-secret", "{{undefinedSecret}}"))
-                .token().failure()).contains("client id or the client secret is not set");
+                .token().failure()).contains("Authentication is switched on but onyx.auth.client-secret is not set, or a placeholder the active "
+                + "environment does not define. Ready to send, on the Config tab, says where it reads from.");
+        // The setting that is missing is the one named.
+        assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL, "client-secret", "b")).token().failure())
+                .contains("but onyx.auth.client-id is not set");
+        assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL)).token().failure())
+                .contains("but onyx.auth.client-id and onyx.auth.client-secret are not set");
         server.verify();
     }
 
@@ -165,6 +171,14 @@ class OnyxTokenServiceTest {
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new ConnectException("Connection refused to auth.example.invalid")));
         assertThat(service(enabled()).token().failure())
                 .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+        server.reset();
+        // An endpoint that took the connection and then dropped it was reached, and is not said to be unreachable.
+        server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.net.SocketException("Connection reset by auth.example.invalid")));
+        OnyxTokenService.TokenResult dropped = service(enabled()).token();
+        assertThat(dropped.failure())
+                .isEqualTo("No access token: the token endpoint closed the connection without answering. The request was not sent.")
+                .doesNotContain("auth.example.invalid");
+        assertThat(dropped.cause()).isEqualTo(OnyxTokenService.TokenFailure.ENDPOINT_FAULT);
         server.reset();
         server.expect(requestTo(TOKEN_URL)).andRespond(withSuccess("<html>login</html>", MediaType.TEXT_HTML));
         assertThat(service(enabled()).token().failure()).contains("a body that is not JSON");

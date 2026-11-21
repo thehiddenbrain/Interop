@@ -203,7 +203,9 @@ class SignInFailureTest {
         TOKEN_STATUS.set(DROP);
         JsonNode answer = send("/api/crd", CASE);
         assertNotSent(answer, "dropped", "TOKEN_ENDPOINT_FAULT");
-        assertThat(supporting(answer).get(0)).contains("could not be reached");
+        // It was reached, so it is not said to be unreachable: a port nothing listens on reads differently.
+        assertThat(supporting(answer).get(0)).isEqualTo("No access token: the token endpoint closed the connection without answering. "
+                + "The request was not sent.");
         assertThat(answer.at("/nextStep/action").asString()).isEqualTo("CHECK_ENVIRONMENT");
     }
 }

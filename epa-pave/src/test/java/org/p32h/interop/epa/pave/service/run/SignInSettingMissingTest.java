@@ -58,8 +58,10 @@ class SignInSettingMissingTest {
         assertThat(answer.at("/verdict/outcomeCode").asString()).as(answer.toString()).isEqualTo("NOT_SIGNED_IN");
         assertThat(answer.at("/verdict/tone").asString()).isEqualTo("NEUTRAL");
         assertThat(answer.at("/verdict/headline").asString()).isEqualTo("Nothing was sent: this tool could not sign in.");
-        assertThat(answer.at("/verdict/supporting/0").asString()).isEqualTo("Authentication is switched on but the client id or the client "
-                + "secret is not set, or is a placeholder the active environment does not define. The request was not sent.");
+        // The line names the setting, so the next step's "the line above says which setting" is true.
+        assertThat(answer.at("/verdict/supporting/0").asString()).isEqualTo("Authentication is switched on but onyx.auth.client-secret is not "
+                + "set, or a placeholder the active environment does not define. Ready to send, on the Config tab, says where it reads from. "
+                + "The request was not sent.");
         assertThat(answer.at("/error/kind").asString()).isEqualTo("CONFIGURATION");
         assertThat(answer.at("/error/heading").asString()).isEqualTo("Not sent: this tool could not sign in");
         assertThat(answer.at("/nextStep/action").asString()).isEqualTo("OPEN_CONFIG");

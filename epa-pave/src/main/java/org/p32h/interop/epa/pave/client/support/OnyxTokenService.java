@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.client.support;
 
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
@@ -166,9 +167,16 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             return TokenResult.failed("Authentication is switched on but onyx.auth.token-url is not set, or it contains a placeholder "
                     + "the active environment does not define. The request was not sent.", TokenFailure.SETTING_MISSING);
         }
-        if (!clientId.resolved() || Texts.blank(clientId.value()) || !clientSecret.resolved() || Texts.blank(clientSecret.value())) {
-            return TokenResult.failed("Authentication is switched on but the client id or the client secret is not set, or is a "
-                    + "placeholder the active environment does not define. The request was not sent.", TokenFailure.SETTING_MISSING);
+        boolean noId = !clientId.resolved() || Texts.blank(clientId.value());
+        boolean noSecret = !clientSecret.resolved() || Texts.blank(clientSecret.value());
+        if (noId || noSecret) {
+            // The setting is named, as Ready to send on the Config tab names it, so the tester knows which one to give. Only the
+            // names of the settings are said, never a value.
+            String which = noId && noSecret ? "onyx.auth.client-id and onyx.auth.client-secret are" : noId ? "onyx.auth.client-id is"
+                    : "onyx.auth.client-secret is";
+            return TokenResult.failed("Authentication is switched on but " + which + " not set, or a placeholder the active environment "
+                    + "does not define. Ready to send, on the Config tab, says where it reads from. The request was not sent.",
+                    TokenFailure.SETTING_MISSING);
         }
         String key = gateway.epoch() + "|" + tokenUrl.value() + "|" + clientId.value();
         if (cached != null && cached.key().equals(key) && clock.instant().isBefore(cached.refreshAt())) {
@@ -231,9 +239,15 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             }
             return new TokenGrant(token, JsonSafe.longValue(parsed.node(), "expires_in"), null, null);
         } catch (RuntimeException e) {
-            // The exception message quotes the token url, so only the type is used.
+            // The exception message quotes the token url, so only the type is used. An endpoint that took the connection and then
+            // dropped it was reached, so it is not said to be unreachable, and the two can be told apart.
+            OnyxFailureType type = ExchangeExecutor.classifyType(e);
+            if (type == OnyxFailureType.UNAVAILABLE && !ExchangeExecutor.notReached(e)) {
+                return new TokenGrant(null, null, "No access token: the token endpoint closed the connection without answering.",
+                        TokenFailure.ENDPOINT_FAULT);
+            }
             return new TokenGrant(null, null, "No access token: the token endpoint could not be reached ("
-                    + ExchangeExecutor.classifyType(e).name().toLowerCase(java.util.Locale.ROOT) + ").", TokenFailure.ENDPOINT_FAULT);
+                    + type.name().toLowerCase(java.util.Locale.ROOT) + ").", TokenFailure.ENDPOINT_FAULT);
         }
     }
 }
