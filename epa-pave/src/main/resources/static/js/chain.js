@@ -37,15 +37,33 @@ function measuredRuns(chain) {
     return runs.filter(run => typeof run.elapsedMillis === 'number').length;
 }
 
+/**
+ * The case a chain is for, as one text: the member ID with every space removed, the NPI trimmed and
+ * the codes sorted, so the same case typed again, or with its codes added in another order, is the
+ * same case. Held in page memory only, never stored and never logged.
+ */
+export function caseKey(summary) {
+    const given = summary || {};
+    const codes = (given.codes || []).map(value => String(value)).sort();
+    return [String(given.memberId || '').split(' ').join(''), String(given.npi || '').trim(), codes.join(',')].join('|');
+}
+
 export function createChain(app, bar) {
     let chainId = null;       // the chain the case on screen belongs to, once a run has started one
     let view = null;          // the last answer of GET /api/chains/{chainId}
     let showing = false;
+    // The case of the chain on screen, and the case of the latest request built with a chain value.
+    // Page memory only, gone on reload as the chain id is; never stored, never logged.
+    let chainKey = null;
+    let sentKey = null;
 
-    const follow = el('input', {type: 'checkbox', id: 'chain-follow'});
+    // On when the page opens: a case followed through CRD, DTR and PAS is then one journey in
+    // History without the tester having to know to ask for it first.
+    const follow = el('input', {type: 'checkbox', id: 'chain-follow', checked: true});
     const control = el('div', {class: 'case-group'},
         el('label', {class: 'choice', htmlFor: 'chain-follow'}, follow, 'Run as part of a chain'),
-        el('span', {class: 'field__hint'}, 'One id in the ledger for the journey of this case through CRD, DTR and PAS.'));
+        el('span', {class: 'field__hint'}, 'On unless you untick it: a case followed through CRD, DTR and PAS is one journey in History. '
+            + 'Another case starts another chain.'));
     follow.addEventListener('change', draw);
 
     async function refresh() {
@@ -65,40 +83,33 @@ export function createChain(app, bar) {
     }
 
     function draw() {
-        const wanted = showing && (follow.checked || chainId);
+        // No bar before a chain exists: with the box on by default, a bar saying "not started" would sit on every tab from the first load.
+        const wanted = showing && Boolean(chainId);
         bar.hidden = !wanted;
         if (!wanted) {
             clear(bar);
             return;
         }
-        if (!chainId) {
-            fill(bar, el('div', {class: 'chain-bar'}, el('p', {class: 'chain-bar__lead'},
-                el('strong', null, 'Chain: not started.'), ' The next run from this case starts one and every run after it joins it.')));
-            return;
-        }
         if (!view) {
-            fill(bar, el('div', {class: 'chain-bar'}, el('p', {class: 'chain-bar__lead'}, 'Reading the chain from the ledger.')));
+            fill(bar, el('div', {class: 'chain-bar chain-bar--line'}, el('p', {class: 'chain-bar__lead'}, 'Reading the chain from the ledger.')));
             return;
         }
         if (view.problem) {
             fill(bar, el('div', {class: 'chain-bar'}, errorPanel(view.problem), actions()));
             return;
         }
-        fill(bar, el('div', {class: 'chain-bar'},
+        // One line: the result's own Next step row says what to do, so the bar does not say it again.
+        fill(bar, el('div', {class: 'chain-bar chain-bar--line'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
                 el('span', {class: 'chain-stage__name'}, stage.name),
                 el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null, stage.stateLine)))),
-            el('div', {class: 'chain-bar__side'},
-                el('p', {class: 'chain-bar__next'},
-                    el('span', {class: 'chain-bar__next-label'}, 'Next step '),
-                    el('span', {class: 'chain-bar__next-headline'}, view.nextHeadline || 'The latest run did not state one.')),
-                // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
-                el('p', {class: 'quiet'}, 'Chain for ', view.member ? ['the member recorded as ', code(view.member)] : 'a member the ledger does not show',
-                    view.procedureCodes && view.procedureCodes.length > 0
-                        ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null, '.'),
-                follow.checked ? null : el('p', null, el('strong', null, 'Paused.'),
-                    ' Runs sent now do not join this chain. Tick "Run as part of a chain" to go on with it.'),
-                actions())));
+            // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
+            el('span', {class: 'chain-bar__case'}, el('span', {class: 'quiet'}, 'for '),
+                view.member ? code(view.member) : 'a member the ledger does not show',
+                view.procedureCodes && view.procedureCodes.length > 0
+                    ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
+            follow.checked ? null : el('span', {class: 'chain-bar__paused'}, 'Paused: runs sent now join no chain.'),
+            actions()));
     }
 
     function actions() {
@@ -110,6 +121,7 @@ export function createChain(app, bar) {
     function startNewCase() {
         const closed = chainId;
         chainId = null;
+        chainKey = null;
         view = null;
         // What the closed case carried to its next step belongs to that case and goes with it.
         app.forgetCarried();
@@ -122,21 +134,38 @@ export function createChain(app, bar) {
         /** The control that turns chain following on. It belongs with the case, so every protocol tab shows it. */
         control,
 
-        /** What to send as chainId with the next run: nothing, "new" to start a chain, or the id of the running one. */
+        /**
+         * What to send as chainId with the next run: nothing, "new" to start a chain, or the id of
+         * the chain on screen when the case is that chain's case. It changes nothing on screen: a
+         * preview calls it too, and a send can be refused after it, so the chain on screen changes
+         * only when a result arrives (onResult).
+         */
         requestValue() {
             if (!follow.checked) {
                 return undefined;
             }
-            return chainId || 'new';
+            const key = caseKey(app.caseContext.summary());
+            sentKey = key;
+            return chainId && key === chainKey ? chainId : 'new';
         },
 
-        /** Call with every run result. A result that names a chain makes that chain the one on screen. */
+        /**
+         * Call with every run result. A result that names a chain makes that chain the one on
+         * screen, and when it replaces another the page says so: a run was recorded under a new
+         * chain, so the sentence is true when it is given.
+         */
         onResult(envelope) {
             if (envelope && envelope.chainId) {
+                const closed = chainId && envelope.chainId !== chainId ? chainId : null;
                 if (envelope.chainId !== chainId) {
                     view = null;
                 }
                 chainId = envelope.chainId;
+                chainKey = sentKey;
+                if (closed) {
+                    app.notice('This run started a new chain, because its case is not the case of chain ' + closed
+                        + '. The ledger keeps that chain, and History lists it under Chains.', {plain: true});
+                }
                 refresh();
             }
         },
