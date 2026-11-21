@@ -258,6 +258,17 @@ class SubscriptionServiceTest {
                     + "request first.");
             assertThat(created.nextStep().headline() + created.nextStep().reason()).doesNotContain("onyx.");
         }
+        // An update that names no receiver is answered by a scenario too, and points the same way; with a receiver it is done.
+        RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
+        assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
+        assertThat(updated.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(updated.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
+                + "the mock profile no notification arrives by itself.");
+        assertThat(updated.nextStep().reason()).isEqualTo("A scenario answered this update, so no service holds the subscription and "
+                + "none will call back. A sample notification shows how this tool reads one; for one about a request, send a PAS "
+                + "request first.");
+        assertThat(service(mockClient, "mock", WITH_RECEIVER).run(UPDATE, about(ID).build(), RunOrigin.manual(), null).nextStep().action())
+                .isEqualTo(NextAction.NOTHING_FURTHER);
         for (RunEnvelope<SubscriptionDetail> read : List.of(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null),
                 service(mockClient, "mock", Map.of()).run(GET, request().build(), RunOrigin.manual(), null))) {
             assertThat(read.verdict().supporting()).contains("It names no url to call back.").noneMatch(line -> line.startsWith("It calls back"));
@@ -596,8 +607,10 @@ class SubscriptionServiceTest {
         assertThat(result.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("No endpoint was sent, so the service has "
                 + "nowhere to call back."));
 
-        // An update that names no receiver says the same, and is not reported as done with nothing left to do.
-        RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
+        // An update that names no receiver says the same, and is not reported as done with nothing left to do. Answered as a
+        // service answers, as the create above is: on mock the step points to the sample instead (the test after the next).
+        RunEnvelope<SubscriptionDetail> updated = service(answeredByAService(), "mock", Map.of()).run(UPDATE, about(ID).build(),
+                RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
         assertThat(updated.findings()).extracting(Finding::kind).containsExactly(FindingKind.REQUEST_INCOMPLETE, FindingKind.NO_CALLBACK_URL);
         assertThat(ledger.last().findings()).containsExactly("REQUEST_INCOMPLETE", "NO_CALLBACK_URL");

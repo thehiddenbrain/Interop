@@ -183,11 +183,7 @@ public final class SubscriptionVerdicts {
             // own that could not be read may name no receiver, and that is then not known here.
             // On mock no service holds the subscription and none calls back, whatever address it names: a setting of this tool is
             // not the next step there. The way to see a notification read is the sample the Notifications call delivers.
-            case CREATED -> exchange != null && Texts.present(exchange.scenarioId())
-                    ? new NextStepView(NextAction.START_PAS, "Next: choose the Notifications call and Deliver a sample notification. On "
-                    + "the mock profile no notification arrives by itself.", "A scenario answered this create, so no service holds the "
-                    + "subscription and none will call back. A sample notification shows how this tool reads one; for one about a request, "
-                    + "send a PAS request first.", carry)
+            case CREATED -> exchange != null && Texts.present(exchange.scenarioId()) ? toTheSample("create", carry)
                     : Texts.present(callbackProblem) ? noReceiver("created", callbackProblem, ownBody, carry)
                     : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
                     + "subscription's receiver when the status of a request changes.",
@@ -196,7 +192,10 @@ public final class SubscriptionVerdicts {
             // a case's journey, which is what FLOW_ENDS says, so none of them says that.
             case READ, LISTED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing follows from a read. Record this result.",
                     "The call read what the service holds and changed nothing.", carry);
-            case UPDATED -> Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
+            // An update that names no receiver is the same case on mock: a setting would change nothing there.
+            case UPDATED -> Texts.present(callbackProblem) && exchange != null && Texts.present(exchange.scenarioId())
+                    ? toTheSample("update", carry)
+                    : Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
                     : new NextStepView(NextAction.NOTHING_FURTHER, "The update is done. Record this result.",
                     "The service accepted the new state of the subscription.", carry);
             case DELETED -> new NextStepView(NextAction.NOTHING_FURTHER, "The subscription is gone. Record this result.",
@@ -209,6 +208,20 @@ public final class SubscriptionVerdicts {
             case REJECTED -> notAccepted(exchange, carry);
             case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
+    }
+
+    /**
+     * The next step after a scenario answered a create, or an update that names no receiver: on mock
+     * nothing calls back whatever address is named, so the way to see a notification read is the
+     * sample the Notifications call delivers.
+     *
+     * @param call "create" or "update"
+     */
+    private static NextStepView toTheSample(String call, Map<String, List<String>> carry) {
+        return new NextStepView(NextAction.START_PAS, "Next: choose the Notifications call and Deliver a sample notification. On the mock "
+                + "profile no notification arrives by itself.", "A scenario answered this " + call + ", so no service holds the "
+                + "subscription and none will call back. A sample notification shows how this tool reads one; for one about a request, "
+                + "send a PAS request first.", carry);
     }
 
     /** The outcomes in which the call was made and nothing usable came back. A rejection is not one: the service said no. */
