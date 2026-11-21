@@ -38,6 +38,29 @@ class EmptyStateFrontendTest {
     }
 
     @Test
+    void aHandOverWithAMaskedValueSaysSoInItsLeadWhenNodeRunsIt() throws IOException, InterruptedException {
+        String lead = body("workbench.js", "export function handedOnLead(handed, heading, label, send) {");
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here.");
+        String script = "const flat = parts => parts.flat(Infinity).filter(p => p !== null && p !== undefined).join('');\n"
+                + "const el = (tag, props, ...children) => flat(children) + (tag === 'p' ? '|' : '');\n"
+                + "const code = value => value; const button = () => '';\n"
+                + lead.replaceFirst("^export ", "") + "\n}\n"
+                + "console.log(JSON.stringify([handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1', masked: [{key: 'questionnaire'}]}, 'H', 'Go', null),"
+                + " handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1', masked: []}, 'H', 'Go', null),"
+                + " handedOnLead({fromProtocol: 'DTR', fromRunId: 'run-2', masked: [{key: 'a'}, {key: 'b'}]}, 'H', 'Go', null)]));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[\"Handed on from the CRD run run-1.|What it handed on is in the form, under \\\"H\\\", apart from any value it names "
+                + "as not handed on. One value was not handed on because it was masked; the form names it. Choose \\\"Go\\\".|\","
+                + "\"Handed on from the CRD run run-1.|What it handed on is in the form, under \\\"H\\\". Choose \\\"Go\\\".|\","
+                + "\"Handed on from the DTR run run-2.|What it handed on is in the form, under \\\"H\\\", apart from any value it names "
+                + "as not handed on. 2 values were not handed on because they were masked; the form names them. Choose \\\"Go\\\".|\"]");
+    }
+
+    @Test
     void whileTheSendingPanelShowsItsSentenceTheStatusLineIsForScreenReadersOnly() throws IOException {
         String call = read("workbench.js");
         int hide = call.indexOf("status.classList.toggle('visually-hidden', waiting !== null);");

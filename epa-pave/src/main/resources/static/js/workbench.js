@@ -970,7 +970,12 @@ export function sentinelCell(scenario) {
 export function handedOnLead(handed, heading, label, send) {
     return el('div', {class: 'empty-state__handed'},
         el('p', {class: 'empty-state__lead'}, 'Handed on from the ' + handed.fromProtocol + ' run ', code(handed.fromRunId), '.'),
-        el('p', null, 'What it handed on is in the form, under "' + heading + '". Choose "' + label + '".'),
+        // A value left out because it was masked is named far down the form; the lead says there is one, so the tester looks.
+        el('p', null, 'What it handed on is in the form, under "' + heading + '"',
+            (handed.masked || []).length > 0 ? ', apart from any value it names as not handed on. '
+                + ((handed.masked || []).length === 1 ? 'One value was not handed on because it was masked; the form names it. '
+                    : handed.masked.length + ' values were not handed on because they were masked; the form names them. ') : '. ',
+            'Choose "' + label + '".'),
         button(label, send, {class: 'button--quiet'}));
 }
 
