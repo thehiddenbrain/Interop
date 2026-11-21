@@ -318,10 +318,10 @@ public final class DtrVerdicts {
                             + "nor end."
                             : "The status of the response is not one this tool acts on, so it cannot tell whether the loop continues.", carry);
             case RESPONSE_COMPLETED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless, done)
-                    : toPas(carry, itemless, done, adaptive ? "The service reported the response as completed, and every required question "
+                    : toPas(carry, runId, itemless, done, adaptive ? "The service reported the response as completed, and every required question "
                     + "that is enabled has an answer." : "Every required question that is enabled has an answer.");
             case NOTHING_REQUIRED -> !remaining.isEmpty() ? anotherRemains(handoff, completed, remaining, carry, itemless, done)
-                    : toPas(carry, itemless, done, itemless ? "The service completed this response without asking a question."
+                    : toPas(carry, runId, itemless, done, itemless ? "The service completed this response without asking a question."
                     : "The response is complete without a question having been asked, so there is no documentation to collect first.");
             case RESPONSE_NOT_COMPLETE -> adaptive
                     ? new NextStepView(NextAction.ANSWER_NEXT_QUESTION, "Next: continue the adaptive questionnaire: choose " + button(NextAction.ANSWER_NEXT_QUESTION) + ".",
@@ -396,10 +396,20 @@ public final class DtrVerdicts {
      * with it is said from the carry itself, so the headline cannot claim a response that is not
      * handed on.
      *
+     * <p>The submission follows this run, the one whose result hands the journey to PAS and which
+     * the PAS tab names as handed on from, so History leads from this step to the submission and
+     * back. The steps before it keep following the package fetch.
+     *
+     * @param runId    this run, or null when it is not known: the run handed on is then left as it was
      * @param itemless true when the response this step completed holds no item and is therefore not carried
      * @param why      why the response is complete
      */
-    private static NextStepView toPas(Map<String, List<String>> carry, boolean itemless, List<String> done, String why) {
+    private static NextStepView toPas(Map<String, List<String>> given, String runId, boolean itemless, List<String> done, String why) {
+        Map<String, List<String>> carry = given;
+        if (Texts.present(runId)) {
+            carry = new java.util.LinkedHashMap<>(given);
+            carry.put(NextStepView.CARRY_RUN_ID, List.of(runId));
+        }
         List<String> going = carry.getOrDefault(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of());
         String headline;
         if (!itemless) {

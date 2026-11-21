@@ -25,8 +25,9 @@ import java.util.Map;
  * response, so a journey cannot move on with one of two questionnaires answered.
  *
  * @param followsRunId   the run a later step is linked to. Every step of answering one
- *                       questionnaire, and the submission that carries the answers, is linked to the
- *                       package fetch the questionnaire came from. A step that was handed no run
+ *                       questionnaire is linked to the package fetch the questionnaire came from. The step
+ *                       that hands the journey to PAS names itself instead (DtrVerdicts), so the
+ *                       submission follows the run its tab names. A step that was handed no run
  *                       hands on its own, so a later step is still linked to something that exists
  * @param procedureCodes the procedure codes the case is about
  * @param questionnaires the canonical url of every questionnaire of the package, in the order

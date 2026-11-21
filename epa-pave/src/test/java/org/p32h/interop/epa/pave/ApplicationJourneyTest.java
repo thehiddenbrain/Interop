@@ -338,13 +338,14 @@ class ApplicationJourneyTest {
         String ledger = json(get("/api/runs").param("chainId", submitted.get("chainId").stringValue()), 200).toString();
         assertThat(ledger).doesNotContain("sleep-1").doesNotContain("snoring").doesNotContain("QuestionnaireResponse\"");
 
-        // Each later line holds the run it follows: the package the CRD run, the response and the submission the package.
+        // Each later line holds the run it follows: the package the CRD run, the response the package, and the submission the
+        // response, the run the PAS tab names as handed on from.
         assertThat(json(get("/api/runs/" + fetched.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
                 .isEqualTo(crd.get("runId").stringValue());
         assertThat(json(get("/api/runs/" + answered.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
                 .isEqualTo(fetched.get("runId").stringValue());
         assertThat(json(get("/api/runs/" + submitted.get("runId").stringValue()), 200).get("correlation").get("correlatedRunId").stringValue())
-                .isEqualTo(fetched.get("runId").stringValue());
+                .isEqualTo(answered.get("runId").stringValue());
         // The four lines as written on disk hold no name, no date of birth, no answer and no body.
         List<String> written = new java.util.ArrayList<>();
         try (var files = Files.list(home.resolve("run-history"))) {

@@ -179,7 +179,7 @@ public record RunRecord(
     public static final String CORR_AUTHORIZATION_REF = "authorizationRef";
     /**
      * The earlier run this one follows from: the submission for an inquiry or a notification, the
-     * package fetch for a later DTR step.
+     * package fetch for a later DTR step, the DTR step that handed the journey on for a submission.
      */
     public static final String CORR_RUN_ID = "correlatedRunId";
     /** The run that created the subscription a notification arrived on. */

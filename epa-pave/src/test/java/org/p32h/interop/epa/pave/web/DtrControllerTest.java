@@ -372,7 +372,8 @@ class DtrControllerTest {
         JsonNode completed = JsonSafe.parse(third.at("/nextStep/carry/questionnaireResponse/0").asString()).node();
         assertThat(completed.get("status").asString()).isEqualTo("completed");
         assertThat(completed.at("/item/1/answer/0/valueBoolean").asBoolean()).isFalse();
-        assertThat(third.at("/nextStep/carry/runId/0").asString()).isEqualTo(fetched.get("runId").asString());
+        // The step that completes hands on itself, so the submission follows it; the steps before it follow the package.
+        assertThat(third.at("/nextStep/carry/runId/0").asString()).isEqualTo(third.get("runId").asString());
 
         assertThat(ledger.records()).extracting(RunRecord::chainId).containsOnly(chain);
         assertThat(ledger.records()).extracting(RunRecord::operation).containsExactly(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE,

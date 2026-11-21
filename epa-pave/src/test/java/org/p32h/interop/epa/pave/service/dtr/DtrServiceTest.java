@@ -1229,8 +1229,9 @@ class DtrServiceTest {
         assertThat(completed.at("/item/2/answer/0/valueString").asString()).isEqualTo("Placeholder description of the symptom");
         assertThat(completed.at("/contained/0/resourceType").asString()).isEqualTo("Questionnaire");
         assertThat(completed.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        // With it go the run the questionnaire came from, the questionnaire and the codes of the case.
-        assertThat(carry.get(NextStepView.CARRY_RUN_ID)).containsExactly(fetched.runId());
+        // With it go this run, the one the PAS tab names as handed on from, so the submission follows it in History; and the
+        // questionnaire and the codes of the case.
+        assertThat(carry.get(NextStepView.CARRY_RUN_ID)).containsExactly(fourth.runId());
         assertThat(carry.get(NextStepView.CARRY_QUESTIONNAIRE)).containsExactly(MRI);
         assertThat(carry.get(NextStepView.CARRY_PROCEDURE_CODES)).containsExactly("72148");
 
@@ -2009,7 +2010,8 @@ class DtrServiceTest {
         }
         assertThat(completed.at("/extension/0/valueReference/reference").asString()).isEqualTo("Coverage/coverage-1");
         assertThat(completed.at("/extension/1/valueReference/reference").asString()).isEqualTo("ServiceRequest/service-request-1");
-        assertThat(result.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(fetched.runId());
+        // The step that hands the journey to PAS names itself: the submission follows the run the PAS tab names.
+        assertThat(result.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(result.runId());
         assertThat(ledger.last().nextAction()).isEqualTo("START_PAS");
 
         // Answers that disable the follow-ups leave nothing required unanswered, and an answer to a disabled question is left out and said to be.
@@ -2253,7 +2255,7 @@ class DtrServiceTest {
         assertThat(handedOn).hasSize(2);
         assertThat(JsonSafe.parse(handedOn.get(0)).node().get("questionnaire").asString()).isEqualTo(cardiology);
         assertThat(JsonSafe.parse(handedOn.get(1)).node().get("questionnaire").asString()).isEqualTo(musculoskeletal);
-        assertThat(both.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(fetched.runId());
+        assertThat(both.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(both.runId());
 
         // The second is answered again, and this time a required follow-up is left out. Its earlier
         // completed response is not handed on any more: the tester's current answers replace it.
@@ -2268,8 +2270,8 @@ class DtrServiceTest {
                 RunOrigin.manual(), null);
         assertThat(again.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE);
         assertThat(again.nextStep().carry().get(NextStepView.CARRY_RUN_ID)).containsExactly(again.runId());
-        // The fetch it followed from is on its line all the same.
-        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, fetched.runId());
+        // The run it was started from is on its line all the same: the step that handed the journey on to PAS, which names itself.
+        assertThat(ledger.last().correlation()).containsEntry(RunRecord.CORR_RUN_ID, both.runId());
     }
 
     @Test
