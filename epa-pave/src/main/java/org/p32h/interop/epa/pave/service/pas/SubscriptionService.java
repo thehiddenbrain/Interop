@@ -231,8 +231,7 @@ public class SubscriptionService {
                 // alone left in clear the part of a secret that also covered the path around it.
                 SentSecrets.Masked location = exchange.maskedFromHeader(OnyxPasConventions.createdSubscriptionLocation(exchange));
                 String id = OnyxPasConventions.idAfterMasked(location.text());
-                String masks = CarriedMasks.in(id);
-                fromHeader = new SentSecrets.Masked(id, masks == null ? 0 : masks.split(" and ").length);
+                fromHeader = new SentSecrets.Masked(id, CarriedMasks.count(id));
                 subscriptionId = fromHeader.text();
                 idSource = subscriptionId == null ? null : "the Location header of the response";
             }

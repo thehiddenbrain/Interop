@@ -30,10 +30,20 @@ public final class CarriedMasks {
      * single pass from left to right, so the cost is the length of the text.
      */
     public static String in(String text) {
-        if (text == null) {
-            return null;
-        }
+        List<String> masks = list(text);
+        return masks.isEmpty() ? null : String.join(" and ", masks);
+    }
+
+    /** How many different masks a text holds, counted as {@link #in(String)} names them. */
+    public static int count(String text) {
+        return list(text).size();
+    }
+
+    private static List<String> list(String text) {
         List<String> masks = new ArrayList<>();
+        if (text == null) {
+            return masks;
+        }
         int at = text.indexOf(OPEN);
         while (at >= 0) {
             int end = text.indexOf(CLOSE, at + OPEN.length());
@@ -46,7 +56,7 @@ public final class CarriedMasks {
             }
             at = text.indexOf(OPEN, end + 1);
         }
-        return masks.isEmpty() ? null : String.join(" and ", masks);
+        return masks;
     }
 
     /**
