@@ -45,23 +45,27 @@ the operator's state rebuilt, and a machine with no JDK 21 and then no network, 
 what an independent check of that entry and the README's STS section found; each commit that records
 it changes this file, `DECISIONS.md` and the README only. D-274 records the change to the build that
 followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gradle, with what was
-seen of it in the real STS and what a review found; the integrator wrote that entry and its lines in
-the README, and nobody else has checked them yet.
+seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code is that of
+the head) and what a review found. The integrator first wrote that entry and its lines in the README
+alone (`6eddce8`); an independent check of them followed, and its findings, checked against the
+outputs and screenshots, and the last run of STS are in them now.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
 `HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
 tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
-`647b102` (D-274, merged at `370b2ec`), which change `build.gradle` and one note in `run.sh` and
-`run.cmd`, and no main code and no test. The whole build of
+`647b102` (D-274, merged at `370b2ec`), which change `build.gradle` and the two lines of one note in
+`run.sh` and in `run.cmd` (neither script has been run since; `run.sh` was only parsed), and no main
+code and no test. The whole build of
 `05acbf7` through the shared wrapper (`gw clean build`): 2872 tests, 0 failures, 0 errors, 2
 skipped, BUILD SUCCESSFUL. The whole build of `ace5914` the same way: 2872 tests, 0 failures, 0
 errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUCCESSFUL. The whole
 build of `647b102` the same way, with the machine's JDK 21 present: the same counts, BUILD
-SUCCESSFUL; and the whole build of `6201644` with the JDK 21 hidden, on a Java 25: the same counts
-(D-274). The code of `647b102` is the code at the head, so its build is now the last whole build
-this file can record; the integrator's
+SUCCESSFUL; and the whole build of `6201644` with the JDK 21 present and again with it hidden, on a
+Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b102` was built with
+`classes` only. The code of `647b102` is the code at the head, so its build is now the last whole
+build this file can record; the integrator's
 gates run after this file, and their result is in the pull request description.
 
 ### Open at the revision handed over, the worst first
@@ -168,13 +172,18 @@ has looked.
    simulated, had no JDK 21 (the import leaves a project that cannot start, "Cannot find a Java
    installation ... languageVersion=21") and then no network. Since D-274 the same simulation
    gives a project that starts on the Java 25 that STS brings, both proofs holding: seen on
-   `6201644`, not on the commit after the review and not on Windows. The reports and screenshots are in the
-   integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`, `sts-two/` and
-   `sts-nojdk/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
+   `6201644`, and on `6eddce8`, whose code is that of the head, both for a project imported before
+   the change and then brought up to date with Team, Pull and one Gradle, Refresh Gradle Project, and
+   for the operator's own path (the top folder as a Maven project, then the Git Repositories import
+   of `epa-pave`); not on Windows and not on a real workstation without a JDK 21. The reports and
+   screenshots are in the integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`,
+   `sts-two/` and `sts-nojdk/`, and for D-274 under `cont14/`, `jdk-fallback/`, `jdk-review/`,
+   `sts-after-nojdk/`, `sts-after-jdk21/` and `sts-final/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
    Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of
    the Git wizard offering only the top folder, and that folder imported as a Maven project with
    `epa-pave` a plain folder inside it; whether the tool has run there is not known. Not seen: Windows
-   beyond that report, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21.
+   beyond that report, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
+   the IDE, `run.sh` and `run.cmd` since D-274.
    Also never tried: a mirror with credentials and a token server; a screen reader,
    contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
 11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
@@ -533,7 +542,8 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   rule; invented surnames that do not start with `Placeholder` remain in a few tests; empty section
   banners remain in 16 main source files.
 - Documentation: STS was seen on Linux with Spring Tools 5.4.0 only, not on Windows or another
-  release (D-272, D-273; one Windows workstation has reported, D-273); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
+  release (D-272, D-273, D-274; one Windows workstation has reported, D-273); without a JDK 21 only as
+  a simulation (D-274); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
   build` runs them.
 
 **Checked only by unit tests, by reading the source, or at the gateway, never in the running tool.** A
