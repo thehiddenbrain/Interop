@@ -107,6 +107,41 @@ class LongTextUploadTest {
     }
 
     /**
+     * A collection nested deeper than the parser reads is refused with that reason. The limit is
+     * Jackson's own nesting limit, 500 levels as this application configures it, and each folder
+     * is two levels: an object and its list of items.
+     */
+    @Test
+    void aCollectionNestedDeeperThanTheParserReadsIsRefusedWithThatReason() throws IOException {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        assertThat(org.p32h.interop.epa.pave.service.compare.Nesting.limit()).isEqualTo(500);
+        StringBuilder folders = new StringBuilder();
+        int depth = 300;
+        folders.append("{\"name\": \"leaf\", \"request\": {\"method\": \"GET\", \"url\": \"https://{{base}}/metadata\"}}");
+        for (int i = 0; i < depth; i++) {
+            folders.insert(0, "{\"name\": \"f" + i + "\", \"item\": [").append("]}");
+        }
+        byte[] deep = ("{\"info\": {\"name\": \"Deep\", \"schema\": \"" + SCHEMA + "\"},\n\"item\": [" + folders + "]}")
+                .getBytes(StandardCharsets.UTF_8);
+        List<Path> filesBefore = filesUnder(directory);
+
+        assertThatThrownBy(() -> fixture.service.uploadCollection("deep.json", deep))
+                .isInstanceOf(org.p32h.interop.epa.pave.service.error.BadInputException.class)
+                .hasMessageStartingWith("This file nests its objects and lists deeper than the 500 levels this tool reads: the level past "
+                        + "that limit opens at line 2, column ")
+                .hasMessageEndingWith(". It was not read, and nothing was stored.");
+        assertThat(filesUnder(directory)).isEqualTo(filesBefore);
+
+        // 240 folders are 482 levels with the collection around them: read as before.
+        StringBuilder fewer = new StringBuilder("{\"name\": \"leaf\", \"request\": {\"method\": \"GET\", \"url\": \"https://{{base}}/m\"}}");
+        for (int i = 0; i < 240; i++) {
+            fewer.insert(0, "{\"name\": \"f" + i + "\", \"item\": [").append("]}");
+        }
+        assertThat(fixture.service.uploadCollection("fewer.json", ("{\"info\": {\"name\": \"Fewer\", \"schema\": \"" + SCHEMA
+                + "\"}, \"item\": [" + fewer + "]}").getBytes(StandardCharsets.UTF_8)).collection().requests()).hasSize(1);
+    }
+
+    /**
      * The operator's working folder may hold a collection the old version stored and then threw
      * on, once for each attempt under another name. The old version wrote the store in the format
      * this one writes, and the bytes of the collection are the bytes that were uploaded: the
