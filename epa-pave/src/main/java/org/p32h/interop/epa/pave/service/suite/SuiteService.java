@@ -125,10 +125,11 @@ public class SuiteService implements AutoCloseable {
             this.owned = Executors.newSingleThreadExecutor(task -> {
                 Thread thread = new Thread(task, "suite-runner");
                 thread.setDaemon(true);
-                // The JVM's default handler prints messages, which can quote a member ID. Whatever
-                // escapes a run is logged the way the run logs its own failures: types and frames only.
-                thread.setUncaughtExceptionHandler((failed, e) ->
-                        log.error("The suite thread ended on a failure inside this tool: {}", Faults.describe(e)));
+                // The JVM's default handler prints messages, which can quote a member ID, so it is replaced.
+                thread.setUncaughtExceptionHandler((failed, e) -> {
+                    // The exception types and frames only, the way a run logs its own failures. Never a message.
+                    log.error("The suite thread ended on a failure inside this tool: {}", Faults.describe(e));
+                });
                 return thread;
             });
             this.executor = owned;
@@ -414,10 +415,7 @@ public class SuiteService implements AutoCloseable {
                     String reference = UUID.randomUUID().toString();
                     // The exception types and frames only. Never its message, and never the case, which holds a member ID.
                     log.error("A suite case failed inside this tool, reference {}: {}", reference, Faults.describe(e));
-                    outcome = new CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Whether a request "
-                            + "left for it is not known, and nothing can be said about the service from this row. Look for it in History "
-                            + "before running it again. Reference " + reference + ".", List.of(), List.of(), List.of(), null, reference,
-                            Faults.cause(e));
+                    outcome = toolFailure(reference, Faults.cause(e));
                 }
                 synchronized (run) {
                     // The member ID has done its work. From here the row points to the ledger by run id.
@@ -442,12 +440,31 @@ public class SuiteService implements AutoCloseable {
             ended = "This tool failed while running the suite. Reference " + reference + ".";
             // The cause goes on the screen beside the reference: a missing class ends a suite here
             // and nowhere else, and the server log may be on a machine the tester does not see.
-            run.fault(reference, Faults.cause(e));
+            String cause = Faults.cause(e);
+            run.fault(reference, cause);
+            synchronized (run) {
+                for (Entry entry : run.entries) {
+                    if (entry.state == SuiteRowState.RUNNING) {
+                        // Its request may have left before the failure, so it is never called not run.
+                        // It is the same failure as the stop, under the same reference.
+                        entry.spec = null;
+                        entry.result = result(run, entry, toolFailure(reference, cause), false);
+                        entry.state = SuiteRowState.DONE;
+                    }
+                }
+            }
             // Not thrown on: nothing above the run catches it, so the JVM's default handler would
             // print it again with every message, and a message can quote the member ID of the case.
         } finally {
             run.finish(ended, RunStamps.timestamp(support.clock()));
         }
+    }
+
+    /** How a case ends when this tool failed while running it: whether a request left for it is not known. */
+    private static CaseOutcome toolFailure(String reference, String cause) {
+        return new CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "This tool failed while running the case. Whether a request "
+                + "left for it is not known, and nothing can be said about the service from this row. Look for it in History "
+                + "before running it again. Reference " + reference + ".", List.of(), List.of(), List.of(), null, reference, cause);
     }
 
     static String configurationChanged() {
@@ -734,11 +751,13 @@ public class SuiteService implements AutoCloseable {
                     all = false;
                 }
             }
-            state = all ? SuiteState.COMPLETED : SuiteState.STOPPED;
-            stopReason = all ? null : Texts.orElse(why, Texts.orElse(stopRequested, STOPPED_BY_TESTER));
-            // Given only with the stop sentence it belongs to. A run that had attempted every case has none.
-            stopReference = all ? null : faultReference;
-            stopCause = all ? null : faultCause;
+            // A failure of this tool ends the run even when it came on the last case, which then never finished.
+            boolean completed = all && faultReference == null;
+            state = completed ? SuiteState.COMPLETED : SuiteState.STOPPED;
+            stopReason = completed ? null : Texts.orElse(why, Texts.orElse(stopRequested, STOPPED_BY_TESTER));
+            // Given only with the stop sentence it belongs to.
+            stopReference = completed ? null : faultReference;
+            stopCause = completed ? null : faultCause;
             finishedAt = when;
         }
 

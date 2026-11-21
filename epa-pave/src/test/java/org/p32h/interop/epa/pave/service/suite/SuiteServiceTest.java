@@ -757,6 +757,66 @@ class SuiteServiceTest {
     }
 
     @Test
+    void theCaseThatWasRunningWhenThisToolEndedTheSuiteIsAToolFailureAndNeverReadsAsNotRun() {
+        // A missing class can surface after the request of the case has left. Its row must not tell
+        // the tester that nothing was sent for it.
+        String missing = "org/p32h/interop/epa/pave/service/crd/CrdRequestBuilder$Built";
+        bed.wrap = runner -> spec -> {
+            throw new NoClassDefFoundError(missing);
+        };
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String id = service.start("cases.csv", suite(row("TC-1", "S123456789", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
+                .suiteRunId();
+        bed.queued.remove().run();
+
+        SuiteRunView run = service.get(id, true);
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        SuiteCaseResult cut = run.results().get(0);
+        assertThat(cut.state()).isEqualTo(SuiteRowState.DONE);
+        assertThat(cut.statusLine()).isEqualTo("Tool failure: this tool failed while running the case, so whether a request left is "
+                + "not known. The reason gives the reference.");
+        assertThat(cut.reason()).startsWith("This tool failed while running the case. Whether a request left for it is not known")
+                .endsWith("Reference " + run.stopReference() + ".");
+        // The same failure as the stop: one reference and one cause, not a second log entry.
+        assertThat(cut.faultReference()).isEqualTo(run.stopReference());
+        assertThat(cut.faultCause()).isEqualTo(run.stopCause());
+        assertThat(cut.countedIn()).isEqualTo(org.p32h.interop.epa.pave.model.suite.SuiteCountGroup.TOOL_FAILED);
+        assertThat(cut.status()).isEqualTo(CaseStatus.NOT_RUNNABLE);
+        assertThat(cut.result()).isNull();
+        // The case after it really was not run.
+        assertThat(run.results().get(1).state()).isEqualTo(SuiteRowState.NOT_RUN);
+        assertThat(run.results().get(1).statusLine()).isEqualTo("Not run: the suite stopped before this case.");
+        assertThat(run.counts().toolFailed()).isEqualTo(1);
+        assertThat(run.counts().notRun()).isEqualTo(1);
+        assertThat(run.headline()).isEqualTo("Stopped after 1 of 2 cases. 1 tool failure, 1 not run.");
+        assertThat(JsonSafe.mapper().writeValueAsString(run)).doesNotContain("S123456789");
+        // The results file says the same of the row, with the reference in its sentence and no cause.
+        String csv = service.resultsCsv(id);
+        assertThat(csv).contains("This tool failed while running the case. Whether a request left for it is not known")
+                .doesNotContain(missing).doesNotContain("NoClassDefFoundError");
+        assertThat(bed.ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aSuiteThatThisToolEndedOnItsLastCaseStillReadsAsStoppedWithItsCause() {
+        bed.wrap = runner -> spec -> {
+            throw new NoClassDefFoundError("org/p32h/interop/epa/pave/service/crd/CrdRequestBuilder$Built");
+        };
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String id = service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null).suiteRunId();
+        bed.queued.remove().run();
+        SuiteRunView run = service.get(id, true);
+        // Every case was attempted, and still the suite did not finish: this tool ended it.
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(run.stopReason()).isEqualTo("This tool failed while running the suite. Reference " + run.stopReference() + ".");
+        assertThat(run.stopCause()).contains("CrdRequestBuilder$Built");
+        assertThat(run.results().get(0).faultReference()).isEqualTo(run.stopReference());
+        assertThat(run.headline()).isEqualTo("Stopped after 1 of 1 case. 1 tool failure.");
+    }
+
+    @Test
     void aRunThatEndsAnyOtherWayGivesNoStopReferenceOrCause() {
         bed.hold = true;
         SuiteService service = bed.service();
