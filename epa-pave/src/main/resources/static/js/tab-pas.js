@@ -51,6 +51,11 @@ let following = null;
 // The request the payer asked documentation for, while the tester prepares to send it again from this tab.
 let resubmitting = null;
 
+// The run and the operation of the result on screen, so a notification about that run, or a call
+// chosen that did not make it, can be said at its top. Null while the readout holds no result.
+let shownRunId = null;
+let shownOperation = null;
+
 const controls = {};
 const sections = {};
 const slots = {};
@@ -134,6 +139,9 @@ function mount(target, application) {
     slots.preview = bench.slot('preview');
     slots.notifications = bench.slot('notifications');
     slots.notifications.append(notifications.node);
+    // An arrival is announced in the call chooser, where it is seen whichever call is chosen.
+    controls.modeChoice.after(notifications.statusNode);
+    notifications.onArrived(markNewer);
 
     app.caseContext.onChange(() => { controls.handover.redraw(); drawFollowing(); });
     showMode('submit');
@@ -167,6 +175,10 @@ function buildModeChoice() {
 }
 
 function showMode(id) {
+    if (slots.notifications) {
+        // The receiver's list is read while its call is chosen; above any other result it pushed the verdict down.
+        slots.notifications.hidden = id !== 'notifications';
+    }
     const leavingOwn = mode === 'submit' && id !== 'submit' && ownRequest && ownRequest.active();
     mode = id;
     controls.modeInputs.get(id).checked = true;
@@ -216,7 +228,52 @@ function showMode(id) {
     if (!bench.hasResult()) {
         drawEmptyState();
     }
+    markOther();
     bench.checkReadiness();
+}
+
+// The operations each call makes, to tell whether the result on screen is of the call chosen.
+const OPERATIONS_OF_MODE = {
+    submit: ['PAS_SUBMIT'],
+    inquire: ['PAS_INQUIRE'],
+    subscriptions: ['SUBSCRIPTION_CREATE', 'SUBSCRIPTION_GET', 'SUBSCRIPTION_UPDATE', 'SUBSCRIPTION_DELETE'],
+    notifications: []
+};
+
+/**
+ * Marks the result on screen when it is of another call than the one chosen, and takes the mark
+ * away when a call that matches it is chosen again. The result is kept: the tester may be reading it.
+ */
+function markOther() {
+    const shown = readoutResult().querySelector('.result');
+    if (!shown) {
+        return;
+    }
+    const other = shownOperation !== null && !(OPERATIONS_OF_MODE[mode] || []).includes(shownOperation);
+    const mark = shown.querySelector('.result__other');
+    if (other && !mark) {
+        shown.prepend(el('p', {class: 'result__other'},
+            'This result is of another call than the one now chosen. Sending the chosen call replaces it.'));
+    } else if (!other && mark) {
+        mark.remove();
+    }
+}
+
+/**
+ * A notification about the run on screen gives the next step now, so the result says its own next
+ * step came before it, in the tool's words, and points to the notification. Once per result.
+ */
+function markNewer(items) {
+    const shown = readoutResult().querySelector('.result');
+    if (!shown || !shownRunId || shown.querySelector('.result__newer')) {
+        return;
+    }
+    if (!items.some(item => item.correlatedRunId === shownRunId)) {
+        return;
+    }
+    shown.prepend(el('p', {class: 'result__newer'},
+        'A notification about this run arrived after this result. The next step below was given before it; the notification gives the next step now. ',
+        button('Choose the Notifications call', () => showMode('notifications'), {class: 'button--text'})));
 }
 
 /** The button a press of Enter would mean, if the form were ever submitted: the primary action of the call on screen. */
@@ -706,6 +763,8 @@ function showRun(envelope) {
     const step = envelope.nextStep || {};
     const carry = step.carry || {};
     const hasClaim = carry.claimId && carry.claimId.length > 0;
+    shownRunId = envelope.runId || null;
+    shownOperation = envelope.operation || null;
     bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
         detail: detailFor(vocabulary),
         // Asking for the status and sending a submission again are this tab's own steps. The shared
@@ -741,6 +800,7 @@ function showRun(envelope) {
             }, {class: 'button--text'})));
     }
     drawFollowing();
+    markOther();
 }
 
 /** The part of the readout that holds the result. */
@@ -908,6 +968,8 @@ function drawEmptyState() {
         mode === 'submit' || mode === 'inquire' ? el('p', null, CODE_PICKER_ABOUT) : null,
         listed ? scenarioDefaultNotes(list) : null,
         app.isMock() ? whereTheyGo : null));
+    shownRunId = null;
+    shownOperation = null;
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 
