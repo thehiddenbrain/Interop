@@ -127,12 +127,15 @@ export function createChain(app, bar) {
      */
     function stateParts(line) {
         const text = String(line || '');
+        // "Not run in this chain." has no colon: its first sentence is the word.
         const colon = text.indexOf(': ');
-        if (colon < 0 || colon > 24) {
+        const stop = text.indexOf('.');
+        const cut = colon >= 0 && (stop < 0 || colon < stop) ? colon : stop;
+        if (cut < 0 || cut > 24) {
             return el('span', {class: 'chain-stage__rest'}, text);
         }
-        return [el('span', {class: 'chain-stage__word'}, text.slice(0, colon)),
-            el('span', {class: 'visually-hidden'}, ': ' + text.slice(colon + 2))];
+        return [el('span', {class: 'chain-stage__word'}, text.slice(0, cut)),
+            el('span', {class: 'visually-hidden'}, text.slice(cut))];
     }
 
     /**

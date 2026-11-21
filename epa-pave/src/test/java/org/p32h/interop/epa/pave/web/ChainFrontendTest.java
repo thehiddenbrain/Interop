@@ -41,8 +41,21 @@ class ChainFrontendTest {
     void theBarNeverCutsTheMemberTheCodesOrTheWordForWhereAStageStands() throws IOException {
         String chain = Files.readString(Path.of("src/main/resources/static/js/chain.js"), StandardCharsets.UTF_8);
         String parts = CaseCodesFrontendTest.body(chain, "function stateParts(line) {");
-        assertThat(parts).contains("el('span', {class: 'chain-stage__word'}, text.slice(0, colon))")
-                .contains("el('span', {class: 'visually-hidden'}, ': ' + text.slice(colon + 2))");
+        assertThat(parts).contains("el('span', {class: 'chain-stage__word'}, text.slice(0, cut))")
+                .contains("el('span', {class: 'visually-hidden'}, text.slice(cut))");
+        Assumptions.assumeTrue(CaseCodesFrontendTest.node() != null, "Node is not installed here; the text checks still apply.");
+        String script = "const el = (tag, props, text) => props.class + '=' + text;\n" + parts + "\n}\n"
+                + "console.log(JSON.stringify([stateParts('Done: Documentation is required.'), stateParts('Not run in this chain.'),"
+                + " stateParts('Not reached: DTR comes first.'), stateParts('A line with no short word at its start at all, cut.')]));";
+        try {
+            assertThat(run(script)).isEqualTo("[[\"chain-stage__word=Done\",\"visually-hidden=: Documentation is required.\"],"
+                    + "[\"chain-stage__word=Not run in this chain\",\"visually-hidden=.\"],"
+                    + "[\"chain-stage__word=Not reached\",\"visually-hidden=: DTR comes first.\"],"
+                    + "\"chain-stage__rest=A line with no short word at its start at all, cut.\"]");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("node was interrupted", e);
+        }
         String css = Files.readString(Path.of("src/main/resources/static/css/pave.css"), StandardCharsets.UTF_8);
         assertThat(CaseCodesFrontendTest.body(css, ".chain-bar--line {")).contains("flex-wrap: wrap;");
         assertThat(CaseCodesFrontendTest.body(css, ".chain-bar--line .chain-stage__word {")).contains("flex: 0 0 auto;");
