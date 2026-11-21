@@ -43,17 +43,25 @@ STS clone the repository on a Windows workstation, what they were told and how i
 more runs of the real STS on Linux on `d089e65` (the Git import wizard, the wrong folder on purpose,
 the operator's state rebuilt, and a machine with no JDK 21 and then no network, both simulated), with
 what an independent check of that entry and the README's STS section found; each commit that records
-it changes this file, `DECISIONS.md` and the README only.
+it changes this file, `DECISIONS.md` and the README only. D-274 records the change to the build that
+followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gradle, with what was
+seen of it in the real STS and what a review found; the integrator wrote that entry and its lines in
+the README, and nobody else has checked them yet.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
-D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and two code changes:
+D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
-`HandlerArgumentNamesTest` holds that, and `ace5914` (D-272, merged at `5923b3f`), which changes
-tests and adds one launch file, `PaveApplication.launch`, and no main code. The whole build of
+`HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
+tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
+`647b102` (D-274, merged at `370b2ec`), which change `build.gradle` and one note in `run.sh` and
+`run.cmd`, and no main code and no test. The whole build of
 `05acbf7` through the shared wrapper (`gw clean build`): 2872 tests, 0 failures, 0 errors, 2
 skipped, BUILD SUCCESSFUL. The whole build of `ace5914` the same way: 2872 tests, 0 failures, 0
-errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUCCESSFUL. Its code is
-the code at the head, so this is now the last whole build this file can record; the integrator's
+errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUCCESSFUL. The whole
+build of `647b102` the same way, with the machine's JDK 21 present: the same counts, BUILD
+SUCCESSFUL; and the whole build of `6201644` with the JDK 21 hidden, on a Java 25: the same counts
+(D-274). The code of `647b102` is the code at the head, so its build is now the last whole build
+this file can record; the integrator's
 gates run after this file, and their result is in the pull request description.
 
 ### Open at the revision handed over, the worst first
@@ -158,7 +166,9 @@ has looked.
    `gradle-8.9-bin.zip` (Gradle 8.9 on STS's Java 25, not the network); was put in the state that
    wizard leaves and got the tool running from there, with Close Project and Delete each seen; and,
    simulated, had no JDK 21 (the import leaves a project that cannot start, "Cannot find a Java
-   installation ... languageVersion=21") and then no network. The reports and screenshots are in the
+   installation ... languageVersion=21") and then no network. Since D-274 the same simulation
+   gives a project that starts on the Java 25 that STS brings, both proofs holding: seen on
+   `6201644`, not on the commit after the review and not on Windows. The reports and screenshots are in the
    integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`, `sts-two/` and
    `sts-nojdk/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
    Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of

@@ -90,11 +90,15 @@ OpenJDK Runtime Environment (build 21.0.13.0.3+1-1-24.04.1-Ubuntu)
 OpenJDK 64-Bit Server VM (build 21.0.13.0.3+1-1-24.04.1-Ubuntu, mixed mode, sharing)
 ```
 
-Anything older than 21 will not build or run PAVE, and a newer Java alone does not build it: the
-build asks for a Java 21 toolchain and cannot download one. With only a Java 25 on the machine (a
-simulation on Linux, D-273) `./gradlew classes` stopped with "Cannot find a Java installation on your
-machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
-configured." Install a JDK 21 and set `JAVA_HOME` to it.
+Anything older than 21 will not build or run PAVE: install a JDK 21 and set `JAVA_HOME` to it. That
+is what this README was checked on. A newer JDK alone builds it too, since D-274: where Gradle finds
+no JDK 21, the build compiles for Java 21 with the Java that runs Gradle and says so in one line,
+"Gradle found no JDK 21, so PAVE is compiled for Java 21 with the Java that runs Gradle: ...". Seen
+on Linux with only a Java 25 visible (a simulation: the machine's JDK 21 hidden): the whole build
+passed with its 2872 tests, and the jar it made ran on that Java 25 and passed both proofs. A checkout
+from before that change stops there with "Cannot find a Java installation on your machine ...
+matching: {languageVersion=21, ...}. Toolchain download repositories have not been configured."
+(D-273).
 
 **2. Get the code and go into the project directory.**
 
@@ -2004,11 +2008,26 @@ release; what one Windows workstation reported is at the end of this section. Th
 Spring Tools changelog gives 5.0.0 (2025-12-10, built on Eclipse 2025-12) as the first release that
 states Spring Boot 4 support. The Spring Tools FAQ says that Spring Tools 5 does not run on an Eclipse
 older than 2025-12 and that Spring Tools 4 gets no more updates. Both were read on 2026-11-20 in the
-Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own; the project still
-needs the JDK 21 of step 1 of the checklist. STS found it by itself at startup (Window, Preferences,
+Spring Tools wiki (its Changelog and FAQ pages). STS runs on a JDK 25 of its own. Where a JDK 21 is
+installed as step 1 of the checklist says, STS found it by itself at startup (Window, Preferences,
 Java, Installed JREs) and every launch ran on it.
 
-**What the machine needs: STS and a JDK 21.** STS alone is not enough. This was simulated on Linux
+**What the machine needs: STS 5 alone is enough, since D-274.** Where Gradle finds no JDK 21, the
+build compiles for Java 21 with the Java that runs Gradle, which in STS 5 is the Java 25 that STS
+brings, and says so in one line: "Gradle found no JDK 21, so PAVE is compiled for Java 21 with the
+Java that runs Gradle: ...". In the IDE that line is only in the Console view, under "Gradle
+Operations", and a default import leaves that view closed. Seen on Linux with STS 5.4.0, the
+machine's JDK 21 hidden from that one IDE and an empty Gradle home, on `6201644` (a simulation): the
+import with every default of the wizard gave `epa-pave [boot]` with "0 errors, 25 warnings, 59
+others" and "JRE System Library [JavaSE-21]" bound to that Java 25; the first press of start in the
+Boot Dashboard started the tool on it with no dialog ("Starting PaveApplication using Java 25.0.4.1");
+both proofs of "Prove it before handover" held; and the four test classes run from the IDE gave what
+they give on a JDK 21 (step 7). The commit after it, `647b102`, changed the wording of that line and
+added one case in which the build stops; it was run with Gradle from a terminal on the same Java 25,
+and not in the IDE. With a JDK 21 on the machine nothing changed: seen in the same STS on `6201644`,
+where the tool and the tests ran on the JDK 21 as before and the line appeared nowhere.
+
+**On a checkout from before that change, STS alone is not enough.** This was simulated on Linux
 with STS 5.4.0, the machine's JDK 21 hidden from that one IDE and an empty Gradle home (D-273):
 Installed JREs then listed only `jre`, the Java 25 inside STS. The import ran Gradle 9.5.0 on that Java
 25 and downloaded the Gradle distribution and the dependencies, then ended about 10 seconds after
@@ -2024,10 +2043,11 @@ Failed to calculate the value of task ':compileHouseStyleJava' property 'javaCom
 Cannot find a Java installation on your machine (<your system>) matching: {languageVersion=21, vendor=any vendor, implementation=vendor-specific, nativeImageCapable=false}. Toolchain download repositories have not been configured.
 ```
 
-`build.gradle` asks for a Java 21 toolchain, and the build configures no place to download one from,
-so Gradle cannot fetch a JDK 21 by itself. The message names the house style source set, but it is
-not about the house style: from a terminal with only Java 25, `./gradlew classes` failed with the
-same sentence, naming `':compileJava'`. So install a JDK 21 before the import. On the machines seen,
+At that checkout `build.gradle` asked for a Java 21 toolchain and nothing else, and the build
+configures no place to download one from, so Gradle cannot fetch a JDK 21 by itself. The message
+names the house style source set, but it is not about the house style: from a terminal with only
+Java 25, `./gradlew classes` failed with the same sentence, naming `':compileJava'`. So on such a
+checkout get the later commits (step 8), or install a JDK 21 before the import. On the machines seen,
 a JDK 21 installed in the system's usual place (on Linux under `/usr/lib/jvm`) was found by STS and by
 Gradle with no setting; STS looks for installed Javas at startup ("Detect available JVM installations
 at startup", ticked, under Installed JREs). Otherwise give Gradle its Java home as under "If the
@@ -2179,13 +2199,22 @@ Package Explorer (no `[boot]`) and at the Problems view.
   only files git ignores (`.classpath`, `.gradle/`, `.project`, `.settings/`, `bin/`). The wizard
   would likely accept that folder, since it exists (not tried); what it would import was not seen.
   Check the branch first.
-- **"Cannot find a Java installation on your machine ... matching: {languageVersion=21, ...}".** No
-  JDK 21 for Gradle: see "What the machine needs" under step 1. If a JDK 21 is installed and Gradle
-  still does not find it, give Gradle its Java home: tick "Override workspace settings" on the Import
-  Options page (Java home is greyed out until then) and set Java home to the JDK 21, or set it under
-  Window, Preferences, Gradle. A plain Eclipse 2026-09 with Java home set under Preferences, Gradle
-  imported the project with 0 errors and 25 warnings; in STS neither way was tried. Neither helps a
-  machine that has no JDK 21 at all.
+- **"Gradle is running on Java ..., which is older than 21, and Gradle found no JDK 21. ..."** (or
+  "which is a Java runtime without a compiler"). The build's own message since D-274, and it says
+  what to do: point Gradle at a JDK 21 or newer. Seen with Gradle from a terminal on Linux, on a Java
+  17 and on a Java 21 runtime that has no compiler, each with the JDK 21 hidden; not seen in an IDE,
+  where STS 5 runs Gradle on its own Java 25. In that case every Gradle task stops with it, `help`
+  and `javaToolchains` included.
+- **"Cannot find a Java installation on your machine ... matching: {languageVersion=21, ...}".** A
+  checkout from before D-274 and no JDK 21 for Gradle: see "What the machine needs" under step 1.
+  After getting the later commits, right click the project and choose Gradle, Refresh Gradle Project;
+  whether that alone turns the project left by the failed import into `epa-pave [boot]` was not
+  seen. If a JDK 21 is installed and Gradle still does not find it, give Gradle its Java home: tick
+  "Override workspace settings" on the Import Options page (Java home is greyed out until then) and
+  set Java home to the JDK 21, or set it under Window, Preferences, Gradle. A plain Eclipse 2026-09
+  with Java home set under Preferences, Gradle imported the project with 0 errors and 25 warnings;
+  in STS neither way was tried. On such a checkout neither helps a machine that has no JDK 21 at
+  all.
 - **The downloads are refused** (a simulation: STS 5.4.0 on Linux with no network at all, and with no
   JDK 21). With nothing downloaded yet, the Import Preview failed within a second:
   `Could not install Gradle distribution from 'https://services.gradle.org/distributions/gradle-9.5.0-bin.zip'.`,
