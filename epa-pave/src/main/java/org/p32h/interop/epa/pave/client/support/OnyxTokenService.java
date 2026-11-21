@@ -167,6 +167,12 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             return TokenResult.failed("Authentication is switched on but onyx.auth.token-url is not set, or it contains a placeholder "
                     + "the active environment does not define. The request was not sent.", TokenFailure.SETTING_MISSING);
         }
+        // A url that is not an absolute address is the tester's setting, found before anything is sent. It is named by the
+        // setting, never by its value, which an environment can fill with something that should not be repeated.
+        if (!absoluteHttpAddress(tokenUrl.value())) {
+            return TokenResult.failed("Authentication is switched on but onyx.auth.token-url, as configured, is not an absolute http or "
+                    + "https address, so this tool could not use it. The request was not sent.", TokenFailure.SETTING_MISSING);
+        }
         boolean noId = !clientId.resolved() || Texts.blank(clientId.value());
         boolean noSecret = !clientSecret.resolved() || Texts.blank(clientSecret.value());
         if (noId || noSecret) {
@@ -198,6 +204,18 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         cached = grant.expiresInSeconds() == null || grant.expiresInSeconds() <= REFRESH_SKEW_SECONDS ? null
                 : new Cached(key, grant.accessToken(), clock.instant().plusSeconds(grant.expiresInSeconds() - REFRESH_SKEW_SECONDS));
         return new TokenResult(grant.accessToken(), null, null);
+    }
+
+    /** True for an absolute http or https url with a host; false for anything else, a text that is no url at all included. */
+    static boolean absoluteHttpAddress(String url) {
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(url.strip());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        return uri.isAbsolute() && (scheme.equals("http") || scheme.equals("https")) && Texts.present(uri.getHost());
     }
 
     /**
@@ -241,8 +259,10 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         } catch (RuntimeException e) {
             // The exception message quotes the token url, so only the type is used. An endpoint that took the connection and then
             // dropped it was reached, so it is not said to be unreachable, and the two can be told apart.
+            // Only a failure whose type means that an open connection ended without an answer is said to be one; a failure this
+            // tool cannot place keeps "could not be reached", which claims less.
             OnyxFailureType type = ExchangeExecutor.classifyType(e);
-            if (type == OnyxFailureType.UNAVAILABLE && !ExchangeExecutor.notReached(e)) {
+            if (type == OnyxFailureType.UNAVAILABLE && ExchangeExecutor.closedWithoutAnswer(e)) {
                 return new TokenGrant(null, null, "No access token: the token endpoint closed the connection without answering.",
                         TokenFailure.ENDPOINT_FAULT);
             }

@@ -187,6 +187,70 @@ class OnyxTokenServiceTest {
         assertThat(service(enabled()).token().failure()).contains("answered without one");
     }
 
+    /**
+     * Each sentence is true of its case, with the HTTP client the application uses, on loopback: a
+     * connection that was taken and closed without an answer is said to be closed; a port nothing
+     * listens on, an unknown host and a failure this tool cannot place are said to be unreachable;
+     * a token url that is no absolute address is the setting, and nothing is sent.
+     */
+    @Test
+    void theTokenFailureSaysAClosedConnectionOnlyWhereOneWasOpenAndEnded() throws Exception {
+        RestClient real = RestClients.withTimeouts(RestClient.builder(), 2000, 2000);
+        try (java.net.ServerSocket dropping = new java.net.ServerSocket(0, 5, java.net.InetAddress.getLoopbackAddress())) {
+            Thread taker = new Thread(() -> {
+                try (java.net.Socket taken = dropping.accept()) {
+                    taken.getInputStream().read(new byte[8192]);
+                } catch (java.io.IOException ignored) {
+                    // The test reads the client's side; a failure here shows there as a failed assertion.
+                }
+            });
+            taker.start();
+            gateway.variable("tokenUrl", "http://127.0.0.1:" + dropping.getLocalPort() + "/oauth2/token");
+            OnyxTokenService.TokenResult dropped = new OnyxTokenService(OnyxProperties.of(prefixed(enabled())), gateway, real, clock).token();
+            taker.join(5000);
+            assertThat(dropped.failure())
+                    .isEqualTo("No access token: the token endpoint closed the connection without answering. The request was not sent.");
+            assertThat(dropped.cause()).isEqualTo(OnyxTokenService.TokenFailure.ENDPOINT_FAULT);
+        }
+        int free;
+        try (java.net.ServerSocket probe = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
+            free = probe.getLocalPort();
+        }
+        gateway.variable("tokenUrl", "http://127.0.0.1:" + free + "/oauth2/token");
+        assertThat(new OnyxTokenService(OnyxProperties.of(prefixed(enabled())), gateway, real, clock).token().failure())
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+
+        gateway.variable("tokenUrl", TOKEN_URL);
+        server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.net.UnknownHostException("auth.example.invalid")));
+        assertThat(service(enabled()).token().failure())
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+        // A failure of a type this tool does not place: the fallback claims no closed connection.
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.io.IOException("placeholder")));
+        assertThat(service(enabled()).token().failure())
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.io.EOFException()));
+        assertThat(service(enabled()).token().failure()).contains("closed the connection without answering");
+
+        // No absolute address: the setting is named, never its value, and nothing is sent.
+        server.reset();
+        for (String notAbsolute : new String[] {"auth-placeholder/oauth2/token", "/oauth2/token", "ftp://auth.example.invalid/t", "http:// x"}) {
+            gateway.variable("tokenUrl", notAbsolute);
+            OnyxTokenService.TokenResult result = service(enabled()).token();
+            assertThat(result.failure()).as(notAbsolute).isEqualTo("Authentication is switched on but onyx.auth.token-url, as configured, is "
+                    + "not an absolute http or https address, so this tool could not use it. The request was not sent.");
+            assertThat(result.cause()).isEqualTo(OnyxTokenService.TokenFailure.SETTING_MISSING);
+        }
+        server.verify();
+    }
+
+    private static Map<String, String> prefixed(Map<String, String> auth) {
+        Map<String, String> properties = new HashMap<>();
+        auth.forEach((key, value) -> properties.put("auth." + key, value));
+        return properties;
+    }
+
     @Test
     void aFailedTokenIsNotCached() {
         server.expect(requestTo(TOKEN_URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));

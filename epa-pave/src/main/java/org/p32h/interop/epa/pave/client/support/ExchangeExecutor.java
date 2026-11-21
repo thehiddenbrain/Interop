@@ -173,9 +173,23 @@ public class ExchangeExecutor {
         return classify(error).type();
     }
 
-    /** True when the failure happened before the far side was reached: refused, unresolved, no route, or a failed handshake. */
-    static boolean notReached(Throwable error) {
-        return classify(error).reached() == Reached.NO;
+    /**
+     * True when the types say that a connection was open and ended without an answer: the far side
+     * closed it (an end of stream) or reset it. A connection that never opened is not one, and
+     * neither is a failure of a type this method does not name. Read from the types alone, with
+     * the same walk along the causes as {@link #classify(Throwable)}.
+     */
+    static boolean closedWithoutAnswer(Throwable error) {
+        if (classify(error).reached() == Reached.NO) {
+            return false;
+        }
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            // Exactly SocketException: its subtypes include a refused connection and a failed bind, which open nothing.
+            if (t instanceof java.io.EOFException || t.getClass() == java.net.SocketException.class) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
