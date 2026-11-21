@@ -402,10 +402,11 @@ class DtrServiceTest {
                 + "provide for that: a package bundle starts with its questionnaire (dtrb-1).", "This tool reports what arrived. It does not turn an "
                 + "empty package into an answer that no documentation is needed.");
         assertThat(empty.verdict().tone()).isEqualTo(Tone.NO_ANSWER);
-        assertThat(empty.nextStep().headline()).isEqualTo("Next: read the response detail below, and check it against what CRD said about "
-                + "documentation for this order.");
+        // Recorded and reported by its own run, which is the action PAS gives an answer it cannot act on (plan L).
+        assertThat(empty.nextStep().headline()).isEqualTo("Next: record run " + empty.runId() + " as \"no questionnaire returned\" and "
+                + "report it to the people who look after the service, with what CRD said about documentation for this order.");
         assertThat(empty.nextStep().reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer "
-                + "that no documentation is needed, so it cannot say what should happen next.");
+                + "that no documentation is needed.");
         assertThat(askedNothing.verdict().headline()).isEqualTo("The response is complete and no question was asked.");
         assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.NEUTRAL);
 

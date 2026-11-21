@@ -254,12 +254,24 @@ public final class DtrVerdicts {
      * @param handoff  what this step hands on
      */
     public static NextStepView nextStep(EpaOperation operation, DtrReading reading, VendorExchange exchange, DtrHandoff handoff) {
-        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(operation, reading, exchange, handoff),
+        return nextStep(operation, reading, exchange, handoff, null);
+    }
+
+    /**
+     * The next step, worded with the id of the run it belongs to where the tester is asked to
+     * record or report that run.
+     *
+     * @param runId this run, or null when it is not known: the step then says "this run"
+     */
+    public static NextStepView nextStep(EpaOperation operation, DtrReading reading, VendorExchange exchange, DtrHandoff handoff,
+                                        String runId) {
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(operation, reading, exchange, handoff, runId),
                 PlayedFaults.aboutTheEnvironment("the member or the questionnaire"));
     }
 
     /** The next step as it would be after a real service gave this answer. */
-    private static NextStepView asIfReal(EpaOperation operation, DtrReading reading, VendorExchange exchange, DtrHandoff handoff) {
+    private static NextStepView asIfReal(EpaOperation operation, DtrReading reading, VendorExchange exchange, DtrHandoff handoff,
+                                         String runId) {
         DtrOutcome outcome = reading.outcome();
         DtrDetail detail = reading.detail();
         boolean complete = outcome == DtrOutcome.RESPONSE_COMPLETED || outcome == DtrOutcome.NOTHING_REQUIRED;
@@ -281,10 +293,11 @@ public final class DtrVerdicts {
             case PACKAGE_INCOMPLETE -> new NextStepView(NextAction.REVIEW, "Next: read which questionnaires were not returned, below.",
                     "The request asked for questionnaires by canonical url and the package does not hold all of them. The ones it does "
                             + "hold can still be answered.", carry);
-            case NO_QUESTIONNAIRE -> new NextStepView(NextAction.REVIEW,
-                    "Next: read the response detail below, and check it against what CRD said about documentation for this order.",
-                    "The service returned no questionnaire. This tool does not take that as an answer that no documentation is needed, so "
-                            + "it cannot say what should happen next.", carry);
+            case NO_QUESTIONNAIRE -> new NextStepView(NextAction.REVIEW, "Next: record " + (Texts.present(runId) ? "run " + runId
+                    : "this run") + " as \"no questionnaire returned\" and report it to the people who look after the service, with what "
+                    + "CRD said about documentation for this order.",
+                    "The service returned no questionnaire. This tool does not take that as an answer that no documentation is needed.",
+                    carry);
             case MALFORMED_QUESTIONNAIRE -> new NextStepView(NextAction.REVIEW,
                     "Next: read the problems listed with this result and report them as a defect in the service.",
                     "What the service sent cannot be used as a questionnaire, so there is nothing to answer.", carry);

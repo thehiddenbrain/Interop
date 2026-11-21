@@ -439,11 +439,29 @@ public final class CrdVerdicts {
                     "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
             case NO_DETERMINATION -> noDetermination(runId, carry);
-            case AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
-                    "Next: read the response detail below. This tool cannot say what should happen next.",
-                    outcome == CrdOutcome.MIXED ? "Not every answer in the response is the same, so each needs its own next step."
-                            : "The response does not carry an authorization answer this tool can act on.", carry);
+            case AUTH_NOT_STATED -> recordAndReport(runId, "authorization not stated", "The response does not say whether prior "
+                    + "authorization is needed, and this tool does not guess. What came back is in the response detail below.", carry);
+            case UNRECOGNISED_CODE -> recordAndReport(runId, "authorization code not recognised", "The response carries an authorization "
+                    + "code this tool does not know the meaning of, and this tool does not guess what it means. The code is in the response "
+                    + "detail below.", carry);
+            // A lawful answer, not a defect to report: each code already has its own answer to act on.
+            case MIXED -> new NextStepView(NextAction.REVIEW, "Next: read the answer for each code in Determination below; each code needs "
+                    + "the next step its own answer gives.", "Not every answer in the response is the same, so one next step cannot cover "
+                    + "them all.", carry);
         };
+    }
+
+    /**
+     * The next step when the service answered with nothing this tool can act on, in the words PAS
+     * uses for the same situation. It judges nothing about the test: it says what to record the run
+     * as and who should hear about it. The action stays REVIEW, so no button or carry changes.
+     *
+     * @param recordAs what the run is recorded as, in a few plain words
+     */
+    private static NextStepView recordAndReport(String runId, String recordAs, String reason, Map<String, List<String>> carry) {
+        String which = Texts.present(runId) ? "run " + runId : "this run";
+        return new NextStepView(NextAction.REVIEW, "Next: record " + which + " as \"" + recordAs + "\" and report it to the people who "
+                + "look after the service.", reason, carry);
     }
 
     /**

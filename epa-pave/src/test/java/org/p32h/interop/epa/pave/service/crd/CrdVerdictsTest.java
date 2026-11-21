@@ -482,4 +482,27 @@ class CrdVerdictsTest {
         VerdictView action = VerdictView.of(CrdOutcome.AUTH_REQUIRED, "Prior authorization is required.", List.of());
         assertThat(CrdVerdicts.toned(action, NextStepView.of(NextAction.START_PAS, "Next.", "x"))).isSameAs(action);
     }
+
+    @Test
+    void anAnswerThisToolCannotActOnStillGetsAnAction() {
+        VendorExchange notStated = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"covered\"}"));
+        NextStepView afterNotStated = CrdVerdicts.nextStep(mapper.read(notStated), notStated, "run-1");
+        assertThat(afterNotStated.headline()).startsWith("Next: record run run-1 as \"authorization not stated\" and report it");
+        assertThat(afterNotStated.action()).isEqualTo(NextAction.REVIEW);
+
+        VendorExchange unknown = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-maybe\"}"));
+        NextStepView afterUnknown = CrdVerdicts.nextStep(mapper.read(unknown), unknown, "run-1");
+        assertThat(afterUnknown.headline()).contains("\"authorization code not recognised\"");
+
+        VendorExchange mixed = TestExchanges.crd(200, "{\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":"
+                + "\"ServiceRequest\",\"id\":\"a\",\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[{\"url\":\"pa-needed\","
+                + "\"valueCode\":\"no-auth\"}]}]}},{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\",\"id\":\"b\","
+                + "\"extension\":[{\"url\":\"" + EXT + "\",\"extension\":[{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"}]}]}}]}");
+        NextStepView afterMixed = CrdVerdicts.nextStep(mapper.read(mixed), mixed, "run-1");
+        assertThat(afterMixed.headline()).contains("Determination").doesNotContain("cannot say").doesNotContain("record run");
+
+        for (NextStepView step : List.of(afterNotStated, afterUnknown, afterMixed)) {
+            assertThat(step.headline() + " " + step.reason()).doesNotContain("cannot say what should happen next");
+        }
+    }
 }

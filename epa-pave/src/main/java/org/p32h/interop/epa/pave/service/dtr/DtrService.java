@@ -173,7 +173,7 @@ public class DtrService {
             // A package fetch is where the questionnaire comes from, so the steps after it are linked to this run.
             DtrHandoff handoff = DtrHandoff.afterPackage(runId, sent.codes(), questionnaires, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(known.get(RunRecord.CORR_RUN_ID), questionnaires),
-                    ownBody ? null : DtrProfileCheck.finding(packageGaps(sent), true, exchange.httpStatus() != null));
+                    ownBody ? null : DtrProfileCheck.finding(packageGaps(sent), true, exchange.httpStatus() != null), runId);
         } catch (RuntimeException e) {
             // The service was called and this tool then failed to read its answer. The run still
             // happened: it gets its line, and the tester still gets the request and the response.
@@ -267,7 +267,7 @@ public class DtrService {
                     QuestionnaireJson.findResponse(exchange.withReturnedSecretsMasked().json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
             read = interpret(operation, request, call, exchange, reading, handoff, correlation(packageRun, listOf(answered)),
-                    DtrProfileCheck.finding(gaps, true, exchange.httpStatus() != null));
+                    DtrProfileCheck.finding(gaps, true, exchange.httpStatus() != null), runId);
         } catch (RuntimeException e) {
             return support.toolError(operation, call, exchange, draft, request, e);
         }
@@ -360,7 +360,7 @@ public class DtrService {
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, null);
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, null, handoff);
+        NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, null, handoff, runId);
 
         RunRecord record = support.fill(support.localDraft(operation, environment, origin), request).runId(runId)
                 .procedureCodes(caseCodes(request))
@@ -409,7 +409,7 @@ public class DtrService {
 
     /** @param requestFinding what the request this tool built left out, or null when it left out nothing or the tester wrote it */
     private Interpreted interpret(EpaOperation operation, RunRequest request, PreparedCall call, VendorExchange exchange, DtrReading reading,
-                                  DtrHandoff handoff, Map<String, String> correlation, Finding requestFinding) {
+                                  DtrHandoff handoff, Map<String, String> correlation, Finding requestFinding, String runId) {
         Timing timing = support.timing(exchange);
         List<Finding> findings = new ArrayList<>(DtrFindings.check(reading));
         // A key the body repeats is said with every value, as on CRD; the values are already among the returned fields.
@@ -420,7 +420,7 @@ public class DtrService {
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, exchange);
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, exchange, handoff);
+        NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, exchange, handoff, runId);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
         MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.DTR);
