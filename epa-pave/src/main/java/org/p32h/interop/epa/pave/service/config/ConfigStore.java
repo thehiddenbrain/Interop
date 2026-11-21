@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -104,6 +105,14 @@ public class ConfigStore {
         long epoch() {
             return after.epoch();
         }
+    }
+
+    /**
+     * An upload with the answer that describes it, which was built from the configuration the
+     * upload leaves before anything was written: a description that failed to build then stops the
+     * upload instead of answering "internal error" for a file that was stored all the same.
+     */
+    record Described<U, V>(U upload, V view) {
     }
 
     /** What removing an environment or a collection did. */
@@ -278,6 +287,13 @@ public class ConfigStore {
      */
     synchronized EnvironmentUpload uploadEnvironment(String originalFileName, byte[] content, EnvironmentKind kind,
                                                      boolean acknowledgedNotProd) {
+        return uploadEnvironment(originalFileName, content, kind, acknowledgedNotProd, (stored, after) -> null).upload();
+    }
+
+    /** As {@link #uploadEnvironment(String, byte[], EnvironmentKind, boolean)}, with the answer described before the commit. */
+    synchronized <V> Described<EnvironmentUpload, V> uploadEnvironment(String originalFileName, byte[] content, EnvironmentKind kind,
+                                                                       boolean acknowledgedNotProd,
+                                                                       BiFunction<StoredEnvironment, ConfigSnapshot, V> describe) {
         if (kind == null) {
             throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
         }
@@ -337,6 +353,7 @@ public class ConfigStore {
         warnings.addAll(AddressChecks.of(next.byName(stored.name()), next));
         List<String> listedLast = new ArrayList<>(parsed.notes());
         listedLast.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+        V view = describe.apply(stored, next);
 
         writeAtomically(directory.resolve(file), content);
         warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
@@ -344,7 +361,7 @@ public class ConfigStore {
         // The name, the kind and a count. Never a variable value.
         log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new EnvironmentUpload(stored, previous != null, warnings, current);
+        return new Described<>(new EnvironmentUpload(stored, previous != null, warnings, current), view);
     }
 
     /** Makes an uploaded environment the active one, with no restart. */
@@ -383,6 +400,12 @@ public class ConfigStore {
      * still there.
      */
     synchronized CollectionUpload uploadCollection(String originalFileName, byte[] content) {
+        return uploadCollection(originalFileName, content, (stored, after) -> null).upload();
+    }
+
+    /** As {@link #uploadCollection(String, byte[])}, with the answer described before the commit. */
+    synchronized <V> Described<CollectionUpload, V> uploadCollection(String originalFileName, byte[] content,
+                                                                     BiFunction<StoredCollection, ConfigSnapshot, V> describe) {
         PostmanCollection parsed = PostmanParser.collection(PostmanParser.decode(content));
         ConfigSnapshot before = current;
         String id = Ids.named(parsed.name());
@@ -427,6 +450,7 @@ public class ConfigStore {
         warnings.addAll(literalCredentialWarnings(parsed, file));
         List<String> listedLast = new ArrayList<>(parsed.notes());
         listedLast.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
+        V view = describe.apply(stored, next);
 
         writeAtomically(directory.resolve(file), content);
         warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
@@ -434,7 +458,7 @@ public class ConfigStore {
         // The name and counts only. Never a url, a header or a body.
         log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
-        return new CollectionUpload(stored, previous != null, warnings, current);
+        return new Described<>(new CollectionUpload(stored, previous != null, warnings, current), view);
     }
 
     /**

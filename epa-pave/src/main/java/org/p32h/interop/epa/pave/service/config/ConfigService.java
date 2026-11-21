@@ -97,9 +97,11 @@ public class ConfigService {
     // ------------------------------------------------------------------------------------------
 
     public EnvironmentUploaded uploadEnvironment(String fileName, byte[] content, EnvironmentKind kind, boolean acknowledgeNotProd) {
-        ConfigStore.EnvironmentUpload upload = store.uploadEnvironment(fileName, content, kind, acknowledgeNotProd);
-        return new EnvironmentUploaded(environmentView(upload.environment(), upload.after()), upload.replaced(), upload.warnings(),
-                upload.epoch());
+        // The view is built inside the upload, before the commit, so a view that could not be built stores nothing.
+        ConfigStore.Described<ConfigStore.EnvironmentUpload, EnvironmentView> described = store.uploadEnvironment(fileName, content, kind,
+                acknowledgeNotProd, this::environmentView);
+        ConfigStore.EnvironmentUpload upload = described.upload();
+        return new EnvironmentUploaded(described.view(), upload.replaced(), upload.warnings(), upload.epoch());
     }
 
     public EnvironmentList environments() {
@@ -142,8 +144,11 @@ public class ConfigService {
     // ------------------------------------------------------------------------------------------
 
     public CollectionUploaded uploadCollection(String fileName, byte[] content) {
-        ConfigStore.CollectionUpload upload = store.uploadCollection(fileName, content);
-        return new CollectionUploaded(collectionView(upload.collection(), upload.after()), upload.replaced(), upload.warnings(), upload.epoch());
+        // The view is built inside the upload, before the commit, so a view that could not be built stores nothing.
+        ConfigStore.Described<ConfigStore.CollectionUpload, CollectionView> described = store.uploadCollection(fileName, content,
+                this::collectionView);
+        ConfigStore.CollectionUpload upload = described.upload();
+        return new CollectionUploaded(described.view(), upload.replaced(), upload.warnings(), upload.epoch());
     }
 
     public CollectionList collections() {

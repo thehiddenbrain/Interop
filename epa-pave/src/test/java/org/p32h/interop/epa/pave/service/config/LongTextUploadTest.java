@@ -107,6 +107,46 @@ class LongTextUploadTest {
     }
 
     /**
+     * The answer to an upload is built from the configuration the upload leaves, before it is
+     * written: a view that cannot be built stops the upload, file for file, instead of answering
+     * "internal error" for a file that was stored.
+     */
+    @Test
+    void theAnswerToAnUploadIsBuiltBeforeTheCommitAndAViewThatFailsStoresNothing() throws IOException {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.collectionOf("Kept", ConfigFixture.items(ConfigFixture.item("Ping", "GET", "https://{{base}}/metadata")));
+        byte[] stateBefore = Files.readAllBytes(directory.resolve(ConfigStore.STATE_FILE));
+        List<Path> filesBefore = filesUnder(directory);
+
+        assertThatThrownBy(() -> fixture.store.uploadCollection("long.json", collection("Long texts", attachment(LONG), null),
+                (stored, after) -> {
+                    throw new IllegalStateException("planted failure of the view");
+                })).hasMessage("planted failure of the view");
+        assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", ("{\"name\": \"Sandbox\", \"values\": [{\"key\": \"base\", "
+                + "\"value\": \"sandbox.example.invalid\", \"enabled\": true}]}").getBytes(StandardCharsets.UTF_8), EnvironmentKind.SANDBOX,
+                false, (stored, after) -> {
+                    throw new IllegalStateException("planted failure of the view");
+                })).hasMessage("planted failure of the view");
+
+        assertThat(fixture.store.snapshot().collections()).extracting(StoredCollection::name).containsExactly("Kept");
+        assertThat(fixture.store.snapshot().environments()).isEmpty();
+        assertThat(Files.readAllBytes(directory.resolve(ConfigStore.STATE_FILE))).isEqualTo(stateBefore);
+        assertThat(filesUnder(directory)).isEqualTo(filesBefore);
+
+        // Built before the commit, the answer is still the view every later reading gives.
+        ConfigViews.CollectionUploaded uploaded = fixture.service.uploadCollection("long.json", collection("Long texts", attachment(LONG), null));
+        CollectionView listed = fixture.service.collections().collections().stream().filter(view -> view.name().equals("Long texts"))
+                .findFirst().orElseThrow();
+        assertThat(org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(uploaded.collection()))
+                .isEqualTo(org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(listed));
+        ConfigViews.EnvironmentUploaded environment = fixture.service.uploadEnvironment("env.json", ("{\"name\": \"Sandbox\", \"values\": "
+                + "[{\"key\": \"base\", \"value\": \"sandbox.example.invalid\", \"enabled\": true}]}").getBytes(StandardCharsets.UTF_8),
+                EnvironmentKind.SANDBOX, false);
+        assertThat(org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(environment.environment()))
+                .isEqualTo(org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(fixture.service.environments().environments().get(0)));
+    }
+
+    /**
      * A collection nested deeper than the parser reads is refused with that reason. The limit is
      * Jackson's own nesting limit, 500 levels as this application configures it, and each folder
      * is two levels: an object and its list of items.
