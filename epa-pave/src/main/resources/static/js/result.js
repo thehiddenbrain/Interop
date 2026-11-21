@@ -65,7 +65,7 @@ export function renderResult(envelope, options) {
         quiet ? el('p', {class: 'result__unverified'}, envelope.expectation.explanation) : null,
         settings.lead || null,
         ownBody(envelope),
-        runFacts(envelope, settings),
+        runFacts(envelope, settings, root),
         findingsSection(envelope),
         determinationSection(envelope.determination || []));
 
@@ -272,14 +272,17 @@ function expected(expectation) {
 
 /* ---------- 3 and 4. the next step, the ledger line, and the facts of the run ---------- */
 
-function runFacts(envelope, settings) {
+function runFacts(envelope, settings, root) {
     const recorded = Boolean(envelope.ledger && envelope.ledger.recorded);
     const rows = [
         ['Next step', nextStep(envelope, settings)],
         // One line for the run: its id, how long it took (with the slow flag when it was slow) and
         // that it was recorded. A run the ledger did not keep gets the full alert as a row of its own.
+        // After a failure the first question is what was sent and where, so the wire view, which stays
+        // closed and last, is one click from here.
         ['Run', [runLine(envelope), el('div', {class: 'run-line'}, responseTime(envelope.timing),
-            recorded ? [el('span', {class: 'run-line__sep', aria: {hidden: 'true'}}, ' | '), ledgerLine(envelope.ledger, envelope.runId)] : null)]],
+            recorded ? [el('span', {class: 'run-line__sep', aria: {hidden: 'true'}}, ' | '), ledgerLine(envelope.ledger, envelope.runId)] : null),
+            envelope.wire ? el('div', null, button('Show what was sent and received', () => openWire(root), {class: 'button--text'})) : null]],
         recorded ? null : ['Ledger', ledgerLine(envelope.ledger, envelope.runId)]
     ].filter(row => row !== null);
     const memberId = envelope.wire ? envelope.wire.memberId : null;
@@ -297,6 +300,25 @@ function runFacts(envelope, settings) {
             response.maskNote)]);
     }
     return facts(rows, 'runfacts facts--ruled');
+}
+
+/** Opens the closed Details fold of this result and the wire view inside it, and takes the reader there. */
+function openWire(root) {
+    const details = root.querySelector('details.result__details');
+    if (!details) {
+        return;
+    }
+    details.open = true;
+    const wire = details.querySelector('details.wire');
+    if (wire) {
+        wire.open = true;
+    }
+    const target = wire || details;
+    target.scrollIntoView({block: 'start'});
+    const summary = target.querySelector('summary');
+    if (summary) {
+        summary.focus({preventScroll: true});
+    }
 }
 
 function nextStep(envelope, settings) {
@@ -364,36 +386,47 @@ function runLine(envelope) {
 
 /* ---------- 5. the findings ---------- */
 
+// The two kinds a run on the mock profile raises as a matter of course, whatever the environment:
+// a scenario file answers, so no value an environment, a lookup or a pre-request script would
+// supply is needed for that answer. On live each of them can be why a call failed, so none is set apart there.
+const EXPECTED_ON_MOCK = ['REQUEST_INCOMPLETE', 'PRE_REQUEST_SCRIPT_NOT_RUN'];
+
+/** True for a finding kind that a run on the profile named raises as a matter of course. */
+export function expectedOnMockKind(profile, kind) {
+    return profile === 'mock' && EXPECTED_ON_MOCK.includes(kind);
+}
+
 /**
- * True for a finding that a run on the mock profile with no environment active raises as a matter
- * of course: the request went out without elements only an environment or a lookup supplies. It is
- * still drawn whole, in its own closed fold inside Findings, and counted with the rest.
+ * True for a finding of this result that is expected on the mock profile. It is still drawn
+ * whole, in its own closed fold inside Findings, and that fold carries its own count.
  */
 export function expectedOnMock(envelope, item) {
-    return Boolean(envelope) && envelope.profile === 'mock' && Boolean(item) && item.kind === 'REQUEST_INCOMPLETE'
-        && !(envelope.environment && envelope.environment.active);
+    return Boolean(envelope) && Boolean(item) && expectedOnMockKind(envelope.profile, item.kind);
 }
 
 function findingsSection(envelope) {
     const findings = envelope.findings || [];
     const shown = findings.filter(item => !expectedOnMock(envelope, item));
     const onMock = findings.filter(item => expectedOnMock(envelope, item));
-    // The heading counts every finding the run raised, the ones grouped below included.
-    const node = section(heading(3, 'Findings', findings.length));
+    // The heading is named for what it counts. With some findings set apart as expected on mock, it
+    // counts the ones to look at and the fold below counts the rest, so the total is the sum of two
+    // numbers both on screen and a heading never counts findings the line under it says are none.
+    const node = section(heading(3, onMock.length > 0 ? 'Findings to look at' : 'Findings', shown.length));
     if (shown.length > 0) {
         node.append(el('p', {class: 'quiet'}, 'Something a person should look at. A finding is not a failure of the call.'),
             el('div', null, shown.map(finding)));
     } else if (onMock.length === 0) {
         node.append(el('p', {class: 'quiet'}, 'None were raised on this run.'));
     } else {
-        node.append(el('p', {class: 'quiet'}, 'None apart from the ones expected on the mock profile, below.'));
+        node.append(el('p', {class: 'quiet'}, 'None. The ones below are expected on the mock profile.'));
     }
     if (onMock.length > 0) {
         // Closed, with its count and its reason on the summary: a mock run raises these every time,
         // and open they read as the headline of a run that went right. One click shows each whole.
         node.append(el('details', {class: 'fold result__mock-notes'},
             el('summary', null, 'Expected on the mock profile (' + onMock.length + ')',
-                el('span', {class: 'quiet small'}, ' On the mock profile, with no environment active, this is expected.')),
+                el('span', {class: 'quiet small'}, ' A scenario file answers on mock, so nothing an environment, a lookup or a '
+                    + 'pre-request script would supply is needed for this answer. On live, read each of these.')),
             el('div', null, onMock.map(finding))));
     }
     return node;

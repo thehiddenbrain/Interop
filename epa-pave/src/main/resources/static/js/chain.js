@@ -9,7 +9,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts, tableRow, heading, copyButton, millis, when, token} from './dom.js';
 import {outcome, stamp, slowFlag, toneMark} from './marks.js';
-import {errorPanel} from './result.js';
+import {errorPanel, expectedOnMockKind} from './result.js';
 import {runLink, chainRunsLink} from './history-common.js';
 
 const PROTOCOL_TABS = ['crd', 'dtr', 'pas'];
@@ -213,7 +213,6 @@ function runTable(runs) {
         {text: 'Test result', class: 'col-stamp'}, {text: 'Elapsed', class: 'num col-time'}];
     const body = el('tbody');
     for (const run of runs) {
-        const findings = run.findings || [];
         body.append(
             tableRow({class: 'chain-run', cells: [
                 when(run.timestamp),
@@ -228,13 +227,31 @@ function runTable(runs) {
                 el('span', {class: 'quiet small'}, 'Run '), runLink(run.runId), ' ', copyButton('Copy', () => run.runId),
                 el('span', {class: 'quiet small'}, typeof run.httpStatus === 'number' ? ' HTTP ' + run.httpStatus : ' no HTTP status',
                     run.scenarioId ? [', scenario ', code(run.scenarioId)] : null, '.'),
-                findings.length > 0
-                    ? el('span', {class: 'small'}, ' Findings: ', findings.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]), '.')
-                    : el('span', {class: 'quiet small'}, ' No findings.')
+                findingsLine(run)
             ]}]}));
     }
     return el('table', {class: 'grid chain-runs'},
         el('thead', null, el('tr', null, headings.map(item => (typeof item === 'string'
             ? el('th', {scope: 'col'}, item) : el('th', {scope: 'col', class: item.class}, item.text))))),
         body);
+}
+
+/**
+ * The kinds of finding a run of the chain raised, every one listed. A chain run carries who answered
+ * it rather than the profile, and only a scenario answers on mock, so the two kinds every scenario run
+ * raises are said apart from the others when a scenario answered.
+ */
+function findingsLine(run) {
+    const profile = run.answeredBy === 'SCENARIO' ? 'mock' : 'live';
+    const kinds = run.findings || [];
+    const toLook = kinds.filter(kind => !expectedOnMockKind(profile, kind));
+    const expected = kinds.filter(kind => expectedOnMockKind(profile, kind));
+    const list = values => values.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]);
+    if (kinds.length === 0) {
+        return el('span', {class: 'quiet small'}, ' No findings.');
+    }
+    return [
+        toLook.length > 0 ? el('span', {class: 'small'}, ' Findings: ', list(toLook), '.') : null,
+        expected.length > 0 ? el('span', {class: 'quiet small'}, ' Expected on mock: ', list(expected), '.') : null
+    ];
 }

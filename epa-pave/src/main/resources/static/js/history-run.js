@@ -10,7 +10,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, copyButton, facts, millis, aboutStep} from './dom.js';
 import {textField, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {stamp, slowFlag} from './marks.js';
-import {errorPanel} from './result.js';
+import {errorPanel, expectedOnMockKind} from './result.js';
 import {runLink, chainLink, suiteRunsLink, none, memberAsRecorded, outcomeOf, expectedOf, whatRan, whereRan, codes, whenFiled} from './history-common.js';
 import {replayReport, summaryText} from './history-replay.js';
 
@@ -38,6 +38,25 @@ const FINAL = new Set(['not-replayable', 'invalid']);
 
 /** How many of the runs that follow a run its view lists. */
 const FOLLOWERS_SHOWN = 20;
+
+/**
+ * The kinds of finding a run raised, every one listed. On mock the two kinds every scenario run
+ * raises are said after the others as expected there, so a run that went right does not read as
+ * one with something to look at.
+ */
+function findingsFact(run) {
+    const kinds = run.findings || [];
+    const toLook = kinds.filter(kind => !expectedOnMockKind(run.profile, kind));
+    const expected = kinds.filter(kind => expectedOnMockKind(run.profile, kind));
+    const list = toLook.length > 0
+        ? el('ul', {class: 'plain-list'}, toLook.map(kind => el('li', null, code(kind))))
+        : none(expected.length > 0 ? 'none to look at' : 'none raised');
+    if (expected.length === 0) {
+        return list;
+    }
+    return [list, el('span', {class: 'quiet small'}, ' Expected on the mock profile: ',
+        expected.map((kind, index) => [index > 0 ? ', ' : null, code(kind)]), '.')];
+}
 
 export function createRunView(app, context) {
     let openId = null;
@@ -118,9 +137,7 @@ export function createRunView(app, context) {
                             : none('none recorded')],
                         ['Delegated vendor', run.delegatedVendor ? run.delegatedVendor : none('none recorded')],
                         ['Line of business', run.lineOfBusiness ? run.lineOfBusiness : none('none recorded')],
-                        ['Findings', run.findings && run.findings.length > 0
-                            ? el('ul', {class: 'plain-list'}, run.findings.map(kind => el('li', null, code(kind))))
-                            : none('none raised')],
+                        ['Findings', findingsFact(run)],
                         ['Hook', run.hook ? code(run.hook) : null],
                         ['Attachments sent as', run.attachmentMode ? code(run.attachmentMode) : null],
                         ['Mock scenario', run.scenarioId ? code(run.scenarioId) : null]

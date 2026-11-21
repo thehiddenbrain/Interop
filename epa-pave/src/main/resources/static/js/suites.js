@@ -10,7 +10,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText, faultReport, withoutReference} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
-import {errorPanel} from './result.js';
+import {errorPanel, expectedOnMockKind} from './result.js';
 import {runLink, suiteRunsLink} from './history-common.js';
 
 const POLL_MILLIS = 1000;
@@ -29,12 +29,19 @@ const TEMPLATE = [
 // The counts of a suite run that are not count groups, offered as filters after the groups, with
 // the rows each one selects. A row can be in several of these. The count groups themselves, every
 // row in exactly one, come with their words from the server (countGroups, and countedIn on each row).
-const COUNT_FILTERS = [
-    ['withFindings', 'With findings', row => (row.findings || []).length > 0],
-    ['slow', 'Slow', row => row.slow === true],
-    ['changed', 'Changed since the earlier run', row => row.changed === true],
-    ['notRecorded', 'Runs NOT recorded', row => (row.notRecorded || []).length > 0]
-];
+// On mock a row whose only findings are the two every scenario run raises is not counted as having
+// findings to look at: the kinds are still listed on the row and among the chips by kind. The
+// profile cannot change while the tool runs, so the suite on screen ran on the profile the page reports.
+function countFilters(profile) {
+    const mock = profile === 'mock';
+    return [
+        ['withFindings', mock ? 'With findings to look at' : 'With findings',
+            row => (row.findings || []).some(kind => !expectedOnMockKind(profile, kind))],
+        ['slow', 'Slow', row => row.slow === true],
+        ['changed', 'Changed since the earlier run', row => row.changed === true],
+        ['notRecorded', 'Runs NOT recorded', row => (row.notRecorded || []).length > 0]
+    ];
+}
 
 export function createSuites(app, context) {
     const health = context.health;
@@ -343,9 +350,11 @@ export function createSuites(app, context) {
                 chips.push(chip({key: 'group:' + group.group, label: group.label, test: row => row.countedIn === group.group}, group.label, group.count));
             }
         }
-        for (const [key, label, test] of COUNT_FILTERS) {
-            if (counts[key] > 0) {
-                chips.push(chip({key, label, test}, label, counts[key]));
+        for (const [key, label, test] of countFilters(app.isMock() ? 'mock' : 'live')) {
+            // The server counts every finding; the page counts the rows it offers to look at by the same test it filters with.
+            const value = key === 'withFindings' ? (run.results || []).filter(test).length : counts[key];
+            if (value > 0) {
+                chips.push(chip({key, label, test}, label, value));
             }
         }
         const kinds = Object.entries(findingCounts).map(([kind, value]) =>
