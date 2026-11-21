@@ -108,7 +108,8 @@ What each Java gets, since D-274 (the code at the head):
   does not build. The build stops at once with "Gradle is running on Java ..., which is older than
   21, and Gradle found no JDK 21. ..." (seen on `647b102` from a terminal on a Java 17, the JDK 21
   hidden), or, on a Java 21 runtime that has no compiler, with "... which is a Java runtime without a
-  compiler, and Gradle found no JDK 21. ..." (seen the same way). Install a JDK 21 and set `JAVA_HOME` to it.
+  compiler, and Gradle found no JDK 21. ..." (seen the same way). Install a JDK 21 and set
+  `JAVA_HOME` to it.
 
 A checkout from before D-274 with no JDK 21 stops instead with "Cannot find a Java installation on
 your machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
@@ -2019,7 +2020,8 @@ Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, that is 2026-09, with Buildship 3.1.
 with keyboard and mouse by agents that wrote none of the tool, on `e70a873` and on `ace5914`, which
 adds the launch configuration and the test changes named below (D-272), on `d089e65`, cloned by
 STS itself from GitHub (D-273), and on `6201644` and `6eddce8`, after the build stopped needing a
-JDK 21 (D-274; with no JDK 21 only as a simulation, the machine's JDK 21 hidden). Nobody who writes this README has seen it on Windows or with another
+JDK 21 (D-274; with no JDK 21 only as a simulation, the machine's JDK 21 hidden). Nobody who writes
+this README has seen it on Windows or with another
 release; what one Windows workstation reported is at the end of this section. The steps, in order:
 
 **1. Which Spring Tools.** Use Spring Tools 5 for Eclipse. PAVE is a Spring Boot 4 application, and the
@@ -2288,7 +2290,8 @@ folder under its path, not the other's. Once a project from the clone is importe
 listed by itself. If the view is empty, "Add an existing local Git repository" opens "Add Git
 Repositories": in a new workspace its "Directory:" holds a `git` folder in your user folder and,
 where that does not exist, says so; put the folder that holds your clone there instead, press Search, tick the repository found
-(it is listed unticked, and "Add" stays greyed out until then), and Add. To check out `epa-pave`: expand Branches; under Local, right click `epa-pave` and choose "Check
+(it is listed unticked, and "Add" stays greyed out until then), and Add. To check out `epa-pave`:
+expand Branches; under Local, right click `epa-pave` and choose "Check
 Out"; if it is only under Remote Tracking, right click `origin/epa-pave`, "Check Out...", then "Check
 out as New Local Branch" in "Check out remote-tracking branch", and Finish in "Create Branch" with
 "Check out new branch" ticked. These menus and dialogs were seen; the switch itself was not made from
@@ -2404,7 +2407,8 @@ Gradle Project, as under step 8; and the operator's own path, the Git import wiz
 clone (the top folder as a Maven project) then the Git Repositories import of `epa-pave` and Delete of
 the Maven project, gave `epa-pave [boot]`; each started from the Boot Dashboard with both proofs
 holding. Both clones of that run had a local folder as their origin, its commits already fetched: the
-pull fetched nothing, and neither a fetch from GitHub nor a clone made by STS was part of it. **Reported, not seen by the writers of this
+pull fetched nothing, and neither a fetch from GitHub nor a clone made by STS was part of it.
+**Reported, not seen by the writers of this
 README:** one operator, on a Windows workstation, let STS make the clone, as for another project. The
 clone showed under Git Repositories with no project in the Package Explorer; a Gradle import then
 failed with the error naming `gradle-8.9-bin.zip`, its cause cut off; their Git Repositories view held
@@ -2417,7 +2421,8 @@ fast-forward was seen), a credential prompt, a real tester at a real
 workstation with a corporate proxy or mirror, a machine with a Java 17 and no Java 21 in an IDE
 (from a terminal, Gradle on a Java 17 with the JDK 21 hidden stopped with the build's message,
 simulated), a machine with no JDK 21 other than as a simulation, "Clone a Git repository" in the Git
-Repositories view, a branch switched from that view, the screens in a browser after a start from STS, the live profile against a service, the
+Repositories view, a branch switched from that view, the screens in a browser after a start from
+STS, the live profile against a service, the
 whole test suite from the IDE, and STS on a release other than 5.4.0.
 
 ## Open items
@@ -2759,7 +2764,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
   new workspace, on `ace5914`; and the plain Eclipse IDE for Java Developers 2026-09 on `e70a873`,
   and again on `ace5914` to see what it does with the launch file.
   `GET /api/mode` after each start, and the two proofs of "Prove it before handover" through the API
-  by script after the first start of each run; on `e70a873` also the History list, one run, the note, the export, the notifications, a
+  by script after the first start of each run; on `e70a873` also the History list, one run, the
+  note, the export, the notifications, a
   subscription read, the page and one stylesheet. What each run saw is under [STS (Spring Tools for
   Eclipse)](#sts-spring-tools-for-eclipse) and in D-272. Before them, on `1b34181` and `05acbf7`, an
   emulation of STS's compiler without STS started the tool, and on `05acbf7` ran the 70 `curl`
