@@ -58,8 +58,8 @@ the operator's state rebuilt, and a machine with no JDK 21 and then no network, 
 what an independent check of that entry and the README's STS section found; each commit that records
 it changes this file, `DECISIONS.md` and the README only. D-274 records the change to the build that
 followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gradle, with what was
-seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code is that of
-the head) and what a review found. The integrator first wrote that entry and its lines in the README
+seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code was that of
+the head before the screen changes of D-276 and D-277; STS has not been run on the code since) and what a review found. The integrator first wrote that entry and its lines in the README
 alone (`6eddce8`); two independent checks of them followed, and their findings, checked against the
 outputs and screenshots, and the last run of STS are in them now. D-275 records the first session on
 a Windows workstation, the operator's, on the code of `f82e32e`: an upload that fails there with an
@@ -122,7 +122,9 @@ has looked.
    **What the tool does about it since D-277:** the first line of the log entry and the screen name
    the chain of exception types, with the text of a missing class, a compile problem or the like, and
    `Copy reference and cause` copies both. Seen only in a copy of the jar damaged by hand on Linux.
-   For the operator to get it: pull, start again, upload once more and send what the button copies.
+   It is on the branch `ui-round1` and reaches `epa-pave`, the branch of the operator's clone, only
+   when `ui-round1` is merged. For the operator to get it, once that merge is done: pull `epa-pave`,
+   start again, upload once more and send what the button copies.
    **The cause is still not known.** A suite that stops and the notification receiver's verdict still
    give the reference without the cause.
 2. **The operator's verdict after that first session**, the only judgement of the tool by the person
@@ -240,7 +242,8 @@ has looked.
    simulated, had no JDK 21 (the import leaves a project that cannot start, "Cannot find a Java
    installation ... languageVersion=21") and then no network. Since D-274 the same simulation
    gives a project that starts on the Java 25 that STS brings, both proofs holding: seen on
-   `6201644`, and on `6eddce8`, whose code is that of the head, both for a project imported before
+   `6201644`, and on `6eddce8`, whose code was that of the head before the screen changes of D-276 and D-277 (STS has not
+   been run on the code since), both for a project imported before
    the change and then brought up to date with Team, Pull and one Gradle, Refresh Gradle Project, and
    for the operator's own path (the top folder as a Maven project, then the Git Repositories import
    of `epa-pave`), both on clones whose origin was a local copy with its commits already fetched, so
@@ -1417,7 +1420,9 @@ CMP-2 (a detail taken from a pasted request marked "by hand") is done (D-206).
   build's scratch directory). Nobody else has built this revision; the integrator's last gates are in
   the pull request description. Since then `05acbf7` (D-271): 2872 tests, 0 failures, 0 errors, 2
   skipped, through the same wrapper, built by the change's author; and `ace5914` (D-272), whose code
-  is the code at the head: 2872 tests, 0 failures, 0 errors, 2 skipped, the same way, by its author.
+  was the code at the head before the screen changes of D-276 and D-277: 2872 tests, 0 failures, 0 errors, 2 skipped, the
+  same way, by its author. The last whole build of the code at the head is that of `6a6fe2f`: 2937
+  tests, 0 failures, 0 errors, 2 skipped, the same way, by the author of its last change.
 
 | Step | State |
 | --- | --- |

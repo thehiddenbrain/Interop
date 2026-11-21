@@ -112,7 +112,8 @@ Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
   application, and an import without a JDK 21 was simulated (D-273): it gave a project that could not
   start. Since D-274 the build compiles on the Java 25 that STS brings where Gradle finds no JDK 21.
   With the JDK 21 hidden (a simulation), STS alone imported and started the tool on that Java 25 on
-  `6201644`, and again on `6eddce8`, whose code is that of the head: there both a project imported
+  `6201644`, and again on `6eddce8`, whose code was that of the head before the screen changes of D-276 and D-277 (STS has
+  not been run on the code since): there both a project imported
   before the change, after Team, Pull and Gradle, Refresh Gradle Project, and a fresh import by the
   operator's own path, both on clones of a local copy, so no fetch from GitHub was seen. Other
   releases were not tried. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
@@ -260,7 +261,8 @@ payer (see [Limitations](#limitations)).
 **Every scenario is synthetic.** Sentinel member IDs select the mock scenario: `P32H-PA-REQ`
 answers "prior authorization required", `P32H-NO-AUTH` answers "not required", `P32H-EMPTY`
 answers with no determination, and so on; a sentinel means the same case in every protocol
-(D-154). The CRD, DTR and PAS tabs list them, each with a "Use this case" link that fills the
+(D-154). The screens call a sentinel a "test member ID", or for an NPI a "test NPI"; this README and
+the scenario files' keys say sentinel, and both words mean the same. The CRD, DTR and PAS tabs list them, each with a "Use this case" link that fills the
 member ID, an NPI and the procedure codes the scenario file names for its case (its `sampleCase`),
 each looked up as if typed, so the first send needs nothing else (a file of your own without a
 `sampleCase` fills the member ID only, and one whose `sampleCase` NPI fails the check is refused), and
@@ -287,7 +289,7 @@ How a scenario is chosen is one rule for the three protocols, and it is all in t
   `crd-04-doc-dtr`, carries `answersDtrSentinels`), and names the questionnaire that the DTR
   scenario of that sentinel holds, so `Continue in DTR` reaches what the DTR scenario's label says,
   whether the member ID selected `crd-04-doc-dtr` or it was chosen in the Mock scenario field. The
-  result note then says that the member ID is the sentinel of that DTR scenario.
+  result note then says that the member ID is the test member ID of that DTR scenario.
 - The scenario list carries notes, on the list and on the scenario they are about: which file is
   the default, an `expect` block whose HTTP status differs from the one its file answers with, and
   a file in a scenario folder that is not read (another extension, or a subfolder). It also names
@@ -599,7 +601,7 @@ frame. See [The production guardrail](#the-production-guardrail).
   differently, the Outcome filter gives each wording with the protocols that use it. A coverage
   code that came as null, empty or with no value reads `pa-needed=(null)`, `(empty)` or `(no
   value)` under "Codes returned". Open at this revision: a PAS run with no decision is shown in
-  the run view, under the "Next action" filter and in the chain view with the general label "Look
+  the run view, in its "What next" row, and in the chain view with the general label "Look
   at the response detail. The tool cannot say what should happen next.", where the PAS tab itself
   gives the two lines of next step; and History, a suite row and a chain say nothing of the fields
   the tool did not interpret. Open the run's own tab, or replay it, to see both.
@@ -2032,7 +2034,8 @@ simulation):
   test classes run from the IDE gave what they give on a JDK 21 (step 7); and `classes` run from the
   Gradle Tasks view succeeded. That commit printed the line in its first wording, "No JDK 21 was
   found, so ...".
-- on `6eddce8`, whose code is that of the head: a project imported before the change was brought up
+- on `6eddce8`, whose code was that of the head before the screen changes of D-276 and D-277 (STS has not been run on the
+  code since): a project imported before the change was brought up
   to date with Team, Pull and Gradle, Refresh Gradle Project (step 8), and the operator's own path
   (step 2 (b), "Already pressed Finish on the `Interop` row?") gave `epa-pave [boot]` with 0 errors
   and 25 warnings of its own. Each was started from the Boot Dashboard with no dialog, on that Java
@@ -2407,8 +2410,8 @@ a workstation with no JDK 21 was simulated, then one whose network refuses the d
 "On a checkout from before that change" and "If the import fails". On `6201644` two more runs
 (D-274): with the JDK 21 hidden and an empty Gradle home (simulated), the import gave
 `epa-pave [boot]` on STS's Java 25, the start held both proofs, and the four test classes and
-`classes` ran; with the JDK 21 present, nothing had changed. On `6eddce8`, whose code is that of the
-head, one more run with the JDK 21 hidden (simulated): a project imported on `54e7197`, before the
+`classes` ran; with the JDK 21 present, nothing had changed. On `6eddce8`, whose code was that of the
+head before the screen changes of D-276 and D-277 (STS has not been run on the code since), one more run with the JDK 21 hidden (simulated): a project imported on `54e7197`, before the
 change, with its "languageVersion=21" error, was put right by Team, Pull and one Gradle, Refresh
 Gradle Project, as under step 8; and the operator's own path, the Git import wizard on an existing
 clone (the top folder as a Maven project) then the Git Repositories import of `epa-pave` and Delete of
@@ -2515,7 +2518,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   hit an internal error"; the cause is not known, and until it is found the live profile cannot be
   configured there. A Windows Java under Wine ran the tool, the uploads and the proofs without that
   error, but it is not Windows. Since D-277 the screen names the cause and `Copy reference and cause`
-  copies it with the reference: pull, start again, upload once more and send what it copies. What
+  copies it with the reference. That change is on the branch `ui-round1` and reaches `epa-pave`, the
+  branch of the operator's clone, only when `ui-round1` is merged; once it is, pull `epa-pave`, start
+  again, upload once more and send what it copies. What
   the kinds of cause mean is under step 5 of
   [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275, D-277).
 - **`run.cmd` has not been run** by anyone. No Windows machine was available to the writers. It was written to do what
@@ -2529,7 +2534,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
   (D-272); on `d089e65` the clone by STS's Git import wizard, what goes wrong on its way, and an
   import without a JDK 21, simulated, which left a project that could not start (D-273). Since D-274
   STS alone imported and started the tool on its own Java 25 with the JDK 21 hidden (simulated): on
-  `6201644`, and on `6eddce8`, whose code is that of the head, after a pull and a refresh of a project
+  `6201644`, and on `6eddce8`, whose code was that of the head before the screen changes of D-276 and D-277 (STS has not
+  been run on the code since), after a pull and a refresh of a project
   imported before the change and by the operator's own path; on `8463174` the start from the launch
   file without its argument, and uploads through `curl` and the Config tab, each 200 (D-275). No
   other release and no minimum version was tried, no Windows machine by the writers (the operator's
@@ -2650,8 +2656,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
   a request sent as written. Each says only "Next: read the response detail below. This tool
   cannot say what should happen next." (or the like). Record the run by its run id as what came
   back and report it to the people who look after the service, as PAS now says.
-- History, its "Next action" filter and the chain view show a PAS run with no decision under the
-  general label "Look at the response detail. The tool cannot say what should happen next.", where
+- History's run view, in its "What next" row, and the chain view show a PAS run with no decision
+  under the general label "Look at the response detail. The tool cannot say what should happen next.", where
   the PAS tab gives the two lines of next step.
 - On mock, the next step of a played 500 or unreachable service still reads "Next: check the
   environment, then send again.", and that of the malformed DTR package "Next: read the problems
@@ -2825,7 +2831,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   files' sample cases, the error shape and its log line, and this README's first run checklist. The
   whole build of `6a6fe2f` through the same wrapper: 2,937 tests, 0 failures, 0 errors, 2 skipped.
   What this README says of those screens was checked against the sources of `6a6fe2f`: every quoted
-  button, heading and sentence was looked for in `src/main`. The screens themselves were walked in
+  button, heading and sentence was looked for in `src/main`. One was not there and was missed by
+  that search: a History filter named "Next action", quoted since before this round; a check of
+  these records found it, and the two sentences now name the run view's "What next" row. The screens themselves were walked in
   Chromium by agents that did not build them, at 1440 by 900 and in part at 1024 by 768, on mock and
   on live with the sample environment and collection and no real service; the internal error's cause
   was seen in a copy of the jar with a class removed by hand. Apart from these, the commits after

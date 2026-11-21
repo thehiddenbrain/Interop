@@ -5574,7 +5574,7 @@ of it. The reports, outputs and screenshots are in the integrator's scratch dire
   after: 3.2); the first DTR question, 1582 px down and about 885 px, inside the first window. The
   whole journey CRD to DTR to PAS on the documentation sample took 9 clicks and 1 typed field. Of the
   fifteen findings the walk found five gone (2, 3, 11 on the path the tool suggests, 13 for the NPI,
-  15), and 4 gone mostly; eight better (1, 5, 6, 7, 8, 9, 14); two the same (10, 12), as planned.
+  15), and 4 gone mostly; seven better (1, 5, 6, 7, 8, 9, 14); two the same (10, 12), as planned.
 - **What each letter changed, as a tester now sees it.**
   - *A.* On mock each row of the scenario table names a member ID, an NPI and a code, and `Use this
     case` fills all three, each looked up as if typed, and sets the Mock scenario field back to "The
@@ -5658,6 +5658,15 @@ of it. The reports, outputs and screenshots are in the integrator's scratch dire
   they are; and the other summaries (History, Config, suites, the PAS sample notification) still put
   the focus on the first marked field, because the task named only the protocol forms. The plan's
   rule of a clean build twice per batch was kept by the first corrector and not by the builders.
+  Batch 1 also dropped DTR's "DTR questionnaire package" heading from inside the fold, for the reason
+  the plan gives for dropping CRD's. Batch 2 did not repeat the D-270 caution (do not set
+  `server.address` before PAVE has a sign-in) in the checklist, because "Who can reach this tool"
+  already states it and the checklist links there; and it kept the git working-tree warnings in step
+  4 as one line, because they are output a tester sees. The first corrector kept the lookup's "1
+  returned but not interpreted" (walk finding 13) on purpose, as plan I 6 and section 20 decide; only
+  the NPI part was corrected. It left the result long because the plan's letter E folds only the
+  absent determination and coverage rows and keeps the cards and the response detail open as section
+  20's tier 1; folding more would have gone past the letter.
 - **The four findings of the audit, and what was done.** (1) F's check "fewer than 200 words" on the
   first screen cannot be met while the table of letter A stays (288 words without the options of the
   selectors, the table alone 189): the integrator restated the limit as the empty state outside that
@@ -5692,7 +5701,8 @@ of it. The reports, outputs and screenshots are in the integrator's scratch dire
   round touches no file of the guardrail. Section 20: the masthead and banners are unchanged, every
   part of a result is still there in its order with the error panel last and open, and a comparison
   of the old and the new screens with every fold open found nothing missing altogether. The smoke
-  script of the two handover proofs ended "ALL PROOFS HELD" after each check. **Not tested: the
+  script of the two handover proofs ended "ALL PROOFS HELD" after the audit and after three of the
+  checks that followed it; the check of the internal error's cause ran no smoke script. **Not tested: the
   per-session unlock**, because this installation's floor (`config-store.allow-prod-writes` false)
   forbids it on both jars; nothing in the round touches it.
 - **What is left, the worst first.** A result is still long: about 2.7 window heights on CRD and 3.2
@@ -5717,8 +5727,23 @@ of it. The reports, outputs and screenshots are in the integrator's scratch dire
   correction, 2,916 after the second, each with 0 failures, 0 errors and 2 skipped. New test classes
   hold the layout by reading the scripts as text, some running a function under Node
   (`ResultLayoutFrontendTest`, `FormLayoutFrontendTest`, `ScenarioOverrideFrontendTest`,
-  `AboutThisStepFrontendTest`, `ConfigReadinessFrontendTest`, `SampleCaseTest`,
-  `NoSentinelOnScreenTest`); no test drives a browser.
+  `AboutThisStepFrontendTest`, `ConfigReadinessFrontendTest`). `NoSentinelOnScreenTest` reads the
+  scripts, the pages, the bundled scenario texts and every string literal of the Java sources for the
+  word. `SampleCaseTest` checks the sample cases of the scenario files: the NPI's check digit, the
+  codes against the bundled list, and that each sample selects its own file. No test drives a
+  browser.
+- **Checked after it was written.** Another agent, which wrote none of it, checked this entry, D-277
+  and their lines in `PROGRESS.md` and the README against the code of `6a6fe2f` and the outputs,
+  and found two majors and six minors. Major: `6eddce8` and `ace5914` were still said to hold the
+  code at the head, which they have not since this round (STS has not been run on the code since);
+  and the README quoted a History filter "Next action" that does not exist (the run view's row is
+  "What next"). Minor: "eight better" for seven findings; the smoke script said to have ended "ALL
+  PROOFS HELD" after each check, which the check of the error cause did not run; `SampleCaseTest`
+  named among the layout tests; four places where the builders left the plan missing above; the
+  README calling a test member ID a sentinel without saying the screens use the other words; and
+  "Pull the branch" in D-277, which named no branch. Each finding held against the evidence and is
+  corrected. The same "Next action" quote stands in `PROGRESS.md` (open line 8) and in an older entry
+  above; they were left, because the check named neither.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
 
 **D-277. An internal error of the tool names its cause, in the first line of the log entry and on
@@ -5809,7 +5834,9 @@ the screen: a deliberate, narrow change to D-036.**
   the log and not on the screen. Their log lines begin with the cause all the same. A suite row of a
   failure shows the reference twice, in its sentence and above the cause, because the results CSV and
   existing tests rely on the sentence.
-- **What the operator has to do to get it.** Pull the branch (in STS: Team, Pull, then Gradle,
+- **What the operator has to do to get it.** The change is on the branch `ui-round1`; the
+  operator's clone is on `epa-pave`, which does not hold it until `ui-round1` is merged, so a pull
+  today gives nothing of it. Once the merge is done: pull `epa-pave` (in STS: Team, Pull, then Gradle,
   Refresh Gradle Project), start the tool again, upload the file once more, press `Copy reference and
   cause` under the error and send what it copied. If the cause names "Unresolved compilation
   problem" or a class not found, the README's STS section says what to try first.
