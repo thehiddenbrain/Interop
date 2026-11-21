@@ -29,7 +29,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-271 | Asked whether the tool was ready to load into STS, the integrator first answered yes for mock with one caveat; that was wrong in part | A test found 24 handler arguments in 9 handlers that took their request name from their Java name. Compiled as STS would without the parameter-names setting (the batch Eclipse compiler, an emulation, not STS), 8 of the 9 were seen answering HTTP 500 (History, one run, the note, notifications, the four subscription calls); the export was not called. Each argument now names itself, the test holds it, and the emulation saw the 8 answer 200 and the export answer through the README's example. **No real STS had imported or started the project** then; later one did, on Linux: D-272 |
 | D-272 | The real STS 5.4.0 has run the project on Linux, twice, with one fix between the runs | On Linux with Spring Tools 5.4.0 the import with every default worked; the shared launch configuration started `PaveApplication` from the Boot Dashboard without asking; three tests that need the Gradle test task were skipped outside it with a sentence that says why. A profile typed in the launch dialog was written into that tracked file. **Not seen: Windows, `run.cmd`, a real tester's workstation, the screens in a browser after an STS start, live against a service, the whole suite from the IDE, any other STS release** |
 | D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; on Linux it read like a network fault and was not one (the operator's cause was not seen). STS alone, with no JDK 21, imports a project that cannot start (simulated; since D-274 this holds only for a checkout from before `6201644`). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
-| D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0** |
+| D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0, a fetch of new commits from GitHub in STS** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5285,8 +5285,8 @@ nobody anything; where none exists, the new path replaces an import that fails i
 that works or stops with a plain message; and every further question cost a person who had already
 spent hours on the import another round. It decided what follows and had it built, run in the real
 IDE and reviewed. This entry was first written by the integrator alone, from those reports, so that
-the change could be handed over at once (`6eddce8`); it was then checked, and corrected as the last
-bullet says.
+the change could be handed over at once (`6eddce8`); it was then checked twice, and corrected as the
+bullets "The check of the first record" and "The second check" say.
 - **Decided.** (1) Where Gradle finds a JDK 21, nothing changes: it is the toolchain, as before, for
   compiling, for the tests and for every task that starts a Java, whichever Java runs Gradle. (2)
   Where Gradle finds none and the Java that runs Gradle is a JDK 21 or newer, the build compiles for
@@ -5341,14 +5341,17 @@ bullet says.
   Refresh Gradle Project then gave `epa-pave [boot]`, 0 errors, 25 warnings, 59 others, with no
   restart, second refresh or new import; the status bar was empty about 45 to 49 seconds after the
   click, and the Problems view read "0 errors" about 20 seconds before the project had its `[boot]`.
-  Second, the operator's own path on a fresh clone: the Git import wizard on that clone, which made
+  In that run the clone's origin was a local copy whose
+  commits were already fetched: the Pull Result read "No ref to fetch from origin - everything up to
+  date.", so only the fast-forward was seen, not a fetch of new commits from GitHub. Second, the
+  operator's own path on a fresh clone of the same local copy, not one made by STS from GitHub: the Git import wizard on that clone, which made
   the top folder a Maven project (0 errors, 6 warnings, 4 others, where with a JDK 21 it had shown
   about 861 errors), then the Git Repositories import of `epa-pave`, then Delete of the Maven
   project with both boxes unticked, gave `epa-pave [boot]` with 0 errors and 25 warnings of its own.
   Each part started the tool from the Boot Dashboard with no dialog, on the IDE's Java 25 ("Starting
   PaveApplication using Java 25.0.4.1"), and both proofs held; every Gradle run logged that Java.
-- **The review**, by an agent that wrote none of it, found no blocker and no major, and five minor
-  points. (a) A Java 21 or newer that is a runtime with no compiler took the new path and then
+- **The review**, by an agent that wrote none of it, found no blocker and no major: four minor
+  points and one nit, (e) below. (a) A Java 21 or newer that is a runtime with no compiler took the new path and then
   failed at the compile: corrected in `647b102`, which stops there too with its own reason. (b) The
   message and the line said "no JDK 21 was found on this machine", more than Gradle looked for:
   corrected, both now say "Gradle found no JDK 21". (c) In the case that stops, every task stops,
@@ -5357,10 +5360,11 @@ bullet says.
   stored while no JDK 21 was visible is reused after one appears: left, because this project does
   not switch that cache on. (e) The scripts' note said "if no JDK 21 is installed" where the build
   decides by what Gradle finds: corrected, and the note now adds "when it is a JDK".
-- **Known and left as it is.** (c) and (d) above. A Gradle daemon started while the JDK 21 was hidden
-  from it was reused after the JDK 21 was visible again and still did not see it until it was
-  stopped (seen once, from a terminal); that a daemon started before a JDK 21 is installed behaves
-  the same is inferred, not tried, and the README says to stop the daemons then. In the IDE the line
+- **Known and left as it is.** (c) and (d) above. A daemon started inside the namespace that hid the
+  JDK 21 was reused by a run from outside it and could not see the JDK 21, which was still hidden
+  from that daemon (seen once, from a terminal); that says nothing about a daemon that does not
+  notice a JDK 21 installed later, which was not tried. The README advises stopping the daemons
+  then, as a precaution. In the IDE the line
   shows only in the Console view, which a default import leaves closed, and it is too long for that
   view even maximised; a build script cannot put a line in the Problems view. After a refresh of a
   project whose first import failed, the old red failure stays in the "[Gradle Operations]" console
@@ -5370,8 +5374,9 @@ bullet says.
   `run.sh` and `run.cmd` after the change (`run.sh` was only parsed, `run.cmd` only read); the whole
   build and the start of the jar with no JDK 21 on `647b102` (only `classes`); an STS other than
   5.4.0; a workstation whose only other Java is a 17, in the IDE; a JDK 21 installed while STS or a
-  Gradle daemon runs; and the fallbacks of a refresh that does not work (a second refresh, a
-  restart, a new import), because the first refresh worked.
+  Gradle daemon runs; the fallbacks of a refresh that does not work (a second refresh, a
+  restart, a new import), because the first refresh worked; and, on `6eddce8`, a fetch of new commits
+  from GitHub or a clone made by STS, because both clones had a local copy as their origin.
 - On the build machine the change's author once started the jar with the machine's root as its
   working folder, by mistake, which left a `config-store` and a `run-history` there holding mock
   data. A safety check of the machine refused their removal to that agent; they are still there,
@@ -5380,7 +5385,7 @@ bullet says.
   `6eddce8` against the reports and their outputs found, and the records now say: that `run.sh` had
   changed since it was last run and has not been run since; that the last whole build named was
   older than the head's; that the daemon seen not finding a JDK 21 had been started while it was
-  hidden, not before one was installed; that "every compile and test on the JDK 21" was read from
+  hidden, not before one was installed (the second check found that sentence still wrong); that "every compile and test on the JDK 21" was read from
   Gradle's settings, with the compiles from the cache; that D-273 lacked a pointer here where it
   says STS alone is not enough; that the IDE on `6201644` printed the line's first wording; that the
   hidden runs are simulations; that the effect of a moved Gradle class is inferred; that the refusal
@@ -5390,4 +5395,15 @@ bullet says.
   home in step 3, a JDK 21 installed while Gradle runs, the name of the section pointed to, and the
   STS runs in the closing paragraphs. Every finding was checked against the outputs and screenshots
   and taken. The last run of the IDE on `6eddce8` came after that record and is in it now.
+- **The second check**, of the corrected record (`06bb040`), by an agent that wrote none of it,
+  found, and the records now say: that the daemon reused "after the JDK 21 was visible again" had
+  never seen it, because it stayed in the namespace that hid it, so the run says nothing about a
+  daemon missing a JDK 21 installed later (the first check had seen part of this, and the fix only
+  reworded it); that both clones of the last run had a local copy as origin with its commits
+  already fetched, so neither a fetch from GitHub nor a clone made by STS was seen there; that the
+  review found four minor points and one nit, not five minor points; that "as the last bullet says"
+  pointed at the wrong bullet; that the README gave the stop message's "older than 21" wording to
+  the Java 21 runtime too, which gets "which is a Java runtime without a compiler"; and that the
+  README wrote `gradlew --stop` where Linux and macOS need `./gradlew --stop`. Each was checked
+  against the outputs and taken.
 - The commits that record this change this file, `PROGRESS.md` and the README only.

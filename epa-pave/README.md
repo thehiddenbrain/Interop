@@ -58,7 +58,7 @@ configuration is needed.
   With the JDK 21 hidden (a simulation), STS alone imported and started the tool on that Java 25 on
   `6201644`, and again on `6eddce8`, whose code is that of the head: there both a project imported
   before the change, after Team, Pull and Gradle, Refresh Gradle Project, and a fresh import by the
-  operator's own path. Windows and other releases were not tried by the writers; one Windows workstation has reported a failed import, at the end of that
+  operator's own path, both on clones of a local copy, so no fetch from GitHub was seen. Windows and other releases were not tried by the writers; one Windows workstation has reported a failed import, at the end of that
   section. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
   said the tool will be productionized one day, which is read here as running it that way (D-270);
@@ -106,8 +106,9 @@ What each Java gets, since D-274 (the code at the head):
   only `classes` was run that way.
 - **Older than 21, and no JDK 21 that Gradle finds** (or a Java runtime without a compiler): PAVE
   does not build. The build stops at once with "Gradle is running on Java ..., which is older than
-  21, and Gradle found no JDK 21. ..." (seen on `647b102` from a terminal, with a Java 17 and with a
-  Java 21 runtime that has no compiler, the JDK 21 hidden). Install a JDK 21 and set `JAVA_HOME` to it.
+  21, and Gradle found no JDK 21. ..." (seen on `647b102` from a terminal on a Java 17, the JDK 21
+  hidden), or, on a Java 21 runtime that has no compiler, with "... which is a Java runtime without a
+  compiler, and Gradle found no JDK 21. ..." (seen the same way). Install a JDK 21 and set `JAVA_HOME` to it.
 
 A checkout from before D-274 with no JDK 21 stops instead with "Cannot find a Java installation on
 your machine ... matching: {languageVersion=21, ...}. Toolchain download repositories have not been
@@ -2239,11 +2240,12 @@ Package Explorer (no `[boot]`) and at the Problems view.
   (simulated); not seen in an IDE, where STS 5 runs Gradle on its own Java 25. In that case every
   Gradle task stops with it, `help` and `javaToolchains` included.
 - **A JDK 21 was installed while STS was open, and Gradle still does not see it.** Stop the Gradle
-  daemons before the import or the refresh: close STS, run `gradlew --stop` (`gradlew.bat --stop` on
-  Windows) in `epa-pave`, then start STS again (not tried). A Gradle daemon that could not see the
-  JDK 21 when it started was seen to go on not seeing it until it was stopped (once, from a
-  terminal, with the JDK 21 hidden and then shown again, simulated); that a JDK 21 installed while
-  STS runs behaves the same is inferred, not tried. A daemon can outlive STS: one started by a
+  daemons before the import or the refresh: close STS, run `./gradlew --stop` (`gradlew.bat --stop` on
+  Windows) in `epa-pave`, then start STS again (not tried). What was seen is narrower: from a
+  terminal, a Gradle daemon started where the JDK 21 was hidden (simulated) was reused by a later run
+  from outside that hiding and still could not see the JDK 21, because the hiding still applied to
+  that daemon. Whether a running daemon fails to notice a JDK 21 installed later was not tried; the
+  advice to stop the daemons is a precaution. A daemon can outlive STS: one started by a
   Gradle task run from the IDE was still running after File, Exit.
 - **"Cannot find a Java installation on your machine ... matching: {languageVersion=21, ...}".** A
   checkout from before D-274 and no JDK 21 for Gradle: see "On a checkout from before that change"
@@ -2360,7 +2362,9 @@ import leaves automatic synchronisation off, and a pull alone does not apply a c
 
 **A project imported before D-274 with no JDK 21** (no `[boot]`, the "Cannot find a Java installation
 ... languageVersion=21" error) is put right this way, as seen on Linux with STS 5.4.0 on `6eddce8`,
-the JDK 21 hidden (simulated):
+the JDK 21 hidden (simulated). In that run the clone's origin was a local copy whose new commits had
+already been fetched: the Pull Result read "No ref to fetch from origin - everything up to date.",
+so only the fast-forward was seen, not the fetch of new commits from GitHub.
 1. Team, Pull. "Pull Result for <name>" reads "Result Fast-forward" and a "New HEAD" ending in the
    commit pulled. Close. The error stays: only the down arrow and number after the branch in the
    Package Explorer go.
@@ -2399,14 +2403,17 @@ change, with its "languageVersion=21" error, was put right by Team, Pull and one
 Gradle Project, as under step 8; and the operator's own path, the Git import wizard on an existing
 clone (the top folder as a Maven project) then the Git Repositories import of `epa-pave` and Delete of
 the Maven project, gave `epa-pave [boot]`; each started from the Boot Dashboard with both proofs
-holding. **Reported, not seen by the writers of this
+holding. Both clones of that run had a local folder as their origin, its commits already fetched: the
+pull fetched nothing, and neither a fetch from GitHub nor a clone made by STS was part of it. **Reported, not seen by the writers of this
 README:** one operator, on a Windows workstation, let STS make the clone, as for another project. The
 clone showed under Git Repositories with no project in the Package Explorer; a Gradle import then
 failed with the error naming `gradle-8.9-bin.zip`, its cause cut off; their Git Repositories view held
 two clones, one on `epa-pave` and one on another branch and 39 commits behind; the Git wizard's last
 page offered only the top folder, already imported; and the top folder was then a Maven project with
 `epa-pave` a plain folder inside it. Whether the tool has since run there is not known. **Not seen by
-anyone:** Windows beyond that report, `run.cmd`, a credential prompt, a real tester at a real
+anyone:** Windows beyond that report, `run.cmd`, the fetch part of a pull that brings new commits
+from GitHub (on `6eddce8` the clone's origin was a local copy with them already fetched; only the
+fast-forward was seen), a credential prompt, a real tester at a real
 workstation with a corporate proxy or mirror, a machine with a Java 17 and no Java 21 in an IDE
 (from a terminal, Gradle on a Java 17 with the JDK 21 hidden stopped with the build's message,
 simulated), a machine with no JDK 21 other than as a simulation, "Clone a Git repository" in the Git

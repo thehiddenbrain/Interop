@@ -47,7 +47,7 @@ it changes this file, `DECISIONS.md` and the README only. D-274 records the chan
 followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gradle, with what was
 seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code is that of
 the head) and what a review found. The integrator first wrote that entry and its lines in the README
-alone (`6eddce8`); an independent check of them followed, and its findings, checked against the
+alone (`6eddce8`); two independent checks of them followed, and their findings, checked against the
 outputs and screenshots, and the last run of STS are in them now.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
@@ -175,14 +175,16 @@ has looked.
    `6201644`, and on `6eddce8`, whose code is that of the head, both for a project imported before
    the change and then brought up to date with Team, Pull and one Gradle, Refresh Gradle Project, and
    for the operator's own path (the top folder as a Maven project, then the Git Repositories import
-   of `epa-pave`); not on Windows and not on a real workstation without a JDK 21. The reports and
+   of `epa-pave`), both on clones whose origin was a local copy with its commits already fetched, so
+   no fetch from GitHub and no clone made by STS was part of it; not on Windows and not on a real
+   workstation without a JDK 21. The reports and
    screenshots are in the integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`,
    `sts-two/` and `sts-nojdk/`, and for D-274 under `cont14/`, `jdk-fallback/`, `jdk-review/`,
    `sts-after-nojdk/`, `sts-after-jdk21/` and `sts-final/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
    Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of
    the Git wizard offering only the top folder, and that folder imported as a Maven project with
    `epa-pave` a plain folder inside it; whether the tool has run there is not known. Not seen: Windows
-   beyond that report, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
+   beyond that report, the fetch of new commits from GitHub in STS, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
    the IDE, `run.sh` and `run.cmd` since D-274.
    Also never tried: a mirror with credentials and a token server; a screen reader,
    contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
