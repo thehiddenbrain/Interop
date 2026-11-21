@@ -197,7 +197,9 @@ export function createNotifications(spec) {
         if (loaded && arrived.length > 0) {
             // The summary stays one line, so a reading from a mask is only marked here; the opened notification names the value.
             const masked = arrived[0].verdict.maskedReading ? ' ' + MASKED_MARK : '';
-            status.textContent = (arrived.length === 1 ? 'A notification arrived: ' + arrived[0].verdict.headline
+            // The server's headline often starts with the same words, which are then not said twice.
+            const headline = String(arrived[0].verdict.headline || '');
+            status.textContent = (arrived.length === 1 ? (headline.startsWith('A notification arrived') ? headline : 'A notification arrived: ' + headline)
                 : arrived.length + ' notifications arrived. The newest: ' + arrived[0].verdict.headline) + masked;
             // The same comparison that announces an arrival: only what was not in the previous poll.
             for (const listener of arrivedListeners) {

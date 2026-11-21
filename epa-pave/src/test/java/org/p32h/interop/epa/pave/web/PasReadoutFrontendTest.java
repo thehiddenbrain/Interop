@@ -61,4 +61,16 @@ class PasReadoutFrontendTest {
                 .contains("'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '")
                 .contains("'Send inquiry, in the form, is already filled with the claim identifier of this submission. '");
     }
+
+    @Test
+    void aMarkAddedToTheResultIsScrolledIntoViewAndOffersNoCallAlreadyChosen() throws IOException {
+        String pas = read("tab-pas.js");
+        assertThat(CaseCodesFrontendTest.body(pas, "function markOther() {")).contains("scrollReadoutTop();");
+        assertThat(CaseCodesFrontendTest.body(pas, "function showMode(id) {"))
+                .contains("if (readoutResult().querySelector('.result__newer, .result__other')) {\n        scrollReadoutTop();");
+        String newer = CaseCodesFrontendTest.body(pas, "function markNewer(items) {");
+        assertThat(newer).contains("{class: 'button--text result__newer-go', hidden: mode === 'notifications'}").contains("scrollReadoutTop();");
+        assertThat(CaseCodesFrontendTest.body(pas, "function showMode(id) {")).contains("go.hidden = id === 'notifications';");
+        assertThat(read("pas-notifications.js")).contains("headline.startsWith('A notification arrived') ? headline : 'A notification arrived: ' + headline");
+    }
 }

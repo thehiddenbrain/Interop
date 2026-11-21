@@ -230,6 +230,14 @@ function showMode(id) {
         drawEmptyState();
     }
     markOther();
+    // Coming back to a call, the readout keeps the scroll it had on the call left; a mark at the top of the result is shown.
+    if (readoutResult().querySelector('.result__newer, .result__other')) {
+        scrollReadoutTop();
+    }
+    const go = readoutResult().querySelector('.result__newer-go');
+    if (go) {
+        go.hidden = id === 'notifications';
+    }
     bench.checkReadiness();
 }
 
@@ -255,6 +263,8 @@ function markOther() {
     if (other && !mark) {
         shown.prepend(el('p', {class: 'result__other'},
             'This result is of another call than the one now chosen. Sending the chosen call replaces it.'));
+        // The readout keeps where it was scrolled on the call left, so the mark at the top of the result is brought into view.
+        scrollReadoutTop();
     } else if (!other && mark) {
         mark.remove();
     }
@@ -272,9 +282,19 @@ function markNewer(items) {
     if (!items.some(item => item.correlatedRunId === shownRunId)) {
         return;
     }
+    // On the Notifications call itself the button would offer the call already chosen, so it is left out there.
     shown.prepend(el('p', {class: 'result__newer'},
         'A notification about this run arrived after this result. The next step below was given before it; the notification gives the next step now. ',
-        button('Choose the Notifications call', () => showMode('notifications'), {class: 'button--text'})));
+        button('Choose the Notifications call', () => showMode('notifications'), {class: 'button--text result__newer-go', hidden: mode === 'notifications'})));
+    scrollReadoutTop();
+}
+
+/** Puts the readout back at its top, where a mark just added to the result is. */
+function scrollReadoutTop() {
+    const readout = readoutResult().closest('.readout');
+    if (readout) {
+        readout.scrollTop = 0;
+    }
 }
 
 /** The button a press of Enter would mean, if the form were ever submitted: the primary action of the call on screen. */
