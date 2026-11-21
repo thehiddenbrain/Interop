@@ -47,6 +47,7 @@ import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.BusyException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.Faults;
+import org.p32h.interop.epa.pave.service.error.UncaughtFailures;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
@@ -125,11 +126,9 @@ public class SuiteService implements AutoCloseable {
             this.owned = Executors.newSingleThreadExecutor(task -> {
                 Thread thread = new Thread(task, "suite-runner");
                 thread.setDaemon(true);
-                // The JVM's default handler prints messages, which can quote a member ID, so it is replaced.
-                thread.setUncaughtExceptionHandler((failed, e) -> {
-                    // The exception types and frames only, the way a run logs its own failures. Never a message.
-                    log.error("The suite thread ended on a failure inside this tool: {}", Faults.describe(e));
-                });
+                // The JVM's default handler prints messages, which can quote a member ID. Set here as
+                // well as for the process, so the thread is covered however the service was built.
+                thread.setUncaughtExceptionHandler(UncaughtFailures.HANDLER);
                 return thread;
             });
             this.executor = owned;

@@ -73,6 +73,8 @@ public final class SuiteTestBed {
     public boolean withRunner = true;
     public boolean withLedger = true;
     public String mode = "mock";
+    /** The clock of the runs and the suite. A test that needs time itself to fail gives another. */
+    public Clock clock = CLOCK;
 
     private final MemberLookup members = id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id),
             MemberDetail.builder().memberId(id).lastName(SURNAME).dateOfBirth("1970-01-31").lineOfBusiness("Medicare").build(),
@@ -116,7 +118,7 @@ public final class SuiteTestBed {
     }
 
     private RunSupport support(EpaProperties epa) {
-        return new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), ledgerProvider(), CLOCK);
+        return new RunSupport(epa, TrackingProperties.defaults(), OnyxProperties.defaults(), ledgerProvider(), clock);
     }
 
     public SuiteService service() {

@@ -757,6 +757,109 @@ class SuiteServiceTest {
     }
 
     @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aRuntimeExceptionOnTheSuitesOwnThreadIsLoggedOnceUnderItsReferenceAndNeverWithItsMessage(CapturedOutput output)
+            throws Exception {
+        AtomicReference<Thread> thread = new AtomicReference<>();
+        bed.wrap = runner -> spec -> {
+            thread.set(Thread.currentThread());
+            throw new IllegalStateException("no plan for " + spec.memberId());
+        };
+        try (SuiteService service = bed.serviceOnItsOwnThread()) {
+            String id = service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null).suiteRunId();
+            SuiteRunView run = service.get(id, true);
+            for (int i = 0; i < 400 && run.state() == SuiteState.RUNNING; i++) {
+                Thread.sleep(25);
+                run = service.get(id, true);
+            }
+            assertThat(run.state()).isEqualTo(SuiteState.COMPLETED);
+            SuiteCaseResult row = run.results().get(0);
+            assertThat(row.faultCause()).isEqualTo("java.lang.IllegalStateException");
+            String all = output.getAll();
+            assertThat(all).contains("A suite case failed inside this tool, reference " + row.faultReference() + ": java.lang.IllegalStateException")
+                    .doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
+                    .doesNotContain("Exception in thread");
+            assertThat(all.split("A suite case failed inside this tool", -1)).hasSize(2);
+        }
+    }
+
+    /** A clock that fails once a test says so, from the code of the suite itself rather than from a case. */
+    private static final class FailingClock extends java.time.Clock {
+        private final java.time.Clock real = java.time.Clock.fixed(java.time.Instant.parse("2026-03-10T15:00:00Z"), java.time.ZoneOffset.UTC);
+        private volatile Throwable failure;
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return real.getZone();
+        }
+
+        @Override
+        public java.time.Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public java.time.Instant instant() {
+            Throwable now = failure;
+            if (now instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (now instanceof Error error) {
+                throw error;
+            }
+            return real.instant();
+        }
+    }
+
+    /**
+     * Something the run itself does not catch: the run catches every failure of a case and of its
+     * own loop, but the stamp of its end is taken after that, and a failure there leaves the run
+     * for the thread. There the JVM's default handler would print every message and frame.
+     */
+    private void escapesTheRun(Throwable failure, String chain, CapturedOutput output) throws Exception {
+        FailingClock clock = new FailingClock();
+        bed.clock = clock;
+        AtomicReference<Thread> thread = new AtomicReference<>();
+        bed.wrap = runner -> spec -> {
+            thread.set(Thread.currentThread());
+            clock.failure = failure;
+            return new org.p32h.interop.epa.pave.model.CaseOutcome(null, CaseStatus.NOT_RUNNABLE, "Not run in this test.", List.of(),
+                    List.of(), List.of(), null, null, null);
+        };
+        try (SuiteService service = bed.serviceOnItsOwnThread()) {
+            service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null);
+            for (int i = 0; i < 400 && thread.get() == null; i++) {
+                Thread.sleep(25);
+            }
+            // The failure ends the thread, so everything it would print has been printed when the join returns.
+            thread.get().join(20_000);
+            assertThat(thread.get().isAlive()).isFalse();
+        }
+        String all = output.getAll();
+        assertThat(all).doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
+                .doesNotContain("Exception in thread");
+        java.util.regex.Matcher entry = java.util.regex.Pattern.compile(
+                "A thread of this tool ended on a failure that nothing caught, thread suite-runner, reference [0-9a-f-]{36}: "
+                        + java.util.regex.Pattern.quote(chain) + "\\R").matcher(all);
+        assertThat(entry.find()).as(all).isTrue();
+        assertThat(entry.find()).as("one entry only").isFalse();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void anErrorThatEscapesTheRunOnItsOwnThreadIsOneEntryUnderAReferenceAndNeverItsMessage(CapturedOutput output) throws Exception {
+        escapesTheRun(new ExceptionInInitializerError(new IllegalStateException("no plan for S123456789")),
+                "java.lang.ExceptionInInitializerError <- java.lang.IllegalStateException", output);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aRuntimeExceptionThatEscapesTheRunOnItsOwnThreadIsOneEntryUnderAReferenceAndNeverItsMessage(CapturedOutput output)
+            throws Exception {
+        escapesTheRun(new IllegalStateException("no plan for S123456789"), "java.lang.IllegalStateException", output);
+    }
+
+    @Test
     void theCaseThatWasRunningWhenThisToolEndedTheSuiteIsAToolFailureAndNeverReadsAsNotRun() {
         // A missing class can surface after the request of the case has left. Its row must not tell
         // the tester that nothing was sent for it.
