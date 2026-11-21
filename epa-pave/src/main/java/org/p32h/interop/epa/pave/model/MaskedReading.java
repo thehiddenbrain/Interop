@@ -228,14 +228,22 @@ public record MaskedReading(List<String> readings) {
     /**
      * The next step, unchanged in what it offers, marked as resting on the masked reading. The
      * marking already says it is the next step, so the word that starts most instructions is not
-     * said twice.
+     * said twice, and what follows the colon goes on the sentence, so its first word loses its
+     * capital unless the word is written in capitals throughout, as PAS or DTR is.
      */
     public NextStepView on(NextStepView step) {
         if (step == null) {
             return null;
         }
         String said = step.headline().startsWith(NEXT) ? step.headline().substring(NEXT.length()) : step.headline();
-        return step.withHeadline(STEP_FIRST + said);
+        return step.withHeadline(STEP_FIRST + continued(said));
+    }
+
+    private static String continued(String sentence) {
+        if (sentence.length() < 2 || !Character.isUpperCase(sentence.charAt(0)) || !Character.isLowerCase(sentence.charAt(1))) {
+            return sentence;
+        }
+        return Character.toLowerCase(sentence.charAt(0)) + sentence.substring(1);
     }
 
     private static final String NEXT = "Next: ";
