@@ -68,6 +68,35 @@ class EmptyStateFrontendTest {
                 .contains("lead.focus({preventScroll: true});");
     }
 
+    /**
+     * When the lead takes the focus it is brought into view by its nearest edge, whatever the size of
+     * the window; when the tester is already elsewhere, neither the focus nor the scroll moves. Run
+     * with Node, with the element and the page stood in for.
+     */
+    @Test
+    void theLeadThatTakesTheFocusIsBroughtIntoViewWhenNodeRunsIt() throws IOException, InterruptedException {
+        String lead = body("workbench.js", "export function handedOnLead(handed, heading, label, send) {");
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here.");
+        String script = "const calls = []; let made = null;\n"
+                + "const el = (tag, props, ...children) => { const node = {tag, isConnected: true, focus: o => calls.push('focus ' + JSON.stringify(o)),"
+                + " scrollIntoView: o => calls.push('scroll ' + JSON.stringify(o))}; if (tag === 'p' && !made) { made = node; } return node; };\n"
+                + "const code = value => value; const button = () => ({});\n"
+                + "const document = {body: {}, activeElement: null};\n"
+                + "const timers = []; const setTimeout = f => timers.push(f);\n"
+                + lead.replaceFirst("^export ", "") + "\n}\n"
+                + "document.activeElement = {id: 'main'}; handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1'}, 'H', 'Go', null); timers.shift()();\n"
+                + "const arrived = calls.splice(0);\n"
+                + "made = null; document.activeElement = {id: 'field-3'}; handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1'}, 'H', 'Go', null);"
+                + " timers.shift()();\n"
+                + "console.log(JSON.stringify([arrived, calls]));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[[\"focus {\\\"preventScroll\\\":true}\",\"scroll {\\\"block\\\":\\\"nearest\\\"}\"],[]]");
+    }
+
     @Test
     void whileTheSendingPanelShowsItsSentenceTheStatusLineIsForScreenReadersOnly() throws IOException {
         String call = read("workbench.js");

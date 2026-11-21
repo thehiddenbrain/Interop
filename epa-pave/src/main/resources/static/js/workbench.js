@@ -971,11 +971,14 @@ export function handedOnLead(handed, heading, label, send) {
     const lead = el('p', {class: 'empty-state__lead', tabIndex: -1}, 'Handed on from the ' + handed.fromProtocol + ' run ', code(handed.fromRunId), '.');
     // Arriving from "Continue in ...", the focus was put on the page's main region. A keyboard or screen reader user is told
     // first where the step came from, with its button one Tab away, rather than starting at the top of the whole form. A lead
-    // drawn again while the tester works elsewhere on the page leaves the focus where it is.
+    // drawn again while the tester works elsewhere on the page leaves the focus where it is. A focus a sighted keyboard user
+    // cannot see is lost, so the lead is brought into view by the nearest edge: in one column it sits below the form, and where
+    // it is already in view nothing moves.
     setTimeout(() => {
         const at = document.activeElement;
         if (lead.isConnected && (!at || at === document.body || at.id === 'main')) {
             lead.focus({preventScroll: true});
+            lead.scrollIntoView({block: 'nearest'});
         }
     }, 0);
     return el('div', {class: 'empty-state__handed'},
