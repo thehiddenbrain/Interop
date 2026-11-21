@@ -968,8 +968,18 @@ export function sentinelCell(scenario) {
  * form's button stays the one primary button with that name on the tab.
  */
 export function handedOnLead(handed, heading, label, send) {
+    const lead = el('p', {class: 'empty-state__lead', tabIndex: -1}, 'Handed on from the ' + handed.fromProtocol + ' run ', code(handed.fromRunId), '.');
+    // Arriving from "Continue in ...", the focus was put on the page's main region. A keyboard or screen reader user is told
+    // first where the step came from, with its button one Tab away, rather than starting at the top of the whole form. A lead
+    // drawn again while the tester works elsewhere on the page leaves the focus where it is.
+    setTimeout(() => {
+        const at = document.activeElement;
+        if (lead.isConnected && (!at || at === document.body || at.id === 'main')) {
+            lead.focus({preventScroll: true});
+        }
+    }, 0);
     return el('div', {class: 'empty-state__handed'},
-        el('p', {class: 'empty-state__lead'}, 'Handed on from the ' + handed.fromProtocol + ' run ', code(handed.fromRunId), '.'),
+        lead,
         // A value left out because it was masked is named far down the form; the lead says there is one, so the tester looks.
         el('p', null, 'What it handed on is in the form, under "' + heading + '"',
             (handed.masked || []).length > 0 ? ', apart from any value it names as not handed on. '

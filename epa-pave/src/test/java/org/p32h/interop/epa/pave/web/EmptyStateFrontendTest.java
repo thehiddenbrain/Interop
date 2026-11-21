@@ -44,7 +44,7 @@ class EmptyStateFrontendTest {
         Assumptions.assumeTrue(node != null, "Node is not installed here.");
         String script = "const flat = parts => parts.flat(Infinity).filter(p => p !== null && p !== undefined).join('');\n"
                 + "const el = (tag, props, ...children) => flat(children) + (tag === 'p' ? '|' : '');\n"
-                + "const code = value => value; const button = () => '';\n"
+                + "const code = value => value; const button = () => ''; const document = {};\n"
                 + lead.replaceFirst("^export ", "") + "\n}\n"
                 + "console.log(JSON.stringify([handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1', masked: [{key: 'questionnaire'}]}, 'H', 'Go', null),"
                 + " handedOnLead({fromProtocol: 'CRD', fromRunId: 'run-1', masked: []}, 'H', 'Go', null),"
@@ -58,6 +58,14 @@ class EmptyStateFrontendTest {
                 + "\"Handed on from the CRD run run-1.|What it handed on is in the form, under \\\"H\\\". Choose \\\"Go\\\".|\","
                 + "\"Handed on from the DTR run run-2.|What it handed on is in the form, under \\\"H\\\", apart from any value it names "
                 + "as not handed on. 2 values were not handed on because they were masked; the form names them. Choose \\\"Go\\\".|\"]");
+    }
+
+    @Test
+    void afterAHandOverTheFocusIsOnTheLeadThatSaysWhereTheStepCameFrom() throws IOException {
+        String lead = body("workbench.js", "export function handedOnLead(handed, heading, label, send) {");
+        assertThat(lead).contains("el('p', {class: 'empty-state__lead', tabIndex: -1}")
+                .contains("if (lead.isConnected && (!at || at === document.body || at.id === 'main')) {")
+                .contains("lead.focus({preventScroll: true});");
     }
 
     @Test
