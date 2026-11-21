@@ -945,6 +945,7 @@ public class NotificationReceiver {
 
     /** A scenario as the sample's drop-down shows it: its number and its label. */
     private static String shownName(Scenario scenario) {
-        return scenario.number() + ". " + scenario.label();
+        // Quoted as the drop-down shows it, so "1. Approved" does not run into the sentence around it.
+        return "\"" + scenario.number() + ". " + scenario.label() + "\"";
     }
 }

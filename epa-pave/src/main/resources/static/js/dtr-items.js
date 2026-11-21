@@ -227,7 +227,8 @@ function questionItem(item, ctx) {
         textAttrs.htmlFor = answer.inputId;
     }
     append(node,
-        el(answer && answer.inputId ? 'label' : 'p', textAttrs, itemText(item), flags.length > 0 ? [' ', flags] : null),
+        el(answer && answer.inputId ? 'label' : 'p', textAttrs, el('span', {class: 'field__label-text'}, itemText(item)),
+            flags.length > 0 ? [' ', flags] : null),
         el('p', {class: 'dtr-item__meta'}, idMeta(item), typeWords(type), '. ',
             required ? el('strong', null, 'Required. ')
                 : hasValue(item.required) ? 'Optional. '

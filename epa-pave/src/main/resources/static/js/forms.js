@@ -234,7 +234,9 @@ function openFoldsAround(node) {
  */
 export function fieldLabel(field, fallback) {
     const label = field ? field.querySelector('label:not(.choice), legend, .field__label') : null;
-    const text = label ? label.textContent.trim() : '';
+    // A label can carry marks beside its words (a DTR question's "asked now"); only its words name the field.
+    const words = label ? label.querySelector('.field__label-text') || label : null;
+    const text = words ? words.textContent.trim() : '';
     return text !== '' ? text : String(fallback || '');
 }
 
@@ -333,9 +335,14 @@ export function mirrorMarks(slot, scope) {
  */
 export function refusedSaying(count, what) {
     const problems = count + (count === 1 ? ' problem' : ' problems');
-    return what === 'comparison'
-        ? 'The comparison was refused for ' + problems + ' in the form. Nothing was compared.'
-        : 'The send was refused for ' + problems + ' in the form. Nothing was sent.';
+    if (what === 'comparison') {
+        return 'The comparison was refused for ' + problems + ' in the form. Nothing was compared.';
+    }
+    // A preview sends nothing, so it is not said to be a send that was refused.
+    if (what === 'preview') {
+        return 'The request cannot be shown: ' + problems + ' in the form.';
+    }
+    return 'The send was refused for ' + problems + ' in the form. Nothing was sent.';
 }
 
 /**

@@ -533,7 +533,7 @@ function show(envelope) {
 async function showPackagePreview() {
     placeProblem(null);
     const answer = await bench.call(() => api.postJson('/api/dtr/package/preview', packageRequest()).then(noteRefusal),
-        {saying: 'Building the package request. Nothing is sent.', control: controls.preview});
+        {saying: 'Building the package request. Nothing is sent.', control: controls.preview, preview: true});
     if (answer) {
         fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
         bench.say('The package request is shown. Nothing was sent.');
@@ -547,7 +547,7 @@ async function showLoopPreview(entry) {
     const slot = session.problemSlot();
     placeProblem(slot);
     const answer = await bench.call(() => api.postJson('/api/dtr/next-question/preview', request).then(reply => placeAnswerProblems(reply, posted)),
-        {saying: 'Building the next-question request. Nothing is sent.', control: null});
+        {saying: 'Building the next-question request. Nothing is sent.', control: null, preview: true});
     if (!answer) {
         sayAgain(slot, 'Show the next-question request');
         return;

@@ -41,6 +41,10 @@ function none(text) {
 function kindLine(kinds, kind, note) {
     const known = Object.prototype.hasOwnProperty.call(kinds, kind) ? kinds[kind] : ['Response kind ', code(String(kind)), '.'];
     // The server's note can say the same as the kind's own sentence, as it does when no response arrived. It is said once.
+    // A note that starts with the kind's own sentence ("The response has no body. For this call ...") is said in its place.
+    if (note && typeof known === 'string' && note.startsWith(known)) {
+        return el('p', null, note);
+    }
     return el('p', null, known, note && note !== known ? [' ', note] : null);
 }
 

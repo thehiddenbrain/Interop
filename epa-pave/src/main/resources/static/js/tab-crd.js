@@ -310,7 +310,7 @@ async function send() {
 
 async function showPreview() {
     const answer = await bench.call(() => api.postJson('/api/crd/preview', buildRequest()),
-        {saying: 'Building the request. Nothing is sent.', control: controls.preview});
+        {saying: 'Building the request. Nothing is sent.', control: controls.preview, preview: true});
     if (answer) {
         fill(slots.preview, requestPreviewPanel(answer.body, () => clear(slots.preview)));
         // Whatever the readout was scrolled to, the request asked for is brought into view.

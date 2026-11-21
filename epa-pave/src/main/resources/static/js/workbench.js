@@ -547,7 +547,7 @@ export function createWorkbench(app, panel, spec) {
                 if (counted > 0) {
                     // The server's title counts the problems in the present tense; the summary keeps it and
                     // follows the corrections, and this line says what the send met, which stays true.
-                    status.textContent = refusedSaying(counted);
+                    status.textContent = refusedSaying(counted, options.preview === true ? 'preview' : undefined);
                 }
                 return null;
             }

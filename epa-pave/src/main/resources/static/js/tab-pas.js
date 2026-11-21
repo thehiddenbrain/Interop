@@ -922,7 +922,7 @@ async function showPreview(kind) {
         update: () => api.postJson('/api/pas/subscriptions/' + encodeURIComponent(id === '' ? '-' : id) + '/preview', subscriptionBody())
     }[kind];
     const control = {submit: controls.preview, inquire: controls.inquirePreview, create: controls.createPreview, update: controls.updatePreview}[kind];
-    const answer = await call(send, {saying: 'Building the request. Nothing is sent.', control, sendsCase: kind === 'submit' || kind === 'inquire'});
+    const answer = await call(send, {saying: 'Building the request. Nothing is sent.', control, preview: true, sendsCase: kind === 'submit' || kind === 'inquire'});
     if (answer) {
         const shownPanel = requestPreviewPanel(answer.body, () => clear(slots.preview));
         if (kind === 'submit') {

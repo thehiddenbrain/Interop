@@ -1280,15 +1280,16 @@ class NotificationReceiverTest {
         Scenario known = scenarios.list(MockOnyxPasClient.SCENARIOS).stream().filter(s -> s.id().equals("pas-11-notification-known-run")).findFirst().orElseThrow();
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest("pas-01-approved", null, null)))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
-                        .startsWith("Scenario " + approved.number() + ". " + approved.label() + " sends no notification. Choose one that does: ")
-                        .contains(known.number() + ". " + known.label())
+                        .startsWith("Scenario \"" + approved.number() + ". " + approved.label() + "\" sends no notification. Choose one that does: ")
+                        .contains("\"" + known.number() + ". " + known.label() + "\"")
                         .doesNotContain("pas-01-approved").doesNotContain("pas-06-submit-then-notified").doesNotContain("pas-20-heartbeat"));
         // So is the scenario that answered the run, when that scenario holds none, and the sentence says it came from the run.
         assertSampleInvalid(new NotificationSampleRequest(null, submitted.runId(), null), "scenarioId");
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest(null, submitted.runId(), null)))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
-                        .startsWith("The submission was answered by scenario " + approved.number() + ". " + approved.label() + ", which sends no notification. Choose one that does: ")
-                        .contains("11. ").doesNotContain("pas-"));
+                        .startsWith("The submission was answered by scenario \"" + approved.number() + ". " + approved.label() + "\", which sends no notification. "
+                                + "Choose one that does: ")
+                        .contains("\"11. ").doesNotContain("pas-"));
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest("pas-11-notification-known-run",
                 "run-00000000-0000-4000-8000-00000000dead", null))).isInstanceOf(NotFoundException.class)
                 // Edge E13: a 404 does not repeat the identifier from the request.

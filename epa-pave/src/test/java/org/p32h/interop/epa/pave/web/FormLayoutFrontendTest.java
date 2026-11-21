@@ -163,12 +163,17 @@ class FormLayoutFrontendTest {
     void theStatusLineOfARefusedSendSpeaksOfThatSendInThePastTense() throws IOException {
         String forms = read("forms.js");
         String saying = CaseCodesFrontendTest.body(forms, "export function refusedSaying(count, what) {");
+        // A preview sends nothing, so its refusal is not called a send.
+        assertThat(saying).contains("'The request cannot be shown: ' + problems + ' in the form.'");
+        for (String tab : new String[] {"tab-crd.js", "tab-dtr.js", "tab-pas.js"}) {
+            assertThat(read(tab)).as(tab).contains("Nothing is sent.', control").contains("preview: true");
+        }
         assertThat(saying).contains("'The send was refused for ' + problems + ' in the form. Nothing was sent.'")
                 .contains("'The comparison was refused for ' + problems + ' in the form. Nothing was compared.'");
         String workbench = read("workbench.js");
         String call = CaseCodesFrontendTest.body(workbench, "async call(send, options) {");
         // "The form has 3 problems" stayed on the status line while the tester corrected them.
-        assertThat(call).contains("status.textContent = refusedSaying(counted);").contains("status.textContent = refusedSaying(1);")
+        assertThat(call).contains("status.textContent = refusedSaying(counted, options.preview === true ? 'preview' : undefined);").contains("status.textContent = refusedSaying(1);")
                 .doesNotContain("status.textContent = nothing.title;");
         assertThat(read("tab-pas.js")).contains("bench.say(refusedSaying(said.fieldErrors.length));").doesNotContain("bench.say(said.title);");
         String compare = read("crd-compare.js");
@@ -190,5 +195,12 @@ class FormLayoutFrontendTest {
                 }
             }
         }
+    }
+
+    @Test
+    void aFieldIsNamedByTheWordsOfItsLabelNotTheMarksBesideThem() throws IOException {
+        assertThat(CaseCodesFrontendTest.body(read("forms.js"), "export function fieldLabel(field, fallback) {"))
+                .contains("label.querySelector('.field__label-text') || label");
+        assertThat(read("dtr-items.js")).contains("el('span', {class: 'field__label-text'}, itemText(item))");
     }
 }
