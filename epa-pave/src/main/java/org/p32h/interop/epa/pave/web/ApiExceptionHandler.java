@@ -1,23 +1,5 @@
 package org.p32h.interop.epa.pave.web;
 
-import org.p32h.interop.epa.pave.model.Texts;
-import tools.jackson.databind.exc.UnrecognizedPropertyException;
-import tools.jackson.databind.DatabindException;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.exc.StreamReadException;
-import org.p32h.interop.epa.pave.model.ErrorKind;
-import org.p32h.interop.epa.pave.model.ErrorView;
-import org.p32h.interop.epa.pave.model.FieldError;
-import org.p32h.interop.epa.pave.service.config.ConfigStoreException;
-import org.p32h.interop.epa.pave.service.error.BadInputException;
-import org.p32h.interop.epa.pave.service.error.BusyException;
-import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
-import org.p32h.interop.epa.pave.service.error.Faults;
-import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
-import org.p32h.interop.epa.pave.service.error.NotFoundException;
-import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
-import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
-import org.p32h.interop.epa.pave.service.error.ValidationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +11,21 @@ import org.apache.tomcat.util.http.fileupload.impl.FileCountLimitExceededExcepti
 import org.apache.tomcat.util.http.fileupload.impl.FileSizeLimitExceededException;
 import org.apache.tomcat.util.http.fileupload.impl.SizeException;
 import org.apache.tomcat.util.http.fileupload.impl.SizeLimitExceededException;
+import org.p32h.interop.epa.pave.model.ErrorKind;
+import org.p32h.interop.epa.pave.model.ErrorView;
+import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.postman.Names;
+import org.p32h.interop.epa.pave.service.config.ConfigStoreException;
+import org.p32h.interop.epa.pave.service.error.BadInputException;
+import org.p32h.interop.epa.pave.service.error.BusyException;
+import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
+import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
+import org.p32h.interop.epa.pave.service.error.Faults;
+import org.p32h.interop.epa.pave.service.error.NotFoundException;
+import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -42,15 +39,19 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.support.WebApplicationContextUtils;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 /**
  * The single place an exception becomes a response. Every error leaves in the one shared shape,
@@ -86,7 +87,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(UnresolvedVariablesException.class)
     public ResponseEntity<ErrorView> unresolved(UnresolvedVariablesException e) {
-        String environment = e.environmentName() == null ? "no environment is active" : "the active environment is \"" + e.environmentName() + "\"";
+        String environment = e.environmentName() == null ? "no environment is active" : "the active environment is \"" + Names.shown(e.environmentName()) + "\"";
         String what = e.operation() == null ? "The request" : e.operation().label();
         // A part of the url written {id} or :id is filled from the identifier the call is for.
         // It is written here as it is in the url, so nobody goes looking for a placeholder {{id}}

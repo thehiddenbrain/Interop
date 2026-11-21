@@ -18,6 +18,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VariableSource;
 import org.p32h.interop.epa.pave.model.VariableUse;
 import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.PostmanAuth;
 import org.p32h.interop.epa.pave.postman.PostmanExample;
@@ -130,7 +131,7 @@ public class ConfigService {
         Map<String, PostmanVariable> inForce = environment.content().inForce();
         // A variable of this environment can also be used by another variable of this environment.
         for (PostmanVariable variable : inForce.values()) {
-            note(usage, variable.value(), "the variable \"" + variable.key() + "\" of this environment");
+            note(usage, variable.value(), "the variable \"" + Names.shown(variable.key()) + "\" of this environment");
         }
         List<VariableView> variables = new ArrayList<>();
         environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
@@ -169,7 +170,7 @@ public class ConfigService {
         StoredCollection collection = requireCollection(snapshot, collectionId);
         StoredCollection.Mapped mapped = collection.request(requestId);
         if (mapped == null) {
-            throw NotFoundException.noLongerHeld("That request of the collection \"" + ConfigStore.oneLine(collection.name()) + "\"", "collections");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + ConfigStore.quoted(collection.name()) + "\"", "collections");
         }
         PostmanRequest request = mapped.request();
         List<HeaderView> headers = new ArrayList<>();
@@ -251,7 +252,7 @@ public class ConfigService {
                 .testScripted(request.testScripted())
                 .hasBody(Texts.present(request.body()))
                 .exampleCount(request.examples().size())
-                .authHelper(auth == null ? null : auth.type() + ", set on " + auth.from())
+                .authHelper(auth == null ? null : Names.shown(auth.type()) + ", set on " + auth.from())
                 .notes(request.notes())
                 .build();
     }
@@ -341,7 +342,7 @@ public class ConfigService {
     private ConfigViews.Readiness readiness(ConfigSnapshot snapshot, List<OperationRow> rows, List<String> signInNames) {
         StoredEnvironment active = snapshot.active();
         String environmentLine = active == null ? "none is active."
-                : ConfigStore.oneLine(active.name()) + " (" + active.kind().wire() + "), active.";
+                : ConfigStore.quoted(active.name()) + " (" + active.kind().wire() + "), active.";
         int mapped = 0;
         for (StoredCollection collection : snapshot.collections()) {
             mapped += (int) collection.requests().stream().filter(request -> request.effective() != EpaOperation.UNMAPPED).count();
@@ -483,7 +484,9 @@ public class ConfigService {
                     : known.destination().everyPortAndPath() ? "every port and every path of the host " + known.destination().host()
                     + ", because an address of this environment could not be read the way the HTTP client reads it"
                     : known.destination().shown();
-            views.add(new ConfigViews.ProductionDestinationView(known.environment(), destination,
+            // The environment's name is held to the rule of a sentence: each address repeats it, and the
+            // answer gives the name of a stored environment whole once already, as its label.
+            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination,
                     stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
         }
         return views;
@@ -539,7 +542,7 @@ public class ConfigService {
         if (signInOff && stillNeeds == null && plan.refusal() == null) {
             // The server's words, so that the page composes nothing about signing in itself.
             PostmanAuth helper = used == null ? null : used.request().auth();
-            row.withoutSignIn(helper != null ? HELPER_NOT_APPLIED.formatted(helper.type() + ", set on " + helper.from())
+            row.withoutSignIn(helper != null ? HELPER_NOT_APPLIED.formatted(Names.shown(helper.type()) + ", set on " + helper.from())
                     : signInNames.isEmpty() ? null : SETTINGS_UNUSED);
         }
         return row.build();
@@ -563,7 +566,7 @@ public class ConfigService {
         for (CallPlan.Header header : plan.headers()) {
             List<String> unresolved = header.header().unresolved();
             if (Texts.present(header.header().name()) && !unresolved.isEmpty()) {
-                parts.add("the header " + ConfigStore.oneLine(header.header().name()) + " still needs a value for " + braced(unresolved));
+                parts.add("the header " + ConfigStore.quoted(header.header().name()) + " still needs a value for " + braced(unresolved));
                 unresolved.stream().filter(name -> !names.contains(name)).forEach(names::add);
             }
         }
@@ -572,7 +575,7 @@ public class ConfigService {
         }
         ConfigSnapshot snapshot = plan.snapshot();
         String sentence = String.join(", ", parts) + ", and "
-                + (snapshot.active() == null ? "no environment is active" : "the active environment is \"" + snapshot.activeName() + "\"") + ".";
+                + (snapshot.active() == null ? "no environment is active" : "the active environment is \"" + Names.shown(snapshot.activeName()) + "\"") + ".";
         return Character.toUpperCase(sentence.charAt(0)) + sentence.substring(1);
     }
 
@@ -596,8 +599,12 @@ public class ConfigService {
                 + "refused here too." + whereToGive(names);
     }
 
+    /**
+     * Placeholders as a sentence names them. A placeholder's name is the file's, of any length, so
+     * each is held to {@link Names#shown(String)}; the target's list of them keeps each whole.
+     */
     private static String braced(List<String> names) {
-        return String.join(", ", names.stream().map(name -> "{{" + name + "}}").toList());
+        return String.join(", ", names.stream().map(name -> "{{" + Names.shown(name) + "}}").toList());
     }
 
     private static TargetView target(CallPlan plan) {
@@ -653,7 +660,7 @@ public class ConfigService {
                 : ", after " + (errorSamplesBefore == 1 ? "1 request whose name contains" : errorSamplesBefore + " requests whose names contain")
                 + " \"error\" and which " + (errorSamplesBefore == 1 ? "is" : "are") + " used only when chosen";
         return "Of the " + mapped + " requests mapped to " + label + ", a run that names none uses \"" + ConfigStore.oneLine(used.request()
-                .qualifiedName()) + "\" of the collection \"" + ConfigStore.oneLine(usedFrom) + "\", because it comes first in the order "
+                .quotedName()) + "\" of the collection \"" + ConfigStore.quoted(usedFrom) + "\", because it comes first in the order "
                 + "the collections and their requests are listed" + before + ". To have another of them used, take off " + label + " each "
                 + "request listed above that one, apart from a sample of an error.";
     }
@@ -904,13 +911,13 @@ public class ConfigService {
     private static void noteCollection(Map<String, Set<String>> usage, StoredCollection collection) {
         for (StoredCollection.Mapped mapped : collection.requests()) {
             PostmanRequest request = mapped.request();
-            String where = "the request \"" + request.name() + "\" of the collection \"" + collection.name() + "\"";
+            String where = "the request \"" + Names.shown(request.name()) + "\" of the collection \"" + Names.shown(collection.name()) + "\"";
             note(usage, request.url(), where);
             request.sentHeaders().forEach(header -> note(usage, header.value(), where));
             note(usage, request.body(), where);
         }
         for (PostmanVariable variable : collection.content().inForce().values()) {
-            note(usage, variable.value(), "the variable \"" + variable.key() + "\" of the collection \"" + collection.name() + "\"");
+            note(usage, variable.value(), "the variable \"" + Names.shown(variable.key()) + "\" of the collection \"" + Names.shown(collection.name()) + "\"");
         }
     }
 

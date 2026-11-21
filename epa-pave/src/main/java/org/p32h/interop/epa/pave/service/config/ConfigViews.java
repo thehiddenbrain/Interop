@@ -107,7 +107,8 @@ public final class ConfigViews {
      * An address this installation knows as production. Nothing is remembered in secret: the list
      * is shown, with whether the environment it belonged to is still stored.
      *
-     * @param environment the production environment the address belongs or belonged to
+     * @param environment the production environment the address belongs or belonged to, a long name by
+     *                    its start and its length ({@link org.p32h.interop.epa.pave.postman.Names#shown})
      * @param destination scheme, host, port and base path. Never a query or user information
      * @param stored      false when that environment has been deleted and the address is remembered
      */

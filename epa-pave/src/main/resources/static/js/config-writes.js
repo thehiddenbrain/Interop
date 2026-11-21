@@ -144,7 +144,7 @@ export function createWritesPanel(context) {
             heading(2, 'Writes to production are blocked'),
             el('p', {class: 'config-writes__reason'}, access.reason),
             whatIsAWrite(),
-            el('p', null, 'To send a write to ', el('strong', null, environment.name),
+            el('p', null, 'To send a write to ', el('strong', {class: 'environment-name environment-name--inline'}, environment.name),
                 ' from this browser session, type its name below. The unlock is never remembered: it ends with the session, '
                 + 'with a restart of the tool, and with any change to the configuration from any browser, an upload included. '
                 + 'A lock pressed in any browser ends it as well, for every session at once.'),

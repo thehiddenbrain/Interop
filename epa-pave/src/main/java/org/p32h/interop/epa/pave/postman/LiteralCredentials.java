@@ -139,7 +139,7 @@ public final class LiteralCredentials {
             while (field.find()) {
                 String name = decoded(field.group(2));
                 if (Secrets.looksSecret(name) && literal(field.group(3))) {
-                    builder.mark(query + field.start(3), query + field.end(3), name, "the query parameter " + named(name) + " of its url");
+                    builder.mark(query + field.start(3), query + field.end(3), name, "the query parameter " + Names.shown(name) + " of its url");
                 }
             }
         }
@@ -161,7 +161,7 @@ public final class LiteralCredentials {
                 String name = body.substring(member.nameStart(), member.nameEnd());
                 String value = body.substring(member.valueStart(), member.valueEnd());
                 if (Secrets.looksSecret(name) && !FHIR_ELEMENTS_THAT_ARE_NOT_CREDENTIALS.contains(name) && literal(value)) {
-                    builder.mark(member.valueStart(), member.valueEnd(), name, "the field " + named(name) + " of its body");
+                    builder.mark(member.valueStart(), member.valueEnd(), name, "the field " + Names.shown(name) + " of its body");
                 }
             }
         } else if (!start.startsWith("<")) {
@@ -169,28 +169,11 @@ public final class LiteralCredentials {
             while (field.find()) {
                 String name = decoded(field.group(2));
                 if (Secrets.looksSecret(name) && literal(field.group(3))) {
-                    builder.mark(field.start(3), field.end(3), name, "the form field " + named(name) + " of its body");
+                    builder.mark(field.start(3), field.end(3), name, "the form field " + Names.shown(name) + " of its body");
                 }
             }
         }
         return builder.build();
-    }
-
-    /** How many characters of a name a warning quotes before it gives the length instead. */
-    static final int NAME_SHOWN = 60;
-
-    /**
-     * A name as a warning quotes it: whole when it is short, otherwise its first {@value #NAME_SHOWN}
-     * characters and its length. A name is judged by how it ends, so a key of two million characters
-     * that ends in "password" is a credential's name, and quoted whole it made one warning two million
-     * characters long.
-     */
-    public static String named(String name) {
-        if (name == null || name.length() <= NAME_SHOWN) {
-            return name;
-        }
-        int cut = Character.isHighSurrogate(name.charAt(NAME_SHOWN - 1)) ? NAME_SHOWN - 1 : NAME_SHOWN;
-        return name.substring(0, cut) + "... (a name of " + name.length() + " characters)";
     }
 
     /**

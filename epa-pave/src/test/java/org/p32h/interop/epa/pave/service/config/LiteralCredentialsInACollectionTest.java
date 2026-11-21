@@ -183,7 +183,7 @@ class LiteralCredentialsInACollectionTest {
         assertThat(warnings).allSatisfy(warning -> assertThat(warning.length()).isLessThan(1_000));
         assertThat(String.join(" ", warnings)).doesNotContain("ZZLONGNAME-SECRET-7").doesNotContain("ZZLONGNAME-KEY-7");
         // A name of ordinary length is quoted whole, as before.
-        assertThat(org.p32h.interop.epa.pave.postman.LiteralCredentials.named("k".repeat(60))).isEqualTo("k".repeat(60));
-        assertThat(org.p32h.interop.epa.pave.postman.LiteralCredentials.named("client_secret")).isEqualTo("client_secret");
+        assertThat(org.p32h.interop.epa.pave.postman.Names.shown("k".repeat(60))).isEqualTo("k".repeat(60));
+        assertThat(org.p32h.interop.epa.pave.postman.Names.shown("client_secret")).isEqualTo("client_secret");
     }
 }

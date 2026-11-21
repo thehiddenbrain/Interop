@@ -5,7 +5,7 @@
 // banner that cannot be scrolled past for production, for UAT and for the mock profile.
 
 import * as api from './api.js';
-import {el, fill, clear, button, token} from './dom.js';
+import {el, fill, clear, button, token, named} from './dom.js';
 import {createCaseContext} from './case-context.js';
 import {createChain} from './chain.js';
 import {openLegend} from './legend.js';
@@ -305,7 +305,7 @@ function serverSilent(error) {
 function environmentSentence(mode) {
     const environment = mode.environment || {};
     return environment.active
-        ? 'The active environment is ' + environment.name + ' (' + environment.kind + '), on the ' + mode.mode + ' profile.'
+        ? 'The active environment is ' + named(environment.name) + ' (' + environment.kind + '), on the ' + mode.mode + ' profile.'
         : 'No environment is active, on the ' + mode.mode + ' profile.';
 }
 
@@ -322,7 +322,7 @@ function drawFrame() {
         const access = mode.writeAccess || {};
         const unlocked = environment.active && environment.kind === 'prod' && access.production === true && access.writesAllowed === true;
         document.title = mode.name + ' ' + mode.version + ' | '
-            + (environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment')
+            + (environment.active ? named(environment.name) + ' (' + environment.kind + ')' : 'no environment')
             + (unlocked ? ' | writes UNLOCKED' : '') + ' | ' + mode.mode;
     }
     drawStrip();
@@ -373,7 +373,7 @@ function drawStrip() {
     const ledger = ledgerItem();
     announceStrip([state.pollFailed ? 'The server is not answering.' : null,
         'Profile ' + mode.mode + ', target ' + mode.target + ', '
-        + (environment.active ? 'environment ' + environment.name + ' (' + environment.kind + ').' : 'no environment active.'),
+        + (environment.active ? 'environment ' + named(environment.name) + ' (' + environment.kind + ').' : 'no environment active.'),
         ledger.state].filter(Boolean).join(' '));
     const items = [];
     if (state.pollFailed) {
@@ -382,8 +382,12 @@ function drawStrip() {
     items.push(stripItem('Profile', [mode.mode === 'mock' ? el('span', {class: 'hatch', aria: {hidden: 'true'}}) : null, mode.mode]));
     items.push(stripItem('Target', mode.target));
     items.push(stripItem('Environment', environment.active
-        ? [environment.name, el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
-        : 'none active'));
+        // The name is given whole: the unlock of production asks for it exactly as the strip shows
+        // it, and two production environments may differ only at the end of their names. One a file
+        // made long wraps and then scrolls in a box of its own (environment-name in pave.css), so it
+        // pushes neither the other facts nor the page aside.
+        ? [el('span', {class: 'environment-name'}, environment.name), el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
+        : 'none active', 'strip-item--environment'));
     items.push(ledger.node);
     fill(strip, items);
 }
@@ -504,7 +508,7 @@ function drawBanners() {
 function banner(kind, label, name, reason, writes) {
     return el('div', {class: 'banner banner--' + kind}, el('div', {class: 'banner__inner'},
         el('span', {class: 'banner__kind'}, label),
-        el('span', {class: 'banner__name'}, name),
+        el('span', {class: 'banner__name environment-name'}, name),
         writes || null,
         reason ? el('span', {class: 'banner__reason'}, reason) : null));
 }

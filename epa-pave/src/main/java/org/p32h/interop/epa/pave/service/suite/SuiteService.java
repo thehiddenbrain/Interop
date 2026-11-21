@@ -37,6 +37,7 @@ import org.p32h.interop.epa.pave.model.suite.SuitePreview;
 import org.p32h.interop.epa.pave.model.suite.SuiteRowState;
 import org.p32h.interop.epa.pave.model.suite.SuiteRunView;
 import org.p32h.interop.epa.pave.model.suite.SuiteState;
+import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.service.CaseRunner;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
@@ -247,7 +248,8 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         if (epa.mock()) {
             return subject + ". On the mock profile nothing leaves this machine.";
         }
-        return subject + (environment.active() ? " in " + environment.name() + "." : ".");
+        // The name is the uploaded file's, of any length, so the sentence quotes a long one by its start and its length.
+        return subject + (environment.active() ? " in " + Names.shown(environment.name()) + "." : ".");
     }
 
     /**

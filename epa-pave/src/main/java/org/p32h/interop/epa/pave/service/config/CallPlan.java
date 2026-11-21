@@ -7,6 +7,7 @@ import java.util.function.Function;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.postman.PostmanHeader;
 import org.p32h.interop.epa.pave.postman.Resolution;
 import org.p32h.interop.epa.pave.postman.UrlForms;
@@ -156,7 +157,7 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
             return target.absent();
         }
         if (!url.resolved()) {
-            String active = snapshot.active() == null ? "no environment is active" : "the active environment is \"" + snapshot.activeName() + "\"";
+            String active = snapshot.active() == null ? "no environment is active" : "the active environment is \"" + Names.shown(snapshot.activeName()) + "\"";
             return "The url still needs a value for " + String.join(", ", url.unresolved()) + ", and " + active + ".";
         }
         return null;

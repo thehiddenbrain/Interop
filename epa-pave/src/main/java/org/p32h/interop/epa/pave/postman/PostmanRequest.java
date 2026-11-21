@@ -65,6 +65,11 @@ public record PostmanRequest(String id, String name, List<String> folderPath, St
         return folderPath.isEmpty() ? name : String.join(" / ", folderPath) + " / " + name;
     }
 
+    /** As {@link #qualifiedName()}, for a sentence: each name of a folder and of the request as {@link Names#shown(String)} quotes it. */
+    public String quotedName() {
+        return Names.path(folderPath, name);
+    }
+
     public static Builder builder() {
         return new Builder();
     }
