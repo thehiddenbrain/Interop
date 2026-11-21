@@ -364,8 +364,9 @@ export function createRunsList(app, context) {
             el('p', null, plural(listed.length, 'run is listed. ', 'runs are listed. '),
                 made > 0 ? plural(made, 'of them was made by a replay and is not sent again. ', 'of them were made by a replay and are not sent again. ') : null,
                 el('strong', null, plural(ids.length, 'run is sent again', 'runs are sent again')),
-                ', one after another; a run that cannot be sent again is reported with the reason and not sent. '
-                    + 'They are sent oldest first, as they were first made.'),
+                ids.length === 1 ? '; if it cannot be sent again, it is reported with the reason and not sent.'
+                    : ', one after another; a run that cannot be sent again is reported with the reason and not sent. '
+                        + 'They are sent oldest first, as they were first made.'),
             tooMany ? el('p', null, el('strong', null, 'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.')) : null,
             el('p', null, writes === 0 ? 'None of them is a write.'
                 : [el('strong', null, plural(writes, 'of them is a write', 'of them are writes')), ' (',

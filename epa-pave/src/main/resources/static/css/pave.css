@@ -2066,9 +2066,23 @@ details.fold > :not(summary) {
     text-overflow: ellipsis;
 }
 
-.chain-bar__case, .chain-bar__paused {
+/*
+ * A member recorded as a token is a long code. It stays on the line and is cut, with the whole of it
+ * kept as the title, past a third of the bar, so the stages keep room to say where each stands.
+ */
+.chain-bar__case {
     flex: 0 1 auto;
+    max-width: 32%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chain-bar__case, .chain-bar__case code, .chain-bar__paused {
     white-space: nowrap;
+}
+
+.chain-bar__paused {
+    flex: 0 0 auto;
 }
 
 .chain-bar__paused {

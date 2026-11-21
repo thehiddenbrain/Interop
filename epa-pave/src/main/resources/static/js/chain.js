@@ -48,6 +48,12 @@ export function caseKey(summary) {
     return [String(given.memberId || '').split(' ').join(''), String(given.npi || '').trim(), codes.join(',')].join('|');
 }
 
+/** The case of the chain in one line of text, the title of the bar's case when it is cut short. */
+function caseLine(view) {
+    const codes = view.procedureCodes && view.procedureCodes.length > 0 ? ', ' + view.procedureCodes.join(', ') : '';
+    return 'for ' + (view.member || 'a member the ledger does not show') + codes;
+}
+
 export function createChain(app, bar) {
     let chainId = null;       // the chain the case on screen belongs to, once a run has started one
     let view = null;          // the last answer of GET /api/chains/{chainId}
@@ -104,8 +110,9 @@ export function createChain(app, bar) {
                 el('span', {class: 'chain-stage__name'}, stage.name),
                 el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null, stage.stateLine)))),
             // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
-            el('span', {class: 'chain-bar__case'}, el('span', {class: 'quiet'}, 'for '),
-                view.member ? code(view.member) : 'a member the ledger does not show',
+            // Set without the break points code() adds, which would break the one line even where wrapping is off.
+            el('span', {class: 'chain-bar__case', title: caseLine(view)}, el('span', {class: 'quiet'}, 'for '),
+                view.member ? el('code', {class: 'literal'}, view.member) : 'a member the ledger does not show',
                 view.procedureCodes && view.procedureCodes.length > 0
                     ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
             follow.checked ? null : el('span', {class: 'chain-bar__paused'}, 'Paused: runs sent now join no chain.'),
