@@ -62,9 +62,7 @@ class RecursionGuardTest {
          */
         JSON_DEPTH,
         /** A number of turns the code fixes, whatever the input. */
-        FIXED,
-        /** One turn per backslash in the value of a secret the tool sent, which the tester configures. */
-        SECRET_TEXT
+        FIXED
     }
 
     record Known(Bound bound, String why) {
@@ -91,8 +89,6 @@ class RecursionGuardTest {
             Map.entry("client/pas/MockOnyxPasClient.replace", json("a level of the scenario's PAS answer per turn")),
             Map.entry("model/JsonSafe.walk", json("a level of the token stream of the text being parsed per turn: the parser refuses the "
                     + "level past its limit before this reaches it")),
-            Map.entry("model/SentSecrets.endOfSecret", new Known(Bound.SECRET_TEXT, "a turn per backslash of the secret, the one "
-                    + "character a JSON text can hold both as itself and as the start of an escape")),
             Map.entry("model/TrackedJson.leaves", json("a level of a service answer per turn")),
             Map.entry("model/TrackedJson.walk", json("a level of a service answer per turn")),
             Map.entry("model/dtr/QuestionnaireJson.buildItems", json("a level of the item tree collect builds per turn")),

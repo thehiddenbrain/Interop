@@ -221,4 +221,165 @@ class SentSecretsTest {
         assertThat(one().incomplete()).isFalse();
         assertThat(SentSecrets.none().incomplete()).isFalse();
     }
+
+    @Test
+    void aSecretHeldBesideTheRequestIsSearchedForUnderItsOwnMaskAndAValueTheRequestCarriedKeepsItsName() {
+        SentSecrets held = SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").variable("onyxToken", TOKEN)
+                .variable("pin", "12345").build();
+        SentSecrets secrets = SentSecrets.builder().accessToken(TOKEN).variable("pin2", "12345").held(held).build();
+
+        assertThat(secrets.searched()).isEqualTo(2);
+        // The same short value carried and held is one secret, counted once.
+        assertThat(secrets.tooShort()).isEqualTo(1);
+        assertThat(secrets.mask("{\"error\":\"bad client placeholder-secret-value-7f3a\",\"t\":\"" + TOKEN + "\"}").text())
+                .isEqualTo("{\"error\":\"bad client [secret clientSecret]\",\"t\":\"[secret access token]\"}");
+        assertThat(secrets.toString()).isEqualTo("SentSecrets[2 searched for, 1 too short to search for]");
+        assertThat(SentSecrets.builder().held(SentSecrets.none()).held(null).build()).isSameAs(SentSecrets.none());
+    }
+
+    @Test
+    void aHeldSecretThatIsBlankMasksNothingAndOneThatIsShortIsCounted() {
+        SentSecrets blank = SentSecrets.builder().held(SentSecrets.builder().variable("clientSecret", "  ").build()).build();
+        assertThat(blank).isSameAs(SentSecrets.none());
+        SentSecrets five = SentSecrets.builder().held(SentSecrets.builder().variable("clientSecret", "ab-12").build()).build();
+        assertThat(five.searched()).isZero();
+        assertThat(five.tooShort()).isEqualTo(1);
+        assertThat(five.mask("ab-12").places()).isZero();
+    }
+
+    @Test
+    void oneWalkFindsExactlyWhatASearchForEachSecretInTurnFinds() {
+        // Small alphabets, with the backslash and the letters of escapes, so that secrets overlap,
+        // nest, repeat themselves and meet escapes far more often than in any real answer.
+        java.util.Random random = new java.util.Random(20261121L);
+        String alphabet = "ab\\nu0\"/";
+        for (int round = 0; round < 3000; round++) {
+            SentSecrets.Builder builder = SentSecrets.builder();
+            java.util.List<String> values = new java.util.ArrayList<>();
+            int count = 1 + random.nextInt(6);
+            for (int i = 0; i < count; i++) {
+                String value = text(random, alphabet, 6 + random.nextInt(4));
+                if (!values.contains(value)) {
+                    values.add(value);
+                }
+                builder.variable("v" + i, value);
+            }
+            SentSecrets secrets = builder.build();
+            String text = text(random, alphabet + "\\\\", random.nextInt(80));
+            if (random.nextBoolean() && !values.isEmpty()) {
+                text = text + JsonSafe.mapper().writeValueAsString(values.get(random.nextInt(values.size()))) + text;
+            }
+            assertThat(secrets.mask(text)).as("round %d", round).isEqualTo(Reference.mask(text, values));
+        }
+    }
+
+    private static String text(java.util.Random random, String alphabet, int length) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            out.append(alphabet.charAt(random.nextInt(alphabet.length())));
+        }
+        return out.toString();
+    }
+
+    /** The search as it was before the single walk: each secret on its own, from each position. */
+    private static final class Reference {
+
+        static SentSecrets.Masked mask(String text, java.util.List<String> values) {
+            record Hit(int start, int end, String mask) {
+            }
+            java.util.List<Hit> hits = new java.util.ArrayList<>();
+            for (int index = 0; index < values.size(); index++) {
+                String value = values.get(index);
+                String mask = Secrets.mask("v" + index);
+                for (int start = 0; start < text.length(); start++) {
+                    char here = text.charAt(start);
+                    if (here != value.charAt(0) && here != '\\') {
+                        continue;
+                    }
+                    int end = end(text, start, value, 0);
+                    if (end > start) {
+                        hits.add(new Hit(start, end, mask));
+                        start = end - 1;
+                    }
+                }
+            }
+            hits.sort(java.util.Comparator.comparingInt(Hit::start).thenComparing(java.util.Comparator.comparingInt(Hit::end).reversed()));
+            StringBuilder out = new StringBuilder();
+            int places = 0;
+            int covered = 0;
+            for (Hit hit : hits) {
+                if (hit.end() <= covered) {
+                    continue;
+                }
+                if (hit.start() > covered) {
+                    out.append(text, covered, hit.start());
+                }
+                out.append(hit.mask());
+                places++;
+                covered = hit.end();
+            }
+            if (places == 0) {
+                return new SentSecrets.Masked(text, 0);
+            }
+            out.append(text, covered, text.length());
+            return new SentSecrets.Masked(out.toString(), places);
+        }
+
+        private static int end(String text, int from, String secret, int done) {
+            int at = from;
+            for (int i = done; i < secret.length(); i++) {
+                if (at >= text.length()) {
+                    return -1;
+                }
+                char wanted = secret.charAt(i);
+                int escaped = escape(text, at, wanted);
+                boolean plain = text.charAt(at) == wanted;
+                if (escaped > 0 && plain) {
+                    int end = end(text, at + escaped, secret, i + 1);
+                    if (end >= 0) {
+                        return end;
+                    }
+                    at++;
+                } else if (escaped > 0) {
+                    at += escaped;
+                } else if (plain) {
+                    at++;
+                } else {
+                    return -1;
+                }
+            }
+            return at;
+        }
+
+        private static int escape(String text, int at, char wanted) {
+            if (text.charAt(at) != '\\' || at + 1 >= text.length()) {
+                return 0;
+            }
+            char kind = text.charAt(at + 1);
+            if (kind == 'u') {
+                if (at + 6 > text.length()) {
+                    return 0;
+                }
+                int code = 0;
+                for (int i = at + 2; i < at + 6; i++) {
+                    int digit = Character.digit(text.charAt(i), 16);
+                    if (digit < 0) {
+                        return 0;
+                    }
+                    code = code * 16 + digit;
+                }
+                return code == wanted ? 6 : 0;
+            }
+            int stands = switch (kind) {
+                case '"', '\\', '/' -> kind;
+                case 'b' -> '\b';
+                case 'f' -> '\f';
+                case 'n' -> '\n';
+                case 'r' -> '\r';
+                case 't' -> '\t';
+                default -> -1;
+            };
+            return stands == wanted ? 2 : 0;
+        }
+    }
 }
