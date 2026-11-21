@@ -144,6 +144,22 @@ class FormLayoutFrontendTest {
     }
 
     @Test
+    void aRefusalMadeOutsideTheWorkbenchCallClearsTheMarksOfTheLastOneFirst() throws IOException {
+        // The summary mirrors every mark in the panel. A refusal made without bench.call, which
+        // clears the panel first, kept the marks of an earlier refused send: hidden PAS submit
+        // fields, or the procedure codes marked on CRD, came back into the subscription summary
+        // as soon as the subscription id was typed.
+        String subscription = CaseCodesFrontendTest.body(read("tab-pas.js"), "async function subscriptionCall(kind) {");
+        int cleared = subscription.indexOf("clearFieldErrors(panel);");
+        assertThat(cleared).isGreaterThan(0).isLessThan(subscription.indexOf("markFieldErrors("));
+        assertThat(subscription.indexOf("bench.clearRefusal();")).isGreaterThan(0).isLessThan(subscription.indexOf("showFormProblem("));
+        String compare = CaseCodesFrontendTest.body(read("crd-compare.js"), "async function compare(what) {");
+        assertThat(compare.indexOf("clearFieldErrors(bench.form);")).isGreaterThan(0).isLessThan(compare.indexOf("markFieldErrors("));
+        assertThat(CaseCodesFrontendTest.body(read("workbench.js"), "async call(send, options) {").indexOf("clearFieldErrors(panel);"))
+                .isGreaterThan(0);
+    }
+
+    @Test
     void theStatusLineOfARefusedSendSpeaksOfThatSendInThePastTense() throws IOException {
         String forms = read("forms.js");
         String saying = CaseCodesFrontendTest.body(forms, "export function refusedSaying(count, what) {");
