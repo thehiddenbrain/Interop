@@ -507,6 +507,8 @@ export function createWorkbench(app, panel, spec) {
             // A live call can wait many seconds, and the readout would go on saying what it held
             // before (nothing sent yet, or the last result) as if it were the answer.
             const waiting = options.result === true ? showSending(options.saying) : null;
+            // The panel's lead says the same sentence one line below, so the status line is kept for screen readers only.
+            status.classList.toggle('visually-hidden', waiting !== null);
             let answer;
             try {
                 // The request is built first and the case read after it, so the case kept is the one that went out.
@@ -515,6 +517,7 @@ export function createWorkbench(app, panel, spec) {
                 answer = await sending;
             } finally {
                 if (waiting) {
+                    status.classList.remove('visually-hidden');
                     // Whatever the answer, what the readout held comes back; a result then replaces it.
                     clearInterval(waiting.timer);
                     if (result.contains(waiting.node)) {

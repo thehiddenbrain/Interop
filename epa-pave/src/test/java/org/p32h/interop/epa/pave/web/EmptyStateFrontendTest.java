@@ -38,6 +38,15 @@ class EmptyStateFrontendTest {
     }
 
     @Test
+    void whileTheSendingPanelShowsItsSentenceTheStatusLineIsForScreenReadersOnly() throws IOException {
+        String call = read("workbench.js");
+        int hide = call.indexOf("status.classList.toggle('visually-hidden', waiting !== null);");
+        int show = call.indexOf("status.classList.remove('visually-hidden');");
+        assertThat(hide).isPositive();
+        assertThat(show).isGreaterThan(hide).isLessThan(call.indexOf("clearInterval(waiting.timer);"));
+    }
+
+    @Test
     void inOneColumnEveryNewResultIsBroughtToTheTopOfTheWindow() throws IOException {
         String show = body("workbench.js", "showResult(envelope, options) {");
         int scroll = show.indexOf("shown.scrollIntoView({block: 'start'});");
