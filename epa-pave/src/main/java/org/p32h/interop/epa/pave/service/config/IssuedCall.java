@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -22,6 +23,8 @@ final class IssuedCall implements PreparedCall {
     private final LongSupplier epoch;
     private final Function<String, ResolvedText> resolver;
     private final String savedBody;
+    private final java.util.function.Supplier<SentSecrets> held;
+    private volatile SentSecrets heldOnce;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -42,6 +45,17 @@ final class IssuedCall implements PreparedCall {
     /** @param savedBody the raw body saved with the collection request, as a template, or null */
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody) {
+        this(operation, method, url, headers, environment, requestName, scripted, epoch, resolver, savedBody, SentSecrets::none);
+    }
+
+    /**
+     * @param held the secrets this tool holds for the configuration the call was prepared in,
+     *             worked out when first asked: most calls prepared for a preview never have an
+     *             answer to mask
+     */
+    IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
+               String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody,
+               java.util.function.Supplier<SentSecrets> held) {
         this.operation = operation;
         this.method = method;
         this.url = url;
@@ -52,6 +66,7 @@ final class IssuedCall implements PreparedCall {
         this.epoch = epoch;
         this.resolver = resolver;
         this.savedBody = savedBody;
+        this.held = held == null ? SentSecrets::none : held;
     }
 
     @Override
@@ -102,6 +117,17 @@ final class IssuedCall implements PreparedCall {
     @Override
     public String savedBody() {
         return savedBody;
+    }
+
+    @Override
+    public SentSecrets heldSecrets() {
+        SentSecrets known = heldOnce;
+        if (known == null) {
+            // Worked out at most a few times when two threads ask at once, each time from the same snapshot.
+            known = held.get();
+            heldOnce = known;
+        }
+        return known;
     }
 
     /**

@@ -19,7 +19,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, table, heading, facts} from './dom.js';
 import {shown} from './shown.js';
 import {outcome} from './marks.js';
-import {errorPanel, wireView, additionalFieldsSection} from './result.js';
+import {errorPanel, wireView, additionalFieldsSection, maskedReading} from './result.js';
 
 /**
  * A literal in which every space can be seen and counted. The text itself is unchanged, so what
@@ -185,6 +185,11 @@ export function createLookup(spec) {
         const answer = held.answer;
         const attention = answer.attention || [];
         const extra = [];
+        // Right under the sentence that says how the lookup ended: that sentence was read from a mask.
+        const masked = maskedReading(answer.maskedReading);
+        if (masked) {
+            extra.push(masked);
+        }
         if (before) {
             extra.push(el('p', {class: 'lookup-strip__before'}, before));
         }
@@ -262,6 +267,7 @@ export function createLookup(spec) {
                 heading(2, 'What the ' + spec.subject + ' lookup returned'),
                 button('Close what the ' + spec.subject + ' lookup returned', closePanel, {class: 'button--quiet button--small'})),
             el('p', null, answer.message),
+            maskedReading(answer.maskedReading),
             before ? el('p', {class: 'lookup-strip__before'}, before) : null,
             facts([
                 ['How it ended', code(String(answer.status))],

@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param value       the value with its presence, so "not returned" differs from "empty"
  * @param sourceField the field in the API response the value was read from, or null when the
  *                    response did not carry any spelling the mapping knows
- * @param masked      true when the value holds a secret the request sent, which this tool masked
+ * @param masked      true when the value repeats a secret this tool holds, which this tool masked
  *                    before the value reached the result. Absent otherwise. The mask text is not
  *                    what the service returned and not member data, so a screen leaves such a
  *                    field out of the case: sent on with the next run it would go out as data
@@ -20,7 +20,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record LookupField(String name, String label, Shown value, String sourceField, Boolean masked, String note) {
 
     /** Said of a field whose value holds something this tool masked. */
-    public static final String MASKED_NOTE = "This value holds a secret the request sent, which this tool masked, so it is not what the "
+    public static final String MASKED_NOTE = "This value repeats a secret this tool holds, which this tool masked, so it is not what the "
             + "service returned and is not offered for the case.";
 
     public LookupField {

@@ -46,8 +46,8 @@ class CrdReturnedSecretsTest {
         CrdReading reading = new CrdResponseMapper().read(Exchanges.fromResponse(new WireRequest("POST", URL, URL, List.of(), "{}", true, null,
                 SentSecrets.builder().accessToken(TOKEN).build()), 200, List.of(), "not json " + TOKEN, 5L, true), List.of());
         // The screen says the body is not JSON and where it is shown; the note adds only that a place is masked, and why.
-        assertThat(reading.detail().responseNote()).startsWith("It is shown as received except that a place repeating a secret the "
-                + "request carried is masked.");
+        assertThat(reading.detail().responseNote()).startsWith("It is shown as received except that a place repeating a secret this "
+                + "tool holds is masked.");
         assertThat(new CrdResponseMapper().read(Exchanges.fromResponse(new WireRequest("POST", URL, URL, List.of(), "{}", true, null,
                 SentSecrets.builder().accessToken(TOKEN).build()), 200, List.of(), "not json", 5L, true), List.of()).detail().responseNote())
                 .doesNotContain("masked").startsWith("The body is not valid JSON");

@@ -97,6 +97,21 @@ final class MemberResponseMapping {
     static final List<Spelling> POSTAL_CODE_FLAT = Spelling.list("postalCode", "zip", "zipCode");
 
     /**
+     * The fields whose values the result is read by: the ID, compared with the one asked for, and
+     * whether coverage is active, by its status, its yes or no and its dates compared with today.
+     */
+    static final List<List<Spelling>> DECIDED_BY = List.of(MEMBER_ID, COVERAGE_STATUS, COVERAGE_ACTIVE, COVERAGE_START, COVERAGE_END);
+
+    /** Every field the mapping reads. Whether a record is a member at all is read by which of them carry a value. */
+    static final List<List<Spelling>> READ = List.of(MEMBER_ID, FIRST_NAME, LAST_NAME, FULL_NAME, DATE_OF_BIRTH, GENDER,
+            LINE_OF_BUSINESS, PLAN_NAME, COVERAGE_STATUS, COVERAGE_ACTIVE, COVERAGE_START, COVERAGE_END, SUBSCRIBER_ID, LINE_1_IN_ADDRESS,
+            LINE_2_IN_ADDRESS, CITY_IN_ADDRESS, STATE_IN_ADDRESS, POSTAL_CODE_IN_ADDRESS, LINE_1_FLAT, LINE_2_FLAT, CITY_FLAT, STATE_FLAT,
+            POSTAL_CODE_FLAT);
+
+    /** The names a record and its address are found under. */
+    static final List<String> WRAPPED_IN = java.util.stream.Stream.concat(WRAPPERS.stream(), ADDRESS_OBJECTS.stream()).toList();
+
+    /**
      * Names so common in any JSON that a value under one does not show the answer is a member. An
      * error body has a name and a state too, and a search that found nothing can echo its dates.
      */
@@ -128,7 +143,14 @@ final class MemberResponseMapping {
      * @param today    the date coverage dates are compared with
      */
     static MemberLookupResult map(VendorExchange received, MemberIdForms memberId, LocalDate today) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        MemberLookupResult result = read(received, memberId, today);
+        // What the result concludes is read with the masks in place, so it says so where a mask fell on a value it rests on.
+        org.p32h.interop.epa.pave.model.MaskedReading masked = LookupMasks.find(received, DECIDED_BY, READ, WRAPPED_IN);
+        return masked == null ? result : result.withMaskedReading(masked.line());
+    }
+
+    private static MemberLookupResult read(VendorExchange received, MemberIdForms memberId, LocalDate today) {
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
         // Every value of a key the body repeats is listed too, so an earlier value is not on the wire view alone.

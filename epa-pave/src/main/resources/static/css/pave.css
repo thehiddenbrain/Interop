@@ -852,6 +852,27 @@ legend, .case-legend {
     margin-top: 2px;
 }
 
+/*
+ * A conclusion read from a mask and not from what the service sent: the heavy rule on the left that
+ * the screens give what must be read before acting. Inside the verdict strip it takes the strip's
+ * own ink, so it reads on every tone.
+ */
+.masked-reading {
+    margin: var(--gap-2) 0 0;
+    padding-left: var(--gap-2);
+    border-left: 4px solid currentColor;
+    font-weight: 600;
+    max-width: 82ch;
+    overflow-wrap: anywhere;
+}
+
+/* The same caution, folded into one line of a list: the rule on the left, without the weight of the full line. */
+.masked-mark {
+    padding-left: var(--gap-1);
+    border-left: 3px solid currentColor;
+    overflow-wrap: anywhere;
+}
+
 .verdict__address {
     margin: var(--gap-2) 0 0;
     overflow-wrap: anywhere;

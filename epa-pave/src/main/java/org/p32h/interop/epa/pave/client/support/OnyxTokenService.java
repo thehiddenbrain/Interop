@@ -93,10 +93,11 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
     private final OperationGateway gateway;
     private final RestClient client;
     private final Clock clock;
-    private Cached cached;
+    // Volatile so that addTo reads them without the lock a token request holds while it waits for the token endpoint.
+    private volatile Cached cached;
 
     /** The last token issued, cached or not: a service can repeat a token it was sent once. Never shown or logged. */
-    private String lastIssued;
+    private volatile String lastIssued;
 
     @org.springframework.beans.factory.annotation.Autowired
     public OnyxTokenService(OnyxProperties onyx, OperationGateway gateway, RestClient.Builder builder, Clock clock) {
@@ -113,12 +114,15 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
 
     /**
      * Adds the token held in the cache and the last one issued, whatever their age, so that a
-     * service repeating one in a notification is shown with it masked.
+     * service repeating one in a notification or in any answer is shown with it masked.
      */
     @Override
-    public synchronized void addTo(org.p32h.interop.epa.pave.model.SentSecrets.Builder secrets) {
-        if (cached != null) {
-            secrets.accessToken(cached.token());
+    public void addTo(org.p32h.interop.epa.pave.model.SentSecrets.Builder secrets) {
+        // Not synchronized: every answer is masked with the token held, and an answer to a call
+        // that carried no token must not wait for another thread's token request to end.
+        Cached held = cached;
+        if (held != null) {
+            secrets.accessToken(held.token());
         }
         secrets.accessToken(lastIssued);
     }

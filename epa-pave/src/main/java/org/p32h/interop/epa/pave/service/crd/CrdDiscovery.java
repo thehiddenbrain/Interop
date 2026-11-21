@@ -16,10 +16,13 @@ import java.util.List;
  * @param error            set when discovery failed
  * @param note             on the mock profile, the sentence saying the list is a placeholder and
  *                         nothing was sent. Null when the answer came from a real service
+ * @param maskedReading    the line that says the list was read from a mask and not from what the
+ *                         service sent ({@link org.p32h.interop.epa.pave.model.MaskedReading#line()}),
+ *                         or null when no mask fell on a name or a value the list is read by
  */
 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 public record CrdDiscovery(ResolvedUrl url, List<Service> services, List<AdditionalField> additionalFields, WireView wire,
-                           ErrorView error, String note) {
+                           ErrorView error, String note, String maskedReading) {
 
     /**
      * One CDS service.

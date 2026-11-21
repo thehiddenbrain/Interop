@@ -61,7 +61,8 @@ public final class CrdVerdicts {
         if (verdict.tone() != Tone.CLEAR || next == null || next.action() == NextAction.FLOW_ENDS || next.action() == NextAction.NOTHING_FURTHER) {
             return verdict;
         }
-        return new VerdictView(verdict.headline(), verdict.outcomeCode(), verdict.outcomeLabel(), Tone.ACTION, verdict.supporting());
+        return new VerdictView(verdict.headline(), verdict.outcomeCode(), verdict.outcomeLabel(), Tone.ACTION, verdict.supporting(),
+                verdict.maskedReading());
     }
 
     public static VerdictView verdict(CrdReading reading, VendorExchange exchange) {

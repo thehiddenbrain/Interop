@@ -20,8 +20,9 @@ import java.util.List;
  * @param sent        false when nothing left this machine: the mock profile, or a blocked write
  * @param note        why nothing was sent, or anything else a tester should know about how the
  *                    request was put on the wire. Null when there is nothing to say
- * @param secrets     the secret values the request carried in its url, headers and body. Never
- *                    serialised and never printed. Never null
+ * @param secrets     the secret values the request carried in its url, headers and body, and every
+ *                    other one this tool holds for the configuration it was sent under, which the
+ *                    response is masked with as well. Never serialised and never printed. Never null
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WireRequest(String method, String url, String urlTemplate, List<WireHeader> headers, String body,

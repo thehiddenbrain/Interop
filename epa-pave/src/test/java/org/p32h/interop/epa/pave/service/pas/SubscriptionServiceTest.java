@@ -303,6 +303,78 @@ class SubscriptionServiceTest {
         }
     }
 
+    // ---- a verdict read from a mask says so where it is read ----
+
+    private RunEnvelope<SubscriptionDetail> holding(EpaOperation operation, org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        String body = SubscriptionResponseMapperTest.subscription(ID, "active", SubscriptionResponseMapperTest.channel());
+        VendorExchange answer = TestExchanges.holding(TestExchanges.of(operation, 200, body, operation == GET), secrets);
+        return service(stub(answer), "live", WITH_RECEIVER).run(operation, operation == CREATE ? request().build() : about(ID).build(),
+                RunOrigin.manual(), null);
+    }
+
+    @Test
+    void eachSubscriptionCallReadThroughAMaskedStatusSaysSoInTheVerdictAndTheNextStep() {
+        // An environment secret whose value is the status a subscription is read by. No request carried it.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("statusWord", "active").build();
+        for (EpaOperation operation : List.of(CREATE, GET, UPDATE, DELETE)) {
+            RunEnvelope<SubscriptionDetail> result = holding(operation, word);
+            assertThat(result.verdict().maskedReading()).as(operation.name()).startsWith("Read from a mask, not from what the service sent: "
+                    + "status was read as [secret statusWord].");
+            assertThat(result.nextStep().headline()).as(operation.name()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings().get(0).kind()).as(operation.name()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(result.ledger().record().findings()).as(operation.name()).contains("MASKED_READING");
+        }
+    }
+
+    @Test
+    void anIdThatRepeatsAHeldSecretIsCarriedFromACreateAndComparedOnAReadWithTheLineAndAMarkedNextStep() {
+        // The id is not judged against a value set: a create carries it to the next call, and a read compares it with the id asked.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("subscriptionWord", ID).build();
+        RunEnvelope<SubscriptionDetail> created = holding(CREATE, word);
+        assertThat(created.nextStep().carry()).containsEntry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of("[secret subscriptionWord]"));
+        assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id was read as "
+                + "[secret subscriptionWord].");
+        assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(created.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+
+        RunEnvelope<SubscriptionDetail> read = holding(GET, word);
+        assertThat(read.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id was read as "
+                + "[secret subscriptionWord].");
+        assertThat(read.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        // The id asked is set beside the answer as masked as the answer is: it is not shown in clear, nor found different.
+        assertThat(String.join(" ", read.verdict().supporting())).doesNotContain(ID).doesNotContain("asked about");
+        assertThat(String.join(" ", created.verdict().supporting())).doesNotContain(ID).contains("Its id is [secret subscriptionWord].");
+    }
+
+    @Test
+    void anAddressToCallBackThatRepeatsAHeldSecretSaysSoBesideTheComparisonWithTheAddressSent() {
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("receiverWord", "pave.example.invalid").build();
+        RunEnvelope<SubscriptionDetail> created = holding(CREATE, word);
+        assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: endpoint was read as "
+                + "[secret receiverWord].");
+        assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        // The address sent is said and compared as masked as the answer is: the same address, not "another address", and not in clear.
+        assertThat(created.verdict().supporting()).contains("It calls back https://[secret receiverWord]/api/pas/notifications, the "
+                + "address the request named.");
+        assertThat(String.join(" ", created.verdict().supporting())).doesNotContain("pave.example.invalid");
+    }
+
+    @Test
+    void eachSubscriptionCallWithAHeldSecretItsAnswerDoesNotRepeatCarriesNoMaskedReading() {
+        org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("clientSecret", "placeholder-secret-value-7f3a").build();
+        for (EpaOperation operation : List.of(CREATE, GET, UPDATE, DELETE)) {
+            RunEnvelope<SubscriptionDetail> result = holding(operation, unrelated);
+            assertThat(result.verdict().maskedReading()).as(operation.name()).isNull();
+            assertThat(result.nextStep().headline()).as(operation.name())
+                    .doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings()).as(operation.name()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+        }
+    }
+
     private static SubscriptionClient stub(VendorExchange exchange) {
         return new SubscriptionClient() {
             @Override
@@ -484,6 +556,55 @@ class SubscriptionServiceTest {
         assertThat(run(UPDATE, about(ID).build()).nextStep().action()).isEqualTo(NextAction.NOTHING_FURTHER);
         // A read sends no subscription, so it has nothing to say about a receiver.
         assertThat(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null).findings()).isEmpty();
+    }
+
+    @Test
+    void aSecretTheConfigurationHoldsThatTheRequestDidNotCarryIsMaskedInTheLedgerLineAndInEverythingTheBrowserIsSent() {
+        String held = "placeholder-secret-value-7f3a";
+        gateway.held(org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("clientSecret", held).build());
+        // The service names the new subscription by the secret, and quotes it in a header and a field nobody anticipated.
+        SubscriptionClient answering = new SubscriptionClient() {
+            private VendorExchange answer(PreparedCall call, ResolvedText body) {
+                org.p32h.interop.epa.pave.model.WireRequest request = Exchanges.wireRequest(call, body,
+                        org.p32h.interop.epa.pave.client.support.ExchangeOptions.json("application/fhir+json"), true, null);
+                return Exchanges.fromResponse(request, 201, List.of(new org.p32h.interop.epa.pave.model.WireHeader("Location",
+                        "https://onyx.example.invalid/fhir/Subscription/" + held + "/_history/1")),
+                        "{\"resourceType\":\"Subscription\",\"id\":\"" + held + "\",\"status\":\"requested\",\"note\":\"issued for "
+                                + held + "\",\"channel\":{\"type\":\"rest-hook\",\"endpoint\":\"" + RECEIVER + "\"}}", 9L, true);
+            }
+
+            @Override
+            public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return answer(call, body);
+            }
+
+            @Override
+            public VendorExchange get(PreparedCall call, MockSelection selection) {
+                return answer(call, null);
+            }
+
+            @Override
+            public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return answer(call, body);
+            }
+
+            @Override
+            public VendorExchange delete(PreparedCall call, MockSelection selection) {
+                return answer(call, null);
+            }
+        };
+
+        RunEnvelope<SubscriptionDetail> created = service(answering, "live", WITH_RECEIVER).run(CREATE, request().build(), RunOrigin.manual(),
+                null);
+
+        assertThat(created.wire().request().body()).doesNotContain(held);
+        assertThat(created.detail().subscriptionId()).isEqualTo("[secret clientSecret]");
+        // The ledger keeps no mask as an identifier: it says the id was not recorded, as for any id that holds one.
+        assertThat(ledger.only().correlation()).containsEntry(RunRecord.CORR_SUBSCRIPTION_ID, "(not recorded, 21 characters)");
+        assertThat(JsonSafe.mapper().writeValueAsString(ledger.only())).doesNotContain(held);
+        assertThat(JsonSafe.mapper().writeValueAsString(created)).doesNotContain(held);
+        assertThat(created.wire().response().headers()).extracting(org.p32h.interop.epa.pave.model.WireHeader::value)
+                .containsExactly("https://onyx.example.invalid/fhir/Subscription/[secret clientSecret]/_history/1");
     }
 
     @Test
@@ -1024,8 +1145,8 @@ class SubscriptionServiceTest {
         WireResponse response = result.wire().response();
         assertThat(response.body()).contains("\"header\" : [ \"Authorization: Bearer [secret callbackToken]\" ]");
         assertThat(response.maskedPlaces()).isEqualTo(1);
-        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this request "
-                + "sent. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
+        assertThat(response.maskNote()).isEqualTo("1 place in the body of this response is masked because it repeats a secret this tool "
+                + "holds. A masked place is shown as [secret ...], naming the variable, the header or the token whose value it repeats. "
                 + "What is shown here is therefore not exactly what was received. The byte count is the count of what was received.");
         assertThat(response.byteLength()).isEqualTo((long) response.body().replace("[secret callbackToken]", CALLBACK_SECRET)
                 .getBytes(StandardCharsets.UTF_8).length);

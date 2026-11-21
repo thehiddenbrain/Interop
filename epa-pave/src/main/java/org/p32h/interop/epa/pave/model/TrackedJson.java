@@ -95,7 +95,7 @@ public final class TrackedJson {
      * The entries a mapper puts first, with every value of each key the body repeats. The parsed
      * body keeps only the last value of a repeated key, so without these an earlier value would be
      * on the wire view alone. Each value is listed under the key's path with its place among them,
-     * masked where it repeats a secret the request carried, as the wire view masks it.
+     * masked where it repeats a secret this tool holds, as the wire view masks it.
      */
     public static List<AdditionalField> bodyFieldsWithRepeatedKeys(VendorExchange exchange) {
         List<RepeatedKeyRead> repeated = repeatedKeys(exchange);
@@ -149,7 +149,7 @@ public final class TrackedJson {
     /**
      * A key the body repeats, with each value as the screen may show it.
      *
-     * @param values the JSON text of each value in the order sent, masked where it repeats a secret the request carried
+     * @param values the JSON text of each value in the order sent, masked where it repeats a secret this tool holds
      */
     public record RepeatedKeyRead(String path, List<String> values, String pointer) {
 
@@ -288,7 +288,7 @@ public final class TrackedJson {
      */
     public static String notJsonNote(VendorExchange received) {
         boolean masked = received.wireResponse() != null && received.wireResponse().maskedPlaces() > 0;
-        String said = (masked ? "It is shown as received except that a place repeating a secret the request carried is masked. " : "")
+        String said = (masked ? "It is shown as received except that a place repeating a secret this tool holds is masked. " : "")
                 + Texts.orElse(received.parseError(), "");
         return said.strip().isEmpty() ? null : said.strip();
     }

@@ -8,21 +8,43 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The secret values one request carried, each with the mask that stands for it, kept so that a
- * response which repeats one of them is not shown with it.
+ * The secret values a response is masked with, each with the mask that stands for it: those one
+ * request carried, and every other secret this tool holds for the configuration the request was
+ * sent under, kept so that a response which repeats one of them is not shown with it.
  *
  * <p>A service can send a secret back. A FHIR server returns a Subscription with the header its
  * notifications are to carry, and an error page can quote the request it refused. The request side
  * hides a secret by the name of the variable it came from. This applies the same rule to what
  * comes back: the values held here are the ones this tool already knows to be secret by their
  * names, and a place in a response is masked only because it repeats one of them. Nothing here
- * judges a value by what it looks like.
+ * judges a value by what it looks like. A service can also repeat a secret the request did not
+ * carry, such as the client secret in an error answer to a call sent without sign-in, so the
+ * secrets this tool holds and did not send are searched for as well.
  *
  * <p>A place repeats a secret when it holds the same characters, also where it writes some of them
  * as JSON escapes. A JSON body is where a secret usually comes back, and a JSON writer is free to
  * write a slash as {@code \/}, or a plus sign as a backslash followed by {@code u002B}. A secret
  * that comes back changed in any other way, such as percent-encoded or base64-encoded, is not
  * found.
+ *
+ * <p>Every secret is searched for in the same single pass over the text, along a tree of their
+ * characters, so the cost of masking an answer of megabytes does not grow with the number of
+ * secrets held. At a start with no backslash at it or within the length of the longest secret
+ * after it, failure links between the branches of the tree keep that cost to one step per
+ * character, also for a secret whose beginning fills the text. Every other start is walked along
+ * the tree, because an escape can be read in two ways, and that walk costs up to the length of the
+ * longest secret. So the old cost of up to the length of the longest secret per character applies
+ * wherever backslashes lie closer together than that length, not only in a text written wholly in
+ * escapes: one escaped backslash every 900 characters is enough against a held secret of 1,000.
+ * The walk goes on only while the text matches the beginning of a secret, so an ordinary answer
+ * with escapes in it stays fast; the cost is reached by a text that repeats most of a long secret
+ * over and over. Measured on one machine, with an escaped backslash just closer together than the
+ * secret is long and the rest of the text the secret's first character: against one held secret
+ * of 1,000 characters, 2 MB took about 9 s, 8 MiB (the most the notification receiver reads)
+ * about 36 s and 20 MB about 90 s; against one of 2,000 characters, as long as an access token
+ * can be, 8 MiB took about 77 s and 20 MB about 190 s. No cap stops a service from sending more:
+ * the client reads an answer to its end. An ordinary answer of 20 MB with a backslash every few
+ * hundred characters and no secret in it took about a third of a second against either.
  *
  * <p>This holds real secret values. It is never serialised and never printed, and it has no method
  * that hands a value back: all it offers is to mask a text.
@@ -38,7 +60,7 @@ public final class SentSecrets {
      */
     public static final int SHORTEST_SEARCHED = 6;
 
-    private static final SentSecrets NONE = new SentSecrets(List.of(), 0, false);
+    private static final SentSecrets NONE = new SentSecrets(List.of(), List.of(), false);
 
     /**
      * A text as it may be shown.
@@ -73,13 +95,16 @@ public final class SentSecrets {
     }
 
     private final List<Entry> searched;
-    private final int tooShort;
+    /** Kept, never searched for, so that a set merged into another counts each short value once. */
+    private final List<Entry> shortOnes;
     private final boolean incomplete;
+    private final Tree tree;
 
-    private SentSecrets(List<Entry> searched, int tooShort, boolean incomplete) {
+    private SentSecrets(List<Entry> searched, List<Entry> shortOnes, boolean incomplete) {
         this.searched = List.copyOf(searched);
-        this.tooShort = tooShort;
+        this.shortOnes = List.copyOf(shortOnes);
         this.incomplete = incomplete;
+        this.tree = new Tree(this.searched);
     }
 
     /** A request that carried no secret. */
@@ -96,9 +121,9 @@ public final class SentSecrets {
         return searched.size();
     }
 
-    /** How many secrets the request carried that are too short to be searched for. */
+    /** How many secrets, carried or held, are too short to be searched for. */
     public int tooShort() {
-        return tooShort;
+        return shortOnes.size();
     }
 
     /**
@@ -123,10 +148,7 @@ public final class SentSecrets {
         if (text == null || text.isEmpty() || searched.isEmpty()) {
             return new Masked(text, 0);
         }
-        List<Hit> hits = new ArrayList<>();
-        for (Entry entry : searched) {
-            find(text, entry, hits);
-        }
+        List<Hit> hits = tree.find(text, searched);
         if (hits.isEmpty()) {
             return new Masked(text, 0);
         }
@@ -153,77 +175,261 @@ public final class SentSecrets {
         return new Masked(out.toString(), places);
     }
 
-    /** Adds every place where the text holds the secret, left to right, none overlapping another of the same secret. */
-    private static void find(String text, Entry entry, List<Hit> hits) {
-        String value = entry.value();
-        char first = value.charAt(0);
-        for (int start = 0; start < text.length(); start++) {
-            char here = text.charAt(start);
-            if (here != first && here != '\\') {
-                continue;
+    /**
+     * The secrets as one tree of their characters: a node per prefix that some secret starts with,
+     * and at a node where a secret ends, that secret. Walking it from each place in a text meets
+     * every secret that starts there in one walk, whatever the number of secrets.
+     */
+    private static final class Tree {
+
+        private final char[][] keys;
+        private final int[][] kids;
+        private final int[] ends;
+        private final java.util.BitSet first = new java.util.BitSet();
+        /** How many characters lead to each node: the length of the prefix it stands for. */
+        private final int[] depth;
+        /** The node of the longest proper suffix of a node's prefix that is also a prefix of some secret. */
+        private final int[] fail;
+        /** The nearest node along the failure links where a secret ends, or -1. */
+        private final int[] ending;
+        /** The length of the longest secret, and so the furthest a walk without an escape reads from where it starts. */
+        private final int longest;
+
+        private Tree(List<Entry> searched) {
+            List<java.util.TreeMap<Character, Integer>> building = new ArrayList<>();
+            List<Integer> ending = new ArrayList<>();
+            building.add(new java.util.TreeMap<>());
+            ending.add(-1);
+            for (int index = 0; index < searched.size(); index++) {
+                String value = searched.get(index).value();
+                int node = 0;
+                for (int i = 0; i < value.length(); i++) {
+                    Integer next = building.get(node).get(value.charAt(i));
+                    if (next == null) {
+                        next = building.size();
+                        building.get(node).put(value.charAt(i), next);
+                        building.add(new java.util.TreeMap<>());
+                        ending.add(-1);
+                    }
+                    node = next;
+                }
+                // Values are unique, so no two secrets end at the same node.
+                ending.set(node, index);
             }
-            int end = endOfSecret(text, start, value, 0);
-            if (end > start) {
-                hits.add(new Hit(start, end, entry.mask()));
-                start = end - 1;
+            keys = new char[building.size()][];
+            kids = new int[building.size()][];
+            ends = new int[building.size()];
+            for (int node = 0; node < building.size(); node++) {
+                java.util.TreeMap<Character, Integer> children = building.get(node);
+                keys[node] = new char[children.size()];
+                kids[node] = new int[children.size()];
+                int at = 0;
+                for (Map.Entry<Character, Integer> child : children.entrySet()) {
+                    keys[node][at] = child.getKey();
+                    kids[node][at] = child.getValue();
+                    at++;
+                }
+                ends[node] = ending.get(node);
             }
+            for (char c : keys[0]) {
+                first.set(c);
+            }
+            // The failure links, worked out breadth first from a queue of this loop's own, so a
+            // node is reached only after every shorter one.
+            int count = keys.length;
+            depth = new int[count];
+            fail = new int[count];
+            this.ending = new int[count];
+            this.ending[0] = -1;
+            int[] queue = new int[count];
+            int head = 0;
+            int tail = 0;
+            for (int kid : kids[0]) {
+                depth[kid] = 1;
+                this.ending[kid] = -1;
+                queue[tail++] = kid;
+            }
+            int deepest = 0;
+            while (head < tail) {
+                int node = queue[head++];
+                deepest = Math.max(deepest, depth[node]);
+                for (int i = 0; i < keys[node].length; i++) {
+                    char c = keys[node][i];
+                    int kid = kids[node][i];
+                    depth[kid] = depth[node] + 1;
+                    int back = fail[node];
+                    while (back != 0 && child(back, c) < 0) {
+                        back = fail[back];
+                    }
+                    int via = child(back, c);
+                    fail[kid] = via < 0 ? 0 : via;
+                    this.ending[kid] = ends[fail[kid]] >= 0 ? fail[kid] : this.ending[fail[kid]];
+                    queue[tail++] = kid;
+                }
+            }
+            longest = deepest;
+        }
+
+        private int child(int node, char c) {
+            int at = java.util.Arrays.binarySearch(keys[node], c);
+            return at < 0 ? -1 : kids[node][at];
+        }
+
+        /**
+         * Every place where the text holds a secret, by where it starts. One secret's places do not
+         * overlap: from where one ends, that secret is looked for again. Where the text holds a
+         * secret from one position in more than one reading, the reading that takes a JSON escape
+         * as the character it stands for comes first, and the first reading met is the one taken.
+         *
+         * <p>Near a backslash the text can be read in more than one way, and each start there is
+         * walked along the tree. Elsewhere it reads one way only, and the automaton finds exactly
+         * what that walk would, at a cost that does not grow with the length of the secrets.
+         *
+         * <p>The walk keeps its own stack of what is left to try, so its depth never takes a frame
+         * of the thread's stack; it is at most the length of the longest secret. A position and a
+         * node met twice from one start lead to nothing new and are not walked again, which is what
+         * keeps a text of many backslashes from being read in every way it can be read.
+         */
+        private List<Hit> find(String text, List<Entry> searched) {
+            List<Hit> hits = new ArrayList<>();
+            if (keys[0].length == 0) {
+                return hits;
+            }
+            int[] nextStart = new int[searched.size()];
+            int[] nodes = new int[16];
+            int[] positions = new int[16];
+            int length = text.length();
+            // Where no backslash lies within the length of the longest secret, a walk from a start
+            // can read the text one way only, as it is written. There the secrets are found by an
+            // automaton with failure links that runs once along the text, so a long secret whose
+            // beginning fills the text costs one step per character and not one per character of
+            // the secret. Its finds wait in a ring, by where they start, until the walk is there.
+            int ringSize = longest + 1;
+            int[][] ring = new int[ringSize][];
+            int[] inRing = new int[ringSize];
+            int scanned = 0;
+            int state = 0;
+            int backslash = text.indexOf('\\');
+            for (int start = 0; start < length; start++) {
+                int until = Math.min(length, start + longest);
+                while (scanned < until) {
+                    char c = text.charAt(scanned);
+                    int next = child(state, c);
+                    while (next < 0 && state != 0) {
+                        state = fail[state];
+                        next = child(state, c);
+                    }
+                    state = next < 0 ? 0 : next;
+                    scanned++;
+                    for (int found = ends[state] >= 0 ? state : ending[state]; found >= 0; found = ending[found]) {
+                        int slot = (scanned - depth[found]) % ringSize;
+                        if (ring[slot] == null) {
+                            ring[slot] = new int[4];
+                        } else if (inRing[slot] == ring[slot].length) {
+                            ring[slot] = java.util.Arrays.copyOf(ring[slot], ring[slot].length * 2);
+                        }
+                        ring[slot][inRing[slot]++] = ends[found];
+                    }
+                }
+                if (backslash >= 0 && backslash < start) {
+                    backslash = text.indexOf('\\', start);
+                }
+                int slot = start % ringSize;
+                boolean nearAnEscape = backslash >= 0 && backslash < start + longest;
+                if (!nearAnEscape) {
+                    for (int i = 0; i < inRing[slot]; i++) {
+                        int secret = ring[slot][i];
+                        if (nextStart[secret] <= start) {
+                            int end = start + searched.get(secret).value().length();
+                            hits.add(new Hit(start, end, searched.get(secret).mask()));
+                            nextStart[secret] = end;
+                        }
+                    }
+                }
+                inRing[slot] = 0;
+                if (!nearAnEscape) {
+                    continue;
+                }
+                char here = text.charAt(start);
+                if (here != '\\' && !first.get(here)) {
+                    continue;
+                }
+                java.util.Set<Long> walked = null;
+                nodes[0] = 0;
+                positions[0] = start;
+                int top = 1;
+                while (top > 0) {
+                    top--;
+                    int node = nodes[top];
+                    int at = positions[top];
+                    if (walked != null && !walked.add(((long) node << 32) | at)) {
+                        continue;
+                    }
+                    int ending = ends[node];
+                    if (ending >= 0 && nextStart[ending] <= start) {
+                        hits.add(new Hit(start, at, searched.get(ending).mask()));
+                        nextStart[ending] = at;
+                    }
+                    if (at >= length) {
+                        continue;
+                    }
+                    char c = text.charAt(at);
+                    int plain = child(node, c);
+                    int escape = -1;
+                    int escapeLength = 0;
+                    if (c == '\\') {
+                        int read = escaped(text, at);
+                        if (read >= 0) {
+                            escape = child(node, (char) (read & 0xFFFF));
+                            escapeLength = read >>> 16;
+                        }
+                    }
+                    if (plain >= 0 && escape >= 0 && walked == null) {
+                        walked = new java.util.HashSet<>();
+                    }
+                    if (top + 2 > nodes.length) {
+                        nodes = java.util.Arrays.copyOf(nodes, nodes.length * 2);
+                        positions = java.util.Arrays.copyOf(positions, positions.length * 2);
+                    }
+                    // Pushed last, so tried first: the escape read as the character it stands for.
+                    if (plain >= 0) {
+                        nodes[top] = plain;
+                        positions[top] = at + 1;
+                        top++;
+                    }
+                    if (escape >= 0) {
+                        nodes[top] = escape;
+                        positions[top] = at + escapeLength;
+                        top++;
+                    }
+                }
+            }
+            return hits;
         }
     }
 
     /**
-     * Where the secret ends when the text holds it from a given position, or -1 when it does not.
-     * Each character of the secret is met either as itself or as a JSON escape that stands for it.
-     * Only a backslash can be read both ways, as itself and as the start of {@code \\}, and then
-     * both readings are tried.
-     *
-     * @param from the position in the text to read from
-     * @param done how many characters of the secret have been met already
+     * The JSON escape at a position: the character it stands for in the low 16 bits and its length
+     * above them, or -1 when no escape starts there.
      */
-    private static int endOfSecret(String text, int from, String secret, int done) {
-        int at = from;
-        for (int i = done; i < secret.length(); i++) {
-            if (at >= text.length()) {
-                return -1;
-            }
-            char wanted = secret.charAt(i);
-            int escaped = escapeLength(text, at, wanted);
-            boolean plain = text.charAt(at) == wanted;
-            if (escaped > 0 && plain) {
-                int end = endOfSecret(text, at + escaped, secret, i + 1);
-                if (end >= 0) {
-                    return end;
-                }
-                at++;
-            } else if (escaped > 0) {
-                at += escaped;
-            } else if (plain) {
-                at++;
-            } else {
-                return -1;
-            }
-        }
-        return at;
-    }
-
-    /** The length of a JSON escape at a position when it stands for the wanted character. Otherwise 0. */
-    private static int escapeLength(String text, int at, char wanted) {
+    private static int escaped(String text, int at) {
         if (text.charAt(at) != '\\' || at + 1 >= text.length()) {
-            return 0;
+            return -1;
         }
         char kind = text.charAt(at + 1);
         if (kind == 'u') {
             if (at + 6 > text.length()) {
-                return 0;
+                return -1;
             }
             int code = 0;
             for (int i = at + 2; i < at + 6; i++) {
                 int digit = Character.digit(text.charAt(i), 16);
                 if (digit < 0) {
-                    return 0;
+                    return -1;
                 }
                 code = code * 16 + digit;
             }
-            return code == wanted ? 6 : 0;
+            return (6 << 16) | code;
         }
         int stands = switch (kind) {
             case '"', '\\', '/' -> kind;
@@ -234,28 +440,31 @@ public final class SentSecrets {
             case 't' -> '\t';
             default -> -1;
         };
-        return stands == wanted ? 2 : 0;
+        return stands < 0 ? -1 : (2 << 16) | stands;
     }
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof SentSecrets that && tooShort == that.tooShort && incomplete == that.incomplete
+        return other instanceof SentSecrets that && shortOnes.equals(that.shortOnes) && incomplete == that.incomplete
                 && searched.equals(that.searched);
     }
 
     @Override
     public int hashCode() {
-        return 31 * (31 * searched.hashCode() + tooShort) + Boolean.hashCode(incomplete);
+        return 31 * (31 * searched.hashCode() + shortOnes.hashCode()) + Boolean.hashCode(incomplete);
     }
 
     /** Prints the counts and nothing else. */
     @Override
     public String toString() {
-        return "SentSecrets[" + searched.size() + " searched for, " + tooShort + " too short to search for"
+        return "SentSecrets[" + searched.size() + " searched for, " + shortOnes.size() + " too short to search for"
                 + (incomplete ? ", and at least one not known]" : "]");
     }
 
-    /** Collects the secrets of one request. A value that is given twice keeps the name it was first given under. */
+    /**
+     * Collects the secrets of one request and those held beside it. A value that is given twice
+     * keeps the name it was first given under, so the secrets a request carried are given first.
+     */
     public static final class Builder {
 
         private final Map<String, String> maskByValue = new LinkedHashMap<>();
@@ -291,6 +500,21 @@ public final class SentSecrets {
             return add(Secrets.mask(Texts.orElse(headerName, "").strip() + " header"), credential);
         }
 
+        /**
+         * Every secret of another set, kept under the mask it has there: the secrets this tool
+         * holds for the configuration a request was sent under, whether or not the request
+         * carried them. A value already given keeps its first mask, and a short one is counted once.
+         */
+        public Builder held(SentSecrets held) {
+            if (held == null) {
+                return this;
+            }
+            held.searched.forEach(entry -> add(entry.mask(), entry.value()));
+            held.shortOnes.forEach(entry -> add(entry.mask(), entry.value()));
+            incomplete |= held.incomplete;
+            return this;
+        }
+
         private Builder add(String mask, String value) {
             if (Texts.present(value)) {
                 // White space around a secret is not part of it, and a service that sends the
@@ -302,15 +526,16 @@ public final class SentSecrets {
 
         public SentSecrets build() {
             List<Entry> searched = new ArrayList<>();
-            int tooShort = 0;
+            List<Entry> shortOnes = new ArrayList<>();
             for (Map.Entry<String, String> secret : maskByValue.entrySet()) {
+                Entry entry = new Entry(secret.getValue(), secret.getKey());
                 if (secret.getKey().length() < SHORTEST_SEARCHED) {
-                    tooShort++;
+                    shortOnes.add(entry);
                 } else {
-                    searched.add(new Entry(secret.getValue(), secret.getKey()));
+                    searched.add(entry);
                 }
             }
-            return searched.isEmpty() && tooShort == 0 && !incomplete ? NONE : new SentSecrets(searched, tooShort, incomplete);
+            return searched.isEmpty() && shortOnes.isEmpty() && !incomplete ? NONE : new SentSecrets(searched, shortOnes, incomplete);
         }
 
         /** Prints how many values it holds and none of them. */

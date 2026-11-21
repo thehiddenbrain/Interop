@@ -48,12 +48,22 @@ public final class FakeGateway implements OperationGateway {
     private long epoch;
     private String requestName;
     private boolean scripted;
+    private org.p32h.interop.epa.pave.model.SentSecrets held = org.p32h.interop.epa.pave.model.SentSecrets.none();
 
     /** A gateway with nothing configured, which is the out-of-the-box state on mock. */
     public static FakeGateway unconfigured() {
         FakeGateway gateway = new FakeGateway();
         gateway.environment = EnvironmentRef.none();
         return gateway;
+    }
+
+    /**
+     * The secrets every call prepared from now on holds beside what it carries, as the real gateway
+     * gives each call those of the configuration in force.
+     */
+    public FakeGateway held(org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        this.held = secrets;
+        return this;
     }
 
     public FakeGateway url(EpaOperation operation, String template) {
@@ -128,9 +138,9 @@ public final class FakeGateway implements OperationGateway {
             url = new ResolvedUrl(template, complete ? display : null, complete ? value : null, text.variables(), unresolved, "test");
         }
         Map<String, String> runValues = intent.runValues();
-        return TestPreparedCalls.at(epoch, body -> resolve(body, runValues), intent.operation(),
+        return TestPreparedCalls.holding(TestPreparedCalls.at(epoch, body -> resolve(body, runValues), intent.operation(),
                 intent.method() != null ? intent.method() : intent.operation().defaultMethod(), url,
-                headers.getOrDefault(intent.operation(), List.of()), environment, requestName, scripted);
+                headers.getOrDefault(intent.operation(), List.of()), environment, requestName, scripted), held);
     }
 
     private static String substituteTokens(String text, Map<String, String> urlValues, List<String> unresolved) {

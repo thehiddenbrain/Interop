@@ -172,7 +172,7 @@ public final class DtrResponseMapper {
      * @param requestedCanonicals the questionnaires the request asked for by canonical url. Empty when it named none
      */
     public DtrReading readPackage(VendorExchange received, List<String> requestedCanonicals) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<String> requested = new ArrayList<>();
         if (requestedCanonicals != null) {
@@ -207,7 +207,7 @@ public final class DtrResponseMapper {
         List<String> notReturned = !exchange.ok() ? List.of()
                 : requested.stream().filter(wanted -> questionnaires.stream().noneMatch(q -> DtrReading.namedBy(wanted, q))).toList();
         DtrOutcome outcome = DtrOutcomeRules.forPackage(exchange, kind, questionnaires, notReturned);
-        DtrDetail detail = new DtrDetail(kind, note, questionnaires.isEmpty() ? null : OnyxDtrConventions.KIND_RULE, requested, notReturned,
+        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.DTR)), questionnaires.isEmpty() ? null : OnyxDtrConventions.KIND_RULE, requested, notReturned,
                 walk.bundles, questionnaires, walk.resources, responses, null, walk.issues, List.of(), true, true);
         return new DtrReading(detail, outcome, additional);
     }
@@ -289,7 +289,7 @@ public final class DtrResponseMapper {
      *             was sent could not be read as one
      */
     public DtrReading readNextQuestion(VendorExchange received, JsonNode sent) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         List<IssueView> issues = new ArrayList<>();
@@ -363,7 +363,7 @@ public final class DtrResponseMapper {
             additional.addAll(tracked.unconsumed());
         }
         DtrOutcome outcome = DtrOutcomeRules.forNextQuestion(exchange, kind, response != null, questionnaire, progress, form);
-        DtrDetail detail = new DtrDetail(kind, note, questionnaire == null ? null : OnyxDtrConventions.KIND_RULE, List.of(), List.of(),
+        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.DTR)), questionnaire == null ? null : OnyxDtrConventions.KIND_RULE, List.of(), List.of(),
                 List.of(), questionnaire == null ? List.of() : List.of(questionnaire), resources,
                 response == null ? List.of() : List.of(response), form, issues, List.of(), true, true);
         return new DtrReading(detail, outcome, additional);
@@ -792,7 +792,7 @@ public final class DtrResponseMapper {
             return "The response has no body.";
         }
         return ("The body could not be read as JSON. It is shown under the fields that were returned but not interpreted, and in "
-                + "the wire view, as received except that a place repeating a secret the request carried is masked. "
+                + "the wire view, as received except that a place repeating a secret this tool holds is masked. "
                 + Texts.orElse(exchange.parseError(), "")).strip();
     }
 

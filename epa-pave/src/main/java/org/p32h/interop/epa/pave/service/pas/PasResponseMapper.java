@@ -115,7 +115,7 @@ public final class PasResponseMapper {
      *                  many ClaimResponses, so that an empty one means that nothing matched
      */
     public PasReading read(VendorExchange received, SentClaim sentClaim, boolean inquiry) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         SentClaim sent = sentClaim == null ? SentClaim.unknown() : sentClaim;
         // The body as received when it could not be parsed, and anything worth knowing about the
@@ -167,7 +167,7 @@ public final class PasResponseMapper {
             additional.addAll(tracked.unconsumed());
         }
 
-        PasDetail detail = new PasDetail(kind, note, carried.bundleType(), carried.bundleId(), carried.bundleTimestamp(),
+        PasDetail detail = new PasDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.PAS)), carried.bundleType(), carried.bundleId(), carried.bundleTimestamp(),
                 carried.claimResponses(), carried.otherResources(), carried.issues(), null, null, List.of(), true);
         boolean emptyInquiryAnswer = inquiry && kind == PasResponseKind.BUNDLE && carried.claimResponses().isEmpty()
                 && carried.issues().isEmpty();

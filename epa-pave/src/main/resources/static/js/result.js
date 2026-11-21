@@ -94,7 +94,10 @@ export function renderResult(envelope, options) {
         if (repeated) {
             said.title = 'The headline at the top of this result says what was refused, in full.';
         }
-        if (typeof error.action === 'string' && error.action === step.headline) {
+        // A next step marked as resting on a masked reading ends with the words the error panel would
+        // repeat, less the "Next: " that the marking already says.
+        if (typeof error.action === 'string' && typeof step.headline === 'string'
+            && (error.action === step.headline || step.headline.endsWith(': ' + error.action.replace(/^Next: /, '')))) {
             said.action = 'The next step above says what to do.';
         }
         // The server heads every error with what it is (a refusal by the guardrail is not something
@@ -144,6 +147,12 @@ function verdictStrip(envelope) {
     const length = String(verdict.headline || '').length;
     const size = length > 220 ? ' verdict__headline--long verdict__headline--longest' : length > 80 ? ' verdict__headline--long' : '';
     strip.append(el('h2', {class: 'verdict__headline' + size}, verdict.headline));
+    // Said under the headline and above its reasons, in the server's words: a value this verdict was
+    // read by repeats a secret this tool holds, so the verdict is about the mask, not about the answer.
+    const masked = maskedReading(verdict.maskedReading);
+    if (masked) {
+        strip.append(masked);
+    }
     const supporting = verdict.supporting || [];
     if (supporting.length > 0) {
         strip.append(el('ul', {class: 'verdict__supporting'}, supporting.map(line => el('li', null, line))));
@@ -158,6 +167,15 @@ function verdictStrip(envelope) {
         mock && refused ? el('span', {class: 'verdict__unanswered'}, 'Mock profile, and no scenario answered: the request was refused before it was sent.') : null,
         el('span', null, 'Outcome code ', code(verdict.outcomeCode, 'verdict__code'))));
     return strip;
+}
+
+/**
+ * The line a server sends when a conclusion was read from a mask and not from what the service
+ * sent, drawn as the screens draw what must be read before acting: a heavy rule on its left. Null
+ * when there is none. Every place that draws a conclusion from an answer draws this under it.
+ */
+export function maskedReading(line) {
+    return typeof line === 'string' && line !== '' ? el('p', {class: 'masked-reading'}, line) : null;
 }
 
 /**

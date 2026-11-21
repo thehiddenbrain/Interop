@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.pas;
 
 import org.p32h.interop.epa.pave.client.pas.MockNotifications;
 import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
+import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.Finding;
@@ -243,8 +244,9 @@ public class NotificationReceiver {
 
     /**
      * Everything this tool could have sent to a service, by the rule the wire view of a call masks
-     * by: the secret variables of the active environment, the access token, the client secret and
-     * the credentials of the address to call back. A service may repeat any of them in a
+     * by: the secret variables of the active environment, of each collection and of application.yml,
+     * the access token, the client secret, and the credentials of the address to call back and of
+     * the lookup configuration. A service may repeat any of them in a
      * notification. Asked of the gateway each time, so a switch of environment is followed.
      */
     private org.p32h.interop.epa.pave.model.SentSecrets givenToServices() {
@@ -412,6 +414,9 @@ public class NotificationReceiver {
         String whole = readWhole ? decode(inbound.whole(), false, new ArrayList<>()) : text;
         org.p32h.interop.epa.pave.model.SentSecrets secrets = givenToServices();
         org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = secrets.mask(readWhole ? whole : text);
+        // Asked of the body as it arrived, before the mask: where a mask falls on a value the verdict is read by.
+        MaskedReading maskedReading = masked.places() == 0 ? null
+                : MaskedReading.of(JsonSafe.parse(readWhole ? whole : text).node(), secrets, MaskedReading.Reading.NOTIFICATION);
         if (readWhole) {
             whole = masked.text();
             text = secrets.mask(text).text();
@@ -424,11 +429,11 @@ public class NotificationReceiver {
             }
             payloadNotes.add(masked.places() == 1
                     ? "1 place in this payload is masked because it repeats a secret this tool could have sent to the service: a secret "
-                            + "variable, the access token, the client secret or a credential of the address to call back. What is shown is "
-                            + "therefore not exactly what was received."
+                            + "variable, the access token, the client secret or a credential of the address to call back, of a lookup or "
+                            + "of a request of a collection. What is shown is therefore not exactly what was received."
                     : masked.places() + " places in this payload are masked because they repeat secrets this tool could have sent to the "
-                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back. "
-                            + "What is shown is therefore not exactly what was received.");
+                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back, "
+                            + "of a lookup or of a request of a collection. What is shown is therefore not exactly what was received.");
         }
         // As the wire view of a call says it: a payload shown with a secret in it and no word about
         // it would pass for one that was searched and found clean.
@@ -469,7 +474,7 @@ public class NotificationReceiver {
         try {
             // Only the reading, the matching and the wording are inside the try. The ledger write is
             // outside it, so a failure after the write cannot produce a second line for one notification.
-            Interpreted read = interpret(whole, inbound.cut(), sampleScenarioId, cut, toSeeAMatch);
+            Interpreted read = interpret(whole, inbound.cut(), sampleScenarioId, cut, toSeeAMatch, maskedReading);
             outcome = read.outcome();
             draft.outcome(outcome).coverageCodes(read.codes()).correlation(read.correlation()).nextAction(read.nextStep().action())
                     .findings(read.findings().stream().map(f -> f.kind().name()).distinct().toList());
@@ -527,7 +532,8 @@ public class NotificationReceiver {
         return stored;
     }
 
-    private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut, String toSeeAMatch) {
+    /** @param masked where a mask fell on a value the verdict is read by, or null */
+    private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut, String toSeeAMatch, MaskedReading masked) {
         NotificationReading reading = reader.apply(text);
         Links links = correlate(reading);
         NotificationOutcome outcome = NotificationVerdicts.outcome(reading, links.unmatched());
@@ -600,6 +606,12 @@ public class NotificationReceiver {
         VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut, links.unmatched());
         NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
                 links.unmatched(), sampleScenarioId != null, toSeeAMatch);
+        // As on a call: the verdict, the next step and the findings say that a value they rest on was read as a mask.
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
         return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
     }
 

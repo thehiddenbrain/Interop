@@ -381,7 +381,7 @@ public class RunReplay {
                 : "Mock scenario " + original.scenarioId().strip() + " answered: the scenario the original run recorded, sent again by its id. "
                         + "On the mock profile a replay is therefore answered as the original run was, by construction, whatever its "
                         + "member ID would select today." + line.substring(chosen.length())).toList();
-        return new VerdictView(found.headline(), found.outcomeCode(), found.outcomeLabel(), found.tone(), supporting);
+        return new VerdictView(found.headline(), found.outcomeCode(), found.outcomeLabel(), found.tone(), supporting, found.maskedReading());
     }
 
     /**

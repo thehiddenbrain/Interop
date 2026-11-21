@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasClient;
 import org.p32h.interop.epa.pave.client.pas.SentClaim;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorView;
@@ -291,6 +292,14 @@ public class PasService {
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 PasOutcome.values(), PasCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = PasVerdicts.nextStep(reading, exchange, operation, followsRunId, runId);
+        // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
+        // and the findings say so where each is read.
+        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.PAS);
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
         ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;

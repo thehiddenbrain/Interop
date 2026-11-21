@@ -106,6 +106,11 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
         return new NextStepView(action, headline, reason, Map.of());
     }
 
+    /** The same step, offering the same action and carrying the same values, with its instruction worded anew. */
+    public NextStepView withHeadline(String newHeadline) {
+        return new NextStepView(action, newHeadline, reason, carry, null);
+    }
+
     /** The first value carried under a key, or null. */
     public String first(String key) {
         List<String> values = carry.get(key);

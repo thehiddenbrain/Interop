@@ -569,7 +569,7 @@ public class RunSupport {
 
     /**
      * How a response is shown, in the words a sentence about it can use: exactly as received,
-     * unless a place in it repeats a secret the request sent and is masked. "Exactly" is then not
+     * unless a place in it repeats a secret this tool holds and is masked. "Exactly" is then not
      * true, and the wire view says how many places were masked.
      */
     private static String asReceived(VendorExchange exchange) {

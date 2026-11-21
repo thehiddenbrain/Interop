@@ -78,7 +78,7 @@ public final class CrdResponseMapper {
      * @param sentOrders the orders the request carried, in the order sent. Empty when they are not known
      */
     public CrdReading read(VendorExchange received, List<SentOrder> sentOrders) {
-        // What the view copies out of the body must not show a secret the request carried, any more than the wire view does.
+        // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         List<SentOrder> orders = sentOrders == null ? List.of() : List.copyOf(sentOrders);
         List<CardView> cards = new ArrayList<>();
@@ -197,7 +197,7 @@ public final class CrdResponseMapper {
                 requested.add(order.code());
             }
         }
-        CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
+        CrdDetail detail = new CrdDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.CRD)), cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
                 List.of(), true, CrdConformanceChecker.SCOPE);
         CrdOutcome overall = CrdOutcomeRules.overall(exchange, outcomes, unanswered.size());
         // JSON that is not a CDS Hooks response answered nothing, and must never pass as a service

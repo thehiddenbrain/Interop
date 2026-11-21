@@ -5,7 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.p32h.interop.epa.pave.client.support.ExchangeOptions;
 import org.p32h.interop.epa.pave.client.support.Exchanges;
+import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.service.config.CallIntent;
+import org.p32h.interop.epa.pave.service.config.ConfigFixture;
+import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LookupStatus;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
@@ -61,7 +67,38 @@ class LookupReturnedSecretsTest {
         MemberLookupResult result = MemberResponseMapping.map(answered(200, "not json " + TOKEN), MemberIds.forms("S123456789"),
                 LocalDate.of(2026, 3, 10));
         assertThat(result.error().action()).startsWith("The body is shown under the returned fields as received, except that a place "
-                + "repeating a secret the request carried is masked.");
+                + "repeating a secret this tool holds is masked.");
         assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain(TOKEN);
+    }
+
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path directory;
+
+    /**
+     * A lookup comes from no collection, so the gateway holds the secrets of every collection
+     * uploaded for it. An answer that repeats a secret variable of one, which the lookup never
+     * carried, is masked in the record, the returned fields and the wire view.
+     */
+    @Test
+    void aLookupAnswerThatRepeatsASecretOfACollectionUploadedIsMaskedInTheResultAndTheWireView() {
+        String collectionSecret = "placeholder-collection-secret-5e5e";
+        ConfigFixture fixture = ConfigFixture.on(directory).lookup("member.url", "https://lookup.example.invalid/member/{id}").build();
+        fixture.activeEnvironmentOf("Held", EnvironmentKind.SANDBOX, "baseUrl", "https://onyx.example.invalid/fhir");
+        fixture.collectionOf("Plain", ConfigFixture.items(ConfigFixture.item("subscription-create Happy Path", "POST", "{{baseUrl}}/Subscription")),
+                "[{\"key\": \"tenantPassphrase\", \"value\": \"" + collectionSecret + "\", \"type\": \"secret\"}]");
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.MEMBER_LOOKUP).withUrlValue("id", "S123456789"));
+        WireRequest request = Exchanges.wireRequest(call, null, ExchangeOptions.json("application/json"), true, null);
+        assertThat(JsonSafe.mapper().writeValueAsString(request)).doesNotContain(collectionSecret);
+
+        String body = "{\"memberId\":\"S123456789\",\"firstName\":\"Avery " + collectionSecret + "\",\"lastName\":\"Placeholder\","
+                + "\"dob\":\"1970-01-31\",\"lob\":\"Medicare\",\"" + collectionSecret + "\":\"x\"}";
+        VendorExchange exchange = Exchanges.fromResponse(request, 200, List.of(), body, 7L, true);
+        MemberLookupResult result = MemberResponseMapping.map(exchange, MemberIds.forms("S123456789"), LocalDate.of(2026, 3, 10));
+
+        assertThat(result.status()).isEqualTo(LookupStatus.FOUND);
+        assertThat(result.member().firstName()).isEqualTo("Avery " + Secrets.mask("tenantPassphrase"));
+        assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain(collectionSecret);
+        assertThat(exchange.wireResponse().body()).doesNotContain(collectionSecret);
+        assertThat(exchange.wireResponse().maskedPlaces()).isEqualTo(2);
     }
 }

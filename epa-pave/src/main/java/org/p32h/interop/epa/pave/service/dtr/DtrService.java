@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrClient;
 import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
@@ -261,7 +262,7 @@ public class DtrService {
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
             // The questionnaire being completed as the response that came back names it, else as the one that was sent did.
-            // Read through the mask: the name goes to the ledger line, which never holds a secret the request carried.
+            // Read through the mask: the name goes to the ledger line, which never holds a secret.
             String answered = Texts.orElse(first(OnyxDtrConventions.completes(
                     QuestionnaireJson.findResponse(exchange.withReturnedSecretsMasked().json()))), answering);
             DtrHandoff handoff = DtrHandoff.afterAnswering(runId, caseCodes(request), answered, request.carry());
@@ -420,6 +421,14 @@ public class DtrService {
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, exchange, handoff);
+        // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
+        // and the findings say so where each is read.
+        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.DTR);
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
         return new Interpreted(reading, findings, verdict, expectation, nextStep, error(reading, exchange), timing, correlation);
     }
 

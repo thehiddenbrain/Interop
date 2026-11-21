@@ -17,7 +17,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, when, whenText, count, faultReport, withoutReference} from './dom.js';
 import {shown, shownList, presenceMark} from './shown.js';
 import {outcome, mockMark} from './marks.js';
-import {additionalFieldsTable, issuesTable} from './result.js';
+import {additionalFieldsTable, issuesTable, maskedReading} from './result.js';
 import {selectField, textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {runLink} from './history-common.js';
 import {coded, claimResponseBlock, otherResourcesPart} from './pas-detail.js';
@@ -27,6 +27,9 @@ const POLL_MILLIS = 5000;
 // How many notifications are drawn at first, and how many more each press of the button adds. A
 // receiver holds up to two hundred, and a tester looks for one among them.
 const PAGE = 20;
+
+// The short mark a folded notification and the one-line summary carry when its outcome was read from a mask.
+const MASKED_MARK = 'Read from a mask, not from what the service sent: open the notification to see which value.';
 
 // The ways the list can be narrowed. Each reads a fact the server stated on the notification.
 const VIEWS = [
@@ -189,8 +192,10 @@ export function createNotifications(spec) {
             list.prepend(row);
         }
         if (loaded && arrived.length > 0) {
-            status.textContent = arrived.length === 1 ? 'A notification arrived: ' + arrived[0].verdict.headline
-                : arrived.length + ' notifications arrived. The newest: ' + arrived[0].verdict.headline;
+            // The summary stays one line, so a reading from a mask is only marked here; the opened notification names the value.
+            const masked = arrived[0].verdict.maskedReading ? ' ' + MASKED_MARK : '';
+            status.textContent = (arrived.length === 1 ? 'A notification arrived: ' + arrived[0].verdict.headline
+                : arrived.length + ' notifications arrived. The newest: ' + arrived[0].verdict.headline) + masked;
         } else if (!loaded) {
             status.textContent = shownItems.length === 0 ? 'Nothing has arrived at the receiver since the tool started.'
                 : 'The receiver holds ' + shownItems.length + (shownItems.length === 1 ? ' notification.' : ' notifications.');
@@ -282,7 +287,9 @@ export function createNotifications(spec) {
             aria: {expanded: 'false', controls: openId}}, 'Open');
         // Two short lines: what the server calls it, then when it came and what it is about. The code is the server's too, set second.
         const line = el('div', {class: 'pas-note__line'},
-            el('span', {class: 'pas-note__what'}, outcome(label, tone), ' ', el('span', {class: 'small quiet'}, code(verdict.outcomeCode))),
+            el('span', {class: 'pas-note__what'}, outcome(label, tone), ' ', el('span', {class: 'small quiet'}, code(verdict.outcomeCode)),
+                // Folded, the row says only that its outcome was read from a mask; opened, the line under the headline says which value.
+                verdict.maskedReading ? [' ', el('span', {class: 'masked-mark small'}, MASKED_MARK)] : null),
             toggle);
         const meta = el('p', {class: 'pas-note__meta small'},
             when(item.receivedAt),
@@ -312,6 +319,7 @@ export function createNotifications(spec) {
         });
         const opened = el('div', {class: 'pas-note__open', id: openId, hidden: true},
             el('p', {class: 'pas-note__headline'}, verdict.headline),
+            maskedReading(verdict.maskedReading),
             supporting.length > 0 ? el('ul', {class: 'note-list small'}, supporting.map(text => el('li', null, withoutReference(text, fault)))) : null,
             // A failure of this tool while reading: its cause beside the reference, as the server log names it, and one copy of both.
             faultReport(fault),

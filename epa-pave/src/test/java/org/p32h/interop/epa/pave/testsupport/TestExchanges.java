@@ -32,6 +32,16 @@ public final class TestExchanges {
         return Exchanges.fromResponse(request(operation), status, List.of(), body, 12L, bodyRequired);
     }
 
+    /** The same exchange as though its request had been sent while this tool held these secrets. */
+    public static VendorExchange holding(VendorExchange exchange, org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        WireRequest sent = exchange.request();
+        WireRequest held = new WireRequest(sent.method(), sent.url(), sent.urlTemplate(), sent.headers(), sent.body(), sent.sent(), sent.note(),
+                secrets);
+        return new VendorExchange(held, exchange.httpStatus(), exchange.responseHeaders(), exchange.responseBody(), exchange.responseBytes(),
+                exchange.json(), exchange.parseError(), exchange.elapsedMillis(), exchange.failureType(), exchange.failureDetail(),
+                exchange.signals(), exchange.scenarioId(), exchange.scenarioNote(), exchange.bodyNotes(), exchange.reached());
+    }
+
     public static VendorExchange timeout(EpaOperation operation) {
         return Exchanges.timeout(request(operation), 15000L);
     }

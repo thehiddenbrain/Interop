@@ -45,6 +45,6 @@ public class MemberLookupService implements MemberLookup {
         // Set here whatever the client did, so no client, present or future, can return a result that hides what was typed.
         WireView wire = result.wire() == null ? null : new WireView(result.wire().request(), result.wire().response(), forms);
         return new MemberLookupResult(result.status(), forms, result.member(), result.attention(), result.fields(),
-                result.additionalFields(), wire, result.error(), result.message());
+                result.additionalFields(), wire, result.error(), result.message(), result.maskedReading());
     }
 }

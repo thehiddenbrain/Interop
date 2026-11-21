@@ -9,7 +9,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts, table, heading, aboutStep} from './dom.js';
 import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
-import {errorPanel, wireView, additionalFieldsSection} from './result.js';
+import {errorPanel, wireView, additionalFieldsSection, maskedReading} from './result.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
     scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
@@ -509,6 +509,8 @@ async function discover() {
         el('div', {class: 'panel__head'},
             heading(2, 'CDS Hooks discovery', services.length),
             button('Close discovery', () => clear(slots.discovery), {class: 'button--quiet button--small'})),
+        // The count above and the list below were read with the masks in place.
+        maskedReading(found.maskedReading),
         found.note ? el('p', null, el('strong', null, found.note)) : null,
         facts([
             ['Url as configured', url.template ? code(url.template) : presenceMark('EMPTY')],
@@ -530,7 +532,8 @@ async function discover() {
         additionalFieldsSection(found.additionalFields || [], null, found.wire),
         el('section', {class: 'result__section'}, wireView(found.wire))));
     slots.discovery.scrollIntoView({block: 'start'});
-    bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.'));
+    bench.say('Discovery answered with ' + services.length + (services.length === 1 ? ' service.' : ' services.')
+        + (found.maskedReading ? ' ' + found.maskedReading : ''));
 }
 
 /**

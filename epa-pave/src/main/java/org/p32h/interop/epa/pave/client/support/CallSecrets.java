@@ -16,8 +16,8 @@ import org.p32h.interop.epa.pave.model.VariableUse;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 
 /**
- * Works out which secret values one request carries, so that the response to it can be shown
- * without them.
+ * Works out which secret values one request carries, and adds every other one this tool holds,
+ * so that the response to it can be shown without them.
  *
  * <p>The rule is the one the request side already follows: a value is secret because of the name
  * it goes by, never because of what it looks like. Three kinds of name make a value secret here,
@@ -29,7 +29,9 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
  *   <li>the value of a header that is a credential by its own name, which covers one typed
  *       straight into a collection and so held in no variable</li>
  * </ul>
- * Whatever the request as shown hides is therefore looked for in the response.
+ * Whatever the request as shown hides is therefore looked for in the response, and so is every
+ * other secret this tool holds for the configuration the call was prepared in
+ * ({@link PreparedCall#heldSecrets()}): a service can repeat a secret the request did not carry.
  *
  * <p>Nothing here logs, and no value leaves this class except inside a {@link SentSecrets}.
  */
@@ -39,6 +41,8 @@ final class CallSecrets {
     }
 
     /**
+     * The secrets the response to a call is masked with: those the request carries, then those held.
+     *
      * @param body    the body the request carries, or null when it carries none
      * @param headers the headers the request is sent with, as {@link Exchanges#headers} merged them
      * @param token   the access token among those headers, or null when the request carries none
@@ -65,6 +69,8 @@ final class CallSecrets {
                 found.header(header.name(), Secrets.credential(header.name(), header.value()));
             }
         }
+        // Last, so a value the request carried keeps the name the request shows it under.
+        found.held(call.heldSecrets());
         return found.build();
     }
 

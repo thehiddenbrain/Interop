@@ -272,7 +272,7 @@ public class RawService {
 
     private Interpreted interpret(RawRunRequest request, PreparedCall call, VendorExchange received, String bodySource) {
         // Read through the masks the wire view uses, as every protocol and lookup does: a service
-        // that quotes a secret of the request back would otherwise put it in clear among the
+        // that quotes a secret this tool holds would otherwise put it in clear among the
         // additional fields, beside a wire view that hides it.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         RawOutcome outcome = outcome(exchange);

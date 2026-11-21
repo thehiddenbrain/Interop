@@ -200,6 +200,50 @@ class PasServiceTest {
         }
     }
 
+    // ---- a verdict read from a mask says so where it is read ----
+
+    /** An approved ClaimResponse in a bundle, as a service answers a submission or an inquiry. */
+    private static final String APPROVED = PasJson.bundle(PasJson.claimResponse("\"outcome\":\"complete\"", "\"disposition\":\"approved\"",
+            PasJson.items(PasJson.decided(1, "A1"))));
+
+    private RunEnvelope<PasDetail> submitHolding(org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        return service(stub(TestExchanges.holding(PasJson.response(200, APPROVED), secrets)), "live", Map.of(), Map.of())
+                .runSubmit(submission("S123456789").build(), RunOrigin.manual(), null);
+    }
+
+    private RunEnvelope<PasDetail> inquireHolding(org.p32h.interop.epa.pave.model.SentSecrets secrets) {
+        return service(stub(TestExchanges.holding(PasJson.response(200, APPROVED), secrets)), "live", Map.of(), Map.of())
+                .runInquire(inquiry("S123456789").claimId(CLAIM).build(), RunOrigin.manual(), null);
+    }
+
+    @Test
+    void aSubmissionAndAnInquiryReadThroughAMaskedResourceTypeSaySoInTheVerdictAndTheNextStep() {
+        // An environment secret whose value is the resource type the decision is read from. No request carried it.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("crWord", "ClaimResponse").build();
+        for (RunEnvelope<PasDetail> result : List.of(submitHolding(word), inquireHolding(word))) {
+            // The rules are unchanged and decide from what they read; the verdict now says what they read.
+            assertThat(result.verdict().outcomeCode()).isNotEqualTo("APPROVED");
+            assertThat(result.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: resourceType was read "
+                    + "as [secret crWord].").endsWith("Look at that value in the Config tab.");
+            assertThat(result.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(result.ledger().record().findings()).contains("MASKED_READING");
+        }
+    }
+
+    @Test
+    void theSameAnswerWithAHeldSecretItDoesNotRepeatIsReadAsApprovedWithNoMaskedReading() {
+        org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("clientSecret", "placeholder-secret-value-7f3a").build();
+        for (RunEnvelope<PasDetail> result : List.of(submitHolding(unrelated), inquireHolding(unrelated))) {
+            assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
+            assertThat(result.verdict().maskedReading()).isNull();
+            assertThat(result.nextStep().headline()).doesNotStartWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+            assertThat(result.findings()).extracting(Finding::kind).doesNotContain(FindingKind.MASKED_READING);
+        }
+    }
+
     private static OnyxPasClient stub(VendorExchange exchange) {
         return new OnyxPasClient() {
             @Override

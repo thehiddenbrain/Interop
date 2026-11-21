@@ -26,6 +26,7 @@ import {el, fill, clear, button, code} from './dom.js';
 import {toneMark} from './marks.js';
 import {itemList, responseByLinkId} from './dtr-items.js';
 import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
+import {maskedReading} from './result.js';
 
 /**
  * A session for one package result.
@@ -368,7 +369,11 @@ export function createSession(packageEnvelope, hooks) {
         // The server's next step names the button by the label of its action, which is the button's
         // own name on this tab, so only where the button is is said here.
         const here = step.action === 'SUBMIT_RESPONSE' || step.action === 'ANSWER_NEXT_QUESTION' ? 'The button is below the questions.' : null;
+        // After a step the tab scrolls to the questions, past the verdict, so a reading from a mask is said again here, beside
+        // the step that rests on it.
+        const verdict = latest.envelope && latest.envelope.verdict;
         return el('div', {class: 'dtr-next'},
+            verdict ? maskedReading(verdict.maskedReading) : null,
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
                 step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null, here ? [' ', here] : null),
             pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
