@@ -192,6 +192,56 @@ class ReachedTest {
         assertThat(submitFailingWith(new IOException("Connection reset")).failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
     }
 
+    /**
+     * The tool's stop interrupts a thread that still waits for a service once its time is up. The
+     * request had left and no answer had come: the line says so, and never that the service failed
+     * or could not be reached. The real JDK client, against a socket on this machine that never answers.
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aCallCutShortByTheStopSaysNoAnswerHadComeAndThatWhetherItArrivedIsNotKnown(CapturedOutput output) throws Exception {
+        try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            java.util.concurrent.CountDownLatch accepted = new java.util.concurrent.CountDownLatch(1);
+            Thread far = new Thread(() -> {
+                try (Socket socket = silent.accept()) {
+                    accepted.countDown();
+                    // Reads what is sent and never answers, until the socket is closed under it.
+                    while (socket.getInputStream().read() >= 0) {
+                        // nothing
+                    }
+                } catch (IOException ignored) {
+                    // The test reads what the client made of it.
+                }
+            });
+            far.setDaemon(true);
+            far.start();
+            String url = "http://127.0.0.1:" + silent.getLocalPort() + "/fhir/Claim/$submit";
+            RestClient client = RestClients.withTimeouts(RestClient.builder(), 3000, 60_000);
+            java.util.concurrent.atomic.AtomicReference<VendorExchange> result = new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicBoolean flagAfter = new java.util.concurrent.atomic.AtomicBoolean();
+            Thread caller = new Thread(() -> {
+                result.set(executor.execute(client, TestPreparedCalls.to(EpaOperation.PAS_SUBMIT, url), ResolvedText.plain("{}"), FHIR));
+                flagAfter.set(Thread.currentThread().isInterrupted());
+            });
+            caller.start();
+            assertThat(accepted.await(20, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            caller.interrupt();
+            caller.join(20_000);
+            assertThat(caller.isAlive()).isFalse();
+
+            VendorExchange exchange = result.get();
+            assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.TIMEOUT);
+            assertThat(exchange.failureDetail()).isEqualTo("No answer had arrived when this tool was stopped, so whether the service "
+                    + "received the request is not known.");
+            assertThat(exchange.reached()).isEqualTo(Reached.CANNOT_SAY);
+            assertThat(exchange.httpStatus()).isNull();
+            // The code that called still sees that it was interrupted.
+            assertThat(flagAfter.get()).isTrue();
+            // Named, so it is not the line for a failure the result cannot name.
+            assertThat(output.getAll()).doesNotContain("failed in a way the result does not name");
+        }
+    }
+
     @Test
     @ExtendWith(OutputCaptureExtension.class)
     void aFailureTheResultCannotNameLeavesItsTypesAndTheHostInTheLogAndNothingOfTheUrlOrTheMessage(CapturedOutput output) {

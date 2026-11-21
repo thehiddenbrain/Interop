@@ -185,6 +185,12 @@ public class ExchangeExecutor {
      */
     private static Failure classify(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            // Only the tool's stop interrupts a thread that waits for a service: the web server's
+            // once its grace for requests in flight is over, and the suite's once its own is. The
+            // request may have left, and no answer had come, which is not a failure of the service.
+            if (t instanceof InterruptedException || t instanceof java.nio.channels.ClosedByInterruptException) {
+                return new Failure(OnyxFailureType.TIMEOUT, STOPPED_WAITING, Reached.CANNOT_SAY);
+            }
             // The connect timeout is a subtype of the request timeout, so it is tested first: a
             // connection that never opened means the service was not reached at all.
             if (t instanceof HttpConnectTimeoutException) {
@@ -224,6 +230,10 @@ public class ExchangeExecutor {
                 + "cannot tell at which point, so the request may have reached the service. A proxy between this machine and the "
                 + "service is a common cause.", Reached.CANNOT_SAY, true);
     }
+
+    /** The detail of a call whose answer had not come when this tool was stopped. */
+    static final String STOPPED_WAITING = "No answer had arrived when this tool was stopped, so whether the service received the "
+            + "request is not known.";
 
     /** What the JDK's HTTP client says, and nothing else, when a proxy answers its CONNECT with anything but 200. */
     private static final java.util.regex.Pattern TUNNEL_FAILED = java.util.regex.Pattern.compile("Tunnel failed, got: (\\d{3})");
