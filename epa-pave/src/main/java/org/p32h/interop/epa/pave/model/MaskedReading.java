@@ -30,66 +30,87 @@ import tools.jackson.databind.JsonNode;
 public record MaskedReading(List<String> readings) {
 
     /**
-     * The names whose values the readings of CRD, CRD discovery, DTR, PAS, the subscription calls
-     * and a notification decide by. Each was found where the code reads it, not by what it is
-     * called:
-     * <ul>
-     *   <li>what a body or an entry is: resourceType, type (of a bundle, a card link, a questionnaire
-     *       item), use, name (of a parameter)</li>
-     *   <li>a state or a decision: status, outcome (an error outcome counts as errors reported),
-     *       severity (an error issue), disposition, indicator</li>
-     *   <li>a code and where it comes from: code, system, display and text (a delegated vendor is
-     *       matched on a concept's text or display)</li>
-     *   <li>an identifier that is compared or a reference that is followed: id, reference, fullUrl,
-     *       url (which extension, which questionnaire), version, derivedFrom, profile, questionnaire,
-     *       subscription, focus, topic, linkId, question, sequence, itemSequence, value (of an
-     *       identifier or a detail)</li>
-     *   <li>a yes or a no, or a rule, written in a questionnaire: required, repeats, enableBehavior,
-     *       operator</li>
-     * </ul>
-     * A FHIR choice element (valueCode, answerBoolean, initialString and the like) is read by its
-     * kind of value, so a name made of value, answer or initial and the name of a type counts as
-     * well. {@code MaskedReadingNamesTest} reads the source of the readings and fails when one of
-     * them reads a name by a value it does not list here.
+     * The readings that draw a conclusion from an answer, each with the names it goes by: a name
+     * whose value it decides by (a code, a system, a status, an identifier it compares, a reference
+     * it follows, a yes or a no written in a questionnaire) or a name it finds its way by (a masked
+     * "entry" reads as a bundle with no entries). They were found where each reading reads them,
+     * not by what they are called, and {@code MaskedReadingNamesTest} reads the source of every
+     * reading and fails when one goes by a name its list does not hold. A name that is only put on
+     * screen is in no list: the mask in the field is its own notice.
+     *
+     * <p>Besides the names their code reads, each list holds the values it puts on screen and then
+     * judges: the code of a status or a type held against its value set, the outcome of a
+     * ClaimResponse (an error outcome counts as errors reported), the severity of an issue, the
+     * type of a card link (a SMART link is offered as the next step).
      */
-    static final Set<String> VALUES = Set.of("resourceType", "type", "use", "name", "status", "outcome", "severity", "disposition",
-            "indicator", "code", "system", "display", "text", "id", "reference", "fullUrl", "url", "version", "derivedFrom", "profile",
-            "questionnaire", "subscription", "focus", "topic", "linkId", "question", "sequence", "itemSequence", "value", "required",
-            "repeats", "enableBehavior", "operator");
+    public enum Reading {
+        /** A CRD answer: its cards, its system actions and the coverage information on them. */
+        CRD(true, "resourceType", "url", "code", "system", "display", "text", "id", "reference", "type", "topic", "context",
+                "cards", "systemActions", "suggestions", "actions", "links", "overrideReasons", "source", "extension", "resource",
+                "entry", "coding", "issue", "details", "location", "expression"),
+        /** A CDS Hooks discovery answer: which services it lists. Each service's fields are only shown. */
+        DISCOVERY(false, "services", "prefetch"),
+        /** A DTR package or next question: the questionnaires, the response, its status and the rules of its items. */
+        DTR(true, "resourceType", "url", "version", "derivedFrom", "profile", "questionnaire", "status", "type", "name", "id",
+                "fullUrl", "reference", "linkId", "question", "operator", "enableBehavior", "required", "repeats", "code", "system",
+                "display", "text", "value", "title", "subject", "subjectType", "parameter", "part", "resource", "entry", "meta",
+                "extension", "item", "answer", "answerOption", "initial", "initialSelected", "enableWhen", "contained", "author",
+                "compose", "include", "concept", "expansion", "contains", "content", "data", "unit", "coding", "issue", "details",
+                "location", "expression"),
+        /** A PAS submission or inquiry: the ClaimResponses, their review actions, items, errors and requests for documentation. */
+        PAS(true, "resourceType", "type", "status", "outcome", "id", "fullUrl", "reference", "identifier", "system", "value", "code",
+                "display", "text", "url", "itemSequence", "currency", "entry", "resource", "item", "addItem", "adjudication",
+                "category", "error", "processNote", "noteNumber", "communicationRequest", "payload", "contentReference",
+                "contentString", "contained", "extension", "meta", "insurer", "patient", "request", "requestor", "reason", "amount",
+                "preAuthPeriod", "coding", "details", "issue", "location", "expression"),
+        /** A subscription call: the Subscription or the bundle of them, its status, its channel and any issue reported. */
+        SUBSCRIPTION(true, "resourceType", "status", "type", "severity", "code", "system", "display", "text", "url", "reference",
+                "profile", "entry", "resource", "channel", "header", "search", "_criteria", "_payload", "extension", "meta", "coding",
+                "details", "issue", "location", "expression"),
+        /** A notification: its status, type and subscription, and the ClaimResponses it carries, read as PAS reads them. */
+        NOTIFICATION(true, "resourceType", "type", "status", "subscription", "focus", "name", "id", "fullUrl", "reference",
+                "identifier", "system", "value", "code", "display", "text", "url", "parameter", "part", "notificationEvent",
+                "additionalContext", "entry", "resource", "request", "error", "coding", "details", "issue", "location", "expression",
+                "outcome", "itemSequence", "item", "addItem", "adjudication", "category", "processNote", "noteNumber",
+                "communicationRequest", "payload", "contentReference", "contentString", "contained", "extension", "meta", "insurer",
+                "patient", "requestor", "reason", "amount", "currency", "preAuthPeriod");
 
-    /**
-     * The names the readings find their way by, besides those of {@link #VALUES}. A mask on one of
-     * them hides everything beneath it from the reading: a masked "entry" reads as a bundle with
-     * no entries. {@code MaskedReadingNamesTest} fails when a reading finds its way by a name that is
-     * in neither list.
-     */
-    static final Set<String> NAMES = Set.of("entry", "resource", "cards", "systemActions", "suggestions", "actions", "links",
-            "overrideReasons", "source", "extension", "item", "answer", "answerOption", "initial", "initialSelected", "enableWhen",
-            "contained", "parameter", "part", "coding", "issue", "details", "location", "expression", "services", "prefetch",
-            "adjudication", "addItem", "error", "processNote", "noteNumber", "communicationRequest", "payload", "contentReference",
-            "contentString", "channel", "header", "search", "_criteria", "_payload", "notificationEvent", "additionalContext",
-            "meta", "identifier", "preAuthPeriod", "category", "reason", "request", "requestor", "insurer", "patient", "amount",
-            "currency", "unit", "compose", "include", "concept", "expansion", "contains", "content", "data", "author", "subject",
-            "subjectType", "context", "title");
+        private final boolean choices;
+        private final Set<String> names;
+
+        Reading(boolean choices, String... names) {
+            this.choices = choices;
+            this.names = Set.of(names);
+        }
+
+        /**
+         * True for a name this reading goes by. A FHIR choice element (valueCode, answerBoolean,
+         * initialString and the like) is read by its kind of value, so a reading of FHIR resources
+         * goes by a name made of value, answer or initial and the name of a type as well.
+         */
+        public boolean goesBy(String name) {
+            return names.contains(name) || (choices && (choice(name, "value") || choice(name, "answer") || choice(name, "initial")));
+        }
+    }
 
     public MaskedReading {
         readings = readings == null ? List.of() : List.copyOf(readings);
     }
 
     /**
-     * Where a mask fell on a value the readings of the protocols decide by, in an answer as
+     * Where a mask fell on a value this reading goes by, or on the name of one, in an answer as
      * received, before it is masked; or null when none did.
      */
-    public static MaskedReading of(VendorExchange received) {
+    public static MaskedReading of(VendorExchange received, Reading reading) {
         if (received == null || received.request() == null) {
             return null;
         }
-        return find(received.json(), received.request().secrets(), MaskedReading::readsValueOf, MaskedReading::findsWayBy);
+        return find(received.json(), received.request().secrets(), reading::goesBy, reading::goesBy);
     }
 
     /** The same for a body parsed apart from any exchange, such as a notification, searched with the secrets it is masked with. */
-    public static MaskedReading of(JsonNode json, SentSecrets secrets) {
-        return find(json, secrets, MaskedReading::readsValueOf, MaskedReading::findsWayBy);
+    public static MaskedReading of(JsonNode json, SentSecrets secrets, Reading reading) {
+        return find(json, secrets, reading::goesBy, reading::goesBy);
     }
 
     /**
@@ -97,7 +118,8 @@ public record MaskedReading(List<String> readings) {
      * no frame of the thread's stack per level.
      *
      * @param valueReadBy true for a name whose value a conclusion is read by
-     * @param nameReadBy  true for a name a conclusion is read by, as a value or as the way to one
+     * @param nameReadBy  true for a name a conclusion is read by, as a value or as the way to one.
+     *                    It holds every name valueReadBy holds
      * @return null when no mask falls on any of them
      */
     public static MaskedReading find(JsonNode json, SentSecrets secrets, Predicate<String> valueReadBy, Predicate<String> nameReadBy) {
@@ -114,7 +136,7 @@ public record MaskedReading(List<String> readings) {
                     String name = property.getKey();
                     JsonNode value = property.getValue();
                     SentSecrets.Masked maskedName = secrets.mask(name);
-                    if (maskedName.places() > 0 && (nameReadBy.test(name) || valueReadBy.test(name))) {
+                    if (maskedName.places() > 0 && nameReadBy.test(name)) {
                         readings.add("the name of a value this tool reads by was read as " + masksIn(maskedName.text()));
                     } else if (valueReadBy.test(name)) {
                         // A list of plain values, such as the profiles a resource claims, is read value by value.
@@ -149,14 +171,6 @@ public record MaskedReading(List<String> readings) {
         if (read.places() > 0) {
             readings.add(name + " was read as " + masksIn(read.text()));
         }
-    }
-
-    static boolean readsValueOf(String name) {
-        return VALUES.contains(name) || choice(name, "value") || choice(name, "answer") || choice(name, "initial");
-    }
-
-    static boolean findsWayBy(String name) {
-        return NAMES.contains(name) || readsValueOf(name);
     }
 
     /** True for a FHIR choice element: the stem followed by the name of a type, which starts with a capital. */

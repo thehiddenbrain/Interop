@@ -207,7 +207,7 @@ public final class DtrResponseMapper {
         List<String> notReturned = !exchange.ok() ? List.of()
                 : requested.stream().filter(wanted -> questionnaires.stream().noneMatch(q -> DtrReading.namedBy(wanted, q))).toList();
         DtrOutcome outcome = DtrOutcomeRules.forPackage(exchange, kind, questionnaires, notReturned);
-        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote()), questionnaires.isEmpty() ? null : OnyxDtrConventions.KIND_RULE, requested, notReturned,
+        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.DTR)), questionnaires.isEmpty() ? null : OnyxDtrConventions.KIND_RULE, requested, notReturned,
                 walk.bundles, questionnaires, walk.resources, responses, null, walk.issues, List.of(), true, true);
         return new DtrReading(detail, outcome, additional);
     }
@@ -363,7 +363,7 @@ public final class DtrResponseMapper {
             additional.addAll(tracked.unconsumed());
         }
         DtrOutcome outcome = DtrOutcomeRules.forNextQuestion(exchange, kind, response != null, questionnaire, progress, form);
-        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote()), questionnaire == null ? null : OnyxDtrConventions.KIND_RULE, List.of(), List.of(),
+        DtrDetail detail = new DtrDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.DTR)), questionnaire == null ? null : OnyxDtrConventions.KIND_RULE, List.of(), List.of(),
                 List.of(), questionnaire == null ? List.of() : List.of(questionnaire), resources,
                 response == null ? List.of() : List.of(response), form, issues, List.of(), true, true);
         return new DtrReading(detail, outcome, additional);

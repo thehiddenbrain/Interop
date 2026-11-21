@@ -423,7 +423,7 @@ public class DtrService {
         NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, exchange, handoff);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
-        MaskedReading masked = MaskedReading.of(exchange);
+        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.DTR);
         if (masked != null) {
             findings.add(0, masked.finding());
             verdict = masked.on(verdict);

@@ -264,7 +264,7 @@ public class SubscriptionService {
                 sendsBody ? callbackProblem : null, ownBody, runId);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
-        MaskedReading masked = MaskedReading.of(exchange);
+        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION);
         if (masked != null) {
             findings.add(0, masked.finding());
             verdict = masked.on(verdict);

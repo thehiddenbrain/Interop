@@ -232,7 +232,7 @@ public class CrdService {
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
-        MaskedReading masked = MaskedReading.of(exchange);
+        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.CRD);
         if (masked != null) {
             findings.add(0, masked.finding());
             verdict = masked.on(verdict);
@@ -345,7 +345,7 @@ public class CrdService {
             additional.addAll(tracked.unconsumed());
         }
         // Which services are listed is read with the masks in place, so the list says so where a mask fell on a name it is read by.
-        MaskedReading masked = MaskedReading.of(received);
+        MaskedReading masked = MaskedReading.of(received, MaskedReading.Reading.DISCOVERY);
         return new CrdDiscovery(call.url(), services, additional, exchange.wire(null), support.faultView(exchange, List.of()),
                 exchange.request() == null || exchange.request().sent() ? null : exchange.request().note(), masked == null ? null : masked.line());
     }

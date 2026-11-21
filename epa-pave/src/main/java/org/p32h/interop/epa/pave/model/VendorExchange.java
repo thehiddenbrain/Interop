@@ -203,8 +203,8 @@ public record VendorExchange(
      * received, before {@link #withReturnedSecretsMasked()}. {@link MaskedReading} says which values
      * those are and why the tester must be told.
      */
-    public String maskedReadingNote() {
-        MaskedReading masked = MaskedReading.of(this);
+    public String maskedReadingNote(MaskedReading.Reading reading) {
+        MaskedReading masked = MaskedReading.of(this, reading);
         return masked == null ? null : masked.note();
     }
 

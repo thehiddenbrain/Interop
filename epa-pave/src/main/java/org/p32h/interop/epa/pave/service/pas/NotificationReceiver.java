@@ -415,7 +415,8 @@ public class NotificationReceiver {
         org.p32h.interop.epa.pave.model.SentSecrets secrets = givenToServices();
         org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = secrets.mask(readWhole ? whole : text);
         // Asked of the body as it arrived, before the mask: where a mask falls on a value the verdict is read by.
-        MaskedReading maskedReading = masked.places() == 0 ? null : MaskedReading.of(JsonSafe.parse(readWhole ? whole : text).node(), secrets);
+        MaskedReading maskedReading = masked.places() == 0 ? null
+                : MaskedReading.of(JsonSafe.parse(readWhole ? whole : text).node(), secrets, MaskedReading.Reading.NOTIFICATION);
         if (readWhole) {
             whole = masked.text();
             text = secrets.mask(text).text();

@@ -41,9 +41,12 @@ class MemberLookupServiceTest {
                     "https://members.example.invalid/members/{id}", List.of(), null, true, null),
                     new WireResponse(200, List.of(), "{}", 2L, true, null), null);
             return new MemberLookupResult(LookupStatus.FOUND, null, MemberDetail.builder().memberId(memberId.sent()).build(), List.of(),
-                    List.of(), List.of(), wire, null, "Member found.");
+                    List.of(), List.of(), wire, null, "Member found.").withMaskedReading(MASKED);
         }
     }
+
+    /** The line a mapping sets when the result was read from a mask; the service must not drop it. */
+    private static final String MASKED = "Read from a mask, not from what the service sent: coverageStatus was read as [secret statusWord].";
 
     private final RecordingClient client = new RecordingClient();
     private final MemberLookupService service = new MemberLookupService(client);
@@ -85,6 +88,7 @@ class MemberLookupServiceTest {
         assertThat(result.member().memberId()).isEqualTo("S123456789");
         assertThat(result.message()).isEqualTo("Member found.");
         assertThat(result.error()).isNull();
+        assertThat(result.maskedReading()).isEqualTo(MASKED);
     }
 
     @Test
