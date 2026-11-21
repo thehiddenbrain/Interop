@@ -102,6 +102,10 @@ public class RawService {
 
         // From here on the call has been made, so whatever happens next the run is recorded.
         RunRecord.Builder draft = support.fill(support.draft(EpaOperation.UNMAPPED, call, exchange, origin), request);
+        // Nothing was sent: no answer to read, and the outcome would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(EpaOperation.UNMAPPED, call, exchange, draft, request);
+        }
         Interpreted read;
         try {
             read = interpret(request, call, exchange, body.source());
@@ -401,6 +405,8 @@ public class RawService {
             case MALFORMED_RESPONSE -> success && Exchanges.INCOMPLETE_BODY.equals(exchange.parseError()) ? RawOutcome.MALFORMED_RESPONSE
                     : exchange.responseBody() == null ? RawOutcome.ANSWERED_NO_BODY : RawOutcome.ANSWERED_NOT_JSON;
             case NONE -> exchange.responseBody() == null ? RawOutcome.ANSWERED_NO_BODY : RawOutcome.ANSWERED;
+            // Never read as an answer: send returns the sign-in result before an outcome is asked for. Here for exhaustiveness.
+            case NOT_SIGNED_IN, TOKEN_ENDPOINT_FAULT -> RawOutcome.UNREACHABLE;
         };
     }
 

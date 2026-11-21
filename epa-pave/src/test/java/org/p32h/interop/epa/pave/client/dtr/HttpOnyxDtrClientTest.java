@@ -181,7 +181,7 @@ class HttpOnyxDtrClientTest {
 
         // Only the token endpoint was called. The DTR url was never requested.
         server.verify();
-        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.NOT_SIGNED_IN);
         assertThat(exchange.request().sent()).isFalse();
         assertThat(exchange.failureDetail()).isEqualTo("No access token: the token endpoint answered HTTP 401. The request was not sent.");
         assertThat(exchange.httpStatus()).isNull();

@@ -164,6 +164,10 @@ public class DtrService {
         // failure of this tool still says which codes were sent and which questionnaires were asked for.
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId)
                 .procedureCodes(sent.sentCodes()).correlation(known).unrecordedInputs(unrecordedInputs(request, typedFromAnEarlierAnswer(request)));
+        // Nothing was sent: no answer to read, and an outcome rule would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(operation, call, exchange, draft, request);
+        }
         Interpreted read;
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
@@ -258,6 +262,10 @@ public class DtrService {
         // so the line alone can never rebuild this request.
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId)
                 .procedureCodes(caseCodes(request)).correlation(known).unrecordedInputs(unrecordedInputs(request, true));
+        // Nothing was sent: no answer to read, and an outcome rule would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(operation, call, exchange, draft, request);
+        }
         Interpreted read;
         try {
             DtrReading reading = mapper.readNextQuestion(exchange, sent);
@@ -420,7 +428,7 @@ public class DtrService {
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, exchange);
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = DtrVerdicts.nextStep(operation, reading, exchange, handoff, runId);
+        NextStepView nextStep = support.unsignedNextStep(DtrVerdicts.nextStep(operation, reading, exchange, handoff, runId), exchange);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
         MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.DTR);

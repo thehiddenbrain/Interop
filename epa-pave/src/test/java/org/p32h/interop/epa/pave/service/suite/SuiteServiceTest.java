@@ -1146,4 +1146,23 @@ class SuiteServiceTest {
         assertThat(all).doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
                 .doesNotContain("Invocation of ").doesNotContain("Exception in thread");
     }
+
+    @Test
+    void aCallThisToolCouldNotSignInForIsNotCountedAsSentAndAddsNoTime() {
+        // On live a missing sign-in leaves the case's record as not sent. The runner's records are made so here.
+        bed.wrap = runner -> spec -> {
+            var ran = runner.run(spec);
+            List<RunRecord> notSent = ran.runs().stream().map(record -> record.toBuilder()
+                    .outcome(org.p32h.interop.epa.pave.model.RunOutcome.NOT_SIGNED_IN).errorType("NOT_SIGNED_IN")
+                    .elapsedMillis(120L).build()).toList();
+            return new org.p32h.interop.epa.pave.model.CaseOutcome(ran.spec(), ran.status(), ran.reason(), notSent);
+        };
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null);
+        SuiteCaseResult row = run.results().get(0);
+        assertThat(row.outcome()).isEqualTo("NOT_SIGNED_IN");
+        assertThat(row.elapsedMillis()).isNull();
+        // Nothing went out, so the row says nothing was sent and claims no fault of the service.
+        assertThat(row.statusLine()).doesNotContain("was sent");
+        assertThat(row.outcomeFault()).isNull();
+    }
 }

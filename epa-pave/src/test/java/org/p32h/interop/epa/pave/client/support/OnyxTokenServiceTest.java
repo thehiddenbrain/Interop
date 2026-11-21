@@ -185,6 +185,41 @@ class OnyxTokenServiceTest {
 
     @Test
     void theTokenResultNeverPrintsTheToken() {
-        assertThat(new OnyxTokenService.TokenResult("placeholder-access-token", null).toString()).doesNotContain("placeholder-access-token");
+        assertThat(new OnyxTokenService.TokenResult("placeholder-access-token", null, null).toString()).doesNotContain("placeholder-access-token");
+    }
+
+    @Test
+    void eachFailureSaysWhetherItIsTheTestersSettingsOrTheTokenEndpoint() {
+        // A setting that is not given, or a placeholder the environment does not define: the configuration.
+        assertThat(service(Map.of("enabled", "true")).token().cause()).isEqualTo(OnyxTokenService.TokenFailure.SETTING_MISSING);
+        assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL, "client-id", "{{clientId}}", "client-secret",
+                "{{undefinedSecret}}")).token().cause()).isEqualTo(OnyxTokenService.TokenFailure.SETTING_MISSING);
+
+        // A 4xx: the endpoint refused this client, which the tester's settings decide.
+        server.expect(requestTo(TOKEN_URL)).andRespond(withStatus(HttpStatus.BAD_REQUEST).body("{\"error\":\"invalid_client\"}"));
+        OnyxTokenService.TokenResult refused = service(enabled()).token();
+        assertThat(refused.cause()).isEqualTo(OnyxTokenService.TokenFailure.CLIENT_REFUSED);
+        assertThat(refused.failure()).contains("answered HTTP 400");
+
+        // A 5xx, an endpoint that cannot be reached, and a success with no usable token: the environment.
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        OnyxTokenService.TokenResult failed = service(enabled()).token();
+        assertThat(failed.cause()).isEqualTo(OnyxTokenService.TokenFailure.ENDPOINT_FAULT);
+        assertThat(failed.failure()).contains("answered HTTP 503");
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withException(new ConnectException("Connection refused")));
+        OnyxTokenService.TokenResult unreachable = service(enabled()).token();
+        assertThat(unreachable.cause()).isEqualTo(OnyxTokenService.TokenFailure.ENDPOINT_FAULT);
+        assertThat(unreachable.failure()).contains("could not be reached");
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withSuccess("{\"token_type\":\"Bearer\"}", MediaType.APPLICATION_JSON));
+        assertThat(service(enabled()).token().cause()).isEqualTo(OnyxTokenService.TokenFailure.ENDPOINT_FAULT);
+
+        // No failure, no cause.
+        server.reset();
+        server.expect(requestTo(TOKEN_URL)).andRespond(withSuccess(GRANT, MediaType.APPLICATION_JSON));
+        assertThat(service(enabled()).token().cause()).isNull();
+        assertThat(service(Map.of()).token().cause()).isNull();
     }
 }

@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.run;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
+import org.p32h.interop.epa.pave.model.AnsweredBy;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -342,6 +343,107 @@ public class RunSupport {
         return origin != null && (Texts.present(origin.replayOfRunId()) || Texts.present(origin.suiteRunId()));
     }
 
+    /**
+     * The result of a call this tool did not send because it could not sign in, the same for every
+     * protocol. Each service returns it as soon as its client answers, before anything reads the
+     * exchange: the outcome rules would otherwise read the missing response as the service being
+     * down, which says something false about an environment no request reached.
+     *
+     * <p>Its words follow the cause. A setting not given, or a token endpoint that refused the
+     * client, is the tester's configuration, with the Config tab as the way on; a token endpoint
+     * that could not be reached, failed or gave no usable token is a fault in the environment at the
+     * token endpoint. Neither draws an address called: nothing reached the service.
+     *
+     * @param draft the draft as filled so far. Its outcome, result and next action are set here
+     * @param <D>   the protocol's detail type. A result of this kind has no detail
+     */
+    public <D> RunEnvelope<D> notSignedIn(EpaOperation operation, PreparedCall call, VendorExchange exchange, RunRecord.Builder draft,
+                                          RunRequest request) {
+        boolean endpoint = exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT;
+        String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
+        NextStepView step = endpoint
+                ? NextStepView.of(NextAction.CHECK_ENVIRONMENT, "Next: check the token endpoint, then send again.",
+                "Nothing reached the service, so this says nothing about it, the member or the code. The token endpoint is "
+                        + "onyx.auth.token-url on the Config tab.")
+                : NextStepView.of(NextAction.OPEN_CONFIG, "Next: correct the sign-in settings, then send again.",
+                "Nothing reached the service, so this says nothing about it, the member or the code. The line above says which "
+                        + "setting, or which answer of the token endpoint, stopped it.");
+        VerdictView verdict = endpoint
+                ? VerdictView.of(RunOutcome.NOT_SIGNED_IN, "Nothing was sent: the token endpoint gave this tool no access token.",
+                List.of(detail, "This is a fault in the environment at the token endpoint, not at the service: no request reached the "
+                        + "service."))
+                : VerdictView.of(RunOutcome.NOT_SIGNED_IN, "Nothing was sent: this tool could not sign in.",
+                List.of(detail, "This is about this tool's sign-in settings, not about the service: no request reached it."));
+        RunRecord record = draft.outcome(RunOutcome.NOT_SIGNED_IN).errorType(exchange.failureType()).result(TestResult.UNVERIFIED)
+                .nextAction(step.action()).build();
+        LedgerReceipt receipt = record(record);
+        MemberIdForms memberId = memberId(request);
+        return RunEnvelope.<D>builder()
+                .runId(record.runId())
+                .chainId(record.chainId())
+                .protocol(operation.protocol())
+                .operation(operation)
+                .environment(call.environment())
+                .profile(epa.mode())
+                // Stated, because the envelope reads a refusal from the guardrail's tone, which this outcome does not take.
+                .answeredBy(AnsweredBy.NOT_SENT)
+                .verdict(verdict)
+                .expectation(Expectations.notCompared(request.expected(), RunOutcome.NOT_SIGNED_IN,
+                        "Nothing was sent, so there is nothing to compare with what was expected."))
+                .nextStep(step)
+                .wire(new WireView(exchange.request(), null, memberId.typed().isEmpty() ? null : memberId))
+                .error(notSignedInError(exchange))
+                .ledger(receipt)
+                .build();
+    }
+
+    /** True when an exchange is a call this tool did not send because it could not sign in. */
+    public static boolean notSignedIn(VendorExchange exchange) {
+        return exchange != null && (exchange.failureType() == OnyxFailureType.NOT_SIGNED_IN
+                || exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT);
+    }
+
+    /** The error panel of a call that was not signed in for: the tester's settings, or the token endpoint. */
+    private static ErrorView notSignedInError(VendorExchange exchange) {
+        String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
+        if (exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT) {
+            // UNREACHABLE is the panel's kind for an environment to report; the heading and the detail say it was the token endpoint.
+            return ErrorView.of(ErrorKind.UNREACHABLE, detail, "Note the time and the run id and report it to the people who look after "
+                    + "the token endpoint. Try again later.").withHeading("Not sent: the token endpoint gave no access token");
+        }
+        return ErrorView.of(ErrorKind.CONFIGURATION, detail, "Check onyx.auth.token-url, onyx.auth.client-id and "
+                + "onyx.auth.client-secret, and the variables of the active environment they name.")
+                .withHeading("Not sent: this tool could not sign in");
+    }
+
+    /**
+     * True when a call went out with no Authorization header while signing in is off. Read from the
+     * setting and from the request as it went on the wire, so a collection request that carried its
+     * own Authorization header, or one a value for one run gave one, is not said to have had none.
+     */
+    public boolean sentWithoutSignIn(VendorExchange exchange) {
+        if (onyx.auth().enabled() || exchange == null || exchange.request() == null || !exchange.request().sent()) {
+            return false;
+        }
+        return exchange.request().headers() == null || exchange.request().headers().stream()
+                .noneMatch(header -> header != null && "Authorization".equalsIgnoreCase(Texts.orElse(header.name(), "").strip()));
+    }
+
+    /**
+     * The next step after a 401 or a 403 to a request that carried no Authorization header because
+     * signing in is off: that, and not a wrong credential, is the likely cause. Any other step is
+     * returned as it is, so the words of a verdict stay true when a header did go out.
+     */
+    public NextStepView unsignedNextStep(NextStepView step, VendorExchange exchange) {
+        Integer status = exchange == null ? null : exchange.httpStatus();
+        if (step == null || status == null || (status != 401 && status != 403) || !sentWithoutSignIn(exchange)) {
+            return step;
+        }
+        return new NextStepView(NextAction.OPEN_CONFIG, "Next: switch signing in on, then send again.",
+                "This tool sent no Authorization header: signing in is off and the request carried none of its own. Ready to send, on "
+                        + "the Config tab, gives the start-up arguments that switch it on.", step.carry(), step.carryLabels());
+    }
+
     /** True when a result is the one {@link #blocked} builds, which a controller answers with 403. */
     public static boolean isBlocked(RunEnvelope<?> envelope) {
         return envelope != null && envelope.error() != null && envelope.error().kind() == ErrorKind.BLOCKED;
@@ -487,7 +589,11 @@ public class RunSupport {
             // the tester's next move differs for each, so the advice follows the status.
             case BAD_REQUEST -> ErrorView.of(ErrorKind.VENDOR_REJECTED, "The service did not accept the request as sent, answering"
                             + status + ".",
-                    code == 401 || code == 403
+                    (code == 401 || code == 403) && sentWithoutSignIn(exchange)
+                            ? "This tool sent no Authorization header: signing in is off (onyx.auth.enabled is false) and the request "
+                            + "carried none of its own. Ready to send, on the Config tab, says how to switch signing in on. The request "
+                            + "that was sent is in the wire view."
+                            : code == 401 || code == 403
                             ? "This status means the credentials were not accepted, or none were sent. Check the client id, the "
                             + "secret and the token url on the Config tab. The request that was sent is in the wire view."
                             : code == 404
@@ -515,6 +621,8 @@ public class RunSupport {
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,
                     Texts.orElse(exchange.failureDetail(), "The service could not be reached."),
                     "Check the url on the Config tab, the network and any proxy or trust store settings.");
+            // A run never reaches this: each service returns notSignedIn first. The case keeps the switch exhaustive.
+            case NOT_SIGNED_IN, TOKEN_ENDPOINT_FAULT -> notSignedInError(exchange);
             case MALFORMED_RESPONSE -> exchange.responseBody() == null
                     ? ErrorView.of(ErrorKind.MALFORMED_RESPONSE, "The service answered" + status + " with no body.",
                     "A success with nothing in it is not an answer. Report it as a defect in the service.")

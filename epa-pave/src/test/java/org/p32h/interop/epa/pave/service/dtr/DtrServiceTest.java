@@ -774,7 +774,9 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> unauthorised = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 401, outcome)), "mock",
                 Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(unauthorised.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
-        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: check the credentials on the Config tab.");
+        // The stubbed request went out with no Authorization header while signing in is off, so that, not a
+        // wrong credential, is the likely cause (plan G item 10; UnsignedNextStepTest holds the case with a header).
+        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: switch signing in on, then send again.");
         RunEnvelope<DtrDetail> missing = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 404, "<html>Not Found</html>")),
                 "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(missing.verdict().outcomeCode()).isEqualTo("REJECTED");

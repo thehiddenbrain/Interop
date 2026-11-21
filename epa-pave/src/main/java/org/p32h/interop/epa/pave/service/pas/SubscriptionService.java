@@ -157,6 +157,10 @@ public class SubscriptionService {
         // step is linked to a create by its run id, so the id is settled now.
         String runId = RunStamps.newRunId();
         RunRecord.Builder draft = support.fill(support.draft(operation, call, exchange, origin), request).runId(runId).correlation(known);
+        // Nothing was sent: no answer to read, and an outcome rule would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(operation, call, exchange, draft, request);
+        }
         String followsRunId = operation == EpaOperation.SUBSCRIPTION_CREATE ? runId : carriedRunId;
         Interpreted read;
         try {
@@ -260,8 +264,8 @@ public class SubscriptionService {
                 callbackUrl);
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, List.of(), reading.answers(),
                 SubscriptionOutcome.values(), PasCodes.SUBSCRIPTION_ELEMENTS);
-        NextStepView nextStep = SubscriptionVerdicts.nextStep(reading, exchange, operation, subscriptionId, followsRunId,
-                sendsBody ? callbackProblem : null, ownBody, runId);
+        NextStepView nextStep = support.unsignedNextStep(SubscriptionVerdicts.nextStep(reading, exchange, operation, subscriptionId,
+                followsRunId, sendsBody ? callbackProblem : null, ownBody, runId), exchange);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
         MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION);

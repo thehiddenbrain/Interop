@@ -72,7 +72,9 @@ public record VendorExchange(
         if (failureType == null) {
             throw new IllegalArgumentException("An exchange must say whether the call failed.");
         }
-        boolean noResponse = failureType == OnyxFailureType.TIMEOUT || failureType == OnyxFailureType.UNAVAILABLE;
+        // A call this tool could not sign in for was never sent, so it has no response either.
+        boolean noResponse = failureType == OnyxFailureType.TIMEOUT || failureType == OnyxFailureType.UNAVAILABLE
+                || failureType == OnyxFailureType.NOT_SIGNED_IN || failureType == OnyxFailureType.TOKEN_ENDPOINT_FAULT;
         if (noResponse && (httpStatus != null || responseBody != null)) {
             throw new IllegalArgumentException("A call that got no response cannot carry a status or a body.");
         }

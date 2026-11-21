@@ -97,4 +97,12 @@ class SentRunsTest {
             assertThat(newest(ledger).runId()).as(outcome).isEqualTo(sent.runId());
         }
     }
+
+    @Test
+    void aNewerSubmissionThisToolCouldNotSignInForIsPassedOverLikeARefusedOne() {
+        RunRecord answered = record(EpaOperation.PAS_SUBMIT, "APPROVED", CLAIM);
+        RunRecord notSent = record(EpaOperation.PAS_SUBMIT, "NOT_SIGNED_IN", CLAIM);
+        assertThat(notSent.wentOut()).isFalse();
+        assertThat(newest(ledger).runId()).isEqualTo(answered.runId());
+    }
 }

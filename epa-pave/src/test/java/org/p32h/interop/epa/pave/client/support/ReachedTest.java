@@ -377,7 +377,7 @@ class ReachedTest {
         // Only the token endpoint was called. The submission never left.
         server.verify();
         assertThat(exchange.request().sent()).isFalse();
-        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.TOKEN_ENDPOINT_FAULT);
         assertThat(exchange.reached()).isEqualTo(Reached.NO);
     }
 

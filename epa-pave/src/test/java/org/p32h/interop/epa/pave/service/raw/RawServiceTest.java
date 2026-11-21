@@ -313,4 +313,18 @@ class RawServiceTest {
         assertThat(result.additionalFields()).extracting(AdditionalField::value).containsOnlyOnce(TrackedJson.REPEATED_KEY_NOTE)
                 .noneSatisfy(value -> assertThat(String.valueOf(value)).contains("Only the last value"));
     }
+
+    @Test
+    void aRequestThisToolCouldNotSignInForIsNotSentAndNotSaidAsAServiceThatCouldNotBeReached() {
+        VendorExchange notSigned = org.p32h.interop.epa.pave.client.support.Exchanges.notSignedIn(TestExchanges.unavailable(EpaOperation.UNMAPPED)
+                .request(), org.p32h.interop.epa.pave.model.OnyxFailureType.NOT_SIGNED_IN, "No access token: the token endpoint answered "
+                + "HTTP 400. The request was not sent.");
+        RunEnvelope<RawDetail> result = run(stub(notSigned), null, null);
+        assertThat(result.verdict().outcomeCode()).isEqualTo("NOT_SIGNED_IN");
+        assertThat(result.verdict().headline()).isEqualTo("Nothing was sent: this tool could not sign in.");
+        assertThat(result.answeredBy()).isEqualTo(org.p32h.interop.epa.pave.model.AnsweredBy.NOT_SENT);
+        assertThat(result.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
+        assertThat(ledger.only().outcome()).isEqualTo("NOT_SIGNED_IN");
+        assertThat(ledger.only().errorType()).isEqualTo("NOT_SIGNED_IN");
+    }
 }

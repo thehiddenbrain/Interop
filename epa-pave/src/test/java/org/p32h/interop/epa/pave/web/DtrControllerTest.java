@@ -562,7 +562,7 @@ class DtrControllerTest {
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
-                .andExpect(jsonPath("$.outcomes.length()").value(20))
+                .andExpect(jsonPath("$.outcomes.length()").value(21))
                 .andExpect(jsonPath("$.elements.length()").value(7));
         // And a scenario cannot be forced on live, on either operation that makes a call.
         mvc("live").perform(post("/api/dtr/package").contentType(MediaType.APPLICATION_JSON)

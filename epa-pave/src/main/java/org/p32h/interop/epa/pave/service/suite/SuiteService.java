@@ -24,7 +24,6 @@ import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.OutcomeCode;
 import org.p32h.interop.epa.pave.model.Protocol;
-import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunQuery;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.TestResult;
@@ -619,7 +618,7 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
             runIds.add(record.runId());
             findings.addAll(record.findings());
             slow = slow || Boolean.TRUE.equals(record.slow());
-            boolean wentOut = !RunOutcome.BLOCKED.name().equals(record.outcome());
+            boolean wentOut = record.wentOut();
             if (wentOut && record.elapsedMillis() != null) {
                 elapsed = (elapsed == null ? 0 : elapsed) + record.elapsedMillis();
             }

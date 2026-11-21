@@ -61,6 +61,8 @@ final class LookupOutcomes {
         return switch (failure) {
             case NONE -> null;
             case BAD_REQUEST -> rejected(exchange, status == null ? 0 : status, words, tracked);
+            // A lookup never goes through OnyxAccess, so it never has these types; worded as its own missing token, for exhaustiveness.
+            case NOT_SIGNED_IN, TOKEN_ENDPOINT_FAULT -> noAccessToken(words, exchange.failureDetail());
             case SERVER_ERROR -> fault(ErrorKind.VENDOR_ERROR, words.api() + " failed with HTTP " + status + ".",
                     "This is a fault in the environment, not in the " + words.identifier() + ". " + words.byHandSentence()
                             + " Report the environment if it repeats.", exchange, tracked);
@@ -265,7 +267,7 @@ final class LookupOutcomes {
             case SERVER_ERROR -> ErrorKind.VENDOR_ERROR;
             case BAD_REQUEST -> ErrorKind.VENDOR_REJECTED;
             case TIMEOUT -> ErrorKind.TIMEOUT;
-            case UNAVAILABLE -> ErrorKind.UNREACHABLE;
+            case UNAVAILABLE, NOT_SIGNED_IN, TOKEN_ENDPOINT_FAULT -> ErrorKind.UNREACHABLE;
             case NONE, MALFORMED_RESPONSE -> ErrorKind.MALFORMED_RESPONSE;
         };
     }
