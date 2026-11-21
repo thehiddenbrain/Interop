@@ -61,6 +61,22 @@ class SuiteChainRowsTest {
     }
 
     @Test
+    void aChainWhoseCrdAnswerHandsOnAMaskedValueRefusesTheStepBuiltFromItAndSendsNothingWithTheMaskInIt() {
+        // A secret the configuration holds that equals a part of the questionnaire address CRD's answer names.
+        bed.gateway.held(org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("sleepWord", "sleep-study-criteria").build());
+        SuiteRunView run = run(chainRow("M1", "P32H-DOC-DTR", ""));
+        SuiteCaseResult row = run.results().get(0);
+        assertThat(row.status()).isEqualTo(CaseStatus.INVALID);
+        assertThat(row.reason()).startsWith("CRD order-sign was sent; DTR questionnaire package was not sent.").contains(
+                "Questionnaires the payer named, handed on from the step before, was given masked, as [secret sleepWord], because the "
+                        + "answer it came from repeats a secret this tool holds. A mask is never sent, so this step was not sent.");
+        assertThat(row.runIds()).hasSize(1);
+        assertThat(bed.ledger.records()).filteredOn(r -> RunRecord.TYPE_RUN.equals(r.recordType())).extracting(RunRecord::operation)
+                .containsExactly(EpaOperation.CRD_ORDER_SIGN);
+        assertThat(SuiteResultsCsv.of(run)).contains("[secret sleepWord]").doesNotContain("sleep-study-criteria");
+    }
+
+    @Test
     void aChainStoppedAfterCrdWentOutKeepsCrdAndIsCountedApartFromRowsThatSentNothing() {
         bed.steps.failing(EpaOperation.PAS_SUBMIT, new ConfigurationChangedException());
         SuiteRunView run = run(chainRow("SW1", "P32H-PA-REQ", ""), "TC-2,crd,P32H-NO-AUTH," + NPI + ",95810,");

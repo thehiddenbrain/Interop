@@ -1,5 +1,6 @@
 package org.p32h.interop.epa.pave.client.pas;
 
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OperationOutcomes;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -376,6 +377,16 @@ public final class OnyxPasConventions {
      * @return the id, or null when the response has no such header
      */
     public static String createdSubscriptionId(VendorExchange exchange) {
+        return idAfter(createdSubscriptionLocation(exchange), "Subscription");
+    }
+
+    /**
+     * The value of the Location or Content-Location header {@link #createdSubscriptionId} reads the
+     * id from, whole, so that it can be masked before the id is taken from it.
+     *
+     * @return the header value, or null when the response has no such header
+     */
+    public static String createdSubscriptionLocation(VendorExchange exchange) {
         if (exchange == null) {
             return null;
         }
@@ -384,12 +395,24 @@ public final class OnyxPasConventions {
                     || !(header.name().equalsIgnoreCase("Location") || header.name().equalsIgnoreCase("Content-Location"))) {
                 continue;
             }
-            String id = idAfter(header.value(), "Subscription");
-            if (id != null) {
-                return id;
+            if (idAfter(header.value(), "Subscription") != null) {
+                return header.value();
             }
         }
         return null;
+    }
+
+    /**
+     * The id a Location value names after the held secrets were masked in the whole value. A secret
+     * can cover more than the id, such as the type and the id together, and the mask then hides
+     * where the id starts: the masks the value holds then stand for the id, so no part of a secret
+     * is read out in clear beside a wire view that masks all of it.
+     *
+     * @return the id, the masks that stand for it, or null for a null value
+     */
+    public static String idAfterMasked(String maskedLocation) {
+        String id = idAfter(maskedLocation, "Subscription");
+        return id != null ? id : CarriedMasks.in(maskedLocation);
     }
 
     /**

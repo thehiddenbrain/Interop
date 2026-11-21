@@ -117,6 +117,22 @@ class ReturnedSecretsTest {
     }
 
     @Test
+    void theCharsetAContentTypeNamesIsNamedInTheNoteAboutTheBodyThroughTheMaskOfTheHeader() {
+        // 0x81 is not a character of windows-1252, so the note about the body names the charset the header gave.
+        byte[] raw = {'{', '"', 'a', '"', ':', '"', 'x', (byte) 0x81, '"', '}'};
+        String type = "application/json; charset=windows-1252";
+        SentSecrets charsetWord = SentSecrets.builder().variable("charsetWord", "windows-1252").build();
+        VendorExchange held = Exchanges.fromBytes(request(charsetWord), 200, List.of(new WireHeader("Content-Type", type)), raw, type, 12L, true);
+        String notes = JsonSafe.mapper().writeValueAsString(held.bodyFields());
+        assertThat(notes).contains("The body is not valid [secret charsetWord], the charset its Content-Type names.").doesNotContain("windows-1252");
+        assertThat(held.wire(null).response().headers()).containsExactly(new WireHeader("Content-Type", "application/json; charset=[secret charsetWord]"));
+
+        VendorExchange unrelated = Exchanges.fromBytes(request(tokenAndKey()), 200, List.of(new WireHeader("Content-Type", type)), raw, type, 12L, true);
+        assertThat(JsonSafe.mapper().writeValueAsString(unrelated.bodyFields())).contains("The body is not valid windows-1252, the charset its "
+                + "Content-Type names.");
+    }
+
+    @Test
     void aResponseThatRepeatsNoSecretIsShownAsReceivedAndSaysNothingAboutMasking() {
         String body = "{\"resourceType\":\"Subscription\",\"status\":\"active\"}";
         List<WireHeader> headers = List.of(new WireHeader("Location", URL + "/s-1"));

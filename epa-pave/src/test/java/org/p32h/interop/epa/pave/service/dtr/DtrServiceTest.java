@@ -1714,6 +1714,69 @@ class DtrServiceTest {
                 });
     }
 
+    @Test
+    void aQuestionnaireOrAResponseSoFarThatHoldsAMaskIsRefusedWithTheReasonAndNothingIsSentOrRecorded() {
+        AtomicInteger calls = new AtomicInteger();
+        OnyxDtrClient counting = new OnyxDtrClient() {
+            @Override
+            public VendorExchange questionnairePackage(PreparedCall call, ResolvedText body, MockSelection selection) {
+                calls.incrementAndGet();
+                throw new AssertionError("no package is asked for here");
+            }
+
+            @Override
+            public VendorExchange nextQuestion(PreparedCall call, ResolvedText body, MockSelection selection) {
+                calls.incrementAndGet();
+                return DtrFixtures.answered(EpaOperation.DTR_NEXT_QUESTION, 200, stubResponse("completed",
+                        "{\"linkId\":\"q1\",\"text\":\"Findings\",\"type\":\"string\"}", ""));
+            }
+        };
+        DtrService service = service(counting, "mock", Map.of());
+        ProviderDetail provider = ProviderDetail.builder().npi("1234567893").build();
+        // The package's item text repeated a held secret, so the screen holds the questionnaire with the mask in it.
+        String masked = stubQuestionnaire("{\"linkId\":\"q1\",\"text\":\"Findings [secret heldText]\",\"type\":\"string\"}");
+        String maskedResponse = stubResponse("in-progress", "{\"linkId\":\"q1\",\"text\":\"Findings [secret heldText]\",\"type\":\"string\"}", "");
+        String questionnaireRefusal = "The questionnaire, handed on from the step before, was given masked, as [secret heldText], because the "
+                + "answer it came from repeats a secret this tool holds. A mask is never sent, so this step was not sent. Settle the secret in "
+                + "the Config tab, then fetch the questionnaire package again.";
+
+        for (boolean preview : List.of(false, true)) {
+            DtrNextQuestionRequest first = DtrNextQuestionRequest.builder().questionnaire(masked).provider(provider)
+                    .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build();
+            assertThatThrownBy(() -> {
+                if (preview) {
+                    service.previewNextQuestion(first, null);
+                } else {
+                    service.runNextQuestion(first, RunOrigin.manual(), null);
+                }
+            }).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                assertThat(error.field()).isEqualTo("questionnaire");
+                assertThat(error.message()).isEqualTo(questionnaireRefusal);
+            }));
+        }
+        assertThatThrownBy(() -> service.runNextQuestion(DtrNextQuestionRequest.builder().questionnaireResponse(maskedResponse).provider(provider)
+                .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("questionnaireResponse");
+                    assertThat(error.message()).startsWith("The QuestionnaireResponse so far, handed on from the step before, was given masked, "
+                            + "as [secret heldText], because");
+                }));
+        // The response step sends nothing to the payer, but what it puts together is handed on to PAS, so it is refused the same way.
+        assertThatThrownBy(() -> service.runResponse(DtrResponseRequest.builder().questionnaire(masked).provider(provider)
+                .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build(), RunOrigin.manual()))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
+                        .contains(questionnaireRefusal));
+        assertThat(calls.get()).isZero();
+        assertThat(ledger.records()).isEmpty();
+        assertThat(gateway.intents()).isEmpty();
+
+        // The same step with the text as the service wrote it, and no mask, goes out.
+        String plain = stubQuestionnaire("{\"linkId\":\"q1\",\"text\":\"Findings\",\"type\":\"string\"}");
+        service.runNextQuestion(DtrNextQuestionRequest.builder().questionnaire(plain).provider(provider)
+                .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build(), RunOrigin.manual(), null);
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
     private static DtrNextQuestionRequest step(String questionnaire, DtrAnswerInput... answers) {
         return DtrNextQuestionRequest.builder().questionnaire(questionnaire).answers(List.of(answers)).build();
     }

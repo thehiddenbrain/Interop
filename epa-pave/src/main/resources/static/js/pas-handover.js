@@ -13,6 +13,7 @@ import {runLink} from './history-common.js';
 import {indent} from './own-request.js';
 import {answersTable} from './pas-answers.js';
 import {sameCase} from './handover.js';
+import {maskedLine, notHandedOnWords} from './masks.js';
 
 const ANSWERS = 'questionnaireResponse';
 
@@ -81,6 +82,10 @@ export function createHandover(spec) {
         if (others.length > 0) {
             parts.push(el('p', {class: 'small'}, changed ? 'What was handed on:' : 'What goes with the next request, unchanged:'),
                 facts(others.map(([key, values]) => [carriedName(key), valuesOf(key, values)]), 'facts--ruled handed-on pas-handover__facts'));
+        }
+        if ((handed.masked || []).length > 0) {
+            parts.push(facts(handed.masked.map(one => [carriedName(one.key), maskedLine(notHandedOnWords(one.masks))]),
+                'facts--ruled handed-on pas-handover__facts'));
         }
         parts.push(el('p', null, button('Send nothing that was handed on', () => { dismissed = true; draw(); spec.changed(); }, {class: 'button--text'})));
         fill(node, parts);

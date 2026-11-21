@@ -223,6 +223,18 @@ public record VendorExchange(
         return request.secrets().mask(sent).text();
     }
 
+    /**
+     * A value this tool takes from a header of the answer, masked with the secrets the body is
+     * masked with. The wire view masks the header, so a value taken from it in clear would show on
+     * the same screen what the wire view hides. Null stays null, with no place masked.
+     */
+    public SentSecrets.Masked maskedFromHeader(String value) {
+        if (value == null) {
+            return new SentSecrets.Masked(null, 0);
+        }
+        return sentSecrets().mask(value);
+    }
+
     /** A note with the sentence about masked readings after it, either one alone when the other is absent. */
     public static String withMaskedReading(String note, String maskedReading) {
         if (Texts.blank(maskedReading)) {

@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.pas.MockSubscriptionClient;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.client.pas.SubscriptionClient;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.model.CarriedMasks;
 import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.ErrorView;
@@ -20,6 +21,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.TrackedJson;
@@ -221,6 +223,7 @@ public class SubscriptionService {
         // The id the run is about. For a create it is whatever the service gave the new subscription.
         String subscriptionId = askedId;
         String idSource = null;
+        SentSecrets.Masked fromHeader = null;
         if (operation == EpaOperation.SUBSCRIPTION_CREATE && outcome == SubscriptionOutcome.CREATED) {
             SubscriptionView created = reading.detail().responseKind() == SubscriptionResponseKind.SUBSCRIPTION
                     ? reading.detail().subscriptions().get(0) : null;
@@ -228,7 +231,12 @@ public class SubscriptionService {
                 subscriptionId = created.id().value();
                 idSource = "the id of the Subscription the service returned";
             } else {
-                subscriptionId = OnyxPasConventions.createdSubscriptionId(exchange);
+                // The whole header is masked first, as the wire view masks it, and the id taken from what is left. Masking the id
+                // alone left in clear the part of a secret that also covered the path around it.
+                SentSecrets.Masked location = exchange.maskedFromHeader(OnyxPasConventions.createdSubscriptionLocation(exchange));
+                String id = OnyxPasConventions.idAfterMasked(location.text());
+                fromHeader = new SentSecrets.Masked(id, CarriedMasks.count(id));
+                subscriptionId = fromHeader.text();
                 idSource = subscriptionId == null ? null : "the Location header of the response";
             }
         }
@@ -268,7 +276,8 @@ public class SubscriptionService {
                 followsRunId, sendsBody ? callbackProblem : null, ownBody, runId), exchange);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
-        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION);
+        MaskedReading masked = MaskedReading.withHeader(MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION),
+                "id, from the Location header,", fromHeader);
         if (masked != null) {
             findings.add(0, masked.finding());
             verdict = masked.on(verdict);
@@ -332,7 +341,10 @@ public class SubscriptionService {
         } else if (operation != EpaOperation.SUBSCRIPTION_GET) {
             inputs.require(id != null, "subscriptionId", "Name the subscription by its id.");
         }
-        inputs.require(id == null || SUBSCRIPTION_ID.matcher(id).matches(), "subscriptionId",
+        // A mask in the field is told apart from an id of the wrong form: it is a value an answer gave masked, and typing the id is the fix.
+        String masks = CarriedMasks.in(id);
+        inputs.require(masks == null, "subscriptionId", CarriedMasks.typed("a subscription id", masks));
+        inputs.require(id == null || masks != null || SUBSCRIPTION_ID.matcher(id).matches(), "subscriptionId",
                 "A subscription id is one word of up to 64 letters, digits, dots, hyphens, underscores and colons. It is written to the "
                         + "ledger as it stands, so it cannot be free text.");
         inputs.require(sendsBody(operation) || !RunSupport.ownBody(request), "rawBody",

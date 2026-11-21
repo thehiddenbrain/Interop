@@ -16,6 +16,7 @@ import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './
 import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
     scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
 import {sameCase} from './handover.js';
+import {maskedLine, notHandedOnWords} from './masks.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
 
@@ -224,16 +225,17 @@ function drawCarried() {
     const usable = usableHandover();
     const carry = handed.carry || {};
     const entries = Object.entries(carry).filter(([, values]) => (Array.isArray(values) ? values : [values]).length > 0);
+    const masked = handed.masked || [];
     fill(controls.carried,
         el('p', {class: 'sub-heading'}, 'Handed on from the ', handed.fromProtocol, ' result'),
         el('p', {class: 'small'}, 'Run ', code(handed.fromRunId), handed.chainId ? [', chain ', code(handed.chainId)] : null, '.'),
         usable ? null : el('p', {class: 'dtr-carried__stale'}, el('strong', null, 'Not sent: the case on screen has changed since that run. '),
             'What was handed on belongs to the case that run was sent with, so the package request goes without it.'),
-        entries.length === 0 ? el('p', {class: 'small quiet'}, 'The step handed on no values.')
+        entries.length === 0 && masked.length === 0 ? el('p', {class: 'small quiet'}, 'The step handed on no values.')
             : facts(entries.map(([key, values]) => [
                 carriedName(handed, key),
                 el('ul', {class: 'plain-list'}, (Array.isArray(values) ? values : [values]).map(value => el('li', null, code(String(value)))))
-            ]), 'facts--ruled handed-on'));
+            ]).concat(masked.map(one => [carriedName(handed, one.key), maskedLine(notHandedOnWords(one.masks))])), 'facts--ruled handed-on'));
 }
 
 /** A key of what was handed on, in the server's words with the key beside them, or the key alone when it sent none. */

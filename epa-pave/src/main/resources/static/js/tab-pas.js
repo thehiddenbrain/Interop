@@ -24,6 +24,7 @@ import {createNotifications} from './pas-notifications.js';
 import {answersInRequest, responsesInBody} from './pas-answers.js';
 import {runLink} from './history-common.js';
 import {bringIntoPane} from './case-context.js';
+import {fillFromAnswer, withoutMasks} from './masks.js';
 
 const MODES = [
     {id: 'submit', label: 'Send PAS request', use: 'submit'},
@@ -399,9 +400,12 @@ function buildInquire() {
 
 /** Makes the inquiry follow a request: the claim id and the run are carried, so the tester types nothing. */
 function inquireFrom(source, send = true) {
-    following = source;
-    controls.inquiryClaimId.set(source.claimId || '');
     showMode('inquire');
+    // A claim identifier an answer gave masked fills nothing and sends nothing: the line beside the field says why.
+    if (!fillFromAnswer(controls.inquiryClaimId, source.claimId || '')) {
+        return;
+    }
+    following = {...source, carry: withoutMasks(source.carry).carry};
     drawFollowing();
     if (send) {
         sendInquiry();
@@ -782,11 +786,13 @@ function showRun(envelope) {
     if (envelope.operation === 'PAS_SUBMIT' && carry.claimId && carry.claimId.length > 0) {
         following = {claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId, codes: carry.procedureCodes || [],
             carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the submission ', runLink(envelope.runId)]};
-        controls.inquiryClaimId.set(following.claimId);
+        if (!fillFromAnswer(controls.inquiryClaimId, following.claimId)) {
+            following = null;
+        }
         notifications.submitted();
     }
     if (envelope.protocol === 'SUBSCRIPTION' && envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.detail && envelope.detail.subscriptionId) {
-        controls.subscriptionId.set(envelope.detail.subscriptionId);
+        fillFromAnswer(controls.subscriptionId, envelope.detail.subscriptionId);
     }
     const row = readoutResult().querySelector('.nextstep__row');
     // After a fault the server's step is to check the environment, and whether to ask for the status first it says in words.
@@ -836,7 +842,7 @@ function resubmit(envelope, step) {
     }
     resubmitting = {claimId, runId: envelope.runId, headline: step.headline};
     if (claimId) {
-        controls.claimId.set(claimId);
+        fillFromAnswer(controls.claimId, claimId);
     }
     drawResubmit();
     const field = controls.attachments.firstField();
