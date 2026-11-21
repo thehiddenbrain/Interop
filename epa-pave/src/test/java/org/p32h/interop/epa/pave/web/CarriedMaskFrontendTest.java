@@ -47,8 +47,10 @@ class CarriedMaskFrontendTest {
         // The DTR tab names each masked value among what was handed on.
         assertThat(CaseCodesFrontendTest.body(read("js/tab-dtr.js"), "function drawCarried() {"))
                 .contains("masked.map(one => [carriedName(handed, one.key), maskedLine(notHandedOnWords(one.masks))])");
-        // So does the PAS tab's hand-over panel.
-        assertThat(read("js/pas-handover.js")).contains("handed.masked.map(one => [carriedName(one.key), maskedLine(notHandedOnWords(one.masks))])");
+        // So does the PAS tab's hand-over panel, whenever there is a masked value to name: the condition is checked with the
+        // line it draws, so neither can be switched off while the other stays.
+        assertThat(read("js/pas-handover.js")).contains("if ((handed.masked || []).length > 0) {\n"
+                + "            parts.push(facts(handed.masked.map(one => [carriedName(one.key), maskedLine(notHandedOnWords(one.masks))]),");
         // The DTR steps post the latest hand-over back: without its masked values, which are named beside the next step.
         String dtr = read("js/dtr-questionnaire.js");
         assertThat(dtr).contains("carry: withoutMasks(packageEnvelope.nextStep && packageEnvelope.nextStep.carry).carry,")
