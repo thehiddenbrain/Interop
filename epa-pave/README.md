@@ -2325,7 +2325,8 @@ and press "Start or restart", its first button. Or right click
 The project carries the launch configuration `PaveApplication.launch`, written by STS 5.4.0 itself,
 so both start `PaveApplication` with no dialog. Since `8463174` it holds no virtual machine argument
 (its "VM arguments:" field is empty): the one STS had written on Linux,
-`-Djava.security.egd=file:/dev/./urandom`, names no file on Windows and made every start about 8
+`-Djava.security.egd=file:/dev/./urandom`, names no file on a Windows Java (seen under Wine, from
+the C: drive) and made every start about 8
 seconds slower on a Windows Java under Wine, so it was removed (D-275). STS adds its own arguments
 when it starts the tool; on Linux, from the changed file, the start still asked nothing. On an older checkout without that file the first
 start asks "Choose Main Type" with `HouseStyle` selected: choose `PaveApplication` (`HouseStyle` is
@@ -2435,8 +2436,8 @@ Configurations showed `PaveApplication` with "Shared file: /epa-pave" and an emp
 field (this configuration type has no "Show Command Line" button in STS 5.4.0, so the command line
 was read from the running process: no `-Djava.security.egd`); the Boot Dashboard started the tool
 with no dialog and both proofs held; the sample environment and collection uploaded with `curl`
-twice and once each through the Config tab in a browser, every time 200, the first uploads the writers saw
-against a tool started by STS; and `git status` stayed empty throughout.
+twice and once each through the Config tab in a browser, every time 200, the first uploads on the
+build machine against a tool started by STS; and `git status` stayed empty throughout.
 **Reported, not seen by the writers of this
 README:** one operator, on a Windows workstation, let STS make the clone, as for another project. The
 clone showed under Git Repositories with no project in the Package Explorer; a Gradle import then
@@ -2531,7 +2532,7 @@ repeat every finding id; it leaves out nothing a tester has to know.
   configured there. A Windows Java under Wine ran the tool, the uploads and the proofs without that
   error, but it is not Windows. What to do if you meet it is under step 5 of
   [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275).
-- **`run.cmd` has not been run** by anyone. No Windows machine was available. It was written to do what
+- **`run.cmd` has not been run** by anyone. No Windows machine was available to the writers. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the

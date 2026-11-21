@@ -75,11 +75,12 @@ of `647b102` is the code at the head, so its build is still the last whole build
 record; the integrator's gates run after this file, and their result is in the pull request
 description.
 
-**What was seen on a Windows Java** (D-275). Nothing ran on Windows itself on the build machine. An
-agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows carries, under Wine
-9.0 on Linux, on `f82e32e` and again on `8463174`: it started from the jar and from classes STS had
+**What was seen on a Windows Java under Wine** (D-275). Nothing ran on Windows itself on the build
+machine. An agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows
+carries, under Wine 9.0 on Linux. On `f82e32e` it started from the jar and from classes STS had
 compiled on Linux, about 60 uploads gave 200 or a 422 that said why, the two handover proofs held,
-and no Error appeared. A Windows Java under Wine is not Windows: file permissions, antivirus and the
+and no Error appeared. On `8463174` it made six starts from those classes, with and without the
+argument below, and on one start without it both uploads answered 200 and the proofs held. A Windows Java under Wine is not Windows: file permissions, antivirus and the
 real network stack were not exercised, and Wine itself needed two workarounds. That run found the
 launch file's argument, which made every start about 8 to 9 s slower there (13.25 to 14.85 s with it
 against 4.73 to 5.89 s without it, three starts each on `8463174`). The real STS 5.4.0 on Linux then

@@ -5054,7 +5054,7 @@ After D-271 the operator asked the integrator to run STS itself.
      timestamp of one run and with the profile empty. With it, STS 5.4.0 on Linux had a configuration for the
      project before the first start and did not ask for a main type (the second run, on `ace5914`). (Later, D-275: the file
      also carried the virtual machine argument `-Djava.security.egd=file:/dev/./urandom` that STS had
-     written on Linux; it slows every start on a Windows Java and was removed in `8463174`.) `HouseStyle` keeps its name and its
+     written on Linux; it slowed every start on a Windows Java under Wine and was removed in `8463174`.) `HouseStyle` keeps its name and its
      `main`, because the Gradle task `houseStyleCheck` runs that class and `HouseStyleTest` checks
      the task's main class by name; renaming or moving it would change the build's gate to spare a
      dialog.
@@ -5449,10 +5449,14 @@ the operator is reported, not seen by the writers of these documents.
     Ubuntu's Wine 9.0 that aborted every Wine command, worked around by running Wine in a private
     mount namespace; and a function missing from Wine's `IPHLPAPI.DLL` that a real Windows has,
     which made the Java abort while it gathered its random seed. For the second, part of the runs
-    put the Windows key store provider first, and the rest used a copy of the Java whose `net.dll`
-    names a function Wine has instead, so that the default random source is the same as on Windows.
+    put the provider for the Windows crypto service (`SunMSCAPI`) first, so that the default random
+    source was the Windows one and the missing function was not reached, and the rest used a copy of
+    the Java whose `net.dll` names a function Wine has instead, so that the default random source is
+    the same as on Windows.
     The tool then started from the jar, and from the classes an STS on Linux had compiled with the
-    virtual machine arguments a Boot Dashboard start adds, from a folder on the C: drive shaped like
+    virtual machine arguments assumed for a Boot Dashboard start (with the arguments of the remote
+    management agent, which the real STS start on `8463174` did not hold), from a folder on the C:
+    drive shaped like
     the operator's, and from one whose name holds a space and brackets. About 60 uploads, through
     `curl` and through the Config tab in a headless Chromium, answered 200, or 422 with a sentence
     that said why; 15 variations of the files (a byte order mark, CRLF line ends, a name with
@@ -5485,16 +5489,19 @@ the operator is reported, not seen by the writers of these documents.
   under Wine printed exactly that: `NativeSeedGenerator` without the argument, and
   `SeedGenerator$ThreadedSeedGenerator` with it, `C:\dev\.\urandom exists=false`. In the first run the
   tool took 12.556 s to start with the argument ("process running for") against 4.359 s without it.
-  It is a slower start and nothing more: it threw no Error, and an upload draws from a source seeded
-  at start. The line was simply removed rather than replaced: STS wrote it on Linux, where a Java of
+  It made no upload fail on the Windows Java under Wine, and, by reading the code, not from a run,
+  an upload draws from a source seeded at start. The line was simply removed rather than replaced: STS wrote it on Linux, where a Java of
   version 9 or later needs no such setting either, and the Java needs none on Windows. Removing it
   changed one line of that file and no code.
 - **Two runs on `8463174`**, by agents that wrote neither the tool nor the change.
-  - The Windows Java under Wine again, three starts each way, alternating, each from a fresh clone
-    with a new store and a cold Wine: with the argument 13.25, 14.85 and 13.76 s from the command to
+  - The Windows Java under Wine again, on the patched copy of the Java described above (the one
+    whose `net.dll` was changed, a difference only Wine needs), from the classes STS had compiled on
+    Linux, three starts each way, alternating, each from a fresh clone with a new store and a cold
+    Wine: with the argument 13.25, 14.85 and 13.76 s from the command to
     the first answer of `GET /api/mode`; without it 5.24, 5.89 and 4.73 s. Spring's own start
     ("Started PaveApplication in") stayed about 3 to 4.7 s each time; the wait comes before it, when
-    the remote management agent those runs started gathers the seed. Those runs passed the
+    the remote management agent those runs started gathers the seed (the agent's reading of where
+    the time goes, not traced). Those runs passed the
     `-Dcom.sun.management.jmxremote` arguments, which the command line of the real STS start below
     does not hold; one start with the argument and without them took 12.84 s, the same wait moved
     into Spring's own start (11.427 s), so the cost is about 8 s either way. On a start without
@@ -5512,9 +5519,10 @@ the operator is reported, not seen by the writers of these documents.
     200 twice through `curl` and once through the Config tab in Chromium, with only INFO lines in the
     Console. The tracked file was not touched: `git status --short` was empty after the dialog was
     closed without Apply, after the start and stop, and after File, Exit. The uploads landed in
-    `epa-pave/config-store/`, the launch's working folder, which is in `.gitignore`.
-- **Installed on the build machine for this**: Wine 9.0 and the 19 packages it pulled in (none of
-  them 32-bit), through `apt-get`. They are still installed.
+    `epa-pave/config-store/`, inside the launch's working folder `epa-pave`, and `config-store/` is
+    in `.gitignore`.
+- **Installed on the build machine for this**: Wine 9.0, 19 packages with the ones it pulled in
+  (none of them 32-bit), through `apt-get`. They are still installed.
 - **Not seen by anyone:** a real Windows machine, other than through the operator's report; the
   operator's files, their workspace and their Problems view; the cause of their failure; how many
   seconds the removed argument cost on a real Windows; `run.cmd`.
