@@ -54,6 +54,18 @@ class DtrSessionFrontendTest {
     }
 
     @Test
+    void aStepThisToolCouldNotSendIsNotCountedAsSentToTheService() throws IOException {
+        String source = read("dtr-questionnaire.js");
+        assertThat(CaseCodesFrontendTest.body(source, "function applyResult(entry, kind, envelope) {"))
+                .contains("notSent: envelope.answeredBy === 'NOT_SENT',");
+        String state = CaseCodesFrontendTest.body(source, "function stepState(entry) {");
+        assertThat(state).contains("entry.steps.filter(step => step.kind === 'loop' && !step.notSent).length")
+                .contains("'No step has reached the service yet.'").contains("' was not sent'");
+        assertThat(CaseCodesFrontendTest.body(source, "function stepList(entry) {")).contains("'The steps of this questionnaire'")
+                .contains("step.notSent ? el('strong', null, ', not sent') : null").doesNotContain("The steps sent for this questionnaire");
+    }
+
+    @Test
     void theSessionsCopyOfTheNextStepButtonIsQuietBecauseTheResultHoldsThePrimaryOne() throws IOException {
         String source = read("dtr-questionnaire.js");
         assertThat(CaseCodesFrontendTest.body(source, "function nextStepLine() {"))

@@ -222,6 +222,8 @@ export function createSession(packageEnvelope, hooks) {
             headline: envelope.verdict.headline,
             worked,
             recorded: envelope.ledger ? envelope.ledger.recorded === true : false,
+            // A step this tool could not send (it could not sign in) reached no service and is not counted as sent.
+            notSent: envelope.answeredBy === 'NOT_SENT',
             form: result.form || null
         });
         if (worked) {
@@ -534,15 +536,21 @@ export function createSession(packageEnvelope, hooks) {
                 last.headline));
         }
         if (adaptive) {
-            const loops = entry.steps.filter(step => step.kind === 'loop').length;
-            const responses = sent - loops;
+            const loops = entry.steps.filter(step => step.kind === 'loop' && !step.notSent).length;
+            const unsent = entry.steps.filter(step => step.notSent);
+            const responses = entry.steps.filter(step => step.kind !== 'loop').length;
             const missing = entry.steps.filter(step => !step.recorded).length;
+            const lastUnsent = unsent.length > 0 ? unsent[unsent.length - 1] : null;
             parts.push(el('p', {class: 'dtr-steps__count'},
-                el('strong', null, sent === 0 ? 'No step sent yet.'
+                el('strong', null, loops + responses === 0 ? (unsent.length === 0 ? 'No step sent yet.' : 'No step has reached the service yet.')
                     : [count(loops, 'step') + ' sent to the service',
                         responses > 0 ? ', ' + count(responses, 'response step') + ' put together in this tool' : null,
                         missing > 0 ? [', ', el('span', {class: 'dtr-notrecorded'}, missing === sent && sent > 1 ? 'none of them recorded' : missing + ' of them NOT recorded'),
                             ' in the ledger'] : null, '.']),
+                lastUnsent ? [' ', unsent.length === 1 ? 'Step ' + lastUnsent.number + ' was not sent' : unsent.length + ' steps were not sent',
+                    // The server's headline already says nothing was sent; only its reason is added.
+                    String(lastUnsent.headline || '').startsWith('Nothing was sent: ')
+                        ? ': ' + lastUnsent.headline.slice('Nothing was sent: '.length) : ['. ', lastUnsent.headline]] : null,
                 ' Each step to the service is a call to the payer, and the ledger keeps a line for each step it recorded, as the step list says. '
                     + 'The service, not this tool, decides when the response is complete.'));
         }
@@ -582,11 +590,12 @@ export function createSession(packageEnvelope, hooks) {
             return null;
         }
         return el('details', {class: 'fold dtr-steps'},
-            el('summary', null, 'The steps sent for this questionnaire', el('span', {class: 'quiet'}, String(entry.steps.length))),
+            el('summary', null, 'The steps of this questionnaire', el('span', {class: 'quiet'}, String(entry.steps.length))),
             el('ol', {class: 'dtr-steps__list'}, entry.steps.map(step => el('li', null,
                 toneMark(step.tone), ' ', el('strong', null, step.outcome), ' ', code(step.runId), ' ',
                 step.recorded ? el('span', {class: 'quiet'}, 'recorded') : el('strong', {class: 'dtr-notrecorded'}, 'NOT recorded'),
                 step.kind === 'response' ? el('span', {class: 'quiet'}, ', response step, nothing sent') : null,
+                step.notSent ? el('strong', null, ', not sent') : null,
                 step.form ? el('div', {class: 'small'}, count(step.form.questionCount, 'question') + ', ' + step.form.answeredCount + ' answered. ',
                     step.form.changes ? step.form.changes.summary : null) : el('div', {class: 'small'}, step.headline)))));
     }
