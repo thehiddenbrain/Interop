@@ -657,6 +657,33 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    void aHeldSecretThatCoversTheIdAndMoreOfTheLocationHeaderLeavesNoPartOfTheIdInClear() {
+        String id = "sub-held-z4p8";
+        // Each secret covers the id and a part of the path around it, so masking the id alone found nothing to mask.
+        Map<String, String> expected = Map.of("Subscription/" + id, "[secret heldSup]", "held-z4p8/_history", "sub-[secret heldSup]");
+        for (Map.Entry<String, String> held : expected.entrySet()) {
+            VendorExchange noBody = TestExchanges.of(CREATE, 201, null, false);
+            VendorExchange located = TestExchanges.holding(new VendorExchange(noBody.request(), 201,
+                    List.of(new org.p32h.interop.epa.pave.model.WireHeader("Content-Location", "https://onyx.example.invalid/fhir/Subscription/"
+                            + id + "/_history/1")), null, null, null, null, 12L, noBody.failureType(), null, java.util.Set.of(), null, null,
+                    List.of()), org.p32h.interop.epa.pave.model.SentSecrets.builder().variable("heldSup", held.getKey()).build());
+
+            RunEnvelope<SubscriptionDetail> created = service(stub(located), "live", WITH_RECEIVER).run(CREATE, request().build(),
+                    RunOrigin.manual(), null);
+
+            assertThat(created.verdict().outcomeCode()).as(held.getKey()).isEqualTo("CREATED");
+            assertThat(created.nextStep().carry()).as(held.getKey()).containsEntry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of(held.getValue()));
+            assertThat(created.detail().subscriptionId()).isEqualTo(held.getValue());
+            assertThat(created.verdict().supporting()).contains("Its id is " + held.getValue() + ".");
+            assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id, from the Location "
+                    + "header, was read as [secret heldSup].");
+            assertThat(created.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+            assertThat(JsonSafe.mapper().writeValueAsString(created)).as(held.getKey()).doesNotContain("held-z4p8");
+            assertThat(JsonSafe.mapper().writeValueAsString(ledger.last())).doesNotContain("held-z4p8");
+        }
+    }
+
+    @Test
     void aMaskInTheSubscriptionIdFieldIsRefusedAsAMaskAndNothingIsSent() {
         CountingClient client = new CountingClient();
         SubscriptionService service = service(client, "live", WITH_RECEIVER);

@@ -227,9 +227,12 @@ public class SubscriptionService {
                 subscriptionId = created.id().value();
                 idSource = "the id of the Subscription the service returned";
             } else {
-                // Read through the mask the body and the wire view are read through, so the id is never carried, shown or kept in clear
-                // beside a wire view that masks it.
-                fromHeader = exchange.maskedFromHeader(OnyxPasConventions.createdSubscriptionId(exchange));
+                // The whole header is masked first, as the wire view masks it, and the id taken from what is left. Masking the id
+                // alone left in clear the part of a secret that also covered the path around it.
+                SentSecrets.Masked location = exchange.maskedFromHeader(OnyxPasConventions.createdSubscriptionLocation(exchange));
+                String id = OnyxPasConventions.idAfterMasked(location.text());
+                String masks = CarriedMasks.in(id);
+                fromHeader = new SentSecrets.Masked(id, masks == null ? 0 : masks.split(" and ").length);
                 subscriptionId = fromHeader.text();
                 idSource = subscriptionId == null ? null : "the Location header of the response";
             }
