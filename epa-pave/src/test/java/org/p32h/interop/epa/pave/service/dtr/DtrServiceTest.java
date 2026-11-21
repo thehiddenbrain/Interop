@@ -269,9 +269,10 @@ class DtrServiceTest {
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_LOADED");
         assertThat(result.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario dtr-01-static-linear answered");
-        assertThat(result.verdict().supporting()).contains("Sleep study criteria (placeholder): static, because it declares the standard "
-                + "questionnaire profile http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-std-questionnaire. It holds 4 questions, "
-                + "3 of them required.");
+        // The verdict gives the count only: why it is static is the kind row of the detail, so the first question is nearer.
+        assertThat(result.verdict().supporting()).contains("Sleep study criteria (placeholder): It holds 4 questions, 3 of them required.");
+        assertThat(String.join(" ", result.verdict().supporting())).doesNotContain("because it declares");
+        assertThat(result.detail().questionnaires().get(0).kindBasis()).startsWith("Static, because it declares the standard questionnaire profile");
         assertThat(result.detail().questionnaires().get(0).kind()).isEqualTo(QuestionnaireKind.STATIC);
         assertThat(result.detail().kindRule()).startsWith("A questionnaire is adaptive when");
         // Nobody may take this for a SMART launch.
@@ -347,7 +348,7 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> adaptive = fetch("P32H-DTR-ADAPT");
         assertThat(adaptive.detail().questionnaires().get(0).kind()).isEqualTo(QuestionnaireKind.ADAPTIVE);
         assertThat(adaptive.verdict().supporting()).anySatisfy(line -> assertThat(line).startsWith("Lumbar spine MRI criteria, adaptive "
-                + "(placeholder): adaptive, because it carries the questionnaireAdaptive extension set to a url.")
+                + "(placeholder): It holds no questions of its own")
                 .endsWith("It holds no questions of its own: the service asks them one step at a time. The package carries the response "
                         + "to start it from."));
         // A package that carries no such response does not say it does.

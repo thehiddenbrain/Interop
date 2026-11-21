@@ -184,9 +184,16 @@ public final class DtrVerdicts {
         return label.endsWith(".") ? label.substring(0, label.length() - 1) : label;
     }
 
-    /** One questionnaire of a package: which kind it is and why, and how much it asks. */
+    /**
+     * One questionnaire of a package: how much it asks. For a static or adaptive one, why it is of that kind is left to the
+     * kind row of the DTR response detail, and the kind is on the questionnaire's own title: said here too, it stood between
+     * the tester and the first question. A kind the tool cannot tell is a finding, so its reason stays in the verdict.
+     */
     private static String describe(QuestionnaireView questionnaire) {
-        StringBuilder line = new StringBuilder(questionnaire.subject()).append(": ").append(lower(questionnaire.kindBasis()));
+        StringBuilder line = new StringBuilder(questionnaire.subject()).append(":");
+        if (questionnaire.kind() != QuestionnaireKind.STATIC && questionnaire.kind() != QuestionnaireKind.ADAPTIVE) {
+            line.append(' ').append(lower(questionnaire.kindBasis()));
+        }
         if (questionnaire.questionCount() == 0) {
             line.append(questionnaire.kind() == QuestionnaireKind.ADAPTIVE
                     ? " It holds no questions of its own: the service asks them one step at a time." : " It holds no questions.");
