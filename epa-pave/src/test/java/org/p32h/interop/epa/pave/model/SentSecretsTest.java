@@ -273,6 +273,39 @@ class SentSecretsTest {
         }
     }
 
+    @Test
+    void theAutomatonFindsExactlyWhatASearchForEachSecretInTurnFindsWhereBackslashesAreRareOrAbsent() {
+        // Secrets of very different lengths that overlap, nest and share their beginnings and ends,
+        // in texts where a backslash is rare or absent, so that most starts are read by the
+        // automaton, some by the walk, and many lie on the border between the two.
+        java.util.Random random = new java.util.Random(20261122L);
+        for (int round = 0; round < 3000; round++) {
+            String alphabet = round % 3 == 0 ? "ab" : round % 3 == 1 ? "abc" : "ab/u0";
+            SentSecrets.Builder builder = SentSecrets.builder();
+            java.util.List<String> values = new java.util.ArrayList<>();
+            int count = 1 + random.nextInt(8);
+            for (int i = 0; i < count; i++) {
+                String value = text(random, alphabet, 6 + random.nextInt(random.nextBoolean() ? 4 : 30));
+                if (!values.contains(value)) {
+                    values.add(value);
+                }
+                builder.variable("v" + i, value);
+            }
+            SentSecrets secrets = builder.build();
+            StringBuilder text = new StringBuilder(text(random, alphabet, random.nextInt(400)));
+            if (round % 2 == 1) {
+                for (int escapes = random.nextInt(3); escapes > 0 && text.length() > 0; escapes--) {
+                    text.insert(random.nextInt(text.length()), random.nextBoolean() ? "\\/" : "\\u0061");
+                }
+            }
+            if (random.nextBoolean() && !values.isEmpty()) {
+                text.append(values.get(random.nextInt(values.size()))).append(text(random, alphabet, random.nextInt(40)));
+            }
+            String written = text.toString();
+            assertThat(secrets.mask(written)).as("round %d", round).isEqualTo(Reference.mask(written, values));
+        }
+    }
+
     private static String text(java.util.Random random, String alphabet, int length) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < length; i++) {

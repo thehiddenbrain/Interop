@@ -29,7 +29,12 @@ import java.util.Map;
  *
  * <p>Every secret is searched for in the same single pass over the text, along a tree of their
  * characters, so the cost of masking an answer of megabytes does not grow with the number of
- * secrets held.
+ * secrets held. Where the text holds no backslash near a place, failure links between the
+ * branches of the tree keep that cost to one step per character, also for a secret whose beginning
+ * fills the text. Near a backslash each start is walked along the tree, because an escape can be
+ * read in two ways; there a text written wholly in escapes still costs up to the length of the
+ * longest secret per character (2 MB of escapes against one held secret of 1000 characters took
+ * about five seconds when it was measured).
  *
  * <p>This holds real secret values. It is never serialised and never printed, and it has no method
  * that hands a value back: all it offers is to mask a text.
@@ -171,6 +176,14 @@ public final class SentSecrets {
         private final int[][] kids;
         private final int[] ends;
         private final java.util.BitSet first = new java.util.BitSet();
+        /** How many characters lead to each node: the length of the prefix it stands for. */
+        private final int[] depth;
+        /** The node of the longest proper suffix of a node's prefix that is also a prefix of some secret. */
+        private final int[] fail;
+        /** The nearest node along the failure links where a secret ends, or -1. */
+        private final int[] ending;
+        /** The length of the longest secret, and so the furthest a walk without an escape reads from where it starts. */
+        private final int longest;
 
         private Tree(List<Entry> searched) {
             List<java.util.TreeMap<Character, Integer>> building = new ArrayList<>();
@@ -211,6 +224,40 @@ public final class SentSecrets {
             for (char c : keys[0]) {
                 first.set(c);
             }
+            // The failure links, worked out breadth first from a queue of this loop's own, so a
+            // node is reached only after every shorter one.
+            int count = keys.length;
+            depth = new int[count];
+            fail = new int[count];
+            this.ending = new int[count];
+            this.ending[0] = -1;
+            int[] queue = new int[count];
+            int head = 0;
+            int tail = 0;
+            for (int kid : kids[0]) {
+                depth[kid] = 1;
+                this.ending[kid] = -1;
+                queue[tail++] = kid;
+            }
+            int deepest = 0;
+            while (head < tail) {
+                int node = queue[head++];
+                deepest = Math.max(deepest, depth[node]);
+                for (int i = 0; i < keys[node].length; i++) {
+                    char c = keys[node][i];
+                    int kid = kids[node][i];
+                    depth[kid] = depth[node] + 1;
+                    int back = fail[node];
+                    while (back != 0 && child(back, c) < 0) {
+                        back = fail[back];
+                    }
+                    int via = child(back, c);
+                    fail[kid] = via < 0 ? 0 : via;
+                    this.ending[kid] = ends[fail[kid]] >= 0 ? fail[kid] : this.ending[fail[kid]];
+                    queue[tail++] = kid;
+                }
+            }
+            longest = deepest;
         }
 
         private int child(int node, char c) {
@@ -223,6 +270,10 @@ public final class SentSecrets {
          * overlap: from where one ends, that secret is looked for again. Where the text holds a
          * secret from one position in more than one reading, the reading that takes a JSON escape
          * as the character it stands for comes first, and the first reading met is the one taken.
+         *
+         * <p>Near a backslash the text can be read in more than one way, and each start there is
+         * walked along the tree. Elsewhere it reads one way only, and the automaton finds exactly
+         * what that walk would, at a cost that does not grow with the length of the secrets.
          *
          * <p>The walk keeps its own stack of what is left to try, so its depth never takes a frame
          * of the thread's stack; it is at most the length of the longest secret. A position and a
@@ -238,7 +289,57 @@ public final class SentSecrets {
             int[] nodes = new int[16];
             int[] positions = new int[16];
             int length = text.length();
+            // Where no backslash lies within the length of the longest secret, a walk from a start
+            // can read the text one way only, as it is written. There the secrets are found by an
+            // automaton with failure links that runs once along the text, so a long secret whose
+            // beginning fills the text costs one step per character and not one per character of
+            // the secret. Its finds wait in a ring, by where they start, until the walk is there.
+            int ringSize = longest + 1;
+            int[][] ring = new int[ringSize][];
+            int[] inRing = new int[ringSize];
+            int scanned = 0;
+            int state = 0;
+            int backslash = text.indexOf('\\');
             for (int start = 0; start < length; start++) {
+                int until = Math.min(length, start + longest);
+                while (scanned < until) {
+                    char c = text.charAt(scanned);
+                    int next = child(state, c);
+                    while (next < 0 && state != 0) {
+                        state = fail[state];
+                        next = child(state, c);
+                    }
+                    state = next < 0 ? 0 : next;
+                    scanned++;
+                    for (int found = ends[state] >= 0 ? state : ending[state]; found >= 0; found = ending[found]) {
+                        int slot = (scanned - depth[found]) % ringSize;
+                        if (ring[slot] == null) {
+                            ring[slot] = new int[4];
+                        } else if (inRing[slot] == ring[slot].length) {
+                            ring[slot] = java.util.Arrays.copyOf(ring[slot], ring[slot].length * 2);
+                        }
+                        ring[slot][inRing[slot]++] = ends[found];
+                    }
+                }
+                if (backslash >= 0 && backslash < start) {
+                    backslash = text.indexOf('\\', start);
+                }
+                int slot = start % ringSize;
+                boolean nearAnEscape = backslash >= 0 && backslash < start + longest;
+                if (!nearAnEscape) {
+                    for (int i = 0; i < inRing[slot]; i++) {
+                        int secret = ring[slot][i];
+                        if (nextStart[secret] <= start) {
+                            int end = start + searched.get(secret).value().length();
+                            hits.add(new Hit(start, end, searched.get(secret).mask()));
+                            nextStart[secret] = end;
+                        }
+                    }
+                }
+                inRing[slot] = 0;
+                if (!nearAnEscape) {
+                    continue;
+                }
                 char here = text.charAt(start);
                 if (here != '\\' && !first.get(here)) {
                     continue;
