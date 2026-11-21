@@ -23,7 +23,7 @@
 // own fields, the preview included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, unmark, fieldLabel, dropCorrected, UNMARKED} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, refusedSaying, unmark, fieldLabel, mirrorMarks, UNMARKED, MARKED} from './forms.js';
 import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
@@ -143,9 +143,11 @@ export function createWorkbench(app, panel, spec) {
             unmark(field);
         }
     });
-    // However a field loses its mark (typed in, filled by a lookup or a case, checked again on
-    // leaving it), the summary stops naming it, so it never lists a field that was corrected.
-    panel.addEventListener(UNMARKED, event => dropCorrected(problem, event.target));
+    // However a field loses or gains a mark (typed in, filled by a lookup or a case, checked again
+    // on leaving it), the summary lists the marks as they are now, so it never names a field that
+    // was corrected nor leaves out one that is still wrong.
+    panel.addEventListener(UNMARKED, () => mirrorMarks(problem, panel));
+    panel.addEventListener(MARKED, () => mirrorMarks(problem, panel));
 
     // Said in place of the form when the tab's first operation cannot be sent. Not a live region:
     // the status line says in one sentence that the form is withheld, and that is what is announced.
@@ -441,7 +443,8 @@ export function createWorkbench(app, panel, spec) {
                 const said = formProblem(nothing, markFieldErrors([ownRequest.field], [{field: 'rawBody', message: 'Paste the request body here.'}], {placed}), placed);
                 said.classList.add('form-problem--own');
                 showFormProblem(problem, said);
-                status.textContent = nothing.title;
+                // Not the title: once the box is filled, "There is no request" would no longer be true.
+                status.textContent = refusedSaying(1);
                 return null;
             }
             const typed = textLeftToRefuse(codeBoxFacts(options));
@@ -487,6 +490,12 @@ export function createWorkbench(app, panel, spec) {
                 // A form problem is marked at the fields. The result of the earlier run stays where it is.
                 const placed = [];
                 showFormProblem(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors, {placed}), placed));
+                const counted = Array.isArray(answer.body.fieldErrors) ? answer.body.fieldErrors.length : 0;
+                if (counted > 0) {
+                    // The server's title counts the problems in the present tense; the summary keeps it and
+                    // follows the corrections, and this line says what the send met, which stays true.
+                    status.textContent = refusedSaying(counted);
+                }
                 return null;
             }
             fill(refusal, errorPanel(answer.body),

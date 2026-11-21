@@ -13,7 +13,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, aboutStep} from './dom.js';
-import {textField, selectField, formProblem, showFormProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
+import {textField, selectField, formProblem, showFormProblem, refusedSaying, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
     scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {detailFor} from './pas-detail.js';
@@ -486,7 +486,7 @@ async function subscriptionCall(kind) {
         // Without an id a read would be a list and an update or delete has no address. Nothing is asked of the server.
         const said = {title: 'There is no subscription id. Nothing was sent.', action: 'Enter the id of the subscription, or list the subscriptions to find it.',
             fieldErrors: [{field: 'subscriptionId', message: 'Enter the id of the subscription to ' + kind + '.'}]};
-        bench.say(said.title);
+        bench.say(refusedSaying(said.fieldErrors.length));
         const placed = [];
         showFormProblem(bench.problem, formProblem(said, markFieldErrors([panel], said.fieldErrors, {placed}), placed));
         return;

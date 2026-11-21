@@ -47,7 +47,8 @@ class FormLayoutFrontendTest {
         assertThat(mark).contains("openFoldsAround(field);").contains("placed.push({field, label: fieldLabel(field, problem.field)");
         assertThat(CaseCodesFrontendTest.body(forms, "function openFoldsAround(node) {")).contains("details:not([open])").contains("fold.open = true");
         assertThat(CaseCodesFrontendTest.body(forms, "export function formProblem(error, unplaced, placed) {"))
-                .contains("'form-problem__fields'").contains("button(entry.label, () => focusField(entry.field)");
+                .contains("append(node, linesList(lines));");
+        assertThat(CaseCodesFrontendTest.body(forms, "function linesList(lines) {")).contains("'form-problem__fields'");
         // Every refusal the workbench draws passes the fields it placed to the summary.
         Matcher calls = Pattern.compile("formProblem\\(([^;]*?)\\);", Pattern.DOTALL).matcher(read("workbench.js"));
         int count = 0;
@@ -75,15 +76,30 @@ class FormLayoutFrontendTest {
     }
 
     @Test
-    void theSummaryDropsAFieldOnceItIsCorrectedAndNeverSitsInThePinnedBar() throws IOException {
+    void theSummaryMirrorsTheMarksAndNeverSitsInThePinnedBar() throws IOException {
         String forms = read("forms.js");
         // A field loses its mark in more ways than typing (a lookup, a chosen case, the check on
-        // leaving it), so unmark itself tells the page, and the summary listens for that.
+        // leaving it), and gains one in more ways than a send (the NPI check on leaving the field),
+        // so unmark and markFieldErrors both tell the page, and the summary listens for both.
         assertThat(CaseCodesFrontendTest.body(forms, "export function unmark(field) {")).contains("new CustomEvent(UNMARKED, {bubbles: true})");
-        String drop = CaseCodesFrontendTest.body(forms, "export function dropCorrected(slot, field) {");
-        assertThat(drop).contains("namedField.get(item) === field").contains("item.remove()").contains("summary.remove()");
-        assertThat(CaseCodesFrontendTest.body(forms, "export function formProblem(error, unplaced, placed) {")).contains("namedField.set(item, entry.field)");
-        assertThat(read("workbench.js")).contains("panel.addEventListener(UNMARKED, event => dropCorrected(problem, event.target));");
+        assertThat(CaseCodesFrontendTest.body(forms, "export function markFieldErrors(roots, fieldErrors, options) {"))
+                .contains("field.dispatchEvent(new CustomEvent(MARKED, {bubbles: true}));");
+        // The lines are read from the marks on screen now, with the sentence each field shows now,
+        // not dropped one by one from the list the send built: a mark replaced by another sentence
+        // used to take its line with it while the field stayed wrong.
+        String mirror = CaseCodesFrontendTest.body(forms, "export function mirrorMarks(slot, scope) {");
+        assertThat(mirror).contains("scope.querySelectorAll('.field--invalid')").contains("field.querySelectorAll('.field__error')")
+                .contains("summary.remove()").contains("'Nothing was sent. Still to correct:'").contains("summary.insertBefore(linesList(lines), notes)");
+        // One line a field, in the order of the form, the same at the send and afterwards.
+        assertThat(CaseCodesFrontendTest.body(forms, "function linesFor(fields, messageOf) {")).contains("Node.DOCUMENT_POSITION_FOLLOWING");
+        assertThat(CaseCodesFrontendTest.body(forms, "export function formProblem(error, unplaced, placed) {"))
+                .contains("linesFor(entries.map(entry => entry.field)").contains("listed.set(node, signature(lines));");
+        assertThat(CaseCodesFrontendTest.body(forms, "function linesList(lines) {")).contains("button(line.label, () => focusField(line.field)");
+        String workbench = read("workbench.js");
+        assertThat(workbench).contains("panel.addEventListener(UNMARKED, () => mirrorMarks(problem, panel));")
+                .contains("panel.addEventListener(MARKED, () => mirrorMarks(problem, panel));");
+        // The PAS sample notification has a summary of its own; its marks are not the form's.
+        assertThat(read("pas-notifications.js")).contains("el('div', {class: 'pas-sample', dataset: {summary: 'own'}})");
         // A long summary in the bar that stays in view squeezed the form to half the pane.
         for (String tab : List.of("tab-crd.js", "tab-pas.js")) {
             String text = read(tab);
@@ -125,6 +141,23 @@ class FormLayoutFrontendTest {
             }
         }
         assertThat(read("workbench.js")).contains("showFormProblem(problem, said);");
+    }
+
+    @Test
+    void theStatusLineOfARefusedSendSpeaksOfThatSendInThePastTense() throws IOException {
+        String forms = read("forms.js");
+        String saying = CaseCodesFrontendTest.body(forms, "export function refusedSaying(count, what) {");
+        assertThat(saying).contains("'The send was refused for ' + problems + ' in the form. Nothing was sent.'")
+                .contains("'The comparison was refused for ' + problems + ' in the form. Nothing was compared.'");
+        String workbench = read("workbench.js");
+        String call = CaseCodesFrontendTest.body(workbench, "async call(send, options) {");
+        // "The form has 3 problems" stayed on the status line while the tester corrected them.
+        assertThat(call).contains("status.textContent = refusedSaying(counted);").contains("status.textContent = refusedSaying(1);")
+                .doesNotContain("status.textContent = nothing.title;");
+        assertThat(read("tab-pas.js")).contains("bench.say(refusedSaying(said.fieldErrors.length));").doesNotContain("bench.say(said.title);");
+        String compare = read("crd-compare.js");
+        assertThat(compare).contains("bench.say(refusedSaying(1, 'comparison'));")
+                .contains("bench.say(refusedSaying(answer.body.fieldErrors.length, 'comparison'));").doesNotContain("bench.say(nothing.title);");
     }
 
     @Test

@@ -12,7 +12,7 @@
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, heading, table} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, refusedSaying} from './forms.js';
 import {errorPanel} from './result.js';
 import {lineMap, ancestors} from './crd-json-lines.js';
 
@@ -155,7 +155,7 @@ export function createComparison(spec) {
                 const placed = [];
                 showFormProblem(bench.problem, formProblem(nothing, markFieldErrors([ownRequest.field],
                     [{field: 'rawBody', message: 'Paste the request body here.'}], {placed}), placed));
-                bench.say(nothing.title);
+                bench.say(refusedSaying(1, 'comparison'));
                 refused(nothing.title);
                 return;
             }
@@ -189,6 +189,9 @@ export function createComparison(spec) {
         if (answer.kind === 'form') {
             const placed = [];
             showFormProblem(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors, {placed}), placed));
+            if (Array.isArray(answer.body.fieldErrors) && answer.body.fieldErrors.length > 0) {
+                bench.say(refusedSaying(answer.body.fieldErrors.length, 'comparison'));
+            }
             refused(answer.body.title);
             keepFocus(used);
             return;

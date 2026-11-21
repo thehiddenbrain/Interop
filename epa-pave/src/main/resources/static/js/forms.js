@@ -141,6 +141,9 @@ export function clearFieldErrors(root) {
 /** The event a field sends up the page when its mark is removed, so a summary that names it can drop it. */
 export const UNMARKED = 'pave-unmarked';
 
+/** The event a field sends up the page when it is marked, so a summary on screen can name it too. */
+export const MARKED = 'pave-marked';
+
 /** Removes the mark of a refusal from one field: the frame, the server's sentence and what told assistive technology of both. */
 export function unmark(field) {
     const wasMarked = field.classList.contains('field--invalid');
@@ -204,6 +207,7 @@ export function markFieldErrors(roots, fieldErrors, options) {
             control.setAttribute('aria-describedby', described ? described + ' ' + messageId : messageId);
             first = first || control;
         }
+        field.dispatchEvent(new CustomEvent(MARKED, {bubbles: true}));
     }
     if (first && !placed && !(options && options.focus === false)) {
         // The field is brought into view whole, label and message included, before it takes the
@@ -260,36 +264,78 @@ function findField(roots, name) {
     return null;
 }
 
-// Which field each line of a summary names, so the line can go once that field is corrected.
-const namedField = new WeakMap();
+/**
+ * The lines a summary shows for the marked fields: one per field, in the order of the form, with
+ * the sentences the field shows. A field the server named twice still gets one line.
+ */
+function linesFor(fields, messageOf) {
+    const unique = fields.filter((field, index) => fields.indexOf(field) === index);
+    unique.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    return unique.map(field => ({field, label: fieldLabel(field, field.dataset.field), message: messageOf(field)}));
+}
+
+function linesList(lines) {
+    return el('ul', {class: 'form-problem__fields'}, lines.map(line =>
+        el('li', null, button(line.label, () => focusField(line.field), {class: 'button--text'}), ': ', line.message)));
+}
+
+function signature(lines) {
+    return lines.map(line => line.label + ': ' + line.message).join('\n');
+}
+
+// What each summary lists now, so a mark that changed nothing leaves the summary as it is.
+const listed = new WeakMap();
 
 /**
- * Takes out of a summary the lines that name a field whose mark is gone. The server's title
- * counted the problems at the send, so once one is corrected the title says what is left instead,
- * and with nothing left the summary goes.
+ * Makes the summaries in a slot list the fields marked now inside scope, as the fields show them:
+ * a mark that goes takes its line, a mark replaced by another sentence changes it, a field marked
+ * while the summary is shown gets one. The server's title counted the problems at the send, so
+ * once the list differs the title says what is left instead. With no field and no other problem
+ * left, the summary goes. A field inside a part of the page with a summary of its own
+ * (data-summary="own") belongs to that one.
  */
-export function dropCorrected(slot, field) {
-    let dropped = false;
-    for (const item of slot.querySelectorAll('.form-problem__fields > li')) {
-        if (namedField.get(item) === field) {
-            item.remove();
-            dropped = true;
-        }
-    }
-    if (!dropped) {
-        return;
-    }
+export function mirrorMarks(slot, scope) {
     for (const summary of slot.querySelectorAll('.form-problem')) {
-        const left = summary.querySelectorAll('.form-problem__fields > li, .note-list > li').length;
-        if (left === 0) {
+        const marked = Array.from(scope.querySelectorAll('.field--invalid')).filter(field => {
+            const own = field.closest('[data-summary="own"]');
+            return !own || own.contains(summary);
+        });
+        const lines = linesFor(marked, field =>
+            Array.from(field.querySelectorAll('.field__error'), message => message.textContent.trim()).join(' '));
+        if (signature(lines) === listed.get(summary)) {
+            continue;
+        }
+        listed.set(summary, signature(lines));
+        const others = summary.querySelectorAll('.note-list > li').length;
+        if (lines.length === 0 && others === 0) {
             summary.remove();
             continue;
+        }
+        const list = summary.querySelector('.form-problem__fields');
+        if (list) {
+            list.remove();
+        }
+        if (lines.length > 0) {
+            const notes = summary.querySelector('.note-list');
+            summary.insertBefore(linesList(lines), notes);
         }
         const title = summary.querySelector('.form-problem__title');
         if (title) {
             title.textContent = 'Nothing was sent. Still to correct:';
         }
     }
+}
+
+/**
+ * The status line after a refused form, in the past tense with the count the refusal had, so it
+ * stays true while the tester corrects the fields; the summary says what is left.
+ * what: 'comparison' for the CRD comparison, which sends nothing; left out, a send.
+ */
+export function refusedSaying(count, what) {
+    const problems = count + (count === 1 ? ' problem' : ' problems');
+    return what === 'comparison'
+        ? 'The comparison was refused for ' + problems + ' in the form. Nothing was compared.'
+        : 'The send was refused for ' + problems + ' in the form. Nothing was sent.';
 }
 
 /**
@@ -307,8 +353,8 @@ export function showFormProblem(slot, node) {
 
 /**
  * The summary of a refused form: the server's title, what to do, each field marked by its label,
- * as a button that takes the tester to it, and any problem that names no field on screen. Shown
- * at the top of the form, by showFormProblem.
+ * as a button that takes the tester to it, in the order of the form, and any problem that names no
+ * field on screen. Shown at the top of the form, by showFormProblem.
  *
  * placed, optional: what markFieldErrors pushed to options.placed.
  */
@@ -317,12 +363,12 @@ export function formProblem(error, unplaced, placed) {
     const node = el('div', {class: 'form-problem', role: 'alert', tabIndex: -1},
         el('p', {class: 'form-problem__title'}, error.title),
         error.action ? el('p', null, error.action) : null);
-    if (placed && placed.length > 0) {
-        append(node, el('ul', {class: 'form-problem__fields'}, placed.map(entry => {
-            const item = el('li', null, button(entry.label, () => focusField(entry.field), {class: 'button--text'}), ': ', entry.message);
-            namedField.set(item, entry.field);
-            return item;
-        })));
+    const entries = placed || [];
+    const lines = linesFor(entries.map(entry => entry.field), field =>
+        entries.filter(entry => entry.field === field).map(entry => entry.message).join(' '));
+    listed.set(node, signature(lines));
+    if (lines.length > 0) {
+        append(node, linesList(lines));
     }
     if (unplaced && unplaced.length > 0) {
         append(node, el('ul', {class: 'note-list'}, unplaced.map(problem =>

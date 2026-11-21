@@ -71,7 +71,8 @@ export function createNotifications(spec) {
     const showing = el('p', {class: 'small quiet', aria: {live: 'polite'}});
     const moreButton = button('Show ' + PAGE + ' more', () => { limit += PAGE; applyView(); }, {class: 'button--quiet button--small'});
     const moreRow = el('p', {hidden: true}, moreButton);
-    const sampleSlot = el('div', {class: 'pas-sample'});
+    // Its refusals are listed by its own summary, so the summary of the PAS form leaves them out.
+    const sampleSlot = el('div', {class: 'pas-sample', dataset: {summary: 'own'}});
     const problem = el('div');
     const noSubscription = el('div', {aria: {live: 'polite'}});
     // One line while folded, so a long list does not push a result down. What arrives is announced in that line either way,
