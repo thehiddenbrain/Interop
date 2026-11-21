@@ -637,6 +637,153 @@ class SuiteServiceTest {
         assertThat(bed.ledger.records()).isEmpty();
     }
 
+    /**
+     * The tool stops while a case of a suite waits for its answer. The case may finish, as a run
+     * from a screen may, and its ledger line is there when the stop returns; the next case does
+     * not start. Before, the stop interrupted the case at once and returned.
+     */
+    @Test
+    void stoppingTheToolLetsTheCaseInFlightFinishAndItsLineIsInTheLedgerBeforeTheStopReturns() throws Exception {
+        AtomicReference<SuiteService> held = new AtomicReference<>();
+        AtomicReference<String> id = new AtomicReference<>();
+        java.util.concurrent.CountDownLatch reached = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean interrupted = new java.util.concurrent.atomic.AtomicBoolean();
+        AtomicInteger cases = new AtomicInteger();
+        bed.wrap = runner -> spec -> {
+            if (cases.incrementAndGet() == 1) {
+                reached.countDown();
+                // Waits, as a call to a slow service does, until the tool has begun to stop.
+                for (int i = 0; i < 4000 && (id.get() == null || !Boolean.TRUE.equals(held.get().get(id.get(), false).stopping())); i++) {
+                    try {
+                        Thread.sleep(5);
+                    } catch (InterruptedException e) {
+                        interrupted.set(true);
+                        break;
+                    }
+                }
+            }
+            return runner.run(spec);
+        };
+        SuiteService service = bed.serviceOnItsOwnThread(java.time.Duration.ofSeconds(20));
+        held.set(service);
+        id.set(service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
+                .suiteRunId());
+        assertThat(reached.await(20, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+        service.close();
+
+        assertThat(interrupted.get()).isFalse();
+        assertThat(bed.ledger.records()).hasSize(1);
+        assertThat(cases.get()).isEqualTo(1);
+        SuiteRunView run = service.get(id.get(), true);
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(run.stopReason()).isEqualTo("The tool was shut down while the suite was running.");
+        assertThat(run.results()).extracting(SuiteCaseResult::state).containsExactly(SuiteRowState.DONE, SuiteRowState.NOT_RUN);
+        assertThat(run.results().get(0).runId()).isEqualTo(bed.ledger.records().get(0).runId());
+    }
+
+    /**
+     * A case that never returns: the stop interrupts it only once its bound is over, then comes
+     * back within a few seconds whatever the case does, and nothing escapes it.
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aCaseThatNeverReturnsIsInterruptedOnlyAfterTheBoundAndTheStopStillEnds(CapturedOutput output) throws Exception {
+        java.time.Duration bound = java.time.Duration.ofMillis(400);
+        java.util.concurrent.CountDownLatch reached = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch released = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicLong interruptedAt = new java.util.concurrent.atomic.AtomicLong();
+        bed.wrap = runner -> spec -> {
+            reached.countDown();
+            // Ignores the interrupt, as a call that does not answer to one would, until the test lets it go.
+            while (released.getCount() > 0) {
+                try {
+                    released.await();
+                } catch (InterruptedException e) {
+                    interruptedAt.compareAndSet(0, System.nanoTime());
+                }
+            }
+            throw new IllegalStateException("released for S123456789");
+        };
+        SuiteService service = bed.serviceOnItsOwnThread(bound);
+        try {
+            service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null);
+            assertThat(reached.await(20, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            long began = System.nanoTime();
+
+            service.close();
+
+            long took = System.nanoTime() - began;
+            assertThat(interruptedAt.get()).isNotZero();
+            assertThat(interruptedAt.get() - began).isGreaterThanOrEqualTo(bound.toNanos());
+            assertThat(took).isLessThan(bound.plus(SuiteService.AFTER_INTERRUPT).plusSeconds(5).toNanos());
+            assertThat(output.getAll()).contains("A suite case was still running when the time for the stop ran out (0 seconds). "
+                    + "Its thread is interrupted.")
+                    .contains("The suite case did not end after its thread was interrupted. The tool stops without waiting for it.")
+                    .doesNotContain("Stopping the suites failed").doesNotContain("Exception in thread").doesNotContain("S123456789");
+        } finally {
+            released.countDown();
+        }
+    }
+
+    @Test
+    void theStopIsBoundedByWhatTheWebServerGivesARequestInFlight() {
+        org.p32h.interop.epa.pave.config.OnyxProperties defaults = org.p32h.interop.epa.pave.config.OnyxProperties.defaults();
+        // Spring Boot's default: the graceful stop, each phase of it given 30 seconds unless set.
+        assertThat(SuiteService.stopBound("graceful", java.time.Duration.ofSeconds(30), defaults)).isEqualTo(java.time.Duration.ofSeconds(30));
+        assertThat(SuiteService.stopBound("graceful", java.time.Duration.ofSeconds(45), defaults)).isEqualTo(java.time.Duration.ofSeconds(45));
+        // A server that stops at once gives none: the longest one call can take, never more than 30 seconds.
+        assertThat(SuiteService.stopBound("immediate", java.time.Duration.ofSeconds(45), defaults)).isEqualTo(java.time.Duration.ofSeconds(20));
+        assertThat(SuiteService.stopBound("IMMEDIATE", null, org.p32h.interop.epa.pave.config.OnyxProperties.of(
+                Map.of("connect-timeout-ms", "20000", "read-timeout-ms", "60000")))).isEqualTo(java.time.Duration.ofSeconds(30));
+    }
+
+    /**
+     * The first word of the stop comes as an event, and what a listener throws Spring logs with its
+     * message ("Exception thrown from ApplicationListener handling ContextClosedEvent").
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aFailureWhenTheStopBeginsIsOneEntryUnderAReferenceAndNeverItsMessage(CapturedOutput output) throws Exception {
+        java.lang.reflect.Field runs = SuiteService.class.getDeclaredField("runs");
+        runs.setAccessible(true);
+        SuiteService service = bed.service();
+        runs.set(service, new java.util.LinkedHashMap<Object, Object>() {
+            @Override
+            public java.util.Collection<Object> values() {
+                throw new ExceptionInInitializerError(new IllegalStateException("no plan for S123456789"));
+            }
+        });
+        try (org.springframework.context.support.GenericApplicationContext context =
+                new org.springframework.context.support.GenericApplicationContext()) {
+            context.registerBean("suiteService", SuiteService.class, () -> service);
+            context.refresh();
+        }
+        String all = output.getAll();
+        // Once when the stop begins, once when the service is closed: each its own entry, and nothing of Spring's.
+        assertThat(all.split("Stopping the suites failed inside this tool, reference [0-9a-f-]{36}: "
+                + "java.lang.ExceptionInInitializerError <- java.lang.IllegalStateException", -1)).hasSize(3);
+        assertThat(all).doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
+                .doesNotContain("ApplicationListener").doesNotContain("Exception in thread");
+    }
+
+    @Test
+    void onceTheToolBeginsToStopNoCaseOfASuiteStarts() {
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String before = service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null).suiteRunId();
+        service.onApplicationEvent(new org.springframework.context.event.ContextClosedEvent(
+                new org.springframework.context.support.GenericApplicationContext()));
+        bed.queued.remove().run();
+        assertThat(service.get(before, true).state()).isEqualTo(SuiteState.STOPPED);
+        String after = service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null).suiteRunId();
+        bed.queued.remove().run();
+        SuiteRunView late = service.get(after, true);
+        assertThat(late.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(late.stopReason()).isEqualTo("The tool was shut down while the suite was running.");
+        assertThat(bed.ledger.records()).isEmpty();
+    }
+
     @Test
     @ExtendWith(OutputCaptureExtension.class)
     void aRunnerThatThrowsStillLeavesARowAndNothingAboutTheCaseIsLogged(CapturedOutput output) {

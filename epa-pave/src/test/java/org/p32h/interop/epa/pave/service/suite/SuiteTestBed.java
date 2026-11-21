@@ -137,7 +137,16 @@ public final class SuiteTestBed {
         return service(null);
     }
 
+    /** The same, with the time a case in flight is given to finish once the tool begins to stop. */
+    public SuiteService serviceOnItsOwnThread(java.time.Duration stopBound) {
+        return service(null, stopBound);
+    }
+
     private SuiteService service(Executor executor) {
+        return service(executor, SuiteService.LONGEST_STOP);
+    }
+
+    private SuiteService service(Executor executor, java.time.Duration stopBound) {
         EpaProperties epa = EpaProperties.of(Map.of("mode", mode));
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         if (withRunner) {
@@ -147,6 +156,6 @@ public final class SuiteTestBed {
             beans.addBean("ledger", store);
         }
         return new SuiteService(beans.getBeanProvider(CaseRunner.class), beans.getBeanProvider(RunLedger.class), steps, epa,
-                outcomes(), new SuiteFileReader(new CsvRowsAdapter()), support(epa), executor);
+                outcomes(), new SuiteFileReader(new CsvRowsAdapter()), support(epa), executor, stopBound);
     }
 }
