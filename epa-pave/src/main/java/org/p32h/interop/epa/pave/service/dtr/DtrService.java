@@ -623,9 +623,9 @@ public class DtrService {
      */
     private static void noMaskHandedOn(RunInputs inputs, String questionnaire, String questionnaireResponse) {
         String inQuestionnaire = CarriedMasks.in(questionnaire);
-        inputs.require(inQuestionnaire == null, "questionnaire", CarriedMasks.refusal("The questionnaire", inQuestionnaire, AGAIN));
+        inputs.requireNoMask(inQuestionnaire == null, "questionnaire", CarriedMasks.refusal("The questionnaire", inQuestionnaire, AGAIN));
         String inResponse = CarriedMasks.in(questionnaireResponse);
-        inputs.require(inResponse == null, "questionnaireResponse",
+        inputs.requireNoMask(inResponse == null, "questionnaireResponse",
                 CarriedMasks.refusal("The QuestionnaireResponse so far", inResponse, AGAIN));
     }
 

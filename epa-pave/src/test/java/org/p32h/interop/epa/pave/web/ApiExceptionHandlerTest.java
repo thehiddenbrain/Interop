@@ -50,6 +50,8 @@ class ApiExceptionHandlerTest {
             switch (what) {
                 case "validation" -> throw new ValidationException(List.of(new FieldError("provider.npi",
                         "This is not a valid NPI: the check digit does not match."), new FieldError("member.memberId", "Enter a member ID.")));
+                case "masked" -> throw new ValidationException("A value was masked. Nothing was sent.", List.of(new FieldError("questionnaire",
+                        "Settle the secret.")), "Sending this step again would be refused the same way.");
                 case "bad-input" -> throw new BadInputException("This file is not a Postman collection export.", "Export the collection as v2.1 and upload that file.");
                 case "unresolved" -> throw new UnresolvedVariablesException(EpaOperation.CRD_ORDER_SIGN, List.of("baseUrl", "crdServiceId"),
                         "Onyx Sandbox", "{{baseUrl}}/cds-services/{{crdServiceId}}");
@@ -93,6 +95,15 @@ class ApiExceptionHandlerTest {
     }
 
     private final MockMvc mvc = TestMvc.standalone(new ThrowingController());
+
+    @Test
+    void aRefusalWithAStepOfItsOwnKeepsThatStepAndItsFields() throws Exception {
+        mvc.perform(get("/throw/masked")).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.title").value("A value was masked. Nothing was sent."))
+                .andExpect(jsonPath("$.action").value("Sending this step again would be refused the same way."))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("questionnaire"));
+    }
 
     @Test
     void aValidationFailureIs422WithEveryFieldNamed() throws Exception {

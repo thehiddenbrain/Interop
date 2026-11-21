@@ -53,10 +53,33 @@ class DtrSessionFrontendTest {
         assertThat(source).doesNotContain("The button is below the questions.");
     }
 
+    /**
+     * The refusal of a step for a mask alone is told apart by the step the server gives it, and the
+     * screen then offers that step neither as "choose it again" nor in the result before it. Run
+     * with Node on the refusal as the server words it, and on the usual refusal.
+     */
+    @Test
+    void aRefusalForAMaskAloneIsToldApartFromTheServersOwnWordsWhenNodeRunsIt() throws IOException, InterruptedException {
+        java.nio.file.Path node = CaseCodesFrontendTest.node();
+        org.junit.jupiter.api.Assumptions.assumeTrue(node != null, "Node is not installed here.");
+        String function = CaseCodesFrontendTest.body(read("tab-dtr.js"), "export function refusedForAMask(text) {").replaceFirst("^export ", "") + "\n}";
+        String masked = org.p32h.interop.epa.pave.service.run.RunInputs.MASKED_TITLE + " "
+                + org.p32h.interop.epa.pave.service.run.RunInputs.MASKED_ACTION + " questionnaire: The questionnaire was given masked.";
+        String usual = "The form has 1 problem. Nothing was sent. Correct the marked field and send again. provider.npi: Enter the NPI.";
+        String script = function + "\nconsole.log(JSON.stringify([" + org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(masked)
+                + ", " + org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(usual) + ", '', null].map(refusedForAMask)));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[true,false,false,false]");
+    }
+
     @Test
     void aStepRefusedForAMaskIsNotToldToSendTheSameStepAgainAndTheJudgementIsThisTools() throws IOException {
         String again = CaseCodesFrontendTest.body(read("tab-dtr.js"), "function sayAgain(slot, label) {");
-        assertThat(again).contains("bench.problem.textContent.includes('then fetch the questionnaire package again')").contains("&& !forAMask)");
+        assertThat(again).contains("const forAMask = refusedForAMask(bench.problem.textContent);")
+                .contains("document.querySelector('#panel-dtr .readout__result .nextstep')").contains("earlier.replaceChildren(el('p', {class: 'nextstep__reason'}, 'Not offered now: the step it named was refused because a value '");
         String source = read("dtr-questionnaire.js");
         assertThat(source).contains("'This tool judged the response complete.'").contains("'This tool did not judge the response complete.'")
                 .doesNotContain("The server judged").doesNotContain("The server did not judge");

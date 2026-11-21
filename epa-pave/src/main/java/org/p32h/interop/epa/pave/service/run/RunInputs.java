@@ -44,7 +44,16 @@ public final class RunInputs {
     private static final Pattern CODE = Pattern.compile("\\S+");
 
     private final List<FieldError> errors = new ArrayList<>();
+    /** The refusals made because a value handed on was a mask, which no correction on the form can settle. */
+    private final List<FieldError> masked = new ArrayList<>();
     private final Clock clock;
+
+    /** The head of a refusal made only because values handed on were masked. */
+    public static final String MASKED_TITLE = "A value handed on from the step before was given masked, so this step cannot be built from "
+            + "it. Nothing was sent.";
+    /** Its step: nothing on the form is to correct, so it does not say to send again. */
+    public static final String MASKED_ACTION = "A mask is never sent, and sending this step again would be refused the same way. The "
+            + "problem below says what settles it.";
 
     public RunInputs(Clock clock) {
         this.clock = clock;
@@ -167,7 +176,7 @@ public final class RunInputs {
         // from a screen, a chain or a suite, nothing is sent and the reason is the same.
         CarriedMasks.Found masked = CarriedMasks.first(request.carry());
         if (masked != null) {
-            errors.add(new FieldError("carry." + masked.key(), CarriedMasks.refusal(masked)));
+            requireNoMask(false, "carry." + masked.key(), CarriedMasks.refusal(masked));
         }
         String chainId = Texts.trimToNull(request.chainId());
         if (chainId != null && !RunRequest.NEW_CHAIN.equals(chainId) && !RunStamps.isChainId(chainId)) {
@@ -260,12 +269,25 @@ public final class RunInputs {
         return this;
     }
 
+    /** As {@link #require}, for a value handed on that holds a mask: no correction on the form settles it. */
+    public RunInputs requireNoMask(boolean condition, String field, String message) {
+        if (!condition) {
+            FieldError error = new FieldError(field, message);
+            errors.add(error);
+            masked.add(error);
+        }
+        return this;
+    }
+
     public List<FieldError> errors() {
         return List.copyOf(errors);
     }
 
     /** Refuses the run when any check failed. */
     public void throwIfInvalid() {
+        if (!errors.isEmpty() && masked.size() == errors.size()) {
+            throw new ValidationException(MASKED_TITLE, errors, MASKED_ACTION);
+        }
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
         }

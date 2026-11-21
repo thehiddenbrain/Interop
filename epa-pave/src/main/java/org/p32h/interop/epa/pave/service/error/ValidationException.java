@@ -7,10 +7,22 @@ import java.util.List;
 public class ValidationException extends RuntimeException {
 
     private final List<FieldError> fieldErrors;
+    private final String action;
 
     public ValidationException(String title, List<FieldError> fieldErrors) {
+        this(title, fieldErrors, null);
+    }
+
+    /**
+     * A refusal whose step is not "correct the marked fields and send again": one where nothing in
+     * the form is to correct, so sending again would be refused the same way.
+     *
+     * @param action what to do instead, or null for the usual step
+     */
+    public ValidationException(String title, List<FieldError> fieldErrors, String action) {
         super(title);
         this.fieldErrors = fieldErrors == null ? List.of() : List.copyOf(fieldErrors);
+        this.action = action;
     }
 
     public ValidationException(List<FieldError> fieldErrors) {
@@ -31,5 +43,10 @@ public class ValidationException extends RuntimeException {
 
     public List<FieldError> fieldErrors() {
         return fieldErrors;
+    }
+
+    /** What to do instead of correcting the fields and sending again, or null for that usual step. */
+    public String action() {
+        return action;
     }
 }

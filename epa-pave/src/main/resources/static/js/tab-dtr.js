@@ -502,12 +502,32 @@ async function sendStep(entry, kind) {
     }
 }
 
-/** After a refused step, names the button to press again, beside the summary of what to correct. */
+/**
+ * Whether a refusal was made only because something handed on was masked, read from the refusal as
+ * shown: the server gives such a refusal a step of its own that says sending again would be refused
+ * the same way (RunInputs.MASKED_ACTION).
+ */
+export function refusedForAMask(text) {
+    return typeof text === 'string' && text.includes('sending this step again would be refused the same way');
+}
+
+/**
+ * After a refused step, names the button to press again, beside the summary of what to correct. A
+ * step refused for a mask is not offered again, here or by the next step of the result before it:
+ * only settling the secret and fetching the package again lets it be sent.
+ */
 function sayAgain(slot, label) {
-    // A step refused for a mask in what it would post is sent again only after the package is fetched again, which the
-    // refusal itself says; sending the same step again would be refused the same way.
-    const forAMask = bench.problem.textContent.includes('then fetch the questionnaire package again');
-    if (slot && bench.problem.parentNode === slot && bench.problem.childNodes.length > 0 && !forAMask) {
+    const forAMask = refusedForAMask(bench.problem.textContent);
+    if (forAMask) {
+        // The result's own next step is set aside in place, so its label does not stand over nothing.
+        const earlier = document.querySelector('#panel-dtr .readout__result .nextstep');
+        if (earlier) {
+            earlier.replaceChildren(el('p', {class: 'nextstep__reason'}, 'Not offered now: the step it named was refused because a value '
+                + 'handed on was masked. The refusal above says what settles it.'));
+        }
+        return;
+    }
+    if (slot && bench.problem.parentNode === slot && bench.problem.childNodes.length > 0) {
         slot.append(el('p', {class: 'dtr-step-again'}, 'Then choose "' + label + '" again.'));
     }
 }

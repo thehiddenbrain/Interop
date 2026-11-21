@@ -1777,6 +1777,21 @@ class DtrServiceTest {
                     assertThat(error.message()).startsWith("The QuestionnaireResponse so far, handed on from the step before, was given masked, "
                             + "as [secret heldText], because");
                 }));
+        // Refused for the mask alone: nothing on the form is to correct, so the head says nothing was sent and does not say to send again.
+        assertThatThrownBy(() -> service.runNextQuestion(DtrNextQuestionRequest.builder().questionnaire(masked).provider(provider)
+                .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build(), RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e.getMessage()).isEqualTo(org.p32h.interop.epa.pave.service.run.RunInputs.MASKED_TITLE).endsWith("Nothing was sent.");
+                    assertThat(e.action()).isEqualTo(org.p32h.interop.epa.pave.service.run.RunInputs.MASKED_ACTION).doesNotContain("send again");
+                });
+        // With a problem the tester can correct beside it, the usual refusal stands.
+        org.p32h.interop.epa.pave.service.run.RunInputs mixed = new org.p32h.interop.epa.pave.service.run.RunInputs(java.time.Clock.fixed(
+                java.time.Instant.parse("2026-03-10T15:00:00Z"), java.time.ZoneOffset.UTC))
+                .requireNoMask(false, "questionnaire", questionnaireRefusal).require(false, "provider.npi", "Enter the NPI.");
+        assertThatThrownBy(mixed::throwIfInvalid).isInstanceOfSatisfying(ValidationException.class, e -> {
+            assertThat(e.action()).isNull();
+            assertThat(e.getMessage()).isEqualTo("The form has 2 problems. Nothing was sent.");
+        });
         // The response step sends nothing to the payer, but what it puts together is handed on to PAS, so it is refused the same way.
         assertThatThrownBy(() -> service.runResponse(DtrResponseRequest.builder().questionnaire(masked).provider(provider)
                 .answers(List.of(DtrAnswerInput.of("q1", "Placeholder finding"))).build(), RunOrigin.manual()))

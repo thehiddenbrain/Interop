@@ -77,7 +77,11 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorView> validation(ValidationException e) {
-        return respond(HttpStatus.UNPROCESSABLE_CONTENT, ErrorView.validation(e.getMessage(), e.fieldErrors()));
+        ErrorView view = ErrorView.validation(e.getMessage(), e.fieldErrors());
+        if (e.action() != null) {
+            view = new ErrorView(view.kind(), view.title(), e.action(), view.httpStatus(), view.fieldErrors(), view.issues(), view.reference());
+        }
+        return respond(HttpStatus.UNPROCESSABLE_CONTENT, view);
     }
 
     @ExceptionHandler(BadInputException.class)
