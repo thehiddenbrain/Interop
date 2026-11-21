@@ -21,14 +21,18 @@ try {
     jdk21Found = false
     logger.info(noneFound.message)
 }
-if (!jdk21Found && !JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
-    throw new GradleException("Gradle is running on ${gradleJava}, and no JDK 21 was found on this " +
-            'machine. PAVE needs a JDK 21 or newer. Install a JDK 21, then point Gradle at it: in STS, ' +
-            'set Java home to it on the Import Options page of the Gradle import (tick Override workspace ' +
-            'settings) or under Window, Preferences, Gradle; from a terminal, set JAVA_HOME to it.')
+// The fallback compiles in Gradle's own process, so a Java runtime without a compiler cannot do it.
+def gradleJavaProblem = !JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21) ? 'is older than 21'
+        : !ModuleLayer.boot().findModule('jdk.compiler').present ? 'is a Java runtime without a compiler' : null
+if (!jdk21Found && gradleJavaProblem != null) {
+    throw new GradleException("Gradle is running on ${gradleJava}, which ${gradleJavaProblem}, and Gradle " +
+            'found no JDK 21. PAVE needs Gradle to find a JDK 21, or to run on a JDK 21 or newer. Point ' +
+            'Gradle at a JDK 21 or newer (install a JDK 21 if there is none): in STS, set Java home to it ' +
+            'on the Import Options page of the Gradle import (tick Override workspace settings) or under ' +
+            'Window, Preferences, Gradle; from a terminal, set JAVA_HOME to it.')
 }
 if (!jdk21Found) {
-    logger.lifecycle("No JDK 21 was found, so PAVE is compiled for Java 21 with the Java that runs Gradle: ${gradleJava}.")
+    logger.lifecycle("Gradle found no JDK 21, so PAVE is compiled for Java 21 with the Java that runs Gradle: ${gradleJava}.")
 }
 
 java {

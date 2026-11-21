@@ -85,7 +85,7 @@ if [ ! -f "$JAR" ]; then
     echo "run ./gradlew clean build to run them)."
     if [ "$major" != "21" ]; then
         echo "Note: the build compiles with a JDK 21 toolchain when Gradle finds one. ${JAVA} is Java ${version};" >&2
-        echo "if no JDK 21 is installed, the build compiles for Java 21 with this Java and says so." >&2
+        echo "if Gradle finds no JDK 21, the build compiles for Java 21 with this Java when it is a JDK, and says so." >&2
     fi
     ./gradlew --console=plain bootJar
 fi
