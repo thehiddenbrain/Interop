@@ -54,6 +54,15 @@ class DtrSessionFrontendTest {
     }
 
     @Test
+    void theSessionsCopyOfTheNextStepButtonIsQuietBecauseTheResultHoldsThePrimaryOne() throws IOException {
+        String source = read("dtr-questionnaire.js");
+        assertThat(CaseCodesFrontendTest.body(source, "function nextStepLine() {"))
+                .contains("button(control.label, control.run, {class: 'button--quiet'})").doesNotContain("button--primary");
+        assertThat(CaseCodesFrontendTest.body(source, "function withdrawFromResult() {"))
+                .contains("button(control.label, control.run, {class: 'button--primary'})");
+    }
+
+    @Test
     void aStepScrollsToItsVerdictAndAnAdaptiveStepFocusesTheQuestionItAsked() throws IOException {
         String step = CaseCodesFrontendTest.body(read("tab-dtr.js"), "async function sendStep(entry, kind) {");
         assertThat(step).doesNotContain("session.node.scrollIntoView").contains("closest('.result')")

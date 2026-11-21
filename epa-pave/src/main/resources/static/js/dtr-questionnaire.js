@@ -422,13 +422,15 @@ export function createSession(packageEnvelope, hooks) {
             return null;
         }
         const control = pending.length === 0 && latest.envelope && hooks.nextControl ? hooks.nextControl(step, latest.envelope) : null;
+        // The result's own Next step row holds the primary button of this name, so the session's copy is quiet: one primary per
+        // name on a tab.
         return el('div', {class: 'dtr-next'},
             verdict ? maskedReading(verdict.maskedReading) : null,
             el('p', null, el('span', {class: 'quiet'}, 'Still to do, as the latest result says: '), el('strong', null, step.headline),
                 step.reason ? el('span', {class: 'quiet'}, ' ' + step.reason) : null),
             pending.length > 0 ? el('p', {class: 'dtr-withdrawn'}, withheldWords(pending)) : null,
             notCarried,
-            control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--primary'})) : null);
+            control ? el('div', {class: 'button-row'}, button(control.label, control.run, {class: 'button--quiet'})) : null);
     }
 
     /** Opens another questionnaire of the package. What was typed into the one left stays with it. */
