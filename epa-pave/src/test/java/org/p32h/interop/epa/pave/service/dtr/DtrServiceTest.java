@@ -778,6 +778,20 @@ class DtrServiceTest {
         // The stubbed request went out with no Authorization header while signing in is off, so that, not a
         // wrong credential, is the likely cause (plan G item 10; UnsignedNextStepTest holds the case with a header).
         assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: switch signing in on, then send again.");
+        // A request that went out with an Authorization header and was refused keeps the step about the credentials, at the
+        // level of the service too.
+        org.p32h.interop.epa.pave.model.VendorExchange plain = DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 401, outcome);
+        org.p32h.interop.epa.pave.model.WireRequest sent = plain.request();
+        org.p32h.interop.epa.pave.model.VendorExchange signed = new org.p32h.interop.epa.pave.model.VendorExchange(
+                new org.p32h.interop.epa.pave.model.WireRequest(sent.method(), sent.url(), sent.urlTemplate(),
+                        List.of(new org.p32h.interop.epa.pave.model.WireHeader("Authorization", "Bearer [redacted]")), sent.body(), true,
+                        sent.note(), sent.secrets()),
+                plain.httpStatus(), plain.responseHeaders(), plain.responseBody(), plain.responseBytes(), plain.json(), plain.parseError(),
+                plain.elapsedMillis(), plain.failureType(), plain.failureDetail(), plain.signals(), plain.scenarioId(), plain.scenarioNote(),
+                plain.bodyNotes(), plain.reached());
+        RunEnvelope<DtrDetail> refused = service(stub(signed), "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
+        assertThat(refused.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
+        assertThat(refused.nextStep().headline()).isEqualTo("Next: check the credentials on the Config tab.");
         RunEnvelope<DtrDetail> missing = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 404, "<html>Not Found</html>")),
                 "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(missing.verdict().outcomeCode()).isEqualTo("REJECTED");
