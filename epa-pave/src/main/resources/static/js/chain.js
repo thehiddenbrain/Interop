@@ -135,6 +135,14 @@ export function createChain(app, bar) {
             el('span', {class: 'visually-hidden'}, ': ' + text.slice(colon + 2))];
     }
 
+    /**
+     * Where the closed chain is found again. A link opens it whatever the Chains list is set to show: the list leaves out a
+     * chain of one run by default, and a closed chain is often one.
+     */
+    function keptIn(closed) {
+        return ['The ledger keeps it: ', el('a', {href: '#history/chains/' + encodeURIComponent(closed)}, 'open it in History'), '.'];
+    }
+
     function actions() {
         return el('div', {class: 'button-row chain-bar__actions'},
             button('Open the whole journey', () => app.navigate('history/chains/' + chainId), {class: 'button--quiet button--small'}),
@@ -149,8 +157,8 @@ export function createChain(app, bar) {
         // What the closed case carried to its next step belongs to that case and goes with it.
         app.forgetCarried();
         draw();
-        app.notice('The chain ' + closed + ' is closed in this page. The ledger keeps it, and History lists it under Chains. '
-            + 'The next run from this case starts a new chain.', {plain: true});
+        app.notice(['The chain ' + closed + ' is closed in this page. ', keptIn(closed), ' The next run from this case starts a new chain.'],
+            {plain: true});
     }
 
     return {
@@ -186,8 +194,8 @@ export function createChain(app, bar) {
                 chainId = envelope.chainId;
                 chainKey = sentKey;
                 if (closed) {
-                    app.notice('This run started a new chain, because its case is not the case of chain ' + closed
-                        + '. The ledger keeps that chain, and History lists it under Chains.', {plain: true});
+                    app.notice(['This run started a new chain, because its case is not the case of chain ' + closed + '. ', keptIn(closed)],
+                        {plain: true});
                 }
                 refresh();
             }

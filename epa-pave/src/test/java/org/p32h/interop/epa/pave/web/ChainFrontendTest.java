@@ -66,6 +66,13 @@ class ChainFrontendTest {
         String result = CaseCodesFrontendTest.body(create, "onResult(envelope) {");
         assertThat(result).contains("app.notice(").contains("chainKey = sentKey").contains("'This run started a new chain, because its case is not the case of chain '");
         assertThat(CaseCodesFrontendTest.body(create, "function startNewCase() {")).contains("chainKey = null;");
+        // Both notices say where the closed chain is found: a link that opens it whatever the Chains list is set to show,
+        // since the list leaves out a chain of one run by default and a closed chain is often one.
+        assertThat(CaseCodesFrontendTest.body(create, "function keptIn(closed) {"))
+                .contains("el('a', {href: '#history/chains/' + encodeURIComponent(closed)}, 'open it in History')");
+        assertThat(result).contains("keptIn(closed)");
+        assertThat(CaseCodesFrontendTest.body(create, "function startNewCase() {")).contains("keptIn(closed)");
+        assertThat(create).doesNotContain("History lists it under Chains");
     }
 
     @Test
@@ -95,7 +102,7 @@ class ChainFrontendTest {
                 "const api = {get: async () => ({kind: 'ok', body: {}})};",
                 "let current = {memberId: 'S123456789', npi: '1234567893', codes: ['E0470']};",
                 "const notices = [];",
-                "const app = {caseContext: {summary: () => current}, notice: text => notices.push(text), navigate() {}, forgetCarried() {}};");
+                "const app = {caseContext: {summary: () => current}, notice: text => notices.push([text].flat(Infinity).filter(part => typeof part === 'string').join('')), navigate() {}, forgetCarried() {}};");
         String steps = String.join("\n",
                 "const chain = createChain(app, {hidden: true});",
                 "const seen = [];",
@@ -119,13 +126,21 @@ class ChainFrontendTest {
     }
 
     @Test
-    void chainsListsJourneysOfTwoOrMoreStepsUnlessAskedAndRowsLeadWithTheTime() throws IOException {
+    void chainsListsJourneysOfTwoOrMoreRunsUnlessAskedAndRowsLeadWithTheTime() throws IOException, InterruptedException {
         String history = read("tab-history.js");
         String view = CaseCodesFrontendTest.body(history, "function chainsView() {");
-        assertThat(view).contains("'Show chains of one step'").contains("stage.latest").contains(">= 2")
-                .contains("'1 chain of one step is not listed.'").contains("' chains of one step are not listed.'")
+        assertThat(view).contains("'Show chains of one run'")
+                .contains("'1 chain of one run is not listed.'").contains("' chains of one run are not listed.'")
                 .doesNotContain("'Member, as recorded. '").doesNotContain("Chain id; no member recorded.")
-                .doesNotContain("ticked on the CRD tab")
-                .contains("'No chain of two or more steps has a run in this range. A chain starts with the first run of a case while '");
+                .doesNotContain("ticked on the CRD tab").doesNotContain("of one step")
+                .contains("'No chain of two or more runs has a run in this range. A chain starts with the first run of a case while '");
+        // Runs are counted, not stages: a PAS submit and its inquiry are two runs in one stage, and a journey.
+        Assumptions.assumeTrue(CaseCodesFrontendTest.node() != null, "Node is not installed here; the text checks still apply.");
+        String two = CaseCodesFrontendTest.body(view, "function ofTwoOrMore(chain) {") + "\n}\n";
+        String pasTwice = "{runCount: 2, stages: [{latest: null}, {latest: null}, {latest: {}}]}";
+        String crdOnce = "{runCount: 1, stages: [{latest: {}}, {latest: null}, {latest: null}]}";
+        String acrossTwo = "{runCount: 2, stages: [{latest: {}}, {latest: {}}, {latest: null}]}";
+        assertThat(run(two + "console.log(JSON.stringify([ofTwoOrMore(" + pasTwice + "), ofTwoOrMore(" + crdOnce + "), ofTwoOrMore("
+                + acrossTwo + ")]));")).isEqualTo("[true,false,true]");
     }
 }

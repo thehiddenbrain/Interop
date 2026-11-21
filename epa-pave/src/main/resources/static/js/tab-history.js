@@ -157,8 +157,8 @@ function chainsView() {
     const utcNote = el('p', {class: 'small history-utc-note'});
     const problem = el('div');
     const list = el('div', {class: 'chain-list'});
-    // With "Run as part of a chain" on by default, every one-off run is a chain of one in the ledger,
-    // so the list leaves those out unless asked: a journey is two steps or more.
+    // With "Run as part of a chain" on by default, every one-off run is a chain of one run in the ledger,
+    // so the list leaves those out unless asked: a journey is two runs or more, in one stage or several.
     const showOne = el('input', {type: 'checkbox', id: 'chains-show-one'});
     let listed = null;      // the chains of the last answer, drawn again when the box changes
     const detail = el('div', {class: 'readout', role: 'region', tabIndex: 0, aria: {label: 'The chain on screen'}});
@@ -170,7 +170,7 @@ function chainsView() {
                 el('div', {class: 'field-grid'}, from.node, to.node),
                 aboutStep(utcNote),
                 problem,
-                el('label', {class: 'choice', htmlFor: 'chains-show-one'}, showOne, 'Show chains of one step'),
+                el('label', {class: 'choice', htmlFor: 'chains-show-one'}, showOne, 'Show chains of one run'),
                 el('div', {class: 'button-row'}, el('button', {type: 'submit', class: 'button button--quiet'}, 'List chains'))),
             list));
     form.addEventListener('submit', event => {
@@ -207,20 +207,23 @@ function chainsView() {
         drawList(listed);
     }
 
-    /** A chain is a journey once two of its stages hold a run. */
+    /**
+     * A chain is a journey once it holds two runs. Runs are counted, not stages: a PAS submit and its inquiry, or a DTR
+     * package and its response, are two runs in one stage and a journey all the same.
+     */
     function ofTwoOrMore(chain) {
-        return (chain.stages || []).filter(stage => stage.latest).length >= 2;
+        return Number(chain.runCount) >= 2;
     }
 
     function drawList(all) {
         const chains = showOne.checked ? all : all.filter(ofTwoOrMore);
         const hidden = all.length - chains.length;
         const hiddenLine = hidden === 0 ? null : el('p', {class: 'quiet small'},
-            hidden === 1 ? '1 chain of one step is not listed.' : hidden + ' chains of one step are not listed.');
+            hidden === 1 ? '1 chain of one run is not listed.' : hidden + ' chains of one run are not listed.');
         if (chains.length === 0) {
             const troubled = context.health.troubled();
             fill(list, el('p', {class: 'quiet'},
-                'No chain of two or more steps has a run in this range. A chain starts with the first run of a case while '
+                'No chain of two or more runs has a run in this range. A chain starts with the first run of a case while '
                     + '"Run as part of a chain" is ticked, which it is when the page opens.',
                 troubled ? ' The ledger reports a problem, above: runs it did not record, and lines it could not read, are in no chain.' : null),
                 hiddenLine);
