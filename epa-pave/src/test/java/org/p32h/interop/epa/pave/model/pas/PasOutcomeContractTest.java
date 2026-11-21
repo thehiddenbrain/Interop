@@ -73,13 +73,22 @@ class PasOutcomeContractTest {
 
     @Test
     void theFaultsAndNotFoundOutcomesReadTheSameInEveryProtocolSoHistoryReadsAlike() {
-        for (String shared : List.of("REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE", "MALFORMED_RESPONSE")) {
+        for (String shared : List.of("REJECTED", "SERVICE_ERROR", "TIMEOUT", "UNREACHABLE")) {
             CrdOutcome crd = CrdOutcome.valueOf(shared);
             assertThat(PasOutcome.valueOf(shared).label()).as(shared).isEqualTo(crd.label());
             assertThat(SubscriptionOutcome.valueOf(shared).label()).as(shared).isEqualTo(crd.label());
             assertThat(PasOutcome.valueOf(shared).tone()).isEqualTo(crd.tone());
             assertThat(SubscriptionOutcome.valueOf(shared).tone()).isEqualTo(crd.tone());
         }
+        // An unusable answer reads alike on PAS and its subscriptions. CRD's label also names a readable answer that is not
+        // CDS Hooks, such as an OperationOutcome at HTTP 200, which History would otherwise call unread (plan I item 2); it
+        // still says everything the shared label says, and its tone is the same.
+        PasOutcome malformed = PasOutcome.MALFORMED_RESPONSE;
+        assertThat(SubscriptionOutcome.MALFORMED_RESPONSE.label()).isEqualTo(malformed.label());
+        assertThat(CrdOutcome.MALFORMED_RESPONSE.label()).startsWith("The service answered with no body, with a body that could not be read")
+                .contains("something other than a CDS Hooks response");
+        assertThat(CrdOutcome.MALFORMED_RESPONSE.tone()).isEqualTo(malformed.tone());
+        assertThat(SubscriptionOutcome.MALFORMED_RESPONSE.tone()).isEqualTo(malformed.tone());
         for (String shared : List.of("MEMBER_NOT_FOUND", "PROVIDER_NOT_FOUND")) {
             assertThat(PasOutcome.valueOf(shared).label()).as(shared).isEqualTo(CrdOutcome.valueOf(shared).label());
         }

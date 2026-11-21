@@ -148,6 +148,10 @@ public class CrdService {
             // The codes that went out are the ones in the tester's body, not the ones left on the form.
             draft.procedureCodes(orders.stream().map(SentOrder::code).filter(Texts::present).distinct().toList());
         }
+        // Nothing was sent: no answer to read, and an outcome rule would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(operation, call, exchange, draft, request);
+        }
         Interpreted read;
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
@@ -228,7 +232,7 @@ public class CrdService {
 
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = followedFrom(CrdVerdicts.nextStep(reading, exchange, runId), runId);
+        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.

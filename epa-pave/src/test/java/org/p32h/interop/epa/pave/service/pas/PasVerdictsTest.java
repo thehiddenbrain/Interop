@@ -548,4 +548,22 @@ class PasVerdictsTest {
                         Presence.VALUE),
                 new DeterminationRow(null, "Documentation request", null, "Not shown as closed", "communicationRequest", true, Presence.ABSENT));
     }
+
+    @Test
+    void anInquiryIsToldApartFromItsSubmissionByItsHeadlineAndTheClaimItAskedAbout() {
+        PasReading approved = decidedAs("A1");
+        VerdictView inquiry = PasVerdicts.verdict(approved, response(200, "{}"), EpaOperation.PAS_INQUIRE, "claim-1", "run-1");
+        assertThat(inquiry.headline()).isEqualTo("Inquiry: the prior authorization is approved.");
+        assertThat(inquiry.supporting().get(0)).isEqualTo("Asked about claim claim-1, sent by run run-1.");
+        assertThat(inquiry.outcomeCode()).isEqualTo("APPROVED");
+        // With no run known, the claim alone; with no claim, no line.
+        assertThat(PasVerdicts.verdict(approved, response(200, "{}"), EpaOperation.PAS_INQUIRE, "claim-1", null).supporting())
+                .contains("Asked about claim claim-1.");
+        assertThat(PasVerdicts.verdict(approved, response(200, "{}"), EpaOperation.PAS_INQUIRE, null, null).supporting())
+                .noneMatch(line -> line.startsWith("Asked about claim"));
+        // A submission is said as before.
+        VerdictView submission = PasVerdicts.verdict(approved, response(200, "{}"), EpaOperation.PAS_SUBMIT, "claim-1", "run-1");
+        assertThat(submission.headline()).isEqualTo("The prior authorization is approved.").doesNotStartWith("Inquiry");
+        assertThat(submission.supporting()).noneMatch(line -> line.startsWith("Asked about claim"));
+    }
 }

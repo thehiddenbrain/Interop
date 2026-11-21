@@ -24,18 +24,23 @@ import org.p32h.interop.epa.pave.model.Tone;
  *
  * <p>The five faults and the two not-found outcomes carry the same names as in the CRD
  * vocabulary, so the history reads alike across tabs.
+ *
+ * <p>A step that went right is {@link Tone#NEUTRAL}, not {@link Tone#ACTION}: orange keeps the one
+ * meaning a tester can name, that there is something for them to put right on this step, which is
+ * true of {@link #RESPONSE_NOT_COMPLETE} and {@link #REQUIRED_UNANSWERED} and of no step that loaded
+ * a package, returned the next question or completed the response.
  */
 public enum DtrOutcome implements OutcomeCode {
 
-    PACKAGE_LOADED("The questionnaire package was loaded", Tone.ACTION, false),
+    PACKAGE_LOADED("The questionnaire package was loaded", Tone.NEUTRAL, false),
     PACKAGE_INCOMPLETE("The package does not hold every questionnaire that was asked for", Tone.NO_ANSWER, false),
     NO_QUESTIONNAIRE("The service returned no questionnaire", Tone.NO_ANSWER, false),
     MALFORMED_QUESTIONNAIRE("The service answered, but what it sent cannot be used as a questionnaire", Tone.FAULT, true),
-    NEXT_QUESTION("The service returned the next question", Tone.ACTION, false),
+    NEXT_QUESTION("The service returned the next question", Tone.NEUTRAL, false),
     NO_QUESTION_RETURNED("The service returned no question and did not report the response as complete", Tone.NO_ANSWER, false),
     UNRECOGNISED_STATUS("The service returned a response status this tool does not recognise", Tone.NO_ANSWER, false),
-    RESPONSE_COMPLETED("The questionnaire response is complete", Tone.ACTION, false),
-    NOTHING_REQUIRED("The response is complete and no question was asked", Tone.ACTION, false),
+    RESPONSE_COMPLETED("The questionnaire response is complete", Tone.NEUTRAL, false),
+    NOTHING_REQUIRED("The response is complete and no question was asked", Tone.NEUTRAL, false),
     RESPONSE_NOT_COMPLETE("The questionnaire response is not complete", Tone.ACTION, false),
     REQUIRED_UNANSWERED("A required question has no answer", Tone.ACTION, false),
     MEMBER_NOT_FOUND("The service does not recognise this member", Tone.DATA, false),

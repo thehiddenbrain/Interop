@@ -68,7 +68,8 @@ public class OnyxAccess {
         }
         OnyxTokenService.TokenResult token = tokens.token();
         if (token.failure() != null) {
-            return Exchanges.unavailable(Exchanges.wireRequest(call, body, options, false, token.failure()), 0L, token.failure());
+            return Exchanges.notSignedIn(Exchanges.wireRequest(call, body, options, false, token.failure()),
+                    Exchanges.notSignedInType(token.cause()), token.failure());
         }
         return executor.execute(client, call, body, token.token() == null ? options : options.withBearerToken(token.token()));
     }

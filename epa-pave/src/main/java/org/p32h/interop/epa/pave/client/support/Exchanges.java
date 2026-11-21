@@ -346,6 +346,31 @@ public final class Exchanges {
         return failed(request, elapsedMillis, OnyxFailureType.UNAVAILABLE, detail, Reached.CANNOT_SAY);
     }
 
+    /**
+     * Describes a call this tool did not send because it could not sign in. Nothing reached the
+     * service, so this is neither the connection to it nor an answer of it, and it is kept apart
+     * from {@link #unavailable} so that no outcome rule can read it as the service being down.
+     *
+     * @param type   {@link OnyxFailureType#NOT_SIGNED_IN} or {@link OnyxFailureType#TOKEN_ENDPOINT_FAULT}
+     * @param detail the token service's own sentence, which names settings and states, never a value
+     */
+    public static VendorExchange notSignedIn(WireRequest request, OnyxFailureType type, String detail) {
+        if (type != OnyxFailureType.NOT_SIGNED_IN && type != OnyxFailureType.TOKEN_ENDPOINT_FAULT) {
+            throw new IllegalArgumentException("A call that was not signed in for is NOT_SIGNED_IN or TOKEN_ENDPOINT_FAULT.");
+        }
+        return failed(request, 0L, type, detail, Reached.NO);
+    }
+
+    /**
+     * The failure type of a call no token could be obtained for. A cause that is not stated is
+     * taken as the token endpoint, never as the tester's settings: a finding about the
+     * configuration sends the tester to change settings that may be right.
+     */
+    public static OnyxFailureType notSignedInType(OnyxTokenService.TokenFailure cause) {
+        return cause == OnyxTokenService.TokenFailure.SETTING_MISSING || cause == OnyxTokenService.TokenFailure.CLIENT_REFUSED
+                ? OnyxFailureType.NOT_SIGNED_IN : OnyxFailureType.TOKEN_ENDPOINT_FAULT;
+    }
+
     static VendorExchange failed(WireRequest request, long elapsedMillis, OnyxFailureType type, String detail, Reached reached) {
         return new VendorExchange(request, null, List.of(), null, null, null, null, elapsedMillis, type, detail, Set.of(), null, null,
                 List.of(), reached);

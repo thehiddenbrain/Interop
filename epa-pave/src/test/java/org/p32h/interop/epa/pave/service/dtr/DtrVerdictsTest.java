@@ -190,4 +190,19 @@ class DtrVerdictsTest {
         assertThat(DtrVerdicts.nextStep(EpaOperation.DTR_NEXT_QUESTION, mapper.readNextQuestion(down, null), down, handoff()).action())
                 .isEqualTo(NextAction.CHECK_ENVIRONMENT);
     }
+
+    @Test
+    void anEmptyPackageIsRecordedAndReportedByItsRunAndNeverSaidAsSomethingThisToolCannotSay() {
+        VendorExchange exchange = DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 200, bundle());
+        DtrReading empty = as(packageOf(), DtrOutcome.NO_QUESTIONNAIRE);
+        NextStepView named = DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, empty, exchange, handoff(), "run-1");
+        assertThat(named.headline()).isEqualTo("Next: record run run-1 as \"no questionnaire returned\" and report it to the people who look "
+                + "after the service, with what CRD said about documentation for this order.");
+        assertThat(named.reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer that no "
+                + "documentation is needed.");
+        assertThat(named.action()).isEqualTo(NextAction.REVIEW);
+        NextStepView unnamed = DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, empty, exchange, handoff());
+        assertThat(unnamed.headline()).startsWith("Next: record this run as \"no questionnaire returned\"");
+        assertThat(List.of(named.headline(), named.reason(), unnamed.reason())).noneMatch(line -> line.contains("cannot say"));
+    }
 }

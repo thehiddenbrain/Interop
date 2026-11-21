@@ -219,6 +219,10 @@ public class PasService {
             // The codes that went out are the ones in the tester's body, not the ones left on the form.
             draft.procedureCodes(sent.codes());
         }
+        // Nothing was sent: no answer to read, and an outcome rule would read the missing one as the service being down.
+        if (RunSupport.notSignedIn(exchange)) {
+            return support.notSignedIn(operation, call, exchange, draft, request);
+        }
         Interpreted read;
         try {
             // Only the reading and wording of the response is inside the try. The ledger write is
@@ -288,10 +292,11 @@ public class PasService {
         addIfPresent(findings, support.scriptFinding(call));
         addIfPresent(findings, support.slowFinding(timing));
 
-        VerdictView verdict = PasVerdicts.verdict(reading, exchange, operation);
+        VerdictView verdict = PasVerdicts.verdict(reading, exchange, operation, known.get(RunRecord.CORR_CLAIM_ID),
+                known.get(RunRecord.CORR_RUN_ID));
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 PasOutcome.values(), PasCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = PasVerdicts.nextStep(reading, exchange, operation, followsRunId, runId);
+        NextStepView nextStep = support.unsignedNextStep(PasVerdicts.nextStep(reading, exchange, operation, followsRunId, runId), exchange);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
         MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.PAS);

@@ -314,7 +314,7 @@ public record RunRecord(
         slow = slow != null && slow;
         recordType = recordType == null ? TYPE_RUN : recordType;
         if (TYPE_RUN.equals(recordType) && operation != null) {
-            boolean refused = ERROR_BLOCKED.equals(errorType) || RunOutcome.BLOCKED.name().equals(outcome);
+            boolean refused = !wentOut(errorType, outcome);
             answeredBy = answeredBy == null ? AnsweredBy.of(operation, profile, refused) : answeredBy;
             if (refused || !operation.outbound()) {
                 elapsedMillis = null;
@@ -752,6 +752,21 @@ public record RunRecord(
                 value == null || statement(what, value) || !holdsMember.test(value) ? value : notKept(what, value);
         return toBuilder().note(checked.apply(note, NOTE_NOT_KEPT)).testerRef(checked.apply(testerRef, TESTER_REF_NOT_KEPT))
                 .expected(checked.apply(expected, EXPECTED_NOT_KEPT)).caseExpected(checked.apply(caseExpected, EXPECTED_NOT_KEPT)).build();
+    }
+
+    /**
+     * True when the call this line records went out: false when the guardrail refused it or this
+     * tool could not sign in for it. A refused run has no service time and is not a step that was
+     * sent, whatever else the line says.
+     */
+    public boolean wentOut() {
+        return wentOut(errorType, outcome);
+    }
+
+    /** The one test of a run that did not go out, shared by the constructor and {@link #wentOut()}. */
+    private static boolean wentOut(String errorType, String outcome) {
+        return !(ERROR_BLOCKED.equals(errorType) || RunOutcome.BLOCKED.name().equals(outcome)
+                || RunOutcome.NOT_SIGNED_IN.name().equals(outcome));
     }
 
     /** True for a case line, which records the result of a chain case and no call. */

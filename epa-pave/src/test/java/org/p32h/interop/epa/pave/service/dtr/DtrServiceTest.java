@@ -267,7 +267,7 @@ class DtrServiceTest {
         // What happened, with the kind of questionnaire stated beside it and the reason it was called that.
         assertThat(result.verdict().headline()).isEqualTo("The questionnaire package was loaded with one questionnaire.");
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_LOADED");
-        assertThat(result.verdict().tone()).isEqualTo(Tone.ACTION);
+        assertThat(result.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario dtr-01-static-linear answered");
         assertThat(result.verdict().supporting()).contains("Sleep study criteria (placeholder): static, because it declares the standard "
                 + "questionnaire profile http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-std-questionnaire. It holds 4 questions, "
@@ -402,12 +402,13 @@ class DtrServiceTest {
                 + "provide for that: a package bundle starts with its questionnaire (dtrb-1).", "This tool reports what arrived. It does not turn an "
                 + "empty package into an answer that no documentation is needed.");
         assertThat(empty.verdict().tone()).isEqualTo(Tone.NO_ANSWER);
-        assertThat(empty.nextStep().headline()).isEqualTo("Next: read the response detail below, and check it against what CRD said about "
-                + "documentation for this order.");
+        // Recorded and reported by its own run, which is the action PAS gives an answer it cannot act on (plan L).
+        assertThat(empty.nextStep().headline()).isEqualTo("Next: record run " + empty.runId() + " as \"no questionnaire returned\" and "
+                + "report it to the people who look after the service, with what CRD said about documentation for this order.");
         assertThat(empty.nextStep().reason()).isEqualTo("The service returned no questionnaire. This tool does not take that as an answer "
-                + "that no documentation is needed, so it cannot say what should happen next.");
+                + "that no documentation is needed.");
         assertThat(askedNothing.verdict().headline()).isEqualTo("The response is complete and no question was asked.");
-        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.ACTION);
+        assertThat(askedNothing.verdict().tone()).isEqualTo(Tone.NEUTRAL);
 
         // The grid of the empty package still lists what would have answered, as not returned.
         assertThat(empty.determination()).extracting(DeterminationRow::label, DeterminationRow::presence)
@@ -773,7 +774,9 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> unauthorised = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 401, outcome)), "mock",
                 Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(unauthorised.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
-        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: check the credentials on the Config tab.");
+        // The stubbed request went out with no Authorization header while signing in is off, so that, not a
+        // wrong credential, is the likely cause (plan G item 10; UnsignedNextStepTest holds the case with a header).
+        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: switch signing in on, then send again.");
         RunEnvelope<DtrDetail> missing = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 404, "<html>Not Found</html>")),
                 "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(missing.verdict().outcomeCode()).isEqualTo("REJECTED");
@@ -1192,7 +1195,7 @@ class DtrServiceTest {
         assertStep(fourth, "RESPONSE_COMPLETED", 3, 3, "completed", List.of(), Map.of("mri-1-therapy", List.of("No (no)"),
                 "mri-2-red-flag", List.of("true"), "mri-3-red-flag-detail", List.of("Placeholder description of the symptom")));
         assertThat(fourth.verdict().headline()).isEqualTo("The questionnaire response is complete.");
-        assertThat(fourth.verdict().tone()).isEqualTo(Tone.ACTION);
+        assertThat(fourth.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         assertThat(fourth.detail().form().complete()).isTrue();
         assertThat(fourth.expectation().result()).isEqualTo(TestResult.PASS);
 

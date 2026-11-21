@@ -2,12 +2,18 @@ package org.p32h.interop.epa.pave.model;
 
 /**
  * Outcomes that say something about this tool and not about the service, so every protocol shares
- * them: the guardrail refused to send, or the tool failed after the call was made.
+ * them: the guardrail refused to send, the tool could not sign in, or the tool failed after the
+ * call was made.
  */
 public enum RunOutcome implements OutcomeCode {
 
     /** The production guardrail refused a write. Nothing was sent. */
     BLOCKED("Blocked: nothing was sent", Tone.BLOCKED, false),
+    /**
+     * Authentication is on and this tool obtained no access token, so nothing was sent. Neutral, not
+     * the guardrail's purple: that frame keeps the one meaning the colour key gives it.
+     */
+    NOT_SIGNED_IN("Not sent: this tool could not sign in", Tone.NEUTRAL, false),
     /** The service was called and this tool then failed to read its answer. */
     TOOL_ERROR("This tool failed after the call was made", Tone.FAULT, true);
 

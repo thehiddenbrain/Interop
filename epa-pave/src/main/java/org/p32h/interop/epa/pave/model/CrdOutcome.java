@@ -32,7 +32,9 @@ public enum CrdOutcome implements OutcomeCode {
     SERVICE_ERROR("The service failed", Tone.FAULT, true),
     TIMEOUT("The service did not answer in time", Tone.FAULT, true),
     UNREACHABLE("The service could not be reached", Tone.FAULT, true),
-    MALFORMED_RESPONSE("The service answered with no body, or with a body that could not be read", Tone.FAULT, true);
+    /** Also a readable answer that is not a CDS Hooks response, such as a FHIR OperationOutcome at HTTP 200: the label says so. */
+    MALFORMED_RESPONSE("The service answered with no body, with a body that could not be read, or with something other than a CDS "
+            + "Hooks response", Tone.FAULT, true);
 
     private final String label;
     private final Tone tone;

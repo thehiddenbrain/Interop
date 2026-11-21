@@ -255,7 +255,7 @@ class CrdControllerTest {
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
-                .andExpect(jsonPath("$.outcomes.length()").value(22))
+                .andExpect(jsonPath("$.outcomes.length()").value(23))
                 .andExpect(jsonPath("$.elements.length()").value(7))
                 // The words for every next action, so the History tab can say what a run's next step was.
                 .andExpect(jsonPath("$.nextActions.length()").value(org.p32h.interop.epa.pave.model.NextAction.values().length))

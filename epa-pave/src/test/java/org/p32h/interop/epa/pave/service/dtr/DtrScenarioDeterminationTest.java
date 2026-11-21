@@ -379,8 +379,8 @@ class DtrScenarioDeterminationTest {
         assertThat(nothingRequired.outcome()).isEqualTo(DtrOutcome.NOTHING_REQUIRED);
         assertThat(noQuestionnaire.outcome().label()).isNotEqualTo(nothingRequired.outcome().label());
         assertThat(noQuestionnaire.outcome().tone()).isEqualTo(Tone.NO_ANSWER);
-        // The next step is PAS, the tester's, so not the tone for nothing further required.
-        assertThat(nothingRequired.outcome().tone()).isEqualTo(Tone.ACTION);
+        // The next step is PAS, the tester's, so not CLEAR; and nothing on this step is left to put right, so not ACTION.
+        assertThat(nothingRequired.outcome().tone()).isEqualTo(Tone.NEUTRAL);
 
         // One is an empty package. The other is the service saying the response is complete, with a status to show for it.
         assertThat(noQuestionnaire.answers()).isEmpty();

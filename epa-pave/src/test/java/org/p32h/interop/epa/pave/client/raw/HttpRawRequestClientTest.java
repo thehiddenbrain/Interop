@@ -122,7 +122,7 @@ class HttpRawRequestClientTest {
         VendorExchange exchange = client.send(call("POST", ONYX_URL, List.of()), ResolvedText.plain("{}"));
 
         server.verify();
-        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.NOT_SIGNED_IN);
         assertThat(exchange.request().sent()).isFalse();
         assertThat(exchange.httpStatus()).isNull();
     }

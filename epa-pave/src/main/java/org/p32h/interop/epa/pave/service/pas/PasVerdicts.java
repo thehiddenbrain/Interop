@@ -1,6 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
-import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
+import org.p32h.interop.epa.pave.service.run.PlayedFaults;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -44,6 +44,42 @@ public final class PasVerdicts {
             + "operation $submit-attachment. This tool builds neither.";
 
     private PasVerdicts() {
+    }
+
+    /**
+     * The verdict, told apart for an inquiry: its headline says it is the answer to an inquiry, and a
+     * line under the scenario line says which claim was asked about and which run sent it. Without
+     * it an inquiry's result reads as its submission's, word for word.
+     *
+     * <p>The claim id may be drawn here: it is on screen already, in the inquiry form and in the wire
+     * view of this run, and the verdict is not written to the ledger, so nothing more is kept.
+     *
+     * @param claimId      the claim the inquiry asked about, or null
+     * @param followsRunId the run that sent the submission asked about, or null when it is not known
+     */
+    public static VerdictView verdict(PasReading reading, VendorExchange exchange, EpaOperation operation, String claimId,
+                                      String followsRunId) {
+        VerdictView verdict = verdict(reading, exchange, operation);
+        if (operation != EpaOperation.PAS_INQUIRE) {
+            return verdict;
+        }
+        List<String> supporting = new ArrayList<>(verdict.supporting());
+        if (Texts.present(claimId)) {
+            // Right after the scenario line, which every mock result keeps first.
+            int at = RunSupport.scenarioLine(exchange) != null && !supporting.isEmpty() ? 1 : 0;
+            supporting.add(at, "Asked about claim " + claimId.strip() + (Texts.present(followsRunId) ? ", sent by run " + followsRunId.strip()
+                    : "") + ".");
+        }
+        return new VerdictView("Inquiry: " + lowered(verdict.headline()), verdict.outcomeCode(), verdict.outcomeLabel(), verdict.tone(),
+                List.copyOf(supporting), verdict.maskedReading());
+    }
+
+    /** The first letter lowered, so a headline can follow "Inquiry: ". A word in capitals, such as an acronym, is kept as it is. */
+    private static String lowered(String headline) {
+        if (headline.length() > 1 && Character.isUpperCase(headline.charAt(0)) && Character.isLowerCase(headline.charAt(1))) {
+            return Character.toLowerCase(headline.charAt(0)) + headline.substring(1);
+        }
+        return headline;
     }
 
     public static VerdictView verdict(PasReading reading, VendorExchange exchange, EpaOperation operation) {
@@ -144,13 +180,15 @@ public final class PasVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        // A played timeout is described once, by the error panel beside the verdict, and what a real
-        // one would mean for the submission is said by the next step, as what it would mean.
-        if (outcome.fault() && !exchange.playedTimeout()) {
-            if (Texts.present(exchange.failureDetail())) {
+        // A played fault is described once, by the error panel beside the verdict: the failure detail a
+        // scenario writes reads as a real connection failure under a verdict that nothing was sent. What
+        // a played timeout would mean for the submission is said by the next step, as what it would mean;
+        // a played refused connection keeps its line, which is as true on mock as it would be on live.
+        if (outcome.fault()) {
+            if (Texts.present(exchange.failureDetail()) && !PlayedFaults.played(exchange, outcome)) {
                 supporting.add(exchange.failureDetail());
             }
-            if (operation.write() && noUsableAnswer(outcome)) {
+            if (operation.write() && noUsableAnswer(outcome) && !exchange.playedTimeout()) {
                 supporting.add(exchange.reached() == Reached.NO ? "Nothing was submitted: the request did not reach the payer."
                         : "The payer may have received the submission and acted on it.");
             }
@@ -288,6 +326,16 @@ public final class PasVerdicts {
      */
     public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
                                         String runId) {
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, operation, followsRunId, runId),
+                operation.write()
+                        ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
+                        + "sending it again. Sending it again without checking could create a second request."
+                        : PlayedFaults.aboutTheEnvironment("the member or the code"));
+    }
+
+    /** The next step as it would be after a real service gave this answer. */
+    private static NextStepView asIfReal(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
+                                         String runId) {
         PasOutcome outcome = reading.outcome();
         // What a status check or a resubmission starts from. Carried whatever the outcome, so a
         // tester can ask for the status of any submission that has a claim id.
@@ -340,11 +388,7 @@ public final class PasVerdicts {
                     "Next: check the claim identifier and the items of the inquiry against the submission it asks about.",
                     "The payer holds no prior authorization matching what the inquiry asked about. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
-                    afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
-                            ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
-                            + "sending it again. Sending it again without checking could create a second request."
-                            : PlayedTimeouts.aboutTheEnvironment("the member or the code"));
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
     }
 

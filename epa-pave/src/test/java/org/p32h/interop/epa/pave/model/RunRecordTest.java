@@ -203,4 +203,26 @@ class RunRecordTest {
         assertThat(draft.memberIdLast4("").build().memberIdLast4()).isNull();
         assertThat(draft.memberIdLast4("89").build().memberIdLast4()).isEqualTo("89");
     }
+
+    @Test
+    void aRunThisToolCouldNotSignInForWasNotSentAsARefusedOneWasNot() {
+        RunRecord notSignedIn = minimal().outcome(RunOutcome.NOT_SIGNED_IN).errorType(OnyxFailureType.NOT_SIGNED_IN).elapsedMillis(250L)
+                .build();
+        assertThat(notSignedIn.answeredBy()).isEqualTo(AnsweredBy.NOT_SENT);
+        assertThat(notSignedIn.elapsedMillis()).isNull();
+        assertThat(notSignedIn.wentOut()).isFalse();
+        // The errorType says which of the two causes it was, as an OnyxFailureType name.
+        RunRecord endpoint = minimal().outcome(RunOutcome.NOT_SIGNED_IN).errorType(OnyxFailureType.TOKEN_ENDPOINT_FAULT).build();
+        assertThat(endpoint.errorType()).isEqualTo("TOKEN_ENDPOINT_FAULT");
+        assertThat(endpoint.wentOut()).isFalse();
+
+        RunRecord blocked = minimal().outcome(RunOutcome.BLOCKED).errorType(RunRecord.ERROR_BLOCKED).elapsedMillis(250L).build();
+        assertThat(blocked.answeredBy()).isEqualTo(AnsweredBy.NOT_SENT);
+        assertThat(blocked.elapsedMillis()).isNull();
+        assertThat(blocked.wentOut()).isFalse();
+
+        RunRecord answered = minimal().elapsedMillis(250L).build();
+        assertThat(answered.wentOut()).isTrue();
+        assertThat(answered.elapsedMillis()).isEqualTo(250L);
+    }
 }

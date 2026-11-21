@@ -910,7 +910,9 @@ class SubscriptionServiceTest {
         RunEnvelope<SubscriptionDetail> unauthorised = service(stub(TestExchanges.of(GET, 401, null, true)), "mock", WITH_RECEIVER)
                 .run(GET, about(ID).build(), RunOrigin.manual(), null);
         assertThat(unauthorised.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
-        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: check the credentials on the Config tab.");
+        // The stubbed request went out with no Authorization header while signing in is off, so that, not a
+        // wrong credential, is the likely cause (plan G item 10; UnsignedNextStepTest holds the case with a header).
+        assertThat(unauthorised.nextStep().headline()).isEqualTo("Next: switch signing in on, then send again.");
 
         RunEnvelope<SubscriptionDetail> serverError = service(stub(TestExchanges.of(UPDATE, 503, "<html>Unavailable</html>", false)), "mock",
                 WITH_RECEIVER).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);

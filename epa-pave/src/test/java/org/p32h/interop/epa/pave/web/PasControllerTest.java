@@ -716,11 +716,11 @@ class PasControllerTest {
                 + "test member ID or NPI selects is answered from it.");
         // Every outcome a tester can meet on this tab, each once, with its label and tone: 22 of a
         // submission or an inquiry, 12 of a subscription call of which 5 faults carry the same code
-        // as PAS, 8 of a notification, and the 2 about this tool itself.
+        // as PAS, 8 of a notification, and the 3 about this tool itself (blocked, could not sign in, failed after the call).
         Set<String> codes = new HashSet<>();
         all.get("outcomes").forEach(option -> assertThat(codes.add(option.get("code").asString())).as(option.get("code").asString() + " is listed once").isTrue());
         assertThat(codes).contains("APPROVED", "DENIED", "NO_DECISION", "CREATED", "NOT_FOUND", "UNMATCHED_NOTIFICATION",
-                "UNCHECKED_NOTIFICATION", "BLOCKED", "TOOL_ERROR", "NO_MATCHING_AUTHORIZATION").hasSize(39);
+                "UNCHECKED_NOTIFICATION", "BLOCKED", "NOT_SIGNED_IN", "TOOL_ERROR", "NO_MATCHING_AUTHORIZATION").hasSize(40);
         assertThat(all.get("outcomes")).anySatisfy(option -> {
             assertThat(option.get("code").asString()).isEqualTo("DENIED");
             assertThat(option.get("label").asString()).isEqualTo("The authorization is denied");
@@ -732,7 +732,7 @@ class PasControllerTest {
         JsonNode submit = send(mvc, get("/api/pas/scenarios").param("for", "submit"), 200);
         assertThat(submit.get("notes")).isEqualTo(all.get("notes"));
         assertThat(submit.get("scenarios")).hasSize(16);
-        assertThat(submit.get("outcomes")).hasSize(24);
+        assertThat(submit.get("outcomes")).hasSize(25);
         assertThat(submit.get("elements")).extracting(JsonNode::asString).containsExactly("review-action", "review-reason", "claim-outcome", "error-code");
 
         JsonNode inquire = send(mvc, get("/api/pas/scenarios").param("for", "Inquire"), 200);
@@ -749,7 +749,7 @@ class PasControllerTest {
         JsonNode subscription = send(mvc, get("/api/pas/scenarios").param("for", "subscription"), 200);
         assertThat(subscription.get("scenarios")).extracting(s -> s.get("id").asString())
                 .containsExactly("pas-10-subscription-lifecycle", "pas-19-subscription-not-found");
-        assertThat(subscription.get("outcomes")).hasSize(14);
+        assertThat(subscription.get("outcomes")).hasSize(15);
         assertThat(subscription.get("elements")).extracting(JsonNode::asString).containsExactly("subscription-status", "channel-type", "payload-content");
         assertThat(subscription.at("/scenarios/0").has("expectedOutcome")).isFalse();
 
@@ -760,7 +760,7 @@ class PasControllerTest {
         assertThat(notification.at("/scenarios/0/sampleCase/npi").asString()).isEqualTo("1234567893");
         // The subscription calls carry no case, so their rows have nothing to fill.
         assertThat(subscription.at("/scenarios/0").has("sampleCase")).isFalse();
-        assertThat(notification.get("outcomes")).hasSize(10);
+        assertThat(notification.get("outcomes")).hasSize(11);
         assertThat(notification.get("elements")).isEmpty();
 
         mvc.perform(get("/api/pas/scenarios").param("for", "everything")).andExpect(status().isUnprocessableContent())
@@ -774,10 +774,10 @@ class PasControllerTest {
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
-                .andExpect(jsonPath("$.outcomes.length()").value(39))
+                .andExpect(jsonPath("$.outcomes.length()").value(40))
                 .andExpect(jsonPath("$.elements.length()").value(7));
         mvc.perform(get("/api/pas/scenarios").param("for", "subscription")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.available").value(false)).andExpect(jsonPath("$.outcomes.length()").value(14));
+                .andExpect(jsonPath("$.available").value(false)).andExpect(jsonPath("$.outcomes.length()").value(15));
         // And a scenario cannot be forced on live, on any of the calls.
         mvc.perform(json(post("/api/pas/submit"), submission("S123456789", ",\"scenarioId\":\"pas-03-denied\"")))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.fieldErrors[0].field").value("scenarioId"));

@@ -40,19 +40,40 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
     static final long REFRESH_SKEW_SECONDS = 60;
 
     /**
+     * Why no token could be obtained, so that a call that was not sent is said as the tester's
+     * configuration or as the environment, which are different findings with different next steps.
+     */
+    public enum TokenFailure {
+        /** A sign-in setting is not given, or names a placeholder the active environment does not define: the tester's configuration. */
+        SETTING_MISSING,
+        /**
+         * The token endpoint answered with a 4xx status: it refused the client. A wrong client id or
+         * secret, or a wrong path in the token url, is the tester's configuration.
+         */
+        CLIENT_REFUSED,
+        /**
+         * The token endpoint could not be reached, timed out, failed with a 5xx status, answered with
+         * a status that is neither success nor refusal, or answered success with no usable token:
+         * a fault in the environment at the token endpoint.
+         */
+        ENDPOINT_FAULT
+    }
+
+    /**
      * The answer to "what credential goes on this call".
      *
      * @param token   the access token, or null when authentication is off or no token could be obtained
      * @param failure why no token could be obtained, or null. When set, the call must not be sent
+     * @param cause   which kind of failure that is, or null when there is a token or authentication is off
      */
-    public record TokenResult(String token, String failure) {
+    public record TokenResult(String token, String failure, TokenFailure cause) {
 
         static TokenResult none() {
-            return new TokenResult(null, null);
+            return new TokenResult(null, null, null);
         }
 
-        static TokenResult failed(String reason) {
-            return new TokenResult(null, reason);
+        static TokenResult failed(String reason, TokenFailure cause) {
+            return new TokenResult(null, reason, cause);
         }
 
         /** Redacted, because it holds an access token. */
@@ -71,8 +92,12 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         }
     }
 
-    /** What the token endpoint answered. */
-    protected record TokenGrant(String accessToken, Long expiresInSeconds, String failure) {
+    /**
+     * What the token endpoint answered.
+     *
+     * @param cause which kind of failure, or null when a token was granted
+     */
+    protected record TokenGrant(String accessToken, Long expiresInSeconds, String failure, TokenFailure cause) {
 
         @Override
         public String toString() {
@@ -139,15 +164,15 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         ResolvedText scopes = gateway.resolve(auth.scopes(), Map.of());
         if (Texts.blank(auth.tokenUrl()) || !tokenUrl.resolved() || Texts.blank(tokenUrl.value())) {
             return TokenResult.failed("Authentication is switched on but onyx.auth.token-url is not set, or it contains a placeholder "
-                    + "the active environment does not define. The request was not sent.");
+                    + "the active environment does not define. The request was not sent.", TokenFailure.SETTING_MISSING);
         }
         if (!clientId.resolved() || Texts.blank(clientId.value()) || !clientSecret.resolved() || Texts.blank(clientSecret.value())) {
             return TokenResult.failed("Authentication is switched on but the client id or the client secret is not set, or is a "
-                    + "placeholder the active environment does not define. The request was not sent.");
+                    + "placeholder the active environment does not define. The request was not sent.", TokenFailure.SETTING_MISSING);
         }
         String key = gateway.epoch() + "|" + tokenUrl.value() + "|" + clientId.value();
         if (cached != null && cached.key().equals(key) && clock.instant().isBefore(cached.refreshAt())) {
-            return new TokenResult(cached.token(), null);
+            return new TokenResult(cached.token(), null, null);
         }
         TokenGrant grant = requestToken(new TokenRequest(tokenUrl.value(), clientId.value(), clientSecret.value(),
                 scopes.resolved() ? scopes.value() : null));
@@ -155,15 +180,16 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             cached = null;
             // Outcome only. The token url, the client id and the response are not logged.
             log.warn("Access token request failed");
+            // A grant with neither a token nor a failure is the endpoint's doing, never the tester's settings.
             return TokenResult.failed(Texts.orElse(grant.failure(), "The token endpoint answered without an access token.")
-                    + " The request was not sent.");
+                    + " The request was not sent.", grant.cause() == null ? TokenFailure.ENDPOINT_FAULT : grant.cause());
         }
         // Without a stated lifetime the token is used for this call and not cached: guessing a
         // lifetime would mean sending an expired token at some point and reporting it as a vendor fault.
         lastIssued = grant.accessToken();
         cached = grant.expiresInSeconds() == null || grant.expiresInSeconds() <= REFRESH_SKEW_SECONDS ? null
                 : new Cached(key, grant.accessToken(), clock.instant().plusSeconds(grant.expiresInSeconds() - REFRESH_SKEW_SECONDS));
-        return new TokenResult(grant.accessToken(), null);
+        return new TokenResult(grant.accessToken(), null, null);
     }
 
     /**
@@ -189,21 +215,25 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
                     .body(form.toString().getBytes(StandardCharsets.UTF_8))
                     .exchange((req, res) -> new Raw(res.getStatusCode().value(), new String(res.getBody().readAllBytes(), StandardCharsets.UTF_8)));
             if (raw.status() < 200 || raw.status() >= 300) {
-                return new TokenGrant(null, null, "No access token: the token endpoint answered HTTP " + raw.status() + ".");
+                // A 4xx is the endpoint refusing this client, which the tester's settings decide; anything else is the endpoint.
+                TokenFailure cause = raw.status() >= 400 && raw.status() < 500 ? TokenFailure.CLIENT_REFUSED : TokenFailure.ENDPOINT_FAULT;
+                return new TokenGrant(null, null, "No access token: the token endpoint answered HTTP " + raw.status() + ".", cause);
             }
+            // A success with nothing usable in it is the endpoint's fault: the client was accepted.
             JsonSafe.Parsed parsed = JsonSafe.parse(raw.body());
             if (!parsed.ok()) {
-                return new TokenGrant(null, null, "No access token: the token endpoint answered with a body that is not JSON.");
+                return new TokenGrant(null, null, "No access token: the token endpoint answered with a body that is not JSON.",
+                        TokenFailure.ENDPOINT_FAULT);
             }
             String token = JsonSafe.presentText(parsed.node(), "access_token");
             if (token == null) {
-                return new TokenGrant(null, null, "No access token: the token endpoint answered without one.");
+                return new TokenGrant(null, null, "No access token: the token endpoint answered without one.", TokenFailure.ENDPOINT_FAULT);
             }
-            return new TokenGrant(token, JsonSafe.longValue(parsed.node(), "expires_in"), null);
+            return new TokenGrant(token, JsonSafe.longValue(parsed.node(), "expires_in"), null, null);
         } catch (RuntimeException e) {
             // The exception message quotes the token url, so only the type is used.
             return new TokenGrant(null, null, "No access token: the token endpoint could not be reached ("
-                    + ExchangeExecutor.classifyType(e).name().toLowerCase(java.util.Locale.ROOT) + ").");
+                    + ExchangeExecutor.classifyType(e).name().toLowerCase(java.util.Locale.ROOT) + ").", TokenFailure.ENDPOINT_FAULT);
         }
     }
 }

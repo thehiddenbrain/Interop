@@ -18,7 +18,6 @@ import org.p32h.interop.epa.pave.model.ProviderLookupResult;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
-import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.CaseRunner;
@@ -230,9 +229,9 @@ public class ProtocolCaseRunner implements CaseRunner {
                 .withFound(last.verdict(), last.nextStep());
     }
 
-    /** True when a record is of a call that went out: anything but a write the guardrail held back. */
+    /** True when a record is of a call that went out: not a write the guardrail held back, nor a call this tool could not sign in for. */
     static boolean sent(RunRecord record) {
-        return record != null && !RunRecord.ERROR_BLOCKED.equals(record.errorType()) && !RunOutcome.BLOCKED.name().equals(record.outcome());
+        return record != null && record.wentOut();
     }
 
     /**

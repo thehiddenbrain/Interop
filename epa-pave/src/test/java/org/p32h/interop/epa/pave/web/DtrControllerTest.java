@@ -135,7 +135,7 @@ class DtrControllerTest {
         // What happened, as an outcome apart from the test result.
         assertThat(result.at("/verdict/headline").asString()).isEqualTo("The questionnaire package was loaded with one questionnaire.");
         assertThat(result.at("/verdict/outcomeCode").asString()).isEqualTo("PACKAGE_LOADED");
-        assertThat(result.at("/verdict/tone").asString()).isEqualTo("ACTION");
+        assertThat(result.at("/verdict/tone").asString()).isEqualTo("NEUTRAL");
         // What was expected, and whether it matched.
         assertThat(result.at("/expectation/expected").asString()).isEqualTo("PACKAGE_LOADED");
         assertThat(result.at("/expectation/result").asString()).isEqualTo("pass");
@@ -562,7 +562,7 @@ class DtrControllerTest {
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
-                .andExpect(jsonPath("$.outcomes.length()").value(20))
+                .andExpect(jsonPath("$.outcomes.length()").value(21))
                 .andExpect(jsonPath("$.elements.length()").value(7));
         // And a scenario cannot be forced on live, on either operation that makes a call.
         mvc("live").perform(post("/api/dtr/package").contentType(MediaType.APPLICATION_JSON)
