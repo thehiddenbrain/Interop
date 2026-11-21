@@ -179,10 +179,6 @@
     border-left: 1px solid var(--line);
 }
 
-.dtr-changed:empty {
-    display: none;
-}
-
 .dtr-changed {
     font-weight: 600;
     color: var(--ink-strong);

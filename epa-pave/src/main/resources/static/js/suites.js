@@ -325,7 +325,8 @@ export function createSuites(app, context) {
             facts([
                 ['Started', when(run.startedAt)],
                 ['Finished', run.finishedAt ? when(run.finishedAt) : (running ? 'still running' : null)],
-                ['Tester reference', run.testerRef || el('span', {class: 'presence presence--none'}, 'none given')],
+                // A note of the tool's own, not a value missing from an answer, so it is grey words, not the dashed frame.
+                ['Tester reference', run.testerRef || el('span', {class: 'note--none'}, 'none given')],
                 ['Compared with', run.comparedWith ? code(run.comparedWith) : null]
             ], 'facts--ruled'));
 

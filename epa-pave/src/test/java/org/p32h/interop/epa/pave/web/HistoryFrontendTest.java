@@ -151,4 +151,13 @@ class HistoryFrontendTest {
         assertThat(out).isEqualTo("[\"Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to "
                 + "the service.\",\"Correct the sign-in settings on the Config tab: nothing was sent.\",null]");
     }
+
+    @Test
+    void aSuiteRunWithNoTesterReferenceSaysSoInGreyWordsAndEachRuleIsDeclaredOnce() throws IOException {
+        assertThat(read("js/suites.js")).contains("el('span', {class: 'note--none'}, 'none given')")
+                .doesNotContain("el('span', {class: 'presence presence--none'}, 'none given')");
+        String dtr = read("css/dtr.css");
+        assertThat(dtr.split("\\.dtr-changed:empty", -1)).hasSize(2);
+        assertThat(read("css/pave.css").split("\\.chain-bar__paused \\{", -1)).hasSize(2);
+    }
 }
