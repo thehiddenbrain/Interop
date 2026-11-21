@@ -95,7 +95,6 @@ class RecursionGuardTest {
                     + "character a JSON text can hold both as itself and as the start of an escape")),
             Map.entry("model/TrackedJson.leaves", json("a level of a service answer per turn")),
             Map.entry("model/TrackedJson.walk", json("a level of a service answer per turn")),
-            Map.entry("model/VendorExchange.maskReturned", json("a level of a service answer per turn")),
             Map.entry("model/dtr/QuestionnaireJson.buildItems", json("a level of the item tree collect builds per turn")),
             Map.entry("model/dtr/QuestionnaireJson.check", json("a level of nested items per turn")),
             Map.entry("model/dtr/QuestionnaireJson.collect", json("a level of nested items per turn")),

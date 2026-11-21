@@ -1,11 +1,16 @@
 package org.p32h.interop.epa.pave.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * One call to an external system and what came back, before any interpretation.
@@ -191,27 +196,61 @@ public record VendorExchange(
         return places[0] == 0 ? this : withJson(masked);
     }
 
+    /**
+     * A copy of the tree with every place that repeats a secret masked.
+     *
+     * <p>Containers are copied from a stack of this method's own rather than by calling itself for
+     * each level: the parser allows 500 levels, and a frame per level on a small thread stack threw
+     * StackOverflowError for an answer a few hundred levels deep. Each container's members are
+     * copied in their order, so a name masked to one already present is marked " (again)" as before.
+     */
     private static JsonNode maskReturned(JsonNode node, SentSecrets secrets, int[] places) {
-        tools.jackson.databind.node.JsonNodeFactory factory = tools.jackson.databind.node.JsonNodeFactory.instance;
-        if (node.isObject()) {
-            tools.jackson.databind.node.ObjectNode out = factory.objectNode();
-            for (java.util.Map.Entry<String, JsonNode> property : node.properties()) {
-                SentSecrets.Masked name = secrets.mask(property.getKey());
-                places[0] += name.places();
-                String key = name.text();
-                while (out.has(key)) {
-                    key = key + " (again)";
+        JsonNode root = copyOrMask(node, secrets, places);
+        if (!node.isContainer()) {
+            return root;
+        }
+        Deque<JsonNode[]> pending = new ArrayDeque<>();
+        pending.push(new JsonNode[] {node, root});
+        while (!pending.isEmpty()) {
+            JsonNode[] pair = pending.pop();
+            JsonNode from = pair[0];
+            if (from.isObject()) {
+                ObjectNode out = (ObjectNode) pair[1];
+                for (java.util.Map.Entry<String, JsonNode> property : from.properties()) {
+                    SentSecrets.Masked name = secrets.mask(property.getKey());
+                    places[0] += name.places();
+                    String key = name.text();
+                    while (out.has(key)) {
+                        key = key + " (again)";
+                    }
+                    JsonNode copy = copyOrMask(property.getValue(), secrets, places);
+                    out.set(key, copy);
+                    if (property.getValue().isContainer()) {
+                        pending.push(new JsonNode[] {property.getValue(), copy});
+                    }
                 }
-                out.set(key, maskReturned(property.getValue(), secrets, places));
+            } else {
+                ArrayNode out = (ArrayNode) pair[1];
+                for (JsonNode element : from) {
+                    JsonNode copy = copyOrMask(element, secrets, places);
+                    out.add(copy);
+                    if (element.isContainer()) {
+                        pending.push(new JsonNode[] {element, copy});
+                    }
+                }
             }
-            return out;
+        }
+        return root;
+    }
+
+    /** An empty container of the same kind, to be filled from the stack; or the value, masked where it repeats a secret. */
+    private static JsonNode copyOrMask(JsonNode node, SentSecrets secrets, int[] places) {
+        JsonNodeFactory factory = JsonNodeFactory.instance;
+        if (node.isObject()) {
+            return factory.objectNode();
         }
         if (node.isArray()) {
-            tools.jackson.databind.node.ArrayNode out = factory.arrayNode();
-            for (JsonNode element : node) {
-                out.add(maskReturned(element, secrets, places));
-            }
-            return out;
+            return factory.arrayNode();
         }
         if (node.isString()) {
             SentSecrets.Masked value = secrets.mask(node.stringValue());
