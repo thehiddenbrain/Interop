@@ -56,7 +56,17 @@ class MaskedReadingFrontendTest {
                 .isLessThan(discovery.indexOf("services.length === 0 ? el('p', null, 'The answer listed no services.')"));
 
         String notification = CaseCodesFrontendTest.body(read("js/pas-notifications.js"), "function rowFor(item, fresh) {");
-        assertThat(notification).contains("line, maskedReading(verdict.maskedReading), meta, decided, sampleNotes,");
+        // Opened, the line stands under the verdict headline it qualifies and above its reasons.
+        int headline = notification.indexOf("el('p', {class: 'pas-note__headline'}, verdict.headline),");
+        int line = notification.indexOf("maskedReading(verdict.maskedReading),");
+        assertThat(headline).isPositive();
+        assertThat(line).isGreaterThan(headline).isLessThan(notification.indexOf("supporting.length > 0 ?"));
+        assertThat(notification).contains("line, meta, decided, sampleNotes,");
+        // Folded, and in the one-line summary of what arrived, a short mark says so.
+        assertThat(notification).contains("verdict.maskedReading ? [' ', el('span', {class: 'masked-mark small'}, MASKED_MARK)] : null");
+        assertThat(read("js/pas-notifications.js")).contains("const masked = arrived[0].verdict.maskedReading ? ' ' + MASKED_MARK : '';")
+                .contains("const MASKED_MARK = 'Read from a mask, not from what the service sent: open the notification to see which value.';");
+        assertThat(read("css/pave.css")).contains(".masked-mark {");
 
         assertThat(read("js/history-replay.js")).contains("entry.verdict ? maskedReading(entry.verdict.maskedReading) : null,");
     }

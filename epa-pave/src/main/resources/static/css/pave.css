@@ -838,6 +838,13 @@ legend, .case-legend {
     overflow-wrap: anywhere;
 }
 
+/* The same caution, folded into one line of a list: the rule on the left, without the weight of the full line. */
+.masked-mark {
+    padding-left: var(--gap-1);
+    border-left: 3px solid currentColor;
+    overflow-wrap: anywhere;
+}
+
 .verdict__address {
     margin: var(--gap-2) 0 0;
     overflow-wrap: anywhere;
