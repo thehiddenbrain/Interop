@@ -328,6 +328,34 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    void anIdThatRepeatsAHeldSecretIsCarriedFromACreateAndComparedOnAReadWithTheLineAndAMarkedNextStep() {
+        // The id is not judged against a value set: a create carries it to the next call, and a read compares it with the id asked.
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("subscriptionWord", ID).build();
+        RunEnvelope<SubscriptionDetail> created = holding(CREATE, word);
+        assertThat(created.nextStep().carry()).containsEntry(NextStepView.CARRY_SUBSCRIPTION_ID, List.of("[secret subscriptionWord]"));
+        assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id was read as "
+                + "[secret subscriptionWord].");
+        assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        assertThat(created.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+
+        RunEnvelope<SubscriptionDetail> read = holding(GET, word);
+        assertThat(read.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id was read as "
+                + "[secret subscriptionWord].");
+        assertThat(read.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+    }
+
+    @Test
+    void anAddressToCallBackThatRepeatsAHeldSecretSaysSoBesideTheComparisonWithTheAddressSent() {
+        org.p32h.interop.epa.pave.model.SentSecrets word = org.p32h.interop.epa.pave.model.SentSecrets.builder()
+                .variable("receiverWord", "pave.example.invalid").build();
+        RunEnvelope<SubscriptionDetail> created = holding(CREATE, word);
+        assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: endpoint was read as "
+                + "[secret receiverWord].");
+        assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+    }
+
+    @Test
     void eachSubscriptionCallWithAHeldSecretItsAnswerDoesNotRepeatCarriesNoMaskedReading() {
         org.p32h.interop.epa.pave.model.SentSecrets unrelated = org.p32h.interop.epa.pave.model.SentSecrets.builder()
                 .variable("clientSecret", "placeholder-secret-value-7f3a").build();

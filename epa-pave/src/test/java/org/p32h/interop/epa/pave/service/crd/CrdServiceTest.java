@@ -1259,6 +1259,37 @@ class CrdServiceTest {
     }
 
     @Test
+    void anAppContextThatRepeatsAHeldSecretIsCarriedIntoTheDtrLaunchWithTheLineAndAMarkedNextStep() {
+        // The appContext of a SMART link is not judged, it is carried: DTR is launched with it, so a mask on it reaches DTR.
+        String context = "questionnaire=https://example.org/p32h-placeholder/Questionnaire/sleep-study-criteria";
+        VendorExchange echoed = TestExchanges.holding(TestExchanges.crd(200, answerOf("crd-04-doc-dtr.json")),
+                SentSecrets.builder().variable("contextWord", context).build());
+        RunEnvelope<CrdDetail> result = service(stub(echoed), "live", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
+
+        assertThat(result.nextStep().carry()).containsEntry(NextStepView.CARRY_DTR_APP_CONTEXT, List.of("[secret contextWord]"));
+        assertThat(result.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: appContext was read as "
+                + "[secret contextWord].");
+        assertThat(result.nextStep().headline()).isEqualTo(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST
+                + "complete the payer's documentation in DTR.");
+        assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
+
+        VendorExchange plain = TestExchanges.holding(TestExchanges.crd(200, answerOf("crd-04-doc-dtr.json")),
+                SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").build());
+        RunEnvelope<CrdDetail> unmasked = service(stub(plain), "live", Map.of()).run(request("S123456789").build(), RunOrigin.manual(), null);
+        assertThat(unmasked.nextStep().carry()).containsEntry(NextStepView.CARRY_DTR_APP_CONTEXT, List.of(context));
+        assertThat(unmasked.verdict().maskedReading()).isNull();
+        assertThat(unmasked.nextStep().headline()).isEqualTo("Next: complete the payer's documentation in DTR.");
+    }
+
+    private static String answerOf(String scenarioFile) {
+        try (java.io.InputStream in = CrdServiceTest.class.getResourceAsStream("/scenarios/crd/" + scenarioFile)) {
+            return JsonSafe.mapper().readTree(in).get("response").toString();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
     void theSameAnswerWithAHeldSecretItDoesNotRepeatCarriesNoMaskedReading() {
         VendorExchange plain = TestExchanges.holding(TestExchanges.crd(200, paRequiredAnswer()),
                 SentSecrets.builder().variable("clientSecret", "placeholder-secret-value-7f3a").build());

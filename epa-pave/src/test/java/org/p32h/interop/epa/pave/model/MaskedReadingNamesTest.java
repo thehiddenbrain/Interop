@@ -20,8 +20,11 @@ import tools.jackson.databind.JsonNode;
  * found in its code. Every call in a reading that reads a value or finds its way by a name written
  * in it (child, children, elements, text, presentText, integer, bool, presence, has, get and the
  * like) names one its {@link MaskedReading.Reading} goes by. A name that is only put on screen
- * through shown() is not among them: the mask in the field is its own notice. A reading that
- * starts to go by a new name fails this test until the name is placed.
+ * through shown() is not found that way, so every name a reading puts on screen through shown()
+ * is listed here by hand: either as one whose value is then compared, carried to a next step or
+ * held against a value set, with where, or as one that is only shown, where the mask in the field
+ * is its own notice. A reading that starts to go by a new name, or to show one, fails this test
+ * until the name is placed.
  */
 class MaskedReadingNamesTest {
 
@@ -72,6 +75,98 @@ class MaskedReadingNamesTest {
         assertThat(unplaced).as("names a reading goes by that its masked reading is not looked for under").isEmpty();
     }
 
+    private static final Pattern SHOWN = Pattern.compile("\\bshown\\(\\s*\"([A-Za-z_][A-Za-z0-9_]*)\"");
+
+    /** Names put on screen through shown() and then compared, carried or held against a value set, with where. */
+    private static final Map<MaskedReading.Reading, Map<String, String>> JUDGED = Map.of(
+            MaskedReading.Reading.CRD, Map.of(
+                    "type", "CrdVerdicts offers a link whose type is smart as the DTR launch",
+                    "appContext", "CrdVerdicts carries that link's appContext into the DTR launch"),
+            MaskedReading.Reading.DISCOVERY, Map.of(),
+            MaskedReading.Reading.DTR, Map.of(
+                    "status", "a completed response ends the loop, and a status is held against its value set",
+                    "readOnly", "dtr-items.js says a question is read only when the value is true",
+                    "answerValueSet", "dtr-items.js offers answers from the value set it names; the rule for answer[x] covers it too"),
+            MaskedReading.Reading.PAS, Map.of(
+                    "outcome", "an error outcome counts as errors reported",
+                    "preAuthRef", "PasVerdicts holds it against its items' numbers, and PasService keeps it to match a notification",
+                    "start", "PasVerdicts holds the start of preAuthPeriod against its items' periods",
+                    "end", "PasVerdicts holds the end of preAuthPeriod against its items' periods"),
+            MaskedReading.Reading.SUBSCRIPTION, Map.of(
+                    "id", "SubscriptionResponseMapper holds it against the id asked about, and a created one is carried to the next call",
+                    "endpoint", "SubscriptionVerdicts holds it against the address the request named",
+                    "severity", "an error or fatal issue is a failed write",
+                    "status", "held against its value set",
+                    "type", "the channel type is held against its value set"),
+            MaskedReading.Reading.NOTIFICATION, Map.of(
+                    "outcome", "read as PAS reads it",
+                    "preAuthRef", "NotificationReceiver matches a notification to its submission by the authorization number",
+                    "start", "read as PAS reads it",
+                    "end", "read as PAS reads it"));
+
+    /** Names put on screen through shown() and judged by nothing: the mask in the field is its own notice. */
+    private static final Map<MaskedReading.Reading, Set<String>> ONLY_SHOWN = Map.of(
+            MaskedReading.Reading.CRD, Set.of("description", "detail", "diagnostics", "icon", "indicator", "isRecommended", "label",
+                    "resourceId", "selectionBehavior", "severity", "summary", "uuid"),
+            MaskedReading.Reading.DISCOVERY, Set.of("description", "hook", "id", "title"),
+            MaskedReading.Reading.DTR, Set.of("authored", "contentType", "date", "description", "diagnostics", "div",
+                    "prefix", "publisher", "severity"),
+            MaskedReading.Reading.PAS, Set.of("created", "detailSequence", "diagnostics", "disposition", "number", "severity",
+                    "subDetailSequence", "timestamp", "use"),
+            MaskedReading.Reading.SUBSCRIPTION, Set.of("criteria", "diagnostics", "end", "error", "fullUrl", "mode", "payload", "reason",
+                    "total"),
+            MaskedReading.Reading.NOTIFICATION, Set.of("created", "detailSequence", "diagnostics", "disposition", "eventNumber",
+                    "eventsSinceSubscriptionStart", "number", "severity", "subDetailSequence", "timestamp", "topic", "use"));
+
+    @Test
+    void everyNameAReadingShowsIsPlacedAsJudgedWithItsReasonOrAsOnlyShown() throws IOException {
+        assertThat(JUDGED.keySet()).containsExactlyInAnyOrder(MaskedReading.Reading.values());
+        assertThat(ONLY_SHOWN.keySet()).containsExactlyInAnyOrder(MaskedReading.Reading.values());
+        Set<String> wrong = new TreeSet<>();
+        for (Map.Entry<MaskedReading.Reading, List<String>> reading : READINGS.entrySet()) {
+            MaskedReading.Reading which = reading.getKey();
+            List<String> files = new java.util.ArrayList<>(reading.getValue());
+            if (which != MaskedReading.Reading.DISCOVERY) {
+                files.addAll(SHARED);
+            }
+            Set<String> read = new TreeSet<>();
+            Set<String> shown = new TreeSet<>();
+            for (String file : files) {
+                String source = Files.readString(SOURCES.resolve(file), StandardCharsets.UTF_8);
+                Matcher reads = READ.matcher(source);
+                while (reads.find()) {
+                    read.add(reads.group(2));
+                }
+                Matcher shows = SHOWN.matcher(source);
+                while (shows.find()) {
+                    shown.add(shows.group(1));
+                }
+            }
+            for (String name : shown) {
+                if (!read.contains(name) && !JUDGED.get(which).containsKey(name) && !ONLY_SHOWN.get(which).contains(name)) {
+                    wrong.add(which + ": " + name + " is shown and not placed as judged or as only shown");
+                }
+            }
+            JUDGED.get(which).forEach((name, why) -> {
+                if (!which.goesBy(name)) {
+                    wrong.add(which + ": " + name + " is judged (" + why + ") and its masked reading is not looked for under it");
+                }
+                if (!shown.contains(name)) {
+                    wrong.add(which + ": " + name + " is listed as judged and the reading no longer shows it");
+                }
+            });
+            for (String name : ONLY_SHOWN.get(which)) {
+                if (which.goesBy(name)) {
+                    wrong.add(which + ": " + name + " is listed as only shown and the reading goes by it");
+                }
+                if (!shown.contains(name)) {
+                    wrong.add(which + ": " + name + " is listed as only shown and the reading no longer shows it");
+                }
+            }
+        }
+        assertThat(wrong).isEmpty();
+    }
+
     @Test
     void theValuesShownAndThenJudgedAreAmongTheNamesAndTheValuesOnlyShownAreNot() {
         // Put on screen through shown() and then judged.
@@ -80,6 +175,10 @@ class MaskedReadingNamesTest {
         assertThat(MaskedReading.Reading.SUBSCRIPTION.goesBy("status")).as("held against its value set").isTrue();
         assertThat(MaskedReading.Reading.DTR.goesBy("status")).as("a completed response ends the loop").isTrue();
         assertThat(MaskedReading.Reading.CRD.goesBy("type")).as("a SMART link is offered as the next step").isTrue();
+        assertThat(MaskedReading.Reading.CRD.goesBy("appContext")).as("carried into the DTR launch").isTrue();
+        assertThat(MaskedReading.Reading.SUBSCRIPTION.goesBy("id")).as("held against the id asked, and carried").isTrue();
+        assertThat(MaskedReading.Reading.SUBSCRIPTION.goesBy("endpoint")).as("held against the address sent").isTrue();
+        assertThat(MaskedReading.Reading.PAS.goesBy("preAuthRef")).as("held against the items' numbers, and kept").isTrue();
         assertThat(MaskedReading.Reading.NOTIFICATION.goesBy("type")).as("a heartbeat is not an event").isTrue();
         // A FHIR choice element is read by its kind of value.
         for (String name : List.of("valueCode", "valueBoolean", "valueCoding", "answerBoolean", "initialString")) {
@@ -88,7 +187,6 @@ class MaskedReadingNamesTest {
         // Only shown: a mask in such a field is its own notice. The PAS decision is read from review action codes, never from
         // the disposition, and a card's indicator decides nothing.
         assertThat(MaskedReading.Reading.PAS.goesBy("disposition")).isFalse();
-        assertThat(MaskedReading.Reading.PAS.goesBy("preAuthRef")).isFalse();
         assertThat(MaskedReading.Reading.CRD.goesBy("indicator")).isFalse();
         assertThat(MaskedReading.Reading.CRD.goesBy("status")).as("the status of the order a system action updates").isFalse();
         assertThat(MaskedReading.Reading.DISCOVERY.goesBy("id")).isFalse();

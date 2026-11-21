@@ -55,11 +55,17 @@ class MaskedReadingTest {
 
     @Test
     void aMaskElsewhereOrNoMaskAtAllAddsNothingToTheNote() {
-        VendorExchange elsewhere = answered(SentSecrets.builder().variable("authCode", "AUTH-PLACEHOLDER-1").build(), ANSWER);
+        // The disposition is only shown: the decision is read from review action codes. The preAuthRef is not such a place any
+        // more, because it is held against the items' numbers and kept to match a notification to its submission.
+        VendorExchange elsewhere = answered(SentSecrets.builder().variable("dispositionWord", "approved").build(), ANSWER);
         PasReading reading = new PasResponseMapper().read(elsewhere, SentClaim.unknown());
         assertThat(reading.detail().responseKind()).isEqualTo(PasResponseKind.BUNDLE);
         assertThat(reading.detail().responseNote()).isNull();
-        assertThat(JsonSafe.mapper().writeValueAsString(reading.detail())).doesNotContain("AUTH-PLACEHOLDER-1");
+        assertThat(JsonSafe.mapper().writeValueAsString(reading.detail())).doesNotContain("\"approved\"");
+
+        VendorExchange authorization = answered(SentSecrets.builder().variable("authCode", "AUTH-PLACEHOLDER-1").build(), ANSWER);
+        assertThat(new PasResponseMapper().read(authorization, SentClaim.unknown()).detail().responseNote())
+                .contains("preAuthRef was read as [secret authCode]");
 
         assertThat(new PasResponseMapper().read(answered(SentSecrets.none(), ANSWER), SentClaim.unknown()).detail().responseNote()).isNull();
     }

@@ -39,13 +39,20 @@ public record MaskedReading(List<String> readings) {
      * screen is in no list: the mask in the field is its own notice.
      *
      * <p>Besides the names their code reads, each list holds the values it puts on screen and then
-     * judges: the code of a status or a type held against its value set, the outcome of a
-     * ClaimResponse (an error outcome counts as errors reported), the severity of an issue, the
-     * type of a card link (a SMART link is offered as the next step).
+     * compares, carries or judges: the code of a status or a type held against its value set, the
+     * outcome of a ClaimResponse (an error outcome counts as errors reported), the severity of an
+     * issue, the type of a card link (a SMART link is offered as the next step), the appContext of
+     * that link (carried into the DTR launch), the id of a subscription (held against the id asked
+     * about, and a created one carried to the next call), the address it calls back (held against
+     * the address sent), a ClaimResponse's preAuthRef and the start and end of its period (held
+     * against its items' own, and the number kept to match a notification to its submission), and
+     * whether a question is read only. A value shown through shown() is not found by reading the
+     * code for a name, so {@code MaskedReadingNamesTest} lists every name each reading shows, either
+     * as one of these, with the reason, or as only shown, and fails on a name it has not placed.
      */
     public enum Reading {
         /** A CRD answer: its cards, its system actions and the coverage information on them. */
-        CRD(true, "resourceType", "url", "code", "system", "display", "text", "id", "reference", "type", "topic", "context",
+        CRD(true, "resourceType", "url", "appContext", "code", "system", "display", "text", "id", "reference", "type", "topic", "context",
                 "cards", "systemActions", "suggestions", "actions", "links", "overrideReasons", "source", "extension", "resource",
                 "entry", "coding", "issue", "details", "location", "expression"),
         /** A CDS Hooks discovery answer: which services it lists. Each service's fields are only shown. */
@@ -53,25 +60,25 @@ public record MaskedReading(List<String> readings) {
         /** A DTR package or next question: the questionnaires, the response, its status and the rules of its items. */
         DTR(true, "resourceType", "url", "version", "derivedFrom", "profile", "questionnaire", "status", "type", "name", "id",
                 "fullUrl", "reference", "linkId", "question", "operator", "enableBehavior", "required", "repeats", "code", "system",
-                "display", "text", "value", "title", "subject", "subjectType", "parameter", "part", "resource", "entry", "meta",
+                "display", "text", "value", "title", "readOnly", "subject", "subjectType", "parameter", "part", "resource", "entry", "meta",
                 "extension", "item", "answer", "answerOption", "initial", "initialSelected", "enableWhen", "contained", "author",
                 "compose", "include", "concept", "expansion", "contains", "content", "data", "unit", "coding", "issue", "details",
                 "location", "expression"),
         /** A PAS submission or inquiry: the ClaimResponses, their review actions, items, errors and requests for documentation. */
-        PAS(true, "resourceType", "type", "status", "outcome", "id", "fullUrl", "reference", "identifier", "system", "value", "code",
+        PAS(true, "resourceType", "type", "status", "outcome", "preAuthRef", "start", "end", "id", "fullUrl", "reference", "identifier", "system", "value", "code",
                 "display", "text", "url", "itemSequence", "currency", "entry", "resource", "item", "addItem", "adjudication",
                 "category", "error", "processNote", "noteNumber", "communicationRequest", "payload", "contentReference",
                 "contentString", "contained", "extension", "meta", "insurer", "patient", "request", "requestor", "reason", "amount",
                 "preAuthPeriod", "coding", "details", "issue", "location", "expression"),
         /** A subscription call: the Subscription or the bundle of them, its status, its channel and any issue reported. */
-        SUBSCRIPTION(true, "resourceType", "status", "type", "severity", "code", "system", "display", "text", "url", "reference",
+        SUBSCRIPTION(true, "resourceType", "id", "status", "type", "endpoint", "severity", "code", "system", "display", "text", "url", "reference",
                 "profile", "entry", "resource", "channel", "header", "search", "_criteria", "_payload", "extension", "meta", "coding",
                 "details", "issue", "location", "expression"),
         /** A notification: its status, type and subscription, and the ClaimResponses it carries, read as PAS reads them. */
         NOTIFICATION(true, "resourceType", "type", "status", "subscription", "focus", "name", "id", "fullUrl", "reference",
                 "identifier", "system", "value", "code", "display", "text", "url", "parameter", "part", "notificationEvent",
                 "additionalContext", "entry", "resource", "request", "error", "coding", "details", "issue", "location", "expression",
-                "outcome", "itemSequence", "item", "addItem", "adjudication", "category", "processNote", "noteNumber",
+                "outcome", "preAuthRef", "start", "end", "itemSequence", "item", "addItem", "adjudication", "category", "processNote", "noteNumber",
                 "communicationRequest", "payload", "contentReference", "contentString", "contained", "extension", "meta", "insurer",
                 "patient", "requestor", "reason", "amount", "currency", "preAuthPeriod");
 
