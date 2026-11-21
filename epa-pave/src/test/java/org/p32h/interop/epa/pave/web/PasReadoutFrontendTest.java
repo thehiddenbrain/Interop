@@ -97,6 +97,13 @@ class PasReadoutFrontendTest {
     }
 
     @Test
+    void onMockTheStepAfterACreateLeadsToTheNotificationsCall() throws IOException {
+        String show = CaseCodesFrontendTest.body(read("tab-pas.js"), "function showRun(envelope) {");
+        assertThat(show).contains("if (envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.answeredBy === 'SCENARIO' && shownStep.action === 'START_PAS') {")
+                .contains("return {label: 'Choose the Notifications call', run: () => showMode('notifications')};");
+    }
+
+    @Test
     void aMarkAddedToTheResultIsScrolledIntoViewAndOffersNoCallAlreadyChosen() throws IOException {
         String pas = read("tab-pas.js");
         assertThat(CaseCodesFrontendTest.body(pas, "function markOther() {")).contains("scrollReadoutTop();");

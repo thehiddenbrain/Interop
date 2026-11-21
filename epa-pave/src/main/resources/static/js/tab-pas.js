@@ -801,6 +801,10 @@ function showRun(envelope) {
                 return {label: 'Send inquiry', run: () => inquireFrom({claimId: first(carry.claimId), runId: first(carry.runId) || envelope.runId,
                     codes: carry.procedureCodes || [], carry: pick(carry, ['claimId', 'runId', 'procedureCodes']), why: ['the result of run ', runLink(envelope.runId)]})};
             }
+            // On mock the server's step after a create points to the sample on the Notifications call; this is the way there.
+            if (envelope.operation === 'SUBSCRIPTION_CREATE' && envelope.answeredBy === 'SCENARIO' && shownStep.action === 'START_PAS') {
+                return {label: 'Choose the Notifications call', run: () => showMode('notifications')};
+            }
             if (shownStep.action === 'START_PAS' && envelope.protocol === 'PAS') {
                 return {label: 'Add the documentation and send again', run: () => resubmit(envelope, shownStep)};
             }

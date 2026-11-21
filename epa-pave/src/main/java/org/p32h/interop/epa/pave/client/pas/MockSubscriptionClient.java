@@ -1,5 +1,8 @@
 package org.p32h.interop.epa.pave.client.pas;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.client.support.ExchangeOptions;
 import org.p32h.interop.epa.pave.client.support.Exchanges;
@@ -58,7 +61,43 @@ public class MockSubscriptionClient implements SubscriptionClient {
     @Override
     public VendorExchange get(PreparedCall call, MockSelection selection) {
         boolean one = selection != null && Texts.present(selection.hints().get(HINT_SUBSCRIPTION_ID));
-        return answer(call, null, HttpSubscriptionClient.READ_OPTIONS, selection, one ? STEP_READ : STEP_LIST);
+        return sayNoAddressIsKept(answer(call, null, HttpSubscriptionClient.READ_OPTIONS, selection, one ? STEP_READ : STEP_LIST));
+    }
+
+    /**
+     * A read or a list on mock is answered from a file, which cannot know the address a create
+     * sent: the mock keeps nothing between calls. So the bundled file names none there, and the
+     * line under the verdict says why, so a read after a create that named an address does not
+     * read as the service having dropped it. A file that does name one is left to say so.
+     */
+    static VendorExchange sayNoAddressIsKept(VendorExchange exchange) {
+        JsonNode json = exchange.json();
+        if (json == null || !json.isObject()) {
+            return exchange;
+        }
+        List<JsonNode> subscriptions = new ArrayList<>();
+        List<JsonNode> resources = new ArrayList<>();
+        if ("Bundle".equals(JsonSafe.presentText(json, "resourceType"))) {
+            for (JsonNode entry : JsonSafe.elements(json, "entry")) {
+                resources.add(JsonSafe.child(entry, "resource"));
+            }
+        } else {
+            resources.add(json);
+        }
+        for (JsonNode resource : resources) {
+            if ("Subscription".equals(JsonSafe.presentText(resource, "resourceType"))) {
+                subscriptions.add(resource);
+            }
+        }
+        boolean anyNamed = false;
+        for (JsonNode subscription : subscriptions) {
+            anyNamed |= JsonSafe.presentText(JsonSafe.child(subscription, "channel"), "endpoint") != null;
+        }
+        if (anyNamed || subscriptions.isEmpty()) {
+            return exchange;
+        }
+        return exchange.withScenario(exchange.scenarioId(), Texts.orElse(exchange.scenarioNote(), "") + ". The subscription it answers "
+                + "with names no address to call back: the mock keeps nothing between calls, so it cannot repeat the address a create sent");
     }
 
     @Override

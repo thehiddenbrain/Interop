@@ -116,7 +116,6 @@
             }
           ],
           "type": "rest-hook",
-          "endpoint": "https://pave.example.invalid/api/pas/notifications",
           "payload": "application/fhir+json",
           "_payload": {
             "extension": [
@@ -184,7 +183,6 @@
                   }
                 ],
                 "type": "rest-hook",
-                "endpoint": "https://pave.example.invalid/api/pas/notifications",
                 "payload": "application/fhir+json",
                 "_payload": {
                   "extension": [

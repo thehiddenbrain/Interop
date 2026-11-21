@@ -117,6 +117,31 @@ class SubscriptionServiceTest {
         return service(mockClient, "mock", WITH_RECEIVER);
     }
 
+    /** The mock's answers as a service would give them: no scenario named, so the result reads as it would on live. */
+    private SubscriptionClient answeredByAService() {
+        return new SubscriptionClient() {
+            @Override
+            public VendorExchange create(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return mockClient.create(call, body, selection).withScenario(null, null);
+            }
+
+            @Override
+            public VendorExchange get(PreparedCall call, MockSelection selection) {
+                return mockClient.get(call, selection).withScenario(null, null);
+            }
+
+            @Override
+            public VendorExchange update(PreparedCall call, ResolvedText body, MockSelection selection) {
+                return mockClient.update(call, body, selection).withScenario(null, null);
+            }
+
+            @Override
+            public VendorExchange delete(PreparedCall call, MockSelection selection) {
+                return mockClient.delete(call, selection).withScenario(null, null);
+            }
+        };
+    }
+
     private static SubscriptionRequest.Builder request() {
         return SubscriptionRequest.builder();
     }
@@ -207,12 +232,38 @@ class SubscriptionServiceTest {
 
     @Test
     void aCreateWithNoAddressToCallBackIsNeverSaidToCallBackOneAndItsToneIsNotTheOneForNothingFurther() {
-        RunEnvelope<SubscriptionDetail> created = service(mockClient, "mock", Map.of("subscription.callback-url", ""))
+        RunEnvelope<SubscriptionDetail> created = service(answeredByAService(), "mock", Map.of("subscription.callback-url", ""))
                 .run(CREATE, request().build(), RunOrigin.manual(), null);
         assertThat(created.verdict().supporting()).contains("The request named no url to call back, and the service's answer names none.")
                 .noneMatch(line -> line.startsWith("It calls back"));
         assertThat(created.nextStep().action()).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.OPEN_CONFIG);
         assertThat(created.verdict().tone()).isNotEqualTo(org.p32h.interop.epa.pave.model.Tone.CLEAR);
+    }
+
+    /**
+     * On mock no service holds the subscription and none calls back: the next step after a create
+     * is the sample on the Notifications call, never a setting of this tool, with or without an
+     * address. A read and a list after it name no address the create did not send, and say why.
+     */
+    @Test
+    void onMockACreatePointsToTheSampleNotificationAndAReadOrListAfterItNamesNoAddressOfItsOwn() {
+        for (Map<String, String> onyx : List.of(Map.<String, String>of(), WITH_RECEIVER)) {
+            RunEnvelope<SubscriptionDetail> created = service(mockClient, "mock", onyx).run(CREATE, request().build(), RunOrigin.manual(), null);
+            assertThat(created.verdict().outcomeCode()).isEqualTo("CREATED");
+            assertThat(created.nextStep().action()).isEqualTo(NextAction.START_PAS);
+            assertThat(created.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
+                    + "the mock profile no notification arrives by itself.");
+            assertThat(created.nextStep().reason()).isEqualTo("A scenario answered this create, so no service holds the subscription and "
+                    + "none will call back. A sample notification shows how this tool reads one; for one about a request, send a PAS "
+                    + "request first.");
+            assertThat(created.nextStep().headline() + created.nextStep().reason()).doesNotContain("onyx.");
+        }
+        for (RunEnvelope<SubscriptionDetail> read : List.of(service(mockClient, "mock", Map.of()).run(GET, about(ID).build(), RunOrigin.manual(), null),
+                service(mockClient, "mock", Map.of()).run(GET, request().build(), RunOrigin.manual(), null))) {
+            assertThat(read.verdict().supporting()).contains("It names no url to call back.").noneMatch(line -> line.startsWith("It calls back"));
+            assertThat(read.verdict().supporting()).anyMatch(line -> line.contains("The subscription it answers with names no address to call "
+                    + "back: the mock keeps nothing between calls, so it cannot repeat the address a create sent"));
+        }
     }
 
     @Test
@@ -510,7 +561,9 @@ class SubscriptionServiceTest {
 
     @Test
     void withNoCallbackUrlACreateStillSendsAndTheResultSaysInPlainWordsThatTheServiceHasNowhereToCallBack() {
-        RunEnvelope<SubscriptionDetail> result = service(mockClient, "mock", Map.of()).run(CREATE, request().build(), RunOrigin.manual(), null);
+        // Answered as a service answers: on mock the next step is the sample notification, which its own test holds.
+        RunEnvelope<SubscriptionDetail> result = service(answeredByAService(), "mock", Map.of()).run(CREATE, request().build(),
+                RunOrigin.manual(), null);
 
         // It was sent, and recorded: the missing receiver is a finding, not a refusal.
         assertThat(result.verdict().outcomeCode()).isEqualTo("CREATED");
@@ -1080,8 +1133,8 @@ class SubscriptionServiceTest {
         assertThat(result.findings()).isEmpty();
         assertThat(ledger.only().unrecordedInputs()).containsExactly(RunRecord.INPUT_BODY, RunRecord.INPUT_RUN_VALUES);
 
-        RunEnvelope<SubscriptionDetail> noReceiver = run(CREATE, request().rawBody("{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\"}}")
-                .build());
+        RunEnvelope<SubscriptionDetail> noReceiver = service(answeredByAService(), "mock", WITH_RECEIVER).run(CREATE,
+                request().rawBody("{\"resourceType\":\"Subscription\",\"channel\":{\"type\":\"rest-hook\"}}").build(), RunOrigin.manual(), null);
         assertThat(noReceiver.findings()).singleElement().satisfies(finding -> {
             assertThat(finding.kind()).isEqualTo(FindingKind.NO_CALLBACK_URL);
             assertThat(finding.detail()).contains("The body you supplied names no channel.endpoint");
@@ -1101,7 +1154,8 @@ class SubscriptionServiceTest {
         // Whether a body that cannot be read names a receiver is not known, so nothing is claimed either way.
         assertThat(notJson.findings()).isEmpty();
         assertThat(notJson.detail().callbackUrl()).isNull();
-        RunEnvelope<SubscriptionDetail> createdFromUnreadable = run(CREATE, request().rawBody("{\"resourceType\": ").build());
+        RunEnvelope<SubscriptionDetail> createdFromUnreadable = service(answeredByAService(), "mock", WITH_RECEIVER).run(CREATE,
+                request().rawBody("{\"resourceType\": ").build(), RunOrigin.manual(), null);
         assertThat(createdFromUnreadable.findings()).isEmpty();
         assertThat(createdFromUnreadable.nextStep().headline()).isEqualTo("Next: submit a prior authorization request. The service notifies a "
                 + "subscription's receiver when the status of a request changes.");

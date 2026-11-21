@@ -181,7 +181,14 @@ public final class SubscriptionVerdicts {
         return switch (outcome) {
             // Worded as what a subscription does, not as what this one names: a body of the tester's
             // own that could not be read may name no receiver, and that is then not known here.
-            case CREATED -> Texts.present(callbackProblem) ? noReceiver("created", callbackProblem, ownBody, carry)
+            // On mock no service holds the subscription and none calls back, whatever address it names: a setting of this tool is
+            // not the next step there. The way to see a notification read is the sample the Notifications call delivers.
+            case CREATED -> exchange != null && Texts.present(exchange.scenarioId())
+                    ? new NextStepView(NextAction.START_PAS, "Next: choose the Notifications call and Deliver a sample notification. On "
+                    + "the mock profile no notification arrives by itself.", "A scenario answered this create, so no service holds the "
+                    + "subscription and none will call back. A sample notification shows how this tool reads one; for one about a request, "
+                    + "send a PAS request first.", carry)
+                    : Texts.present(callbackProblem) ? noReceiver("created", callbackProblem, ownBody, carry)
                     : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
                     + "subscription's receiver when the status of a request changes.",
                     "The subscription exists. A notification about a request arrives only after a request is submitted.", carry);
