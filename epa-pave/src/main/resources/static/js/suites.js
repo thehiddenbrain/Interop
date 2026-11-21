@@ -389,7 +389,9 @@ export function createSuites(app, context) {
             sent ? outcome(row.outcomeLabel || row.outcome, row.tone) : none('no outcome'),
             row.result ? stamp(row.result) : none('not compared'),
             {class: 'num', node: typeof row.elapsedMillis === 'number'
-                ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null] : none('no call')},
+                ? [millis(row.elapsedMillis), row.slow ? el('div', null, slowFlag()) : null]
+                // After a failure of this tool a call may have gone out unmeasured, so it is not called no call.
+                : none(row.faultReference ? 'not known' : 'no call')},
             row.findings && row.findings.length > 0
                 ? el('ul', {class: 'plain-list'}, row.findings.map(kind => el('li', null, code(kind)))) : el('span', {class: 'quiet'}, 'none')
         ];
@@ -404,7 +406,8 @@ export function createSuites(app, context) {
         // outcome and no test result, so it cannot be read as a failure.
         const rowFault = {reference: row.faultReference, cause: row.faultCause};
         cells.push([
-            el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
+            el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'},
+                withoutReference(row.statusLine, rowFault)),
             row.reason ? el('div', null, withoutReference(row.reason, rowFault)) : null,
             // A failure of this tool: its cause beside the reference, as the server log names it, and one copy of both.
             faultReport(rowFault),

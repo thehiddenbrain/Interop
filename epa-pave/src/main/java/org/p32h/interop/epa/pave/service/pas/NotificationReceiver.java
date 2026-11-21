@@ -500,7 +500,7 @@ public class NotificationReceiver {
             view.verdict(VerdictView.of(outcome, "Something arrived at the receiver, and this tool then failed while reading it.",
                             List.of("This is a defect in this tool, not a finding about what was sent. Report the reference " + reference
                                     + ". The server log holds the detail under the same reference.", "The payload is shown below as it arrived.")))
-                    .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the payload below as it arrived, and report the reference.",
+                    .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the payload below as it arrived, and report the reference and the cause.",
                             "This tool failed before it could say what the notification is."))
                     .kind(Texts.blank(whole) ? NotificationKind.NO_BODY : JsonSafe.parse(whole).ok() ? NotificationKind.OTHER_JSON : NotificationKind.NOT_JSON);
         }

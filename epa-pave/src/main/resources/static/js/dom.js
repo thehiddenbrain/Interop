@@ -222,7 +222,8 @@ export function faultReport(error) {
  * A server sentence about a failure of this tool, for a screen that shows faultReport under it.
  * The server writes the reference into the sentence so that the sentence stands alone in the
  * results CSV, which has no column for the cause. On the screen the reference stands in the report
- * below, beside its cause, so it is not given a second time in the sentence.
+ * below, beside its cause, so it is not given a second time in the sentence, and a sentence that
+ * sends the reader to the reason for it is sent to the report instead.
  */
 export function withoutReference(sentence, fault) {
     if (!sentence || !fault || !fault.reference) {
@@ -230,7 +231,9 @@ export function withoutReference(sentence, fault) {
     }
     return sentence.split(' Reference ' + fault.reference + '.').join('')
         .split('Report the reference ' + fault.reference + '.')
-        .join(fault.cause ? 'Report the reference and the cause below.' : 'Report the reference below.');
+        .join(fault.cause ? 'Report the reference and the cause below.' : 'Report the reference below.')
+        .split('The reason gives the reference.')
+        .join(fault.cause ? 'The reference and the cause are below the reason.' : 'The reference is below the reason.');
 }
 
 /**

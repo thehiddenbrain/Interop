@@ -384,7 +384,7 @@ public class RunSupport {
                         supporting))
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.TOOL_ERROR,
                         "This tool failed before it could compare the answer with what was expected."))
-                .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the response as received, below, and report the reference.",
+                .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the response as received, below, and report the reference and the cause.",
                         "This is a defect in this tool, not a finding about the service, the member or the code."))
                 .additionalFields(exchange.bodyFields())
                 .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))

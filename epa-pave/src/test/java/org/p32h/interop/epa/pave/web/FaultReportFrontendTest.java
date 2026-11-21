@@ -6,7 +6,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Every place on the screens that shows the reference of a failure of this tool shows the cause
@@ -71,7 +75,81 @@ class FaultReportFrontendTest {
         // The verdict gave "Report the reference <id>." alone, with no cause and no copy button.
         String notifications = read("pas-notifications.js");
         assertThat(notifications).contains("const fault = {reference: item.faultReference, cause: item.faultCause};")
-                .contains("supporting.map(text => el('li', null, withoutReference(text, fault)))")
-                .contains("faultReport(fault),");
+                .contains("supporting.map(text => el('li', null, withoutReference(text, fault)))");
+        // A child of the opened notification on a line of its own, drawn whatever else is true:
+        // faultReport itself draws nothing when there is no reference.
+        assertThat(Pattern.compile("(?m)^ +faultReport\\(fault\\),$").matcher(notifications).results().count()).isEqualTo(1);
+    }
+
+    @Test
+    void aSuiteRowDrawsItsReportUnconditionallyAndItsStatusLineSendsTheReaderToIt() throws IOException {
+        String row = CaseCodesFrontendTest.body(read("suites.js"), "function resultRow(row, compared) {");
+        assertThat(Pattern.compile("(?m)^ +faultReport\\(rowFault\\),$").matcher(row).results().count()).isEqualTo(1);
+        assertThat(row).contains("withoutReference(row.statusLine, rowFault)").contains("withoutReference(row.reason, rowFault)");
+        // Whether a call went out is not known after a failure of this tool, so its time is not "no call".
+        assertThat(row).contains(": none(row.faultReference ? 'not known' : 'no call')},");
+    }
+
+    /**
+     * Runs withoutReference itself, as the browser does, on every shape of sentence the server
+     * writes about a failure of this tool. Reading its source cannot tell a function that strips
+     * the reference from one that returns the sentence unchanged. The build has no script engine,
+     * so this uses Node where it is installed, and says it was skipped where it is not.
+     */
+    @Test
+    void withoutReferenceGivesTheReferenceOnceAndSendsTheReaderToTheReport(@TempDir Path folder) throws Exception {
+        String function = CaseCodesFrontendTest.body(read("dom.js"), "export function withoutReference(sentence, fault) {")
+                .replaceFirst("^export ", "") + "\n}\n";
+        String id = "0f8b1c2a-3d4e-4f50-8a6b-7c8d9e0f1a2b";
+        String cases = """
+                const id = '%1$s';
+                const both = {reference: id, cause: 'java.lang.NoClassDefFoundError'};
+                const alone = {reference: id};
+                const shown = [
+                  withoutReference('This tool failed while running the suite. Reference ' + id + '.', both),
+                  withoutReference('This tool failed while running the case. Whether a request left for it is not known, and nothing '
+                    + 'can be said about the service from this row. Look for it in History before running it again. Reference ' + id + '.', both),
+                  withoutReference('This tool failed while reading the answer. A request may have been sent. Report the reference ' + id + '.', both),
+                  withoutReference('This tool failed while reading the answer. A request may have been sent. Report the reference ' + id + '.', alone),
+                  withoutReference('This is a defect in this tool, not a finding about what was sent. Report the reference ' + id
+                    + '. The server log holds the detail under the same reference.', both),
+                  withoutReference('Tool failure: this tool failed while running the case, so whether a request left is not known. '
+                    + 'The reason gives the reference.', both),
+                  withoutReference('Tool failure: this tool failed while running the case, so whether a request left is not known. '
+                    + 'The reason gives the reference.', alone),
+                  withoutReference('This tool failed while running the suite. Reference ' + id + '.', {}),
+                  withoutReference('This tool failed while running the suite. Reference ' + id + '.', {reference: 'another', cause: 'x'}),
+                  withoutReference(undefined, both)
+                ];
+                for (const line of shown) { console.log(JSON.stringify(line === undefined ? null : line)); }
+                """.formatted(id);
+        Path script = folder.resolve("without-reference.js");
+        Files.writeString(script, function + cases, StandardCharsets.UTF_8);
+        Process node;
+        try {
+            node = new ProcessBuilder("node", script.toString()).redirectErrorStream(true).start();
+        } catch (IOException e) {
+            Assumptions.abort("Node is not installed here, so withoutReference was not run.");
+            return;
+        }
+        assertThat(node.waitFor(60, TimeUnit.SECONDS)).isTrue();
+        String output = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(node.exitValue()).as(output).isZero();
+        assertThat(output.lines().toList()).containsExactly(
+                "\"This tool failed while running the suite.\"",
+                "\"This tool failed while running the case. Whether a request left for it is not known, and nothing can be said about "
+                        + "the service from this row. Look for it in History before running it again.\"",
+                "\"This tool failed while reading the answer. A request may have been sent. Report the reference and the cause below.\"",
+                "\"This tool failed while reading the answer. A request may have been sent. Report the reference below.\"",
+                "\"This is a defect in this tool, not a finding about what was sent. Report the reference and the cause below. The "
+                        + "server log holds the detail under the same reference.\"",
+                "\"Tool failure: this tool failed while running the case, so whether a request left is not known. The reference and "
+                        + "the cause are below the reason.\"",
+                "\"Tool failure: this tool failed while running the case, so whether a request left is not known. The reference is "
+                        + "below the reason.\"",
+                // With no reference to show below, or another one, the sentence is left as the server wrote it.
+                "\"This tool failed while running the suite. Reference " + id + ".\"",
+                "\"This tool failed while running the suite. Reference " + id + ".\"",
+                "null");
     }
 }
