@@ -728,6 +728,32 @@ export function scenarioTable(app, list, options) {
 }
 
 /**
+ * The mock scenario chosen by hand in the Mock scenario field, as the server listed it, or null
+ * when none is chosen or the one chosen is not in the list. It says nothing about which scenario
+ * the member ID or the NPI would pick: that rule is the server's, and the result names the
+ * scenario that answered.
+ */
+export function scenarioOverride(list, chosenId) {
+    const id = typeof chosenId === 'string' ? chosenId.trim() : '';
+    if (id === '' || !list || !Array.isArray(list.scenarios)) {
+        return null;
+    }
+    return list.scenarios.find(scenario => scenario.id === id) || null;
+}
+
+/**
+ * The sentence under the Member ID field while a mock scenario is chosen by hand, so the tester
+ * learns it where they look before sending and not from the result. where says where the field
+ * is; letDecide sets the field back to "The member ID decides".
+ */
+export function scenarioOverrideNote(scenario, where, letDecide) {
+    return el('p', {class: 'scenario-override'},
+        'Mock scenario ' + scenario.number + ' "' + scenario.label + '" is chosen ' + where + '. It answers this run in place of the '
+            + 'scenario the member ID and NPI would pick. ',
+        button('Let the member ID decide', letDecide, {class: 'button--text'}));
+}
+
+/**
  * The member ID cell of a mock scenario's row on an empty tab: the first member ID that selects
  * it, then every other identifier the server lists for it (sentinelMemberIds, sentinelNpis and,
  * on DTR and PAS, the CRD member IDs it also answers for), so a tester can reach it every way it

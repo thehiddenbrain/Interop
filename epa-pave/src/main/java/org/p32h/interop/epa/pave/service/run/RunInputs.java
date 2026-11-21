@@ -66,12 +66,10 @@ public final class RunInputs {
 
     /** An NPI is required and its check digit must be right. */
     public RunInputs provider(ProviderDetail provider) {
-        String npi = provider == null ? null : Texts.trimToNull(provider.npi());
-        if (npi == null) {
-            errors.add(new FieldError("provider.npi", "Enter the ordering provider's NPI."));
-        } else if (!Npi.isValid(npi)) {
-            errors.add(new FieldError("provider.npi", "This is not a valid NPI: it must be ten digits and its check digit does not match. "
-                    + "Check for a typing mistake."));
+        // The provider lookup says the same sentence for the same mistake.
+        String problem = Npi.problem(provider == null ? null : provider.npi());
+        if (problem != null) {
+            errors.add(new FieldError("provider.npi", problem));
         }
         return this;
     }

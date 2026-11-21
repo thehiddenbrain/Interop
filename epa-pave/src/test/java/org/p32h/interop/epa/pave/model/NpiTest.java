@@ -64,4 +64,19 @@ class NpiTest {
         assertThatThrownBy(() -> Npi.checkDigit("12345678A")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> Npi.checkDigit(null)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void theOneSentenceForEachMistakeIsTheSameForTheLookupAndForASend() {
+        assertThat(Npi.problem("1234567893")).isNull();
+        assertThat(Npi.problem("9999999995")).isNull();
+        assertThat(Npi.problem(" 1234567893 ")).isNull();
+        for (String blank : java.util.Arrays.asList(null, "", "  ")) {
+            assertThat(Npi.problem(blank)).as(String.valueOf(blank)).isEqualTo("Enter the ordering provider's NPI.");
+        }
+        for (String length : java.util.List.of("12345", "12345678901", "123456789X")) {
+            assertThat(Npi.problem(length)).as(length).isEqualTo("An NPI is 10 digits. Check the number for a typing mistake.");
+        }
+        assertThat(Npi.problem("1234567890"))
+                .isEqualTo("The last digit of this NPI does not match the other nine. Check the number for a typing mistake.");
+    }
 }

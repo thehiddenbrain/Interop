@@ -13,7 +13,7 @@
 // no recent members, no history of what was typed, no lookup kept. A reload starts with an empty
 // case.
 
-import {el} from './dom.js';
+import {el, fill} from './dom.js';
 import {textField, markFieldErrors, unmark} from './forms.js';
 import {createLookup} from './lookup.js';
 import {createCodePicker} from './code-picker.js';
@@ -219,6 +219,18 @@ export function createCaseContext() {
             }
         },
 
+        /**
+         * Something the tab on screen says under the member ID or the NPI field that is about how
+         * the run will be answered, not about the lookup, such as a mock scenario chosen by hand.
+         * content is a node or text, or null to take it away.
+         */
+        identifierNote(subject, content) {
+            const owner = subject === 'member' ? member : subject === 'provider' ? provider : null;
+            if (owner) {
+                owner.note(content);
+            }
+        },
+
         /** Calls back whenever anything in the case changes. */
         onChange(listener) {
             listeners.push(listener);
@@ -263,6 +275,8 @@ function group(spec) {
     const controls = new Map();
     const nodes = [];
     let identifier = null;
+    // Under the lookup strip: what the tab says about the identifier that is not the lookup's.
+    const identifierNote = el('div', {class: 'identifier-note', hidden: true});
 
     const lookup = createLookup({
         subject: spec.subject, identifier: spec.identifier, address: spec.address, record: spec.record,
@@ -275,7 +289,7 @@ function group(spec) {
         },
         refused(fieldErrors, viaButton) {
             // The server names the identifier the way its own address does. Here it is a field of the case.
-            markFieldErrors([identifier.node], fieldErrors.map(problem =>
+            return markFieldErrors([identifier.node], fieldErrors.map(problem =>
                 (problem.field === spec.refusedAs ? {...problem, field: spec.prefix + '.' + identifier.spec.name} : problem)),
                 {focus: viaButton});
         },
@@ -302,7 +316,7 @@ function group(spec) {
         nodes.push(control.node);
         if (field.identifier) {
             identifier = control;
-            control.node.append(lookup.strip);
+            control.node.append(lookup.strip, identifierNote);
             control.input.addEventListener('input', () => {
                 unmark(control.node);
                 identifierChanged();
@@ -493,6 +507,11 @@ function group(spec) {
                 out.push({about, text: 'It was made before the configuration changed. The environment now active has not been asked.', reveal});
             }
             return out;
+        },
+
+        note(content) {
+            identifierNote.hidden = content === null || content === undefined;
+            fill(identifierNote, identifierNote.hidden ? null : content);
         },
 
         madeBefore() {

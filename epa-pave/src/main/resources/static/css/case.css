@@ -40,6 +40,18 @@
     border-left: 1px solid var(--line);
 }
 
+/* A mock scenario chosen by hand, said where the tester looks before sending: the same rule as the lookup strip, in the strong ink. */
+.identifier-note {
+    margin-top: var(--gap-1);
+    padding: 1px 0 2px var(--gap-3);
+    border-left: 1px solid var(--ink-strong);
+}
+
+.scenario-override {
+    margin: 0;
+    color: var(--ink-strong);
+}
+
 .lookup-strip__state {
     color: var(--ink-strong);
 }

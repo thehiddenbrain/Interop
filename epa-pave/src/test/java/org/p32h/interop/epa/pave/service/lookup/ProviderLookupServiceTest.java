@@ -61,8 +61,8 @@ class ProviderLookupServiceTest {
                 continue;
             }
             assertThatThrownBy(() -> service.lookup(npi)).as(npi).isInstanceOfSatisfying(ValidationException.class, e ->
-                    assertThat(e.fieldErrors()).containsExactly(new FieldError("npi", "The check digit of this NPI does not match, so it "
-                            + "is probably a typing mistake. The directory was not asked.")));
+                    assertThat(e.fieldErrors()).containsExactly(new FieldError("npi", "The last digit of this NPI does not match the "
+                            + "other nine. Check the number for a typing mistake.")));
         }
         // Two digits swapped, the commonest slip of all.
         assertThatThrownBy(() -> service.lookup("1234567983")).isInstanceOf(ValidationException.class)
@@ -77,15 +77,14 @@ class ProviderLookupServiceTest {
             assertThatThrownBy(() -> service.lookup(npi)).as(npi).isInstanceOfSatisfying(ValidationException.class, e -> {
                 assertThat(e.fieldErrors()).hasSize(1);
                 assertThat(e.fieldErrors().get(0).field()).isEqualTo("npi");
-                assertThat(e.fieldErrors().get(0).message()).isEqualTo("An NPI is exactly ten digits. This is probably a typing "
-                        + "mistake, so the directory was not asked.");
+                assertThat(e.fieldErrors().get(0).message()).isEqualTo("An NPI is 10 digits. Check the number for a typing mistake.");
                 // What was typed is not repeated back in the message.
                 assertThat(e.fieldErrors().get(0).message()).doesNotContain(npi);
             });
         }
         for (String blank : Arrays.asList(null, "", "   ")) {
             assertThatThrownBy(() -> service.lookup(blank)).isInstanceOfSatisfying(ValidationException.class, e ->
-                    assertThat(e.fieldErrors()).containsExactly(new FieldError("npi", "Enter an NPI. Nothing was looked up.")));
+                    assertThat(e.fieldErrors()).containsExactly(new FieldError("npi", "Enter the ordering provider's NPI.")));
         }
         assertThat(client.asked).isEmpty();
     }

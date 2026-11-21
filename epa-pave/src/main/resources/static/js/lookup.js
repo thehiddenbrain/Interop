@@ -65,7 +65,8 @@ export function idForms(forms) {
  * spec.record       the property of the answer that holds the record: "member" or "provider"
  * spec.read()       the identifier on screen
  * spec.starting()   called as a lookup starts, before anything is asked
- * spec.refused(fieldErrors, viaButton)   called with the problems of a 422, to mark the field
+ * spec.refused(fieldErrors, viaButton)   called with the problems of a 422, to mark the field;
+ *                   returns the problems it could not put at a field
  * spec.answered(answer)   called when a lookup ends: with the answer the server gave, or with
  *                   null when it gave none (the lookup was refused, or the tool did not answer)
  * spec.panelChanged(section)   called when the panel is opened, with what it now shows, and
@@ -156,9 +157,13 @@ export function createLookup(spec) {
         pending = null;
         control.removeAttribute('aria-busy');
         if (answer.kind === 'form') {
-            // The identifier cannot be looked up as it is written. The sentence about it goes to the field.
-            show(null, answer.body.title);
-            spec.refused(answer.body.fieldErrors || [], viaButton);
+            // The identifier cannot be looked up as it is written. The sentence about it goes to the
+            // field, and only there: one mistake, one message. The title is said in the strip only
+            // when a problem could not be put at the field, so nothing the server said is lost.
+            const fieldErrors = answer.body.fieldErrors || [];
+            const unplaced = spec.refused(fieldErrors, viaButton);
+            const placedAll = fieldErrors.length > 0 && Array.isArray(unplaced) && unplaced.length === 0;
+            show(null, placedAll ? null : answer.body.title);
             spec.answered(null);
             spec.ended(strip);
             return;

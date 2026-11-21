@@ -250,11 +250,11 @@ class LookupControllerTest {
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
                 .andExpect(jsonPath("$.title").value("This is not an NPI that can be looked up. Nothing was looked up."))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value("The check digit of this NPI does not match, so it is probably a "
-                        + "typing mistake. The directory was not asked."));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("The last digit of this NPI does not match the other nine. Check the "
+                        + "number for a typing mistake."));
         mvc.perform(get("/api/providers/{npi}", "12345")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"))
-                .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.startsWith("An NPI is exactly ten digits.")));
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("An NPI is 10 digits. Check the number for a typing mistake."));
         mvc.perform(get("/api/providers/{npi}", " ")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("npi"));
         assertThat(asked).isEmpty();

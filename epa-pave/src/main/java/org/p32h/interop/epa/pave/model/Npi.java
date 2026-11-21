@@ -23,6 +23,25 @@ public final class Npi {
         return checkDigit(npi.substring(0, 9)) == npi.charAt(9) - '0';
     }
 
+    /**
+     * What is wrong with a typed NPI, in the one sentence the provider lookup and a send both say,
+     * or null when it passes. Spaces at its ends are not part of it. The text typed is never
+     * repeated: the sentence names the rule that was broken.
+     */
+    public static String problem(String text) {
+        String npi = text == null ? "" : text.strip();
+        if (npi.isEmpty()) {
+            return "Enter the ordering provider's NPI.";
+        }
+        if (npi.length() != 10 || !allDigits(npi)) {
+            return "An NPI is 10 digits. Check the number for a typing mistake.";
+        }
+        if (!isValid(npi)) {
+            return "The last digit of this NPI does not match the other nine. Check the number for a typing mistake.";
+        }
+        return null;
+    }
+
     /** The complete ten digit NPI for a nine digit base. */
     public static String withCheckDigit(String nineDigits) {
         return nineDigits + checkDigit(nineDigits);

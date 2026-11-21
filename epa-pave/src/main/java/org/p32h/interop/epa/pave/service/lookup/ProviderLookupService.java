@@ -5,7 +5,6 @@ import org.p32h.interop.epa.pave.client.lookup.ProviderLookupClient;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ProviderLookupResult;
-import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProviderLookup;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.springframework.stereotype.Service;
@@ -28,18 +27,13 @@ public class ProviderLookupService implements ProviderLookup {
 
     @Override
     public ProviderLookupResult lookup(String npi) {
-        if (Texts.blank(npi)) {
-            throw refused("Enter an NPI. Nothing was looked up.");
-        }
+        // The same sentence as a send says for the same mistake, so one mistake reads as one message.
         // Spaces around a pasted number are not part of it. Anything inside it is left alone and fails the check.
+        String problem = Npi.problem(npi);
+        if (problem != null) {
+            throw refused(problem);
+        }
         String candidate = npi.strip();
-        if (!candidate.matches("\\d{10}")) {
-            throw refused("An NPI is exactly ten digits. This is probably a typing mistake, so the directory was not asked.");
-        }
-        if (!Npi.isValid(candidate)) {
-            throw refused("The check digit of this NPI does not match, so it is probably a typing mistake. The directory was not "
-                    + "asked.");
-        }
         ProviderLookupResult result = client.lookup(candidate);
         if (result == null) {
             throw new IllegalStateException("The provider lookup client returned no result.");

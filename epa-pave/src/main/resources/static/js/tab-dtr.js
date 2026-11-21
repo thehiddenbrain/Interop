@@ -13,7 +13,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code, facts} from './dom.js';
 import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -98,6 +98,7 @@ function mount(panel, application) {
 function onShow() {
     bench.showCase();
     drawCarried();
+    drawOverrideNote();
 }
 
 /* ---------- the vocabulary: scenarios, outcomes and element names, all fetched ---------- */
@@ -146,6 +147,7 @@ function drawScenarioSelector(list) {
     controls.scenario = null;
     if (!app.isMock() || !list.available) {
         controls.scenarioSlot.hidden = true;
+        drawOverrideNote();
         return;
     }
     controls.scenarioSlot.hidden = false;
@@ -161,6 +163,7 @@ function drawScenarioSelector(list) {
         fill(description, chosen ? scenarioAbout(chosen) : 'With none chosen here, the member ID picks the scenario.');
     };
     field.select.addEventListener('change', describe);
+    field.select.addEventListener('change', drawOverrideNote);
     describe();
     field.node.append(description);
     controls.scenario = field;
@@ -168,7 +171,22 @@ function drawScenarioSelector(list) {
     if (list.problems && list.problems.length > 0) {
         controls.scenarioSlot.append(el('ul', {class: 'note-list small'}, list.problems.map(problem => el('li', null, problem))));
     }
+    drawOverrideNote();
 }
+
+/**
+ * Says under the Member ID field, while this tab is on screen, that a mock scenario chosen by hand
+ * answers in place of the one the member ID would pick. Only the tab on screen writes it: the case
+ * is one node, moved to whichever protocol tab is open.
+ */
+function drawOverrideNote() {
+    if (!bench || !bench.form.contains(app.caseContext.node)) {
+        return;
+    }
+    const chosen = controls.scenario ? scenarioOverride(vocabulary.scenarios, controls.scenario.value()) : null;
+    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'in the Mock scenario field below', letTheMemberIdDecide) : null);
+}
+
 
 /* ---------- what CRD handed on ---------- */
 

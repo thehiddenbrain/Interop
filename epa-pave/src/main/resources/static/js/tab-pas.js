@@ -14,7 +14,7 @@
 import * as api from './api.js';
 import {el, fill, clear, button, code} from './dom.js';
 import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -136,6 +136,7 @@ function mount(target, application) {
 
 function onShow() {
     bench.showCase();
+    drawOverrideNote();
     takeHandover();
     drawWrites();
     notifications.start();
@@ -524,6 +525,7 @@ function drawScenarioSelector() {
     const list = vocabulary.byUse.get(useOf(mode));
     if (!app.isMock() || !list || !list.available || mode === 'notifications') {
         controls.scenarioSlot.hidden = true;
+        drawOverrideNote();
         return;
     }
     controls.scenarioSlot.hidden = false;
@@ -542,6 +544,7 @@ function drawScenarioSelector() {
             : 'With none chosen here, the member ID picks the scenario.');
     };
     field.select.addEventListener('change', describe);
+    field.select.addEventListener('change', drawOverrideNote);
     if (scenarios.some(item => item.id === keep)) {
         field.set(keep);
     }
@@ -552,7 +555,22 @@ function drawScenarioSelector() {
     if (list.problems && list.problems.length > 0) {
         controls.scenarioSlot.append(el('ul', {class: 'note-list small'}, list.problems.map(problem => el('li', null, problem))));
     }
+    drawOverrideNote();
 }
+
+/**
+ * Says under the Member ID field, while this tab is on screen, that a mock scenario chosen by hand
+ * answers in place of the one the member ID would pick. Only the tab on screen writes it: the case
+ * is one node, moved to whichever protocol tab is open.
+ */
+function drawOverrideNote() {
+    if (!bench || !bench.form.contains(app.caseContext.node)) {
+        return;
+    }
+    const chosen = controls.scenario ? scenarioOverride(mode === 'subscriptions' ? null : vocabulary.byUse.get(useOf(mode)), controls.scenario.value()) : null;
+    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'in the Mock scenario field below', letTheMemberIdDecide) : null);
+}
+
 
 function scenarioValue() {
     return controls.scenario ? controls.scenario.value() : '';
