@@ -20,6 +20,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.TrackedJson;
@@ -217,6 +218,7 @@ public class SubscriptionService {
         // The id the run is about. For a create it is whatever the service gave the new subscription.
         String subscriptionId = askedId;
         String idSource = null;
+        SentSecrets.Masked fromHeader = null;
         if (operation == EpaOperation.SUBSCRIPTION_CREATE && outcome == SubscriptionOutcome.CREATED) {
             SubscriptionView created = reading.detail().responseKind() == SubscriptionResponseKind.SUBSCRIPTION
                     ? reading.detail().subscriptions().get(0) : null;
@@ -224,7 +226,10 @@ public class SubscriptionService {
                 subscriptionId = created.id().value();
                 idSource = "the id of the Subscription the service returned";
             } else {
-                subscriptionId = OnyxPasConventions.createdSubscriptionId(exchange);
+                // Read through the mask the body and the wire view are read through, so the id is never carried, shown or kept in clear
+                // beside a wire view that masks it.
+                fromHeader = exchange.maskedFromHeader(OnyxPasConventions.createdSubscriptionId(exchange));
+                subscriptionId = fromHeader.text();
                 idSource = subscriptionId == null ? null : "the Location header of the response";
             }
         }
@@ -264,7 +269,8 @@ public class SubscriptionService {
                 sendsBody ? callbackProblem : null, ownBody, runId);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
-        MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION);
+        MaskedReading masked = MaskedReading.withHeader(MaskedReading.of(exchange, MaskedReading.Reading.SUBSCRIPTION),
+                "id, from the Location header,", fromHeader);
         if (masked != null) {
             findings.add(0, masked.finding());
             verdict = masked.on(verdict);
