@@ -197,7 +197,7 @@ public final class CrdResponseMapper {
                 requested.add(order.code());
             }
         }
-        CrdDetail detail = new CrdDetail(kind, note, cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
+        CrdDetail detail = new CrdDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote()), cardsPresence, cards, actionsPresence, systemActions, coverage, issues,
                 List.of(), true, CrdConformanceChecker.SCOPE);
         CrdOutcome overall = CrdOutcomeRules.overall(exchange, outcomes, unanswered.size());
         // JSON that is not a CDS Hooks response answered nothing, and must never pass as a service

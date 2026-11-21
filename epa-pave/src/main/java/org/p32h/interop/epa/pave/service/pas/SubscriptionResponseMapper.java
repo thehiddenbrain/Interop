@@ -127,7 +127,7 @@ public final class SubscriptionResponseMapper {
         if (note == null) {
             note = mismatch(operation, askedId, kind, subscriptions);
         }
-        SubscriptionDetail detail = new SubscriptionDetail(kind, note, subscriptions, bundleType, bundleId, total, others, issues, null, null,
+        SubscriptionDetail detail = new SubscriptionDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote()), subscriptions, bundleType, bundleId, total, others, issues, null, null,
                 null, List.of(), true);
         return new SubscriptionReading(detail, outcome, additional);
     }

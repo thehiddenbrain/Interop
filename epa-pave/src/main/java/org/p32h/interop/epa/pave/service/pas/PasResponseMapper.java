@@ -167,7 +167,7 @@ public final class PasResponseMapper {
             additional.addAll(tracked.unconsumed());
         }
 
-        PasDetail detail = new PasDetail(kind, note, carried.bundleType(), carried.bundleId(), carried.bundleTimestamp(),
+        PasDetail detail = new PasDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote()), carried.bundleType(), carried.bundleId(), carried.bundleTimestamp(),
                 carried.claimResponses(), carried.otherResources(), carried.issues(), null, null, List.of(), true);
         boolean emptyInquiryAnswer = inquiry && kind == PasResponseKind.BUNDLE && carried.claimResponses().isEmpty()
                 && carried.issues().isEmpty();
