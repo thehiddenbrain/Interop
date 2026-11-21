@@ -824,6 +824,11 @@ legend, .case-legend {
     margin-top: 2px;
 }
 
+.verdict__address {
+    margin: var(--gap-2) 0 0;
+    overflow-wrap: anywhere;
+}
+
 .verdict__foot {
     display: flex;
     flex-wrap: wrap;

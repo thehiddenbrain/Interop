@@ -63,8 +63,8 @@ class ReachedTest {
 
     private static final String URL = "https://onyx.example.invalid/fhir/Claim/$submit";
     private static final ExchangeOptions FHIR = ExchangeOptions.json("application/fhir+json");
-    private static final String TLS = "The secure connection could not be set up: the TLS handshake failed. On a network with an "
-            + "inspection proxy, check the trust store.";
+    private static final String TLS = "The certificate of the service was not accepted, or the secure connection could not be set up: "
+            + "the TLS handshake failed. On a network with an inspection proxy, check the trust store.";
 
     private final ExchangeExecutor executor = new ExchangeExecutor();
 
@@ -82,6 +82,67 @@ class ReachedTest {
     }
 
     // ---- the executor, by the kind of failure ----
+
+    /**
+     * A call through a stand-in proxy on this machine, by the real JDK client, so that the
+     * exception is the one the JDK raises and not one written here.
+     *
+     * @param answer what the proxy writes back to the CONNECT, or null to close without a word
+     */
+    private VendorExchange throughProxy(String answer) throws Exception {
+        try (ServerSocket proxy = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            Thread thread = new Thread(() -> {
+                try (Socket socket = proxy.accept()) {
+                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(socket.getInputStream(),
+                            java.nio.charset.StandardCharsets.US_ASCII));
+                    String line;
+                    while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                        // Reads the CONNECT and its headers, and nothing is done with them.
+                    }
+                    if (answer != null) {
+                        socket.getOutputStream().write(answer.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                        socket.getOutputStream().flush();
+                        Thread.sleep(200);
+                    }
+                } catch (IOException | InterruptedException ignored) {
+                    // The test reads what the client made of it.
+                }
+            });
+            thread.setDaemon(true);
+            thread.start();
+            java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder().version(java.net.http.HttpClient.Version.HTTP_1_1)
+                    .proxy(java.net.ProxySelector.of(new java.net.InetSocketAddress(InetAddress.getLoopbackAddress(), proxy.getLocalPort())))
+                    .connectTimeout(java.time.Duration.ofSeconds(3)).build();
+            org.springframework.http.client.JdkClientHttpRequestFactory factory = new org.springframework.http.client.JdkClientHttpRequestFactory(http);
+            factory.setReadTimeout(java.time.Duration.ofSeconds(3));
+            RestClient client = RestClient.builder().requestFactory(factory).build();
+            return executor.execute(client, TestPreparedCalls.to(EpaOperation.PAS_SUBMIT, URL), ResolvedText.plain("{}"), FHIR);
+        }
+    }
+
+    @Test
+    void aProxyThatRefusesTheTunnelIsNamedWithItsStatusAndTheServiceWasNotReached() throws Exception {
+        VendorExchange exchange = throughProxy("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+
+        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+        assertThat(exchange.failureDetail()).isEqualTo("The proxy between this machine and the service refused the connection (it "
+                + "answered 403). Check the proxy settings, or ask for the service's host to be allowed through the proxy.");
+        assertThat(exchange.reached()).isEqualTo(Reached.NO);
+        assertThat(exchange.httpStatus()).isNull();
+    }
+
+    @Test
+    void aProxyThatSaysNothingIsNeverTakenForARefusedTunnel() throws Exception {
+        VendorExchange exchange = throughProxy(null);
+
+        // The JDK waits for an answer that never comes; whatever it makes of that, it is not a refusal by the proxy.
+        assertThat(exchange.failureType()).isEqualTo(OnyxFailureType.UNAVAILABLE);
+        assertThat(exchange.failureDetail()).doesNotStartWith("The proxy between this machine");
+        // An IOException that is not the JDK's tunnel message keeps the fallback, which never says "not reached".
+        VendorExchange other = submitFailingWith(new IOException("Tunnel closed by peer"));
+        assertThat(other.reached()).isEqualTo(Reached.CANNOT_SAY);
+        assertThat(other.failureDetail()).startsWith("The connection to the service failed before an answer arrived.");
+    }
 
     @Test
     void aFailureBeforeAnyOfTheRequestIsWrittenHasNotReachedTheService() {

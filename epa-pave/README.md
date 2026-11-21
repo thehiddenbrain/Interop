@@ -545,7 +545,15 @@ From the top:
 1. **The verdict strip**: one sentence in plain words, in the colour of the outcome, for example
    "Documentation is required." Beneath it, the lines that support it, and at the foot `mock` when
    a scenario answered (or "done in this tool, nobody answered" for a step that sent nothing), and
-   the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
+   the outcome code (`Outcome code DOCUMENTATION_REQUIRED`). When a live call could not reach the
+   service or got no answer in time, the strip also says where it went, `Address called:` with the
+   scheme, host, port and path of the url the wire view shows, secrets already masked. The query
+   and anything after `#` are left out, because they can carry member identifiers; the strip then
+   adds "(the full address, with its query, is in the wire view)". The cause above it says which
+   failure it was, for example "The proxy between this machine and the service refused the
+   connection (it answered 403).", "The name of the service's host could not be found." or "The
+   connection was refused or could not be opened." On mock nothing is called, so there is no
+   address line.
 2. **Test result**, beside the strip: `Passed`, `Failed` or `Unverified`, with `Expected` (what you
    declared) and `Happened`. This is the answer to "did it match", and it is a different fact from
    the outcome. A run with nothing declared has no box: one quiet line under the strip says "No

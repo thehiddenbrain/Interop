@@ -148,12 +148,42 @@ function verdictStrip(envelope) {
     if (supporting.length > 0) {
         strip.append(el('ul', {class: 'verdict__supporting'}, supporting.map(line => el('li', null, line))));
     }
+    const address = calledAddress(envelope, answeredBy);
+    if (address) {
+        strip.append(address);
+    }
     strip.append(el('p', {class: 'verdict__foot'},
         answeredByScenario ? mockMark() : null,
         local ? localMark() : null,
         mock && refused ? el('span', {class: 'verdict__unanswered'}, 'Mock profile, and no scenario answered: the request was refused before it was sent.') : null,
         el('span', null, 'Outcome code ', code(verdict.outcomeCode, 'verdict__code'))));
     return strip;
+}
+
+/**
+ * Where a call that could not reach the service, or got no answer in time, was sent: the
+ * scheme, host, port and path of the url the wire view prints, already masked by the server.
+ * The query and fragment are left out, because they can carry member identifiers and stay in
+ * the collapsed wire view. On mock nothing was called, so nothing is drawn.
+ */
+function calledAddress(envelope, answeredBy) {
+    const sentToService = answeredBy === 'SERVICE' || (!envelope.answeredBy && envelope.profile === 'live');
+    const kind = envelope.error ? envelope.error.kind : null;
+    if (!sentToService || (kind !== 'UNREACHABLE' && kind !== 'TIMEOUT')
+        || !(envelope.wire && envelope.wire.request && envelope.wire.request.url)) {
+        return null;
+    }
+    const url = String(envelope.wire.request.url);
+    const shown = addressOnly(url);
+    return el('p', {class: 'verdict__address'}, 'Address called: ', code(shown),
+        shown !== url ? ' (the full address, with its query, is in the wire view)' : null);
+}
+
+/** The text of a url before its first "?" or "#": scheme, host, port and path. A url with neither is returned whole. */
+export function addressOnly(url) {
+    const text = String(url);
+    const cut = text.search(/[?#]/);
+    return cut < 0 ? text : text.substring(0, cut);
 }
 
 /**

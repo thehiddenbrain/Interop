@@ -127,6 +127,39 @@ class ResultLayoutFrontendTest {
     }
 
     @Test
+    void theAddressCalledIsShownOnlyForACallThatLeftAndOnlyWithoutItsQuery() throws IOException {
+        String result = read("result.js");
+        String strip = CaseCodesFrontendTest.body(result, "function verdictStrip(envelope) {");
+        assertThat(strip).contains("calledAddress(envelope, answeredBy)").doesNotContain("request.url");
+        String called = CaseCodesFrontendTest.body(result, "function calledAddress(envelope, answeredBy) {");
+        assertThat(called).contains("answeredBy === 'SERVICE' || (!envelope.answeredBy && envelope.profile === 'live')")
+                .contains("kind !== 'UNREACHABLE' && kind !== 'TIMEOUT'").contains("code(shown)")
+                .contains("const shown = addressOnly(url);");
+        // The url reaches the strip only through addressOnly: it is read once, and printed only as cut.
+        assertThat(called.split("envelope.wire.request.url", -1)).hasSize(3);
+        assertThat(called).doesNotContain("code(url)");
+        // Before the foot and after the supporting lines.
+        assertThat(strip.indexOf("calledAddress(")).isGreaterThan(strip.indexOf("verdict__supporting"))
+                .isLessThan(strip.indexOf("verdict__foot"));
+    }
+
+    @Test
+    void addressOnlyKeepsSchemeHostPortAndPathWhenNodeRunsIt() throws IOException, InterruptedException {
+        Path node = CaseCodesFrontendTest.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here, so the function cannot be run; the text checks still apply.");
+        String function = CaseCodesFrontendTest.body(read("result.js"), "export function addressOnly(url) {")
+                .replaceFirst("^export ", "") + "\n}";
+        String script = function + "\nconsole.log(JSON.stringify(['https://h.example.invalid/fhir/Claim?patient=X1#a', "
+                + "'https://h.example.invalid:8443/cds-services/order-sign', 'http://127.0.0.1:9/cds#x=1'].map(addressOnly)));";
+        Process process = new ProcessBuilder(node.toString(), "-e", script).redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, TimeUnit.SECONDS)).as("node finished").isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(process.exitValue()).as(out).isZero();
+        assertThat(out).isEqualTo("[\"https://h.example.invalid/fhir/Claim\",\"https://h.example.invalid:8443/cds-services/order-sign\","
+                + "\"http://127.0.0.1:9/cds\"]");
+    }
+
+    @Test
     void theMockGroupingHoldsExactlyForAnIncompleteRequestOnMockWithNoEnvironmentWhenNodeRunsIt() throws IOException, InterruptedException {
         Path node = CaseCodesFrontendTest.node();
         Assumptions.assumeTrue(node != null, "Node is not installed here, so the predicate cannot be run; the text checks still apply.");

@@ -206,8 +206,12 @@ public class ExchangeExecutor {
             // The handshake comes before the request, so when it fails nothing of the request was sent.
             if (t instanceof SSLHandshakeException || t instanceof SSLPeerUnverifiedException) {
                 return new Failure(OnyxFailureType.UNAVAILABLE,
-                        "The secure connection could not be set up: the TLS handshake failed. On a network with an inspection "
-                        + "proxy, check the trust store.", Reached.NO);
+                        "The certificate of the service was not accepted, or the secure connection could not be set up: the TLS "
+                        + "handshake failed. On a network with an inspection proxy, check the trust store.", Reached.NO);
+            }
+            Failure tunnel = refusedTunnel(t);
+            if (tunnel != null) {
+                return tunnel;
             }
             // Any other TLS failure can come after the handshake, with the request already on its way.
             if (t instanceof SSLException) {
@@ -219,5 +223,25 @@ public class ExchangeExecutor {
         return new Failure(OnyxFailureType.UNAVAILABLE, "The connection to the service failed before an answer arrived. This tool "
                 + "cannot tell at which point, so the request may have reached the service. A proxy between this machine and the "
                 + "service is a common cause.", Reached.CANNOT_SAY, true);
+    }
+
+    /** What the JDK's HTTP client says, and nothing else, when a proxy answers its CONNECT with anything but 200. */
+    private static final java.util.regex.Pattern TUNNEL_FAILED = java.util.regex.Pattern.compile("Tunnel failed, got: (\\d{3})");
+
+    /**
+     * A proxy that refused to open the tunnel to the service. The JDK has no type of its own for
+     * this, only a plain IOException with a fixed message, so the match is on that type and on the
+     * start of that message. A refused CONNECT comes before any byte of the request, so the
+     * service was not reached. Anything else is left to the caller, whose fallback never says
+     * "not reached".
+     */
+    private static Failure refusedTunnel(Throwable t) {
+        if (t.getClass() != java.io.IOException.class || t.getMessage() == null || !t.getMessage().startsWith("Tunnel failed")) {
+            return null;
+        }
+        java.util.regex.Matcher status = TUNNEL_FAILED.matcher(t.getMessage());
+        return new Failure(OnyxFailureType.UNAVAILABLE, "The proxy between this machine and the service refused the connection"
+                + (status.lookingAt() ? " (it answered " + status.group(1) + ")" : "") + ". Check the proxy settings, or ask for "
+                + "the service's host to be allowed through the proxy.", Reached.NO);
     }
 }
