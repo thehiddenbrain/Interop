@@ -196,9 +196,11 @@ public class ConfigStoreGateway implements OperationGateway {
         };
         StoredCollection collection = plan.target().collection();
         Map<String, String> runValues = intent.runValues();
+        // A call that comes from no collection, such as a lookup, belongs to none of them, so a
+        // service may repeat a secret of any one uploaded: each is held, as for a notification.
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
-                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? List.of() : List.of(collection)));
+                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection)));
     }
 
     /**
@@ -370,7 +372,9 @@ public class ConfigStoreGateway implements OperationGateway {
      * Every secret this tool holds for a configuration, the values a response is masked with
      * whether or not the request carried them: the secret variables of the active environment, of
      * each collection given and of application.yml (an operating system value one refers to
-     * included), with the values given for one run in front of them; the client secret the access
+     * included), with the values given for one run in front of them; what the requests of those
+     * collections name or carry as a secret, an operating system value written into a request and
+     * a credential typed into its url, a header or its body; the client secret the access
      * token is fetched with; the credentials of the address the service is given to call back; the
      * credentials of the lookup configuration, in its urls and its headers; and the access token
      * held for the service.
@@ -381,7 +385,8 @@ public class ConfigStoreGateway implements OperationGateway {
      * variable that is unset or blank holds nothing and masks nothing.
      *
      * @param collections the collections whose variables are in force: the one a request came
-     *                    from, none for a call from application.yml, or every one uploaded
+     *                    from, or every one uploaded, for a call that comes from no collection
+     *                    (a lookup, an operation application.yml supplies) and for a notification
      */
     private org.p32h.interop.epa.pave.model.SentSecrets held(ConfigSnapshot snapshot, Map<String, String> runValues,
                                                              List<StoredCollection> collections) {
@@ -400,6 +405,22 @@ public class ConfigStoreGateway implements OperationGateway {
             names.addAll(onyx.variables().keySet());
             for (String name : names) {
                 secretPieces(found, resolver.resolve("{{" + name + "}}", layers));
+            }
+            if (collection != null) {
+                // A request of the collection can name a secret no layer defines, an operating
+                // system value written as {{env:NAME}}, or carry a credential typed into its url,
+                // a header or its body. Each is secret by the rule the request side masks it by.
+                for (StoredCollection.Mapped mapped : collection.requests()) {
+                    PostmanRequest request = mapped.request();
+                    List<java.util.Map.Entry<String, String>> headers = new ArrayList<>();
+                    request.sentHeaders().forEach(header -> headers.add(java.util.Map.entry(Texts.orElse(header.name(), ""),
+                            Texts.orElse(header.value(), ""))));
+                    templateCredentials(found, request.url(), headers, layers);
+                    if (Texts.present(request.body())) {
+                        LiteralCredentials.Marked typed = LiteralCredentials.inBody(request.body());
+                        secretPieces(found, resolver.resolve(typed.template(), typed.before(layers)));
+                    }
+                }
             }
         }
         List<VariableLayer> layers = layers(snapshot, runValues, collections.size() == 1 ? collections.get(0) : null, Map.of());
@@ -440,17 +461,30 @@ public class ConfigStoreGateway implements OperationGateway {
         if (endpoint == null) {
             return;
         }
-        if (Texts.present(endpoint.url())) {
-            LiteralCredentials.Marked typed = LiteralCredentials.inUrl(endpoint.url().strip());
+        List<java.util.Map.Entry<String, String>> headers = new ArrayList<>();
+        endpoint.headers().forEach((name, value) -> headers.add(java.util.Map.entry(Texts.orElse(name, ""), Texts.orElse(value, ""))));
+        templateCredentials(found, endpoint.url(), headers, layers);
+    }
+
+    /**
+     * The credentials of a url and its headers as configured: a secret variable or a credential
+     * typed into the url, a secret variable in a header, and the value of a header that is a
+     * credential by its own name, masked under that header's name as the request side masks it.
+     */
+    private void templateCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, String url,
+                                     List<java.util.Map.Entry<String, String>> headers, List<VariableLayer> layers) {
+        if (Texts.present(url)) {
+            LiteralCredentials.Marked typed = LiteralCredentials.inUrl(url.strip());
             secretPieces(found, resolver.resolve(typed.template(), typed.before(layers)));
         }
-        endpoint.headers().forEach((name, value) -> {
-            Resolution how = resolver.resolve(Texts.orElse(value, ""), layers);
+        for (java.util.Map.Entry<String, String> header : headers) {
+            String name = header.getKey();
+            Resolution how = resolver.resolve(header.getValue(), layers);
             secretPieces(found, how);
             if (how.complete() && Texts.present(name) && Secrets.credentialHeader(name)) {
                 found.header(name, Secrets.credential(name, how.send()));
             }
-        });
+        }
     }
 
     /**
