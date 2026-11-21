@@ -714,7 +714,12 @@ Days are UTC days, as the ledger files its runs; the tab says so beside each dat
 
 Five parts, chosen at the top:
 
-- **In force now**: where the tool is pointed (profile, target, environment, production or not,
+- **In force now**: it opens with `Ready to send?`, a short checklist: `Production` (the same
+  words as the Production row below it), `Environment`, and on live also `Collection`,
+  `Operations` (how many of them can be sent, with `Show which`), `Signing in to the service`
+  and `Secrets with no value`. A line that needs action carries the heavy left rule an operation
+  that cannot be sent carries. On mock it is three lines, since nothing is sent and signing in does
+  not apply. Below the checklist: where the tool is pointed (profile, target, environment, production or not,
   whether writes are blocked), where uploaded files are kept, and for every operation the address
   a run would go to, where it comes from and whether it can be sent now. On a production
   environment this is where writes are unlocked for this browser session: type the active
@@ -1216,6 +1221,14 @@ to a scheme, host and port the configuration in force names for a vendor operati
 value typed for the run; a call pointed anywhere else goes without it, and the wire view says so
 (D-143, rule 7). This was not run against a token server. A Postman authentication helper in a
 collection is reported and not applied.
+
+While `onyx.auth.enabled` is false, the `Signing in to the service: off.` line of `Ready to send?`
+on In force now says what suggests a call should sign in: variables of the active environment whose
+names read as sign-in settings (`tokenUrl`, `clientId`, `clientSecret`, `scope` and the like) and
+that nothing uses, and Postman sign-in helpers on the requests the operations use. It gives the
+start-up arguments above with the environment's own names in place. Each operation that can be
+sent then reads `Yes, without signing in.` with the reason under it, not a plain `Yes.`. Only
+names are shown, never a value. The tool does not switch signing in on by itself.
 
 ### Environment kinds
 

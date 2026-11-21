@@ -76,6 +76,33 @@
     color: var(--purple);
 }
 
+/* ---------- ready to send? ---------- */
+
+/* One line per fact, each with the same left edge an operation row has, so that a line that
+   needs action is marked the way a row that cannot be sent is. */
+.config-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2);
+    max-width: 1180px;
+}
+
+.config-checklist > li {
+    padding-left: var(--gap-3);
+    border-left: 4px solid transparent;
+}
+
+.config-checklist > li.config-op--missing {
+    border-left-color: var(--ink-strong);
+}
+
+.config-checklist > li > p {
+    margin: 4px 0 0;
+}
+
 /* ---------- what to do first ---------- */
 
 .config-steps {

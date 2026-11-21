@@ -341,6 +341,14 @@ public class ConfigStoreGateway implements OperationGateway {
         return resolver.resolve(template, layers(store.snapshot(), runValues, null, Map.of())).text();
     }
 
+    /**
+     * As {@link #resolve} with no values for a run, keeping why each name has no value. For the
+     * Config tab's checklist, which names the reason and never a value.
+     */
+    public Resolution resolution(String template) {
+        return resolver.resolve(template, layers(store.snapshot(), Map.of(), null, Map.of()));
+    }
+
     /** Whatever holds the access token, asked only when a notification is masked. Absent in tests that build the gateway alone. */
     private volatile org.springframework.beans.factory.ObjectProvider<HeldAccessToken> heldToken;
 

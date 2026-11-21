@@ -1,34 +1,55 @@
 // The first view of the Config tab: what is in force now.
 //
-// It answers, from the server's own statements, where the tool is pointed, whether that is
-// production, whether a write would be sent, and, operation by operation, the complete address a
-// run would go to and whether anything stands in its way. This is the table a tester checks
-// before the first run of the day. Before anything has been uploaded the view says exactly what
-// to upload first.
+// It opens with "Ready to send?", a few lines a tester reads before the first run of the day:
+// production or not, what is active and uploaded, how many operations can be sent, whether calls
+// sign in, and which secrets have no value. Below that, from the server's own statements, where
+// the tool is pointed, whether a write would be sent, and, operation by operation, the complete
+// address a run would go to and whether anything stands in its way. Before anything has been
+// uploaded the view says exactly what to upload first.
 
 import {el, fill, clear, button, code, facts, heading, whenText} from './dom.js';
 import {environmentName, sentences, none, flag, placeholder, requestMarks, addressWarnings} from './config-parts.js';
 import {createWritesPanel} from './config-writes.js';
 import {createTryPanel} from './config-try.js';
 
+/**
+ * Whether the active environment is production, in the words both the checklist and the facts
+ * below it use, so that the two can never say it differently. The server decides; this page does
+ * not read it off a name.
+ */
+function productionWords(access, environment) {
+    return access.production === true
+        ? el('strong', {class: 'config-production'}, 'Yes. The active environment is declared as production.')
+        : environment.active ? 'No. The active environment is declared as ' + environment.kind + '.' : 'No environment is active.';
+}
+
+/** Names as a sentence lists them: "a", "a and b", "a, b and c". */
+function listed(names) {
+    return names.length <= 1 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+
 export function createInForceView(context) {
+    const checklist = el('section', {class: 'result__section config-ready'});
     const pointed = el('section', {class: 'result__section'});
     const start = el('div', {class: 'config-start'});
     const writes = createWritesPanel(context);
     const operations = el('section', {class: 'result__section config-operations-section'});
     const trying = createTryPanel(context);
-    const node = el('div', {class: 'config-view'}, pointed, start, writes.node, operations, trying.node);
+    // The checklist comes first: its Production line keeps the guardrail state on the first screen.
+    const node = el('div', {class: 'config-view'}, checklist, pointed, start, writes.node, operations, trying.node);
 
     function draw() {
         const stored = context.stored();
         const mode = context.app.mode();
         if (!stored.effective || !mode) {
+            clear(checklist);
             fill(pointed, heading(2, 'Where this tool is pointed'),
                 el('p', {class: 'quiet'}, 'Reading the configuration from the tool.'));
             clear(start);
             clear(operations);
             return;
         }
+        drawChecklist(stored, mode);
         drawPointed(stored, mode);
         drawStart(stored);
         writes.draw();
@@ -51,10 +72,7 @@ export function createInForceView(context) {
                 ['Target', el('strong', null, mode.target)],
                 ['Environment', [environmentName(environment), environment.active ? null
                     : el('span', null, ' Until one is active, an address can only come from application.yml.')]],
-                // The server says whether the active environment is production. This page does not read it off a name.
-                ['Production', access.production === true
-                    ? el('strong', {class: 'config-production'}, 'Yes. The active environment is declared as production.')
-                    : environment.active ? 'No. The active environment is declared as ' + environment.kind + '.' : 'No environment is active.'],
+                ['Production', productionWords(access, environment)],
                 ['Can this tool change anything there now', access.reason
                     ? [el('strong', null, access.writesAllowed === true ? 'Writes are not blocked. ' : 'Writes are blocked. '), access.reason]
                     : none('not stated')],
@@ -62,6 +80,60 @@ export function createInForceView(context) {
             ], 'facts--ruled config-facts'),
             problems(effective.problems || []),
             activeAddressWarnings(stored));
+    }
+
+    /* ---------- ready to send? ---------- */
+
+    function drawChecklist(stored, mode) {
+        const readiness = stored.effective.readiness || {};
+        const access = mode.writeAccess || {};
+        const environment = mode.environment || {};
+        // A line that needs action carries the mark an operation row that cannot be sent carries.
+        const line = (word, needsAction, ...content) => el('li', {class: needsAction ? 'config-op--missing' : null},
+            el('strong', null, word + ': '), content);
+        const link = (text, view) => button(text, () => context.go(view), {class: 'button--text'});
+        const lines = [line('Production', false, productionWords(access, environment))];
+        if (context.app.isMock()) {
+            lines.push(line('Mock profile', false, 'scenario files answer and nothing is sent. Signing in does not apply.'));
+        }
+        // On mock a run is answered from a scenario with no environment, so none active is not marked as a step to take.
+        lines.push(line('Environment', !readiness.environmentActive && !context.app.isMock(), readiness.environmentLine + ' ',
+            link(readiness.environmentActive ? 'Environments' : 'Make one active', 'environments')));
+        if (!context.app.isMock()) {
+            lines.push(line('Collection', readiness.collections === 0,
+                readiness.collections === 0 ? 'none is uploaded. '
+                    : readiness.collections + ' uploaded, ' + readiness.mapped + (readiness.mapped === 1 ? ' request' : ' requests') + ' mapped. ',
+                link(readiness.collections === 0 ? 'Upload a collection' : 'Collections', 'collections')));
+            lines.push(line('Operations', readiness.sendable < readiness.outbound,
+                readiness.sendable + ' of ' + readiness.outbound + ' can be sent. ',
+                button('Show which', () => operations.scrollIntoView({block: 'start'}), {class: 'button--text'})));
+            lines.push(signInLine(readiness.signIn || {}, line));
+            const missing = readiness.missingSecrets || [];
+            lines.push(line('Secrets with no value', missing.length > 0, missing.length === 0 ? 'none.'
+                : missing.map((secret, index) => [index > 0 ? ', ' : null, code(secret.name),
+                    secret.readsFrom ? [' (reads ', code(secret.readsFrom), ', which is not set)'] : ' (blank)']).concat(['.'])));
+        }
+        fill(checklist, heading(2, 'Ready to send?'), el('ul', {class: 'config-checklist'}, lines));
+    }
+
+    /** Whether calls sign in. The tool never switches it on for the tester: it says that it is off, and how to switch it on. */
+    function signInLine(signIn, line) {
+        if (signIn.enabled) {
+            return signIn.problem
+                ? line('Signing in to the service', true, 'on, and it cannot work: ' + signIn.problem)
+                : line('Signing in to the service', false, 'on.');
+        }
+        const names = signIn.environmentSignInVariables || [];
+        const helpers = signIn.requestHelpers || [];
+        const count = signIn.operationsWithHelper || 0;
+        return line('Signing in to the service', names.length > 0 || helpers.length > 0, 'off.',
+            names.length > 0 ? el('p', {class: 'small'}, 'The active environment holds ', listed(names),
+                names.length === 1 ? ', which reads as a sign-in setting. Nothing uses it' : ', which read as sign-in settings. Nothing uses them',
+                ', so every call goes without signing in. To sign in, start the tool with ', code(signIn.howToSwitchOn),
+                '. The README paragraph "Access tokens", under "Configuration through Postman", says more.') : null,
+            helpers.length > 0 ? el('p', {class: 'small'}, count === 1
+                ? 'A Postman sign-in helper is set on the request used for 1 operation (' + listed(helpers) + '). This tool does not apply it, so that call goes without signing in.'
+                : 'Postman sign-in helpers are set on the requests used for ' + count + ' operations (' + listed(helpers) + '). This tool does not apply them, so those calls go without signing in.') : null);
     }
 
     /** What the tool warns about the addresses of the active environment, as the list of environments carries it. */
@@ -137,10 +209,10 @@ export function createInForceView(context) {
                     el('th', {scope: 'col'}, 'Address a run goes to'),
                     el('th', {scope: 'col'}, 'Where it comes from'),
                     el('th', {scope: 'col'}, 'Can it be sent now'))),
-                el('tbody', null, rows.map(operationRow)))));
+                el('tbody', null, rows.map(row => operationRow(row, effective.readiness || {}))))));
     }
 
-    function operationRow(row) {
+    function operationRow(row, readiness) {
         const target = row.target || null;
         const missing = Boolean(row.unavailable) && row.outbound;
         const classes = ['config-op'];
@@ -161,7 +233,7 @@ export function createInForceView(context) {
                     row.write ? flag('write', 'This operation changes something at the far side. On production it is blocked unless writes are unlocked.') : null)),
             el('td', null, addressCell(row, target)),
             el('td', null, sourceCell(row, target)),
-            el('td', null, statusCell(row)));
+            el('td', null, statusCell(row, readiness)));
     }
 
     function addressCell(row, target) {
@@ -199,12 +271,13 @@ export function createInForceView(context) {
             target && target.requestName ? requestMarks({scripted: target.scripted}) : null,
             !target && requests.length > 0 ? el('span', null, requests.length === 1 ? 'One sample request of a collection is listed.' : requests.length + ' sample requests of a collection are listed.') : null,
             target && others > 0 ? el('div', {class: 'small quiet'}, others === 1 ? 'One more request is mapped to it.' : others + ' more requests are mapped to it.') : null,
-            row.defaultRule ? el('div', {class: 'small'}, row.defaultRule) : null,
+            row.defaultRule ? el('details', {class: 'fold'}, el('summary', null, 'Which request is used'),
+                el('p', {class: 'small'}, row.defaultRule)) : null,
             !target && requests.length === 0 && row.outbound ? none('nothing is mapped') : null
         ];
     }
 
-    function statusCell(row) {
+    function statusCell(row, readiness) {
         const parts = [];
         if (row.blocked) {
             // The short form the server gives for a row: the reason in full is said once, with the writes, not on every write row.
@@ -214,7 +287,15 @@ export function createInForceView(context) {
             parts.push(el('div', {class: row.outbound ? 'config-op__unavailable' : null}, row.outbound ? el('strong', null, 'Cannot be sent. ') : null, row.unavailable));
         }
         if (row.outbound && !row.blocked && !row.unavailable && row.operation !== 'UNMAPPED') {
-            parts.push(el('strong', null, 'Yes.'));
+            const signIn = readiness.signIn;
+            if (signIn && signIn.enabled && signIn.problem) {
+                parts.push(el('div', {class: 'config-op__unavailable'}, el('strong', null, 'Cannot sign in. '), signIn.problem));
+            } else if (row.withoutSignIn) {
+                // The server's reason: a Postman helper the tool does not apply, or sign-in settings nothing uses.
+                parts.push(el('strong', null, 'Yes, without signing in.'), el('div', {class: 'small'}, row.withoutSignIn));
+            } else {
+                parts.push(el('strong', null, 'Yes.'));
+            }
         }
         if (row.note) {
             parts.push(el('div', {class: 'small'}, row.note));

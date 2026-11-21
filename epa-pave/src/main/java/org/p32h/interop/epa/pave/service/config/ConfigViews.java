@@ -463,11 +463,15 @@ public final class ConfigViews {
      * @param defaultRule   on a row with more than one request mapped to it, which of them a run uses
      *                      when it names none, why that one, and how to have another used. Absent
      *                      when one request or none is mapped
+     * @param withoutSignIn on a live row that can be sent while signing in is off, why the call goes
+     *                      without signing in although something suggests it should not: a Postman
+     *                      helper on the request used, or sign-in settings in the active environment.
+     *                      Names only, never a value. Absent otherwise, and always on mock
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
                                TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note,
-                               String blockedShort, Boolean lookupEnabled, String defaultRule) {
+                               String blockedShort, Boolean lookupEnabled, String defaultRule, String withoutSignIn) {
 
         public OperationRow {
             requests = requests == null ? List.of() : List.copyOf(requests);
@@ -490,6 +494,7 @@ public final class ConfigViews {
             private String blockedShort;
             private Boolean lookupEnabled;
             private String defaultRule;
+            private String withoutSignIn;
 
             private Builder(EpaOperation operation) {
                 this.operation = operation;
@@ -540,9 +545,14 @@ public final class ConfigViews {
                 return this;
             }
 
+            public Builder withoutSignIn(String value) {
+                this.withoutSignIn = value;
+                return this;
+            }
+
             public OperationRow build() {
                 return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
-                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule);
+                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule, withoutSignIn);
             }
         }
     }
@@ -569,11 +579,12 @@ public final class ConfigViews {
      * @param storeDirectory  where uploaded files are kept
      * @param operations      one row for every operation the tool knows, in the order of the enum
      * @param settings        the application.yml layer, secrets masked
+     * @param readiness       the short answer to "can I send now", drawn first on the Config tab
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
                             WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings,
-                            List<ProductionDestinationView> productionDestinations) {
+                            List<ProductionDestinationView> productionDestinations, Readiness readiness) {
 
         public Effective {
             productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
@@ -581,6 +592,62 @@ public final class ConfigViews {
             operations = operations == null ? List.of() : List.copyOf(operations);
             settings = settings == null ? List.of() : List.copyOf(settings);
         }
+    }
+
+    /**
+     * Whether a tester can send now, in the few facts that decide it. The counts come from the same
+     * operation rows the table below them is drawn from, so the two cannot disagree.
+     *
+     * @param environmentLine  the active environment in words, or that none is active
+     * @param collections      how many collections are uploaded
+     * @param mapped           how many of their requests are mapped to an operation
+     * @param sendable         how many outbound operations nothing stands in the way of
+     * @param outbound         how many operations would send something
+     * @param signIn           whether calls sign in to the service. Absent on mock, where nothing is sent
+     * @param missingSecrets   secrets of the active environment that have no value. Always empty on mock
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Readiness(String environmentLine, boolean environmentActive, int collections, int mapped, int sendable, int outbound,
+                            SignIn signIn, List<MissingSecret> missingSecrets) {
+
+        public Readiness {
+            missingSecrets = missingSecrets == null ? List.of() : List.copyOf(missingSecrets);
+        }
+    }
+
+    /**
+     * Whether calls sign in, and what suggests they should while they do not. The tool never
+     * decides to sign in for the tester: it says that it does not, and how to switch it on.
+     *
+     * @param enabled                    onyx.auth.enabled
+     * @param environmentSignInVariables names of variables of the active environment that read as
+     *                                   sign-in settings and that nothing uses. Only while sign-in is off
+     * @param requestHelpers             each distinct Postman sign-in helper on a request used by
+     *                                   default, as "oauth2, set on the collection". Only while sign-in is off
+     * @param operationsWithHelper       how many operations use such a request
+     * @param problem                    while sign-in is on, the first onyx.auth setting with no value
+     *                                   and why. Absent when all of them resolve
+     * @param howToSwitchOn              the start-up arguments that would switch sign-in on, with the
+     *                                   environment's own variable names in place. An instruction, never a value
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SignIn(boolean enabled, List<String> environmentSignInVariables, List<String> requestHelpers, int operationsWithHelper,
+                         String problem, String howToSwitchOn) {
+
+        public SignIn {
+            environmentSignInVariables = environmentSignInVariables == null ? List.of() : List.copyOf(environmentSignInVariables);
+            requestHelpers = requestHelpers == null ? List.of() : List.copyOf(requestHelpers);
+        }
+    }
+
+    /**
+     * A secret with no value.
+     *
+     * @param readsFrom the operating system variable it reads from, which is a name and not a
+     *                  secret. Absent when the value is simply blank
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record MissingSecret(String name, String readsFrom) {
     }
 
     // ------------------------------------------------------------------------------------------

@@ -804,6 +804,131 @@ class ConfigServiceTest {
     }
 
     // ------------------------------------------------------------------------------------------
+    // Ready to send: the checklist at the top of In force now
+    // ------------------------------------------------------------------------------------------
+
+    private static final String OAUTH2_COLLECTION = """
+            {"info": {"name": "Signed sample", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+             "auth": {"type": "oauth2", "oauth2": [{"key": "grant_type", "value": "client_credentials"}]},
+             "item": [{"name": "order-sign Happy Path", "request": {"method": "POST",
+                        "url": {"raw": "https://sandbox.onyx.example.invalid/cds-services/order-sign"},
+                        "header": [{"key": "Content-Type", "value": "application/json"}],
+                        "body": {"mode": "raw", "raw": "{}"}}, "response": []},
+                      {"name": "inquiry Happy Path", "request": {"method": "POST",
+                        "url": {"raw": "https://sandbox.onyx.example.invalid/fhir/Claim/$inquire"},
+                        "header": [{"key": "Content-Type", "value": "application/fhir+json"}],
+                        "body": {"mode": "raw", "raw": "{}"}}, "response": []}]}
+            """;
+
+    @Test
+    void signInSettingsThatNothingUsesAreNamedAndTheSecretWithNoValueSaysWhereItReadsFrom() {
+        ConfigFixture fixture = ConfigFixture.live(directory);
+        fixture.activeEnvironmentOf("Plain sandbox", EnvironmentKind.SANDBOX, "baseUrl", SANDBOX_FHIR,
+                "crdUrl", "https://sandbox.onyx.example.invalid", "crdOrderSignServiceId", "order-sign",
+                "tokenUrl", "https://auth.sandbox.onyx.example.invalid/oauth2/token", "clientId", "zz-known-client-id",
+                "clientSecret", "{{env:PAVE_UNSET_X}}", "subscriptionId", "placeholder-subscription-1",
+                "callbackUrl", "https://pave-receiver.example.invalid/api/pas/notifications");
+        fixture.collection(PostmanFiles.VENDOR_COLLECTION);
+
+        Effective effective = fixture.service.effective(null);
+
+        ConfigViews.Readiness readiness = effective.readiness();
+        assertThat(readiness.environmentLine()).isEqualTo("Plain sandbox (sandbox), active.");
+        assertThat(readiness.environmentActive()).isTrue();
+        assertThat(readiness.collections()).isEqualTo(1);
+        assertThat(readiness.signIn().enabled()).isFalse();
+        assertThat(readiness.signIn().environmentSignInVariables()).containsExactly("tokenUrl", "clientId", "clientSecret");
+        assertThat(readiness.signIn().requestHelpers()).isEmpty();
+        assertThat(readiness.signIn().problem()).isNull();
+        assertThat(readiness.signIn().howToSwitchOn()).isEqualTo("--onyx.auth.enabled=true --onyx.auth.token-url={{tokenUrl}} "
+                + "--onyx.auth.client-id={{clientId}} --onyx.auth.client-secret={{clientSecret}}");
+        assertThat(readiness.missingSecrets()).containsExactly(new ConfigViews.MissingSecret("clientSecret", "PAVE_UNSET_X"));
+        // The counts are the table's: outbound rows, and those of them nothing stands in the way of.
+        List<OperationRow> outbound = effective.operations().stream()
+                .filter(each -> each.outbound() && each.operation() != EpaOperation.UNMAPPED).toList();
+        List<OperationRow> sendable = outbound.stream().filter(each -> each.unavailable() == null && each.blocked() == null).toList();
+        assertThat(readiness.outbound()).isEqualTo(outbound.size());
+        assertThat(readiness.sendable()).isEqualTo(sendable.size()).isPositive();
+        // Each operation that can be sent says why it goes without signing in, and no other row does.
+        assertThat(sendable).allSatisfy(each -> assertThat(each.withoutSignIn())
+                .isEqualTo("The active environment holds sign-in settings that nothing uses."));
+        assertThat(effective.operations()).filteredOn(each -> !sendable.contains(each)).allSatisfy(each -> assertThat(each.withoutSignIn()).isNull());
+        // Names only: no value of any of them reaches the answer.
+        assertThat(json(effective) + effective).doesNotContain("zz-known-client-id").doesNotContain("auth.sandbox.onyx");
+    }
+
+    @Test
+    void withSignInSwitchedOnTheFirstSettingWithNoValueIsNamedWithTheResolversReason() {
+        ConfigFixture fixture = ConfigFixture.on(directory).live().onyx("auth.enabled", "true").onyx("auth.token-url", "{{tokenUrl}}")
+                .onyx("auth.client-id", "{{clientId}}").onyx("auth.client-secret", "{{clientSecret}}").build();
+        fixture.activeEnvironmentOf("Plain sandbox", EnvironmentKind.SANDBOX, "baseUrl", SANDBOX_FHIR,
+                "tokenUrl", "https://auth.sandbox.onyx.example.invalid/oauth2/token", "clientId", "zz-known-client-id",
+                "clientSecret", "{{env:PAVE_UNSET_X}}");
+
+        Effective effective = fixture.service.effective(null);
+
+        ConfigViews.SignIn signIn = effective.readiness().signIn();
+        assertThat(signIn.enabled()).isTrue();
+        assertThat(signIn.problem()).startsWith("onyx.auth.client-secret has no value: ").contains("PAVE_UNSET_X");
+        // While sign-in is on, nothing is said to go without it.
+        assertThat(signIn.environmentSignInVariables()).isEmpty();
+        assertThat(signIn.howToSwitchOn()).isNull();
+        assertThat(effective.operations()).allSatisfy(each -> assertThat(each.withoutSignIn()).isNull());
+        assertThat(json(effective) + effective).doesNotContain("zz-known-client-id");
+    }
+
+    @Test
+    void aPostmanSignInHelperOnTheRequestUsedIsNamedOnItsRowAndCountedInTheChecklist() {
+        for (boolean enabled : new boolean[] {false, true}) {
+            Path own = directory.resolve(enabled ? "on" : "off");
+            ConfigFixture fixture = ConfigFixture.on(own).live().onyx("auth.enabled", String.valueOf(enabled)).build();
+            fixture.activeEnvironmentOf("Bare sandbox", EnvironmentKind.SANDBOX, "baseUrl", SANDBOX_FHIR);
+            fixture.store.uploadCollection("signed.json", OAUTH2_COLLECTION.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            Effective effective = fixture.service.effective(null);
+
+            ConfigViews.SignIn signIn = effective.readiness().signIn();
+            if (!enabled) {
+                assertThat(signIn.environmentSignInVariables()).isEmpty();
+                assertThat(signIn.requestHelpers()).containsExactly("oauth2, set on the collection");
+                assertThat(signIn.operationsWithHelper()).isEqualTo(2);
+                assertThat(signIn.howToSwitchOn()).contains("--onyx.auth.token-url=<your token url>");
+                for (EpaOperation operation : List.of(EpaOperation.CRD_ORDER_SIGN, EpaOperation.PAS_INQUIRE)) {
+                    assertThat(row(effective, operation).withoutSignIn())
+                            .startsWith("The request used carries a Postman sign-in helper (oauth2");
+                }
+            } else {
+                assertThat(signIn.requestHelpers()).isEmpty();
+                assertThat(effective.operations()).allSatisfy(each -> assertThat(each.withoutSignIn()).isNull());
+            }
+        }
+    }
+
+    @Test
+    void onMockNothingIsSaidAboutSigningInBecauseNothingIsSent() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.activeEnvironmentOf("Plain sandbox", EnvironmentKind.SANDBOX, "baseUrl", SANDBOX_FHIR, "clientId", "zz-known-client-id",
+                "clientSecret", "{{env:PAVE_UNSET_X}}");
+
+        Effective effective = fixture.service.effective(null);
+
+        assertThat(effective.readiness().signIn()).isNull();
+        assertThat(effective.readiness().missingSecrets()).isEmpty();
+        assertThat(effective.operations()).allSatisfy(each -> assertThat(each.withoutSignIn()).isNull());
+        assertThat(json(effective)).doesNotContain("\"signIn\"").doesNotContain("withoutSignIn");
+    }
+
+    @Test
+    void withNothingActiveTheChecklistSaysSo() {
+        Effective effective = ConfigFixture.live(directory).service.effective(null);
+
+        assertThat(effective.readiness().environmentLine()).isEqualTo("none is active.");
+        assertThat(effective.readiness().environmentActive()).isFalse();
+        assertThat(effective.readiness().collections()).isZero();
+        assertThat(effective.readiness().missingSecrets()).isEmpty();
+    }
+
+    // ------------------------------------------------------------------------------------------
     // The preview before sending
     // ------------------------------------------------------------------------------------------
 

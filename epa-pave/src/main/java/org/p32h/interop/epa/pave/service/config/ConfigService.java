@@ -308,12 +308,164 @@ public class ConfigService {
     /** @param unlock the session's unlock, or null. It decides what this session is told about writes */
     public Effective effective(ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.snapshot();
+        // Worked out once: every row and the checklist above the rows read the same names.
+        boolean signInOff = !epa.mock() && !onyx.auth().enabled();
+        List<String> signInNames = signInOff ? environmentSignInVariables(snapshot) : List.of();
         List<OperationRow> rows = new ArrayList<>();
         for (EpaOperation operation : EpaOperation.values()) {
-            rows.add(row(operation, snapshot, unlock));
+            rows.add(row(operation, snapshot, unlock, signInOff, signInNames));
         }
         return new Effective(epa.mode(), snapshot.activeRef(), snapshot.epoch(), store.problems(), store.allowProdWrites(),
-                gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot));
+                gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot),
+                readiness(snapshot, rows, signInNames));
+    }
+
+    /** The names a variable is matched against, lower case with underscores, hyphens and dots taken out. */
+    private static final Set<String> SIGN_IN_NAMES = Set.of("tokenurl", "accesstokenurl", "authurl", "clientid", "clientsecret", "scope",
+            "scopes", "granttype", "audience");
+
+    private static final String HELPER_NOT_APPLIED = "The request used carries a Postman sign-in helper (%s), which this tool does not apply.";
+
+    private static final String SETTINGS_UNUSED = "The active environment holds sign-in settings that nothing uses.";
+
+    /**
+     * The short answer above the table: what is active, what is uploaded, how many operations can
+     * be sent, whether calls sign in and which secrets have no value. Counted from {@code rows}, the
+     * rows the table is drawn from.
+     */
+    private ConfigViews.Readiness readiness(ConfigSnapshot snapshot, List<OperationRow> rows, List<String> signInNames) {
+        StoredEnvironment active = snapshot.active();
+        String environmentLine = active == null ? "none is active."
+                : ConfigStore.oneLine(active.name()) + " (" + active.kind().wire() + "), active.";
+        int mapped = 0;
+        for (StoredCollection collection : snapshot.collections()) {
+            mapped += (int) collection.requests().stream().filter(request -> request.effective() != EpaOperation.UNMAPPED).count();
+        }
+        List<OperationRow> outbound = rows.stream().filter(row -> row.outbound() && row.operation() != EpaOperation.UNMAPPED).toList();
+        int sendable = (int) outbound.stream().filter(row -> row.unavailable() == null && row.blocked() == null).count();
+        if (epa.mock()) {
+            return new ConfigViews.Readiness(environmentLine, active != null, snapshot.collections().size(), mapped, sendable,
+                    outbound.size(), null, List.of());
+        }
+        return new ConfigViews.Readiness(environmentLine, active != null, snapshot.collections().size(), mapped, sendable, outbound.size(),
+                signIn(snapshot, rows, signInNames), missingSecrets(active));
+    }
+
+    private ConfigViews.SignIn signIn(ConfigSnapshot snapshot, List<OperationRow> rows, List<String> signInNames) {
+        OnyxProperties.Auth auth = onyx.auth();
+        if (auth.enabled()) {
+            return new ConfigViews.SignIn(true, List.of(), List.of(), 0, signInProblem(auth), null);
+        }
+        Set<String> helpers = new LinkedHashSet<>();
+        int withHelper = 0;
+        for (OperationRow row : rows) {
+            String helper = row.requests().stream().filter(AvailableRequest::usedByDefault).map(available -> available.request().authHelper())
+                    .filter(Texts::present).findFirst().orElse(null);
+            // Every operation that would send, not only those that can be sent now: once the
+            // rest is fixed, they too go without signing in.
+            if (helper != null && row.outbound() && row.operation() != EpaOperation.UNMAPPED) {
+                helpers.add(helper);
+                withHelper++;
+            }
+        }
+        return new ConfigViews.SignIn(false, signInNames, List.copyOf(helpers), withHelper, null, howToSwitchOn(signInNames));
+    }
+
+    /** The first onyx.auth setting that does not resolve, with the reason the resolver gives, or null when all do. */
+    private String signInProblem(OnyxProperties.Auth auth) {
+        String[][] settings = {{"onyx.auth.token-url", auth.tokenUrl()}, {"onyx.auth.client-id", auth.clientId()},
+                {"onyx.auth.client-secret", auth.clientSecret()}};
+        for (String[] setting : settings) {
+            if (Texts.blank(setting[1])) {
+                return setting[0] + " has no value: it is not set.";
+            }
+            Resolution resolution = gateway.resolution(setting[1]);
+            if (!resolution.text().resolved() || Texts.blank(resolution.text().value())) {
+                String reason = resolution.text().unresolved().stream().map(name -> resolution.explanations().get(name))
+                        .filter(Texts::present).findFirst().orElse("it resolves to nothing.");
+                return setting[0] + " has no value: " + reason;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The start-up arguments the README gives under "Access tokens", with the environment's own
+     * names where one was found for a role, and a plain marker where none was.
+     */
+    private static String howToSwitchOn(List<String> signInNames) {
+        String tokenUrl = roleOf(signInNames, "tokenurl", "accesstokenurl", "authurl");
+        String clientId = roleOf(signInNames, "clientid");
+        String clientSecret = roleOf(signInNames, "clientsecret");
+        return "--onyx.auth.enabled=true --onyx.auth.token-url=" + (tokenUrl == null ? "<your token url>" : "{{" + tokenUrl + "}}")
+                + " --onyx.auth.client-id=" + (clientId == null ? "<your client id>" : "{{" + clientId + "}}")
+                + " --onyx.auth.client-secret=" + (clientSecret == null ? "<your client secret>" : "{{" + clientSecret + "}}");
+    }
+
+    private static String roleOf(List<String> names, String... roles) {
+        for (String role : roles) {
+            for (String name : names) {
+                if (signInKey(name).equals(role)) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String signInKey(String name) {
+        return name.toLowerCase(java.util.Locale.ROOT).replace("_", "").replace("-", "").replace(".", "");
+    }
+
+    /**
+     * Variables of the active environment that read as sign-in settings and that nothing uses: no
+     * collection request, no other variable and no setting of application.yml refers to them. The
+     * onyx.auth settings are left out of that, because they are not used while sign-in is off.
+     */
+    private List<String> environmentSignInVariables(ConfigSnapshot snapshot) {
+        StoredEnvironment active = snapshot.active();
+        if (active == null) {
+            return List.of();
+        }
+        Map<String, Set<String>> usage = new LinkedHashMap<>();
+        snapshot.collections().forEach(collection -> noteCollection(usage, collection));
+        noteApplicationYml(usage, false);
+        Map<String, PostmanVariable> inForce = active.content().inForce();
+        inForce.values().forEach(variable -> note(usage, variable.value(), variable.key()));
+        List<String> names = new ArrayList<>();
+        for (PostmanVariable variable : inForce.values()) {
+            String name = variable.key();
+            boolean readsAsSignIn = SIGN_IN_NAMES.contains(signInKey(name)) || Secrets.looksSecret(name);
+            if (variable.enabled() && readsAsSignIn && !usage.containsKey(name)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Secrets of the active environment, by type or by name, with no value: blank, or read from an
+     * operating system variable that does not resolve. Names only.
+     */
+    private List<ConfigViews.MissingSecret> missingSecrets(StoredEnvironment active) {
+        List<ConfigViews.MissingSecret> missing = new ArrayList<>();
+        if (active == null) {
+            return missing;
+        }
+        for (PostmanVariable variable : active.content().inForce().values()) {
+            String value = variable.value();
+            boolean fromOperatingSystem = pointsAtOperatingSystem(value);
+            if (!variable.enabled() || !(variable.secret() || fromOperatingSystem || Secrets.looksSecret(variable.key()))) {
+                continue;
+            }
+            if (Texts.blank(value)) {
+                missing.add(new ConfigViews.MissingSecret(variable.key(), null));
+            } else if (fromOperatingSystem && !gateway.resolution(value).text().resolved()) {
+                missing.add(new ConfigViews.MissingSecret(variable.key(),
+                        Placeholders.sole(value).substring(VariableResolver.OS_REFERENCE.length()).strip()));
+            }
+        }
+        return missing;
     }
 
     /** Every address the store knows as production, so that nothing about the guardrail is remembered out of sight. */
@@ -332,7 +484,11 @@ public class ConfigService {
         return views;
     }
 
-    private OperationRow row(EpaOperation operation, ConfigSnapshot snapshot, ProdUnlock unlock) {
+    /**
+     * @param signInOff   true on live while onyx.auth is switched off
+     * @param signInNames the active environment's sign-in variables that nothing uses, worked out once
+     */
+    private OperationRow row(EpaOperation operation, ConfigSnapshot snapshot, ProdUnlock unlock, boolean signInOff, List<String> signInNames) {
         OperationRow.Builder row = OperationRow.of(operation);
         if (operation == EpaOperation.MEMBER_LOOKUP || operation == EpaOperation.PROVIDER_LOOKUP) {
             row.lookupEnabled((operation == EpaOperation.MEMBER_LOOKUP ? lookup.member() : lookup.provider()).enabled());
@@ -374,6 +530,12 @@ public class ConfigService {
             } else {
                 row.unavailable(stillNeeds + whereToGive(missing));
             }
+        }
+        if (signInOff && stillNeeds == null && plan.refusal() == null) {
+            // The server's words, so that the page composes nothing about signing in itself.
+            PostmanAuth helper = used == null ? null : used.request().auth();
+            row.withoutSignIn(helper != null ? HELPER_NOT_APPLIED.formatted(helper.type() + ", set on " + helper.from())
+                    : signInNames.isEmpty() ? null : SETTINGS_UNUSED);
         }
         return row.build();
     }
@@ -749,15 +911,22 @@ public class ConfigService {
 
     /** Notes where the application.yml layer, and the urls this tool builds from it, refer to placeholders. */
     private void noteApplicationYml(Map<String, Set<String>> usage) {
+        noteApplicationYml(usage, true);
+    }
+
+    /** @param withSignIn false to leave out the onyx.auth settings, which nothing reads while sign-in is off */
+    private void noteApplicationYml(Map<String, Set<String>> usage, boolean withSignIn) {
         note(usage, onyx.crd().url(), "application.yml: onyx.crd.url");
         note(usage, onyx.dtr().url(), "application.yml: onyx.dtr.url");
         note(usage, onyx.pas().url(), "application.yml: onyx.pas.url");
         note(usage, onyx.subscription().url(), "application.yml: onyx.subscription.url");
         note(usage, onyx.subscription().callbackUrl(), "application.yml: onyx.subscription.callback-url");
-        note(usage, onyx.auth().tokenUrl(), "application.yml: onyx.auth.token-url");
-        note(usage, onyx.auth().clientId(), "application.yml: onyx.auth.client-id");
-        note(usage, onyx.auth().clientSecret(), "application.yml: onyx.auth.client-secret");
-        note(usage, onyx.auth().scopes(), "application.yml: onyx.auth.scopes");
+        if (withSignIn) {
+            note(usage, onyx.auth().tokenUrl(), "application.yml: onyx.auth.token-url");
+            note(usage, onyx.auth().clientId(), "application.yml: onyx.auth.client-id");
+            note(usage, onyx.auth().clientSecret(), "application.yml: onyx.auth.client-secret");
+            note(usage, onyx.auth().scopes(), "application.yml: onyx.auth.scopes");
+        }
         new TreeMap<>(onyx.variables()).forEach((name, value) -> note(usage, value, "application.yml: onyx.variables." + name));
         note(usage, lookup.member().url(), "application.yml: lookup.member.url");
         note(usage, lookup.provider().url(), "application.yml: lookup.provider.url");
