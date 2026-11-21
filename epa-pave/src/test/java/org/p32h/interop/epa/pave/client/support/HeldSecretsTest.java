@@ -140,4 +140,17 @@ class HeldSecretsTest {
         assertThat(wire.body()).isEqualTo("{\"error\":\"   \"}");
         assertThat(wire.maskNote()).isNull();
     }
+
+    @Test
+    void aHeaderWhoseNameRepeatsAHeldSecretIsShownUnderTheMask() {
+        ConfigFixture fixture = configured("baseUrl", "https://onyx.example.invalid/fhir", "clientSecret", CLIENT_SECRET);
+        VendorExchange exchange = Exchanges.fromResponse(sent(fixture, Map.of()), 200, List.of(new WireHeader(CLIENT_SECRET, "x1"),
+                new WireHeader("X-Trace", "t1")), "{}", 2L, true);
+
+        WireResponse wire = exchange.wireResponse();
+        assertThat(wire.headers()).extracting(WireHeader::name).containsExactly("[secret clientSecret]", "X-Trace");
+        assertThat(wire.maskedPlaces()).isEqualTo(1);
+        assertThat(wire.maskNote()).startsWith("1 place in the headers of this response is masked because it repeats a secret this tool holds.");
+        assertThat(JsonSafe.mapper().writeValueAsString(exchange.wire(null))).doesNotContain(CLIENT_SECRET);
+    }
 }

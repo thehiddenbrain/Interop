@@ -314,9 +314,11 @@ public record VendorExchange(
         int inHeaders = 0;
         List<WireHeader> shownHeaders = new ArrayList<>();
         for (WireHeader header : responseHeaders) {
+            // A service is as free to repeat a secret in the name of a header as in its value.
+            SentSecrets.Masked name = secrets.mask(header.name());
             SentSecrets.Masked value = secrets.mask(header.value());
-            inHeaders += value.places();
-            shownHeaders.add(value.places() == 0 ? header : new WireHeader(header.name(), value.text()));
+            inHeaders += name.places() + value.places();
+            shownHeaders.add(name.places() + value.places() == 0 ? header : new WireHeader(name.text(), value.text()));
         }
         SentSecrets.Masked body = secrets.mask(responseBody);
         // With no response nothing is shown, so there is nothing to say about what was or was not looked for in it.
