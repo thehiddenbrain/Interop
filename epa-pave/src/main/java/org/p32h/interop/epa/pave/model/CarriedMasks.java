@@ -89,9 +89,17 @@ public final class CarriedMasks {
      */
     public static String refusal(Found found) {
         String what = NextStepView.CARRY_LABELS.getOrDefault(found.key(), found.key());
-        return what + ", handed on from the step before, was given masked, as " + found.masks() + ", because the answer it came from "
-                + "repeats a secret this tool holds. A mask is never sent, so this step was not sent. Type the value on the form, or "
-                + "settle the secret in the Config tab.";
+        return refusal(what, found.masks(), "Type the value on the form, or settle the secret in the Config tab.");
+    }
+
+    /**
+     * The same refusal for a value handed on that has a remedy of its own: a questionnaire the
+     * package gave is not something a tester can type, so for it the remedy is to settle the
+     * secret and ask for the package again.
+     */
+    public static String refusal(String what, String masks, String remedy) {
+        return what + ", handed on from the step before, was given masked, as " + masks + ", because the answer it came from "
+                + "repeats a secret this tool holds. A mask is never sent, so this step was not sent. " + remedy;
     }
 
     /** Why a field holding a mask is refused: the value is the mask of a held secret, not one the service gave. */

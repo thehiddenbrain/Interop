@@ -58,6 +58,26 @@ class CarriedMaskFrontendTest {
     }
 
     @Test
+    void aStepOfTheQuestionnaireWhoseBodyWouldHoldAMaskSaysSoBesideItsButtons() throws IOException {
+        assertThat(CaseCodesFrontendTest.body(read("js/masks.js"), "export function stepRefusedWords(masks) {"))
+                .contains("'What the next step would post holds a mask, ' + masks + ': an answer this tool read repeats a secret this tool holds. '")
+                .contains("'A mask is never sent, so the next step is refused and nothing goes out. Settle the secret in the Config tab, then fetch the '")
+                .contains("'questionnaire package again.'");
+        String dtr = read("js/dtr-questionnaire.js");
+        // The text looked at is the one the step posts, chosen as loopBody and responseBody choose it.
+        assertThat(CaseCodesFrontendTest.body(dtr, "function postedMasks(entry, loop, respond) {"))
+                .contains("texts.push(entry.loopJson || (entry.startResponse ? entry.startResponse.json : entry.view.json));")
+                .contains("if (entry.view.kind === 'ADAPTIVE' && entry.loopJson) {\n                texts.push(entry.loopJson);")
+                .contains("texts.push(entry.view.json, entry.startResponse ? entry.startResponse.json : null);");
+        assertThat(CaseCodesFrontendTest.body(dtr, "function loopBody(entry) {"))
+                .contains("if (entry.loopJson) {\n            body.questionnaireResponse = entry.loopJson;\n        } else if (entry.startResponse) {\n"
+                        + "            body.questionnaireResponse = entry.startResponse.json;\n        } else {\n            body.questionnaire = entry.view.json;");
+        assertThat(CaseCodesFrontendTest.body(dtr, "function actions(entry, countNote) {"))
+                .contains("const masks = postedMasks(entry, loop, respond);\n        if (masks) {\n"
+                        + "            parts.push(maskedLine(stepRefusedWords(masks)));\n        }\n        const row = el('div', {class: 'button-row'});");
+    }
+
+    @Test
     void theSubscriptionIdAndBothClaimIdFieldsAreFilledOnlyThroughTheCheckForAMask() throws IOException {
         String pas = read("js/tab-pas.js");
         assertThat(pas).contains("fillFromAnswer(controls.subscriptionId, envelope.detail.subscriptionId);")

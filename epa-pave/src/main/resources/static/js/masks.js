@@ -68,6 +68,17 @@ export function notHandedOnWords(masks) {
         + 'not sent. Type the value on the form, or settle the secret in the Config tab.';
 }
 
+/**
+ * The words beside a step whose body would be built from a text an answer gave masked, such as the
+ * questionnaire of a package that repeated a secret. The server refuses that step, so it is said
+ * before the tester presses the button.
+ */
+export function stepRefusedWords(masks) {
+    return 'What the next step would post holds a mask, ' + masks + ': an answer this tool read repeats a secret this tool holds. '
+        + 'A mask is never sent, so the next step is refused and nothing goes out. Settle the secret in the Config tab, then fetch the '
+        + 'questionnaire package again.';
+}
+
 /** The line itself, drawn as the screens draw a caution: a rule on its left. */
 export function maskedLine(words) {
     return el('p', {class: 'masked-carry'}, words);

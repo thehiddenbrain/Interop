@@ -27,7 +27,7 @@ import {toneMark} from './marks.js';
 import {itemList, responseByLinkId} from './dtr-items.js';
 import {changesBlock, notApplied, kindWord} from './dtr-detail.js';
 import {maskedReading} from './result.js';
-import {withoutMasks, maskedLine, notHandedOnWords} from './masks.js';
+import {withoutMasks, maskedLine, notHandedOnWords, masksIn, stepRefusedWords} from './masks.js';
 
 /**
  * A session for one package result.
@@ -174,6 +174,25 @@ export function createSession(packageEnvelope, hooks) {
         body.answers = postedAnswers(entry);
         entry.inFlight = snapshot(entry.answers);
         return body;
+    }
+
+    /**
+     * The masks in the questionnaire and the response so far that the next step would post, by the
+     * same choice loopBody and responseBody make, or null. The server refuses a step that posts one.
+     */
+    function postedMasks(entry, loop, respond) {
+        const texts = [];
+        if (loop) {
+            texts.push(entry.loopJson || (entry.startResponse ? entry.startResponse.json : entry.view.json));
+        }
+        if (respond) {
+            if (entry.view.kind === 'ADAPTIVE' && entry.loopJson) {
+                texts.push(entry.loopJson);
+            } else {
+                texts.push(entry.view.json, entry.startResponse ? entry.startResponse.json : null);
+            }
+        }
+        return masksIn(texts.filter(Boolean).map(text => typeof text === 'string' ? text : JSON.stringify(text)).join('\n'));
     }
 
     function postedAnswers(entry) {
@@ -558,6 +577,10 @@ export function createSession(packageEnvelope, hooks) {
                 + 'description above supports.'));
         }
         parts.push(el('p', {class: 'dtr-expect small'}));
+        const masks = postedMasks(entry, loop, respond);
+        if (masks) {
+            parts.push(maskedLine(stepRefusedWords(masks)));
+        }
         const row = el('div', {class: 'button-row'});
         if (loop) {
             const send = el('button', {type: 'button', class: 'button button--primary', on: {click: () => hooks.loop(entry)}}, buttonName.loop());
