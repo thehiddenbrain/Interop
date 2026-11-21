@@ -241,6 +241,19 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
     }
 
+    /**
+     * The check of {@link #memberInText} alone, for a row that has other problems and is not sent:
+     * the preview then lists this problem with the others, and the tester does not learn of it only
+     * after correcting them. Empty where nothing is looked up before sending.
+     *
+     * @param expected the expectation the first call would be sent with, or null to check none
+     */
+    public List<String> memberProblems(CaseSpec spec, String expected) {
+        List<String> problems = new ArrayList<>();
+        memberInText(spec, expected, problems);
+        return problems;
+    }
+
     /** Each problem after the name of its field, as a service's refusal names it. */
     private static List<String> fieldProblems(Map<String, String> byField) {
         List<String> out = new ArrayList<>();

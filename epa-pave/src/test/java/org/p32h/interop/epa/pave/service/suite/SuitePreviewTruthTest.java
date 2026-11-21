@@ -44,6 +44,41 @@ class SuitePreviewTruthTest {
                 .read("cases.csv", text), true, outcomes, bed.runner());
     }
 
+    /**
+     * A row with a problem of another kind is still held to the check made once the member is looked
+     * up (mock), so the preview, and the run, which reports a row by the preview's problems, list
+     * every problem of the row at once, and the tester does not learn of the name only after
+     * correcting the rest. An expectation refused for the name is not quoted by a problem with its terms.
+     */
+    @Test
+    void aRowWithAnotherProblemIsStillCheckedForTheMembersNameSoEveryProblemIsListedAtOnce() {
+        org.p32h.interop.epa.pave.service.MemberLookup lookup = id -> new org.p32h.interop.epa.pave.model.MemberLookupResult(
+                org.p32h.interop.epa.pave.model.LookupStatus.FOUND, org.p32h.interop.epa.pave.model.MemberIds.forms(id),
+                org.p32h.interop.epa.pave.model.MemberDetail.builder().memberId(id).firstName("Devon").lastName(SuiteTestBed.SURNAME).build(),
+                List.of(), List.of(), List.of(), null, null, "message");
+        String text = "caseId,protocol,memberId,npi,codes,expected,note\n"
+                + "a,crd,P32H-DOC-DTR," + NPI + ",95810,NOT_AN_OUTCOME,asked Devon\n"
+                + "b,chain,P32H-DOC-DTR," + NPI + ",95810,crd: NOT_AN_OUTCOME,asked Devon\n"
+                + "c-Surname,crd,P32H-DOC-DTR,123,95810,DOCUMENTATION_REQUIRED,\n"
+                + "d,crd,P32H-DOC-DTR," + NPI + ",95810,Devon,\n";
+        SuiteDefinition definition = SuiteCases.define("cases.csv", new SuiteFileReader(new org.p32h.interop.epa.pave.service.codelist.CsvRowsAdapter())
+                .read("cases.csv", text), true, SuiteTestBed.outcomes(), bed.runner().previewMembers(lookup));
+        String note = "note: The note holds the member's first name. The ledger keeps it as written and may not hold member data, so leave "
+                + "it out. Nothing was sent.";
+        List<SuiteRow> rows = definition.rows();
+        assertThat(rows.get(0).problems()).hasSize(2).anySatisfy(p -> assertThat(p).contains("NOT_AN_OUTCOME")).contains(note);
+        assertThat(rows.get(1).problems()).hasSize(2).anySatisfy(p -> assertThat(p).contains("NOT_AN_OUTCOME")).contains(note);
+        assertThat(rows.get(2).problems()).hasSize(2).anySatisfy(p -> assertThat(p).startsWith("The NPI is not valid"))
+                .contains("caseId: The case id holds the member's last name. The ledger keeps it as written and may not hold member data, "
+                        + "so leave it out. Nothing was sent.");
+        assertThat(rows.get(2).caseId()).isEqualTo("case-3");
+        assertThat(rows.get(3).problems()).containsExactly("expected: The expectation holds the member's first name. The ledger keeps it "
+                + "as written and may not hold member data, so leave it out. Nothing was sent.");
+        assertThat(rows).allSatisfy(row -> assertThat(row.spec()).isNull());
+        assertThat(rows.stream().flatMap(row -> row.problems().stream()).toList().toString() + rows.stream().map(SuiteRow::caseId).toList())
+                .doesNotContain("Devon").doesNotContain("Surname");
+    }
+
     @Test
     void thePreviewCountsOnlyWhatWillRunAndWhatItCountsIsWhatHappens() {
         String text = file(

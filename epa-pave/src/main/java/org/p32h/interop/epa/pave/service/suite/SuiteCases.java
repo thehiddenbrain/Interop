@@ -216,18 +216,24 @@ public final class SuiteCases {
         String shownExpected = text.containsKey("expected") && expected != null && expected.length() > RunRecord.LONGEST_EXPECTED
                 ? text.get("expected") : expected;
         int termsTo = problems.size() - text.size();
+        boolean termsCleared = false;
+        java.util.Set<String> refusedForTheRowsId = new java.util.HashSet<>();
         if (rowMember != null) {
             Map<String, String> member = MemberInText.problems(text.containsKey("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)),
                     text.containsKey("testerRef") ? null : Texts.trimToNull(cells.get(Column.TESTER_REF)),
                     text.containsKey("expected") ? null : expected, MemberDetail.builder().memberId(rowMember).build(),
                     "The row was not run.");
             member.values().forEach(problems::add);
-            MemberInText.problemsInCaseId(caseId, MemberDetail.builder().memberId(rowMember).build(),
-                    runner == null ? null : runner.ownCaseIds(), "The row was not run.").values().forEach(problems::add);
+            Map<String, String> inCaseId = MemberInText.problemsInCaseId(caseId, MemberDetail.builder().memberId(rowMember).build(),
+                    runner == null ? null : runner.ownCaseIds(), "The row was not run.");
+            inCaseId.values().forEach(problems::add);
+            refusedForTheRowsId.addAll(member.keySet());
+            refusedForTheRowsId.addAll(inCaseId.keySet());
             if (member.containsKey("expected")) {
                 shownExpected = member.get("expected");
                 // The refusal says what is wrong with the expectation, and nothing else quotes it.
                 problems.subList(termsFrom, termsTo).clear();
+                termsCleared = true;
             }
         }
         Map<String, String> correlation = new LinkedHashMap<>();
@@ -266,6 +272,32 @@ public final class SuiteCases {
             if (cannotRun == null) {
                 problems.addAll(runner.refusals(spec));
             }
+        } else if (runner != null && rowMember != null) {
+            // The row is not sent for its other problems, and the check made once the member is looked
+            // up is made all the same, so the preview and the run list every problem of the row at once.
+            // A text already refused, for its length or for the row's own member ID, is not checked again.
+            // An expectation is checked as the first call would be sent with it: a chain's CRD part when
+            // the chain's expectation can be read, and none of it when it cannot, since a term of another
+            // step then cannot be told from a word of the CRD step's.
+            String forTheCheck = text.containsKey("expected") || refusedForTheRowsId.contains("expected") ? null
+                    : !target.chain() ? expected
+                    : readable != null && ChainExpectation.parse(readable, outcomes).problems().isEmpty()
+                    ? ChainExpectation.parse(readable, outcomes).of(Protocol.CRD) : null;
+            CaseSpec probe = CaseSpec.builder()
+                    .caseId(refusedForTheRowsId.contains(MemberInText.CASE_ID) ? null : caseId)
+                    .chain(target.chain())
+                    .operation(target.operation())
+                    .memberId(rowMember)
+                    .testerRef(text.containsKey("testerRef") || refusedForTheRowsId.contains("testerRef") ? null
+                            : Texts.trimToNull(cells.get(Column.TESTER_REF)))
+                    .note(text.containsKey("note") || refusedForTheRowsId.contains("note") ? null : Texts.trimToNull(cells.get(Column.NOTE)))
+                    .build();
+            List<String> found = runner.memberProblems(probe, forTheCheck);
+            if (!termsCleared && found.stream().anyMatch(problem -> problem.startsWith("expected: "))) {
+                // The refusal says what is wrong with the expectation, and no problem with one of its terms quotes it.
+                problems.subList(termsFrom, termsTo).clear();
+            }
+            problems.addAll(found);
         }
         if (problems.stream().anyMatch(MemberInText::refusesCaseId)) {
             // A case id that holds member data is not repeated on screen or in the results, which a
