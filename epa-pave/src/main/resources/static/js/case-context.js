@@ -76,12 +76,15 @@ export function createCaseContext() {
     codes.checkList();
     detail.append(member.lookup.panel, provider.lookup.panel);
 
+    // The three things a send needs come first, together; the details the lookups fill come after
+    // them, still in view, because they show what a lookup found and what was changed by hand.
     const node = el('div', {class: 'case'},
-        el('fieldset', {class: 'case-group'}, el('legend', null, 'Member'),
-            el('div', {class: 'field-grid field-grid--three'}, member.nodes)),
-        el('fieldset', {class: 'case-group'}, el('legend', null, 'Ordering provider'),
-            el('div', {class: 'field-grid field-grid--three'}, provider.nodes)),
-        codes.node);
+        el('fieldset', {class: 'case-group case-required'}, el('legend', null, 'Needed to send'),
+            member.identifierNode, provider.identifierNode, codes.node),
+        el('fieldset', {class: 'case-group'}, el('legend', null, 'Member details'),
+            el('div', {class: 'field-grid field-grid--three'}, member.detailNodes)),
+        el('fieldset', {class: 'case-group'}, el('legend', null, 'Ordering provider details'),
+            el('div', {class: 'field-grid field-grid--three'}, provider.detailNodes)));
 
     return {
         /** The node that shows the case. The tab on screen places it. */
@@ -442,6 +445,10 @@ function group(spec) {
 
     return {
         nodes,
+        /** The identifier's field, with its lookup strip under it. */
+        identifierNode: nodes[0],
+        /** The fields of the details the lookup fills. */
+        detailNodes: nodes.slice(1),
         lookup,
         get: name => controls.get(name).value(),
 

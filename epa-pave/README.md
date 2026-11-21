@@ -466,7 +466,13 @@ did not change with them.
 ### The case: the left side of CRD, DTR and PAS
 
 The three protocol tabs share one case, so a member, a provider and the codes typed on one tab are
-on the other two.
+on the other two. The form opens with "Needed to send": the member ID, the NPI and the procedure
+codes, each with its lookup. Under it, "Member details" and "Ordering provider details" show what
+the lookups found and what was changed by hand. Then come the fields the call itself needs (on PAS
+the call's own fields, such as the claim identifier; on DTR what CRD handed on), and last a closed
+`More options` whose summary names what in it is set (for example "Note, mock scenario 1 chosen").
+A refused send lists each field it refused by its label, as a link that opens its fold and puts
+the cursor in it, so a refusal never sits unseen inside a closed fold.
 
 - **Member.** Type the member ID and press Enter or `Look up member`. Found details fill the fields
   below, each marked "from lookup", and stay editable; a field you change is marked as typed by
@@ -484,13 +490,17 @@ on the other two.
   the case is hidden, or a request of your own. It does still stop `Discover the CDS services this
   environment offers` on the CRD tab, although discovery sends nothing of the case (open at this
   revision): clear the box, then discover.
-- **Run as part of a chain** gives the case one id in the ledger across CRD, DTR and PAS.
+- **Run as part of a chain**, under `More options`, gives the case one id in the ledger across CRD,
+  DTR and PAS.
 - **What to send.** `Built by this tool from the form` (the default) or `A request of my own`: a
   body you paste, sent exactly as written, with `{{placeholders}}` filled in. The tab says what the
   ledger keeps of such a run: no member ID, provider or line of business, and no body, so it
   cannot be replayed from the ledger alone.
-- Below the case, each tab has its own fields: the date of service, a tester reference, a note,
-  on mock a `Mock scenario` chooser ("The member ID decides" by default), and `Expected outcome
+- Under `More options`, each tab has its own optional fields: the date of service, a tester
+  reference, a note, and on mock a `Mock scenario` chooser ("The member ID decides" by default).
+  While a scenario is chosen there, a line under the Member ID says "Mock scenario N "..." is chosen
+  under More options. It answers this run in place of the scenario the member ID and NPI would
+  pick.", with `Let the member ID decide`. Beside the send button: `Expected outcome
   (optional)`. Leave the expectation empty and the run is Unverified; choose one and the run is
   Passed or Failed. `Assert standard codes as well` adds expectations on single codes.
 - **The note, the tester reference and the expectation go into the ledger as typed.** A run whose
@@ -598,9 +608,9 @@ action says "Correct the marked fields and send again."
 
 ### The CRD tab
 
-Enter the case, choose the hook (`order-sign` or `order-select`) and, if you like, `Send
-prefetch`, then `Send CRD request`. `Discover the CDS services this environment offers` asks the
-environment what it offers (CDS Hooks discovery).
+Enter the case and choose `Send CRD request`. Under `More options` are the hook (`order-sign` or
+`order-select`), `Send prefetch` (ticked), and `Discover the CDS services this environment offers`,
+which asks the environment what it offers (CDS Hooks discovery).
 
 `A request of my own` also offers `Compare with this tool's request`: it builds PAVE's own request
 for the same case and lists where the two differ, with what each difference means; nothing is sent
@@ -612,7 +622,7 @@ a collection is mapped, `The vendor's sample` loads the vendor's sample body to 
 ### The DTR tab
 
 What CRD handed on ("Handed on from the CRD result": the codes, the questionnaire it named, the
-coverage assertion, the order) is listed at the top of the DTR fields; without it, the package is
+coverage assertion, the order) is listed under the case, never folded; without it, the package is
 asked for by the codes of the case or by a questionnaire url you type. Choose `Fetch the
 questionnaire package`. The questions appear on the right under "Answering the questionnaire",
 directly under the verdict, each with its link id, its type and whether it is required, and "In
@@ -632,7 +642,8 @@ marked as overridden.
 ### The PAS tab
 
 Choose the call at the top: `Send PAS request`, `Send inquiry`, `Subscriptions` or
-`Notifications`.
+`Notifications`. The call's own fields sit under the case and are never folded; the mock scenario,
+the tester reference and the note are under `More options`.
 
 - **Send PAS request.** The case, a claim identifier (blank: PAVE creates one, or uses the one handed on),
   diagnosis codes, attachments, then `Send PAS request`. When DTR handed on a completed response,
@@ -725,7 +736,7 @@ quoted.
 
 1. Open the CRD tab. Type `P32H-DOC-DTR` as the member ID and press Enter: the member fields fill,
    each marked "from lookup". Type `1234567893` as the NPI and press Enter. In the procedure codes
-   type `E0601`, press the down arrow and Enter. Tick `Run as part of a chain`.
+   type `E0601`, press the down arrow and Enter. Open `More options` and tick `Run as part of a chain`.
 2. Choose `Send CRD request`. The verdict strip, in orange, says "Documentation is required.";
    the test result says `Unverified` (nothing was declared); the next step says "Next: complete
    the payer's documentation in DTR." with the button `Continue in DTR`. The chain bar appears.

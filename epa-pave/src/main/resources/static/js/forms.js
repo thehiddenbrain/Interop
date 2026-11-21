@@ -6,7 +6,7 @@
 // the field it is about with the server's own sentence beneath it. This page checks nothing
 // itself: a second set of rules in the browser would drift from the first.
 
-import {el, append} from './dom.js';
+import {el, append, button} from './dom.js';
 
 let sequence = 0;
 
@@ -166,15 +166,24 @@ export function unmark(field) {
  *
  * options.focus: false to leave the focus where it is. A refusal that arrives while the tester
  * is already typing in the next field must not pull them back out of it.
+ * options.placed: an array; each problem marked at a field is pushed to it as {field, label,
+ * message}, so the summary can name the field and take the tester to it.
+ *
+ * A field inside a closed fold has the fold opened first, so no refusal sits where nobody sees it.
  */
 export function markFieldErrors(roots, fieldErrors, options) {
     const unplaced = [];
+    const placed = options && Array.isArray(options.placed) ? options.placed : null;
     let first = null;
     for (const problem of fieldErrors || []) {
         const field = findField(roots, String(problem.field));
         if (!field) {
             unplaced.push(problem);
             continue;
+        }
+        openFoldsAround(field);
+        if (placed) {
+            placed.push({field, label: fieldLabel(field, problem.field), message: problem.message});
         }
         field.classList.add('field--invalid');
         const messageId = nextId('problem');
@@ -199,6 +208,33 @@ export function markFieldErrors(roots, fieldErrors, options) {
     return unplaced;
 }
 
+/** Opens every closed fold the node sits in, from the inside out. */
+function openFoldsAround(node) {
+    for (let fold = node.closest('details:not([open])'); fold; fold = fold.closest('details:not([open])')) {
+        fold.open = true;
+    }
+}
+
+/**
+ * The words a field is known by on screen: its label or its legend, and its name only when it has
+ * neither, so a summary can name it the way the tester sees it.
+ */
+export function fieldLabel(field, fallback) {
+    const label = field ? field.querySelector('label:not(.choice), legend, .field__label') : null;
+    const text = label ? label.textContent.trim() : '';
+    return text !== '' ? text : String(fallback || '');
+}
+
+/** Opens the folds around a marked field, brings it into view and puts the focus in it. */
+function focusField(field) {
+    openFoldsAround(field);
+    field.scrollIntoView({block: 'center'});
+    const control = field.querySelector('input:not([type="hidden"]), select, textarea, button');
+    if (control) {
+        control.focus({preventScroll: true});
+    }
+}
+
 function findField(roots, name) {
     // procedureCodes[0].code is about the procedure codes field: the page has one control for the list.
     const candidates = [name, name.replace(/\[\d+\].*$/, '')];
@@ -216,13 +252,20 @@ function findField(roots, name) {
 }
 
 /**
- * The summary of a refused form: the server's title, what to do, and any problem that names no
- * field on screen. Shown beside the button that was pressed.
+ * The summary of a refused form: the server's title, what to do, each field marked by its label,
+ * as a button that takes the tester to it, and any problem that names no field on screen. Shown
+ * beside the button that was pressed.
+ *
+ * placed, optional: what markFieldErrors pushed to options.placed.
  */
-export function formProblem(error, unplaced) {
+export function formProblem(error, unplaced, placed) {
     const node = el('div', {class: 'form-problem', role: 'alert'},
         el('p', {class: 'form-problem__title'}, error.title),
         error.action ? el('p', null, error.action) : null);
+    if (placed && placed.length > 0) {
+        append(node, el('ul', {class: 'form-problem__fields'}, placed.map(entry =>
+            el('li', null, button(entry.label, () => focusField(entry.field), {class: 'button--text'}), ': ', entry.message))));
+    }
     if (unplaced && unplaced.length > 0) {
         append(node, el('ul', {class: 'note-list'}, unplaced.map(problem =>
             el('li', null, el('code', {class: 'literal'}, problem.field), ': ', problem.message))));

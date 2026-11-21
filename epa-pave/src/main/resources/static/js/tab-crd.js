@@ -31,6 +31,7 @@ function mount(panel, application) {
         formLabel: 'The case and the CRD request',
         readoutLabel: 'The readout: the request, discovery and the result',
         onSubmit: send,
+        moreOptions: true,
         // The hook chosen is what a run sends; discovery is the step a tester may take after it.
         operations: () => [controls.hookSelect && controls.hookSelect.checked ? 'CRD_ORDER_SELECT' : 'CRD_ORDER_SIGN', 'CRD_DISCOVERY']
     });
@@ -49,8 +50,8 @@ function mount(panel, application) {
     controls.preview = button('Show the request', showPreview);
     controls.discover = button('Discover the CDS services this environment offers', discover, {class: 'button--text'});
 
+    // Everything of CRD's own is optional, so all of it is in More options; the fold's summary names it.
     bench.own.append(
-        el('h2', {class: 'case-legend'}, 'CRD request'),
         el('div', {class: 'field field--inline', role: 'radiogroup', dataset: {field: 'hook'}, aria: {labelledby: 'crd-hook-label'}},
             el('span', {class: 'field__label', id: 'crd-hook-label'}, 'Hook'),
             el('div', null,
@@ -167,11 +168,15 @@ function drawScenarioSelector(list) {
  * is one node, moved to whichever protocol tab is open.
  */
 function drawOverrideNote() {
+    if (bench) {
+        // The selector may have been drawn again with no event, so the fold's summary is said again too.
+        bench.optionsChanged();
+    }
     if (!bench || !bench.form.contains(app.caseContext.node)) {
         return;
     }
     const chosen = controls.scenario ? scenarioOverride(vocabulary.scenarios, controls.scenario.value()) : null;
-    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'in the Mock scenario field below', letTheMemberIdDecide) : null);
+    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'under More options', letTheMemberIdDecide) : null);
 }
 
 
@@ -550,9 +555,9 @@ function drawEmptyState() {
     const parts = [
         el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.'),
         el('p', null, own
-            ? 'Paste the request body on the left, then choose "Send CRD request". The member, provider and codes on the form are not sent with it. '
+            ? 'Paste the request body in the form, then choose "Send CRD request". The member, provider and codes on the form are not sent with it. '
                 + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.'
-            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code on the left, then choose "Send CRD request". '
+            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code in the form, then choose "Send CRD request". '
                 + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.')
     ];
     const list = vocabulary.scenarios;

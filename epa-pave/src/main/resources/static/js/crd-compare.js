@@ -186,7 +186,8 @@ export function createComparison(spec) {
         }
         bench.say(answer.body.title);
         if (answer.kind === 'form') {
-            fill(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors)));
+            const placed = [];
+            fill(bench.problem, formProblem(answer.body, markFieldErrors([bench.form], answer.body.fieldErrors, {placed}), placed));
             refused(answer.body.title);
             keepFocus(used);
             return;

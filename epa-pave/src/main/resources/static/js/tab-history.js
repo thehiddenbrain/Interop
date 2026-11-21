@@ -251,7 +251,7 @@ function chainsView() {
     function empty() {
         fill(detail, el('div', {class: 'empty-state'},
             el('p', {class: 'empty-state__lead'}, 'No chain is open.'),
-            el('p', null, 'Choose a chain on the left to see its whole journey on one screen: each stage with its runs, '
+            el('p', null, 'Choose a chain in the list to see its whole journey on one screen: each stage with its runs, '
                 + 'and for a stage that did not run, the reason.')));
     }
 

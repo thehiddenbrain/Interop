@@ -109,7 +109,7 @@ export function createNotifications(spec) {
             parts.push(el('p', null,
                 'The setting ', code('onyx.subscription.callback-url'), ' is blank, so a subscription this tool creates names no address '
                 + 'to call back. Follow a pended request with an inquiry.',
-                spec.app.isMock() ? ' On the mock profile a sample notification can be delivered from the Notifications call on the left.' : null));
+                spec.app.isMock() ? ' On the mock profile a sample notification can be delivered from the Notifications call in the form.' : null));
         } else {
             parts.push(el('p', null, 'A subscription this tool creates asks the service to call back ', code(callback.value),
                 ', from the setting ', code('onyx.subscription.callback-url'), '. If nothing arrives, follow the request with an inquiry.'));

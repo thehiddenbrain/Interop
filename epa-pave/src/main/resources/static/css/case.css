@@ -499,3 +499,36 @@
 .picker__chip-sentence--strong {
     color: var(--ink-strong);
 }
+
+/* The three things a send needs, first in the pane: the same group as the others, its heading a
+   step heavier so it reads first. The fields keep their own labels. */
+.case-required > legend {
+    font-weight: 700;
+}
+
+.case-required > .field + .field,
+.case-required > .field + .picker {
+    margin-top: var(--gap-2);
+}
+
+/* The tab's optional fields, closed under the case. The summary uses the fold's own rules; the
+   line above it is the one that used to part the case from the tab's own fields. */
+.more-options {
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.more-options > .case-pane__own {
+    padding-top: var(--gap-2);
+    border-top: 0;
+}
+
+.before-options:empty {
+    display: none;
+}
+
+/* Each field a refusal names, as a button that goes to it. */
+.form-problem__fields {
+    margin: var(--gap-1) 0 0;
+    padding-left: var(--gap-4);
+}

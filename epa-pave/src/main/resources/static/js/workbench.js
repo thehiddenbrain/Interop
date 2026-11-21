@@ -23,7 +23,7 @@
 // own fields, the preview included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem, unmark} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, unmark, fieldLabel} from './forms.js';
 import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
@@ -66,6 +66,11 @@ export function textLeftToRefuse(facts) {
  * spec.readinessWays, optional: a function returning nodes the statement offers beside the way to
  * the Config tab, for a part of the tab that needs no service (the PAS tab's notification
  * receiver). A tab that changes which operations it sends calls bench.checkReadiness() after.
+ *
+ * spec.moreOptions, optional: true to put the tab's own optional fields (bench.own) and the chain
+ * control in one closed "More options" fold under the case, whose summary says what in it is not
+ * at its default. The fields a call needs go in bench.beforeOptions, which is never folded. Left
+ * out, bench.own is open under the case, as the Config tab's request sent as written wants it.
  */
 export function createWorkbench(app, panel, spec) {
     let busy = false;
@@ -94,8 +99,21 @@ export function createWorkbench(app, panel, spec) {
     const beforeSending = el('div', {class: 'before-sending', hidden: true});
     const actions = el('div', {class: 'case-pane__actions'}, beforeSending);
     const problem = el('div', {class: 'form-problem-slot'});
+    // The fields of the call itself that a tester must see or fill, between the case and the fold.
+    const beforeOptions = el('div', {class: 'before-options'});
+    // What in the fold is not at its default, so a closed fold never hides that something is set.
+    const optionsSaid = el('span', {class: 'quiet more-options__said'});
+    const moreOptions = el('details', {class: 'fold more-options'}, el('summary', null, 'More options', optionsSaid));
+    const folded = spec.moreOptions === true;
+    const firstSeen = new WeakMap();
+    if (folded) {
+        moreOptions.append(own);
+        moreOptions.addEventListener('change', drawOptionsSaid);
+        moreOptions.addEventListener('input', drawOptionsSaid);
+    }
     const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': spec.formLabel}},
-        el('div', {class: 'case-pane__scroll'}, modeSlot, caseNote, caseSlot, own, valuesSlot), actions);
+        el('div', {class: 'case-pane__scroll'}, modeSlot, caseNote, caseSlot, beforeOptions,
+            folded ? [valuesSlot, moreOptions] : [own, valuesSlot]), actions);
 
     const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}});
     const refusal = el('div', {class: 'readout__refusal', aria: {live: 'polite'}});
@@ -137,6 +155,46 @@ export function createWorkbench(app, panel, spec) {
 
     panel.classList.add('tabpanel--workbench');
     fill(panel, workbench);
+
+    /**
+     * Says on the closed fold's summary what in it is set: a text field that holds something, a
+     * box ticked or cleared against its default, a choice other than the first. Read from the
+     * fields themselves, so a field added to the fold is said without a word more here. A box
+     * built ticked carries no default the page can read, so the state each box is first seen in,
+     * when the tab is first shown and nothing has been touched, is taken as its default.
+     */
+    function drawOptionsSaid() {
+        const said = [];
+        for (const control of moreOptions.querySelectorAll('input, select, textarea')) {
+            if (control.closest('[hidden]')) {
+                continue;
+            }
+            const field = control.closest('[data-field], .field, .case-group');
+            const named = control.type === 'checkbox' || control.type === 'radio'
+                ? (control.closest('label') ? control.closest('label').textContent.trim() : control.value)
+                : fieldLabel(field, control.name);
+            if (!firstSeen.has(control)) {
+                firstSeen.set(control, control.checked);
+            }
+            if (control.type === 'checkbox') {
+                if (control.checked !== firstSeen.get(control)) {
+                    said.push(named + (control.checked ? '' : ' off'));
+                }
+            } else if (control.type === 'radio') {
+                if (control.checked && !firstSeen.get(control)) {
+                    said.push(named);
+                }
+            } else if (control.tagName === 'SELECT') {
+                if (control.selectedIndex > 0) {
+                    const number = /^(\d+)\./.exec(control.options[control.selectedIndex].text);
+                    said.push(control.name === 'scenarioId' && number ? 'mock scenario ' + number[1] + ' chosen' : named);
+                }
+            } else if (control.value.trim() !== '') {
+                said.push(named);
+            }
+        }
+        optionsSaid.textContent = said.length === 0 ? '' : said.join(', ');
+    }
 
     function drawBeforeSending() {
         const items = app.caseContext.attention();
@@ -265,8 +323,14 @@ export function createWorkbench(app, panel, spec) {
     const bench = {
         /** The form, for listening to changes in it. */
         form,
-        /** Where the tab puts its own controls, under the shared case. */
+        /** Where the tab puts its own controls, under the shared case: inside More options when the tab folds them. */
         own,
+        /** Where the tab puts the fields of the call a tester must see or fill, between the case and More options. Never folded. */
+        beforeOptions,
+        /** The closed fold of the tab's optional fields, or a fold holding nothing when the tab does not fold them. */
+        moreOptions,
+        /** Says again on the fold's summary what in it is set, after the tab changed a field without an event. */
+        optionsChanged: () => drawOptionsSaid(),
         /** Where the tab puts what belongs with its send button. It stays in view while the case scrolls. */
         actions,
         /** Where the summary of a refused form appears. The tab places it among its actions. */
@@ -278,7 +342,13 @@ export function createWorkbench(app, panel, spec) {
          * is room for a table and a wire view.
          */
         showCase() {
-            caseSlot.append(app.caseContext.node, app.chain.control);
+            caseSlot.append(app.caseContext.node);
+            if (folded) {
+                moreOptions.append(app.chain.control);
+                drawOptionsSaid();
+            } else {
+                caseSlot.append(app.chain.control);
+            }
             refusal.after(app.caseContext.detail);
             drawBeforeSending();
             drawReadiness();
@@ -358,7 +428,8 @@ export function createWorkbench(app, panel, spec) {
                 // the opposite of what was chosen. Nothing is asked of the server.
                 const nothing = {title: 'There is no request of your own to send. Nothing was sent.',
                     action: 'Paste the request into the box, or choose "Built by this tool from the form".', fieldErrors: []};
-                const said = formProblem(nothing, markFieldErrors([ownRequest.field], [{field: 'rawBody', message: 'Paste the request body here.'}]));
+                const placed = [];
+                const said = formProblem(nothing, markFieldErrors([ownRequest.field], [{field: 'rawBody', message: 'Paste the request body here.'}], {placed}), placed);
                 said.classList.add('form-problem--own');
                 fill(problem, said);
                 status.textContent = nothing.title;
@@ -370,8 +441,9 @@ export function createWorkbench(app, panel, spec) {
                 // and the send is refused rather than made without it: the tester decides which.
                 const left = {title: 'Nothing was sent: "' + typed + '" was typed in the procedure code box and not added to the case.',
                     action: 'Choose Add code to add it, or clear the box, then send again.', fieldErrors: []};
+                const placed = [];
                 fill(problem, formProblem(left, markFieldErrors([app.caseContext.node],
-                    [{field: 'procedureCodes', message: 'Typed and not added. Choose Add code, or clear the box.'}])));
+                    [{field: 'procedureCodes', message: 'Typed and not added. Choose Add code, or clear the box.'}], {placed}), placed));
                 status.textContent = left.title;
                 return null;
             }
@@ -404,7 +476,8 @@ export function createWorkbench(app, panel, spec) {
                     await runValues.need(answer.body.fieldErrors || []);
                 }
                 // A form problem is marked at the fields. The result of the earlier run stays where it is.
-                fill(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors)));
+                const placed = [];
+                fill(problem, formProblem(answer.body, markFieldErrors([panel], answer.body.fieldErrors, {placed}), placed));
                 return null;
             }
             fill(refusal, errorPanel(answer.body),

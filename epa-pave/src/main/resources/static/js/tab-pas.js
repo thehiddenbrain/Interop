@@ -58,6 +58,7 @@ function mount(target, application) {
     app = application;
     panel = target;
     bench = createWorkbench(app, panel, {
+        moreOptions: true,
         formLabel: 'The case and the PAS request',
         readoutLabel: 'The readout: the request, notifications and the result',
         onSubmit: () => primaryAction(),
@@ -81,7 +82,10 @@ function mount(target, application) {
     bench.actions.append(controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
 
     controls.sectionSlot = el('div', {class: 'pas-section'});
-    bench.own.append(controls.sectionSlot, controls.common);
+    // The call's own fields (the claim identifier an inquiry needs among them) are never folded;
+    // the scenario, the tester reference and the note are optional and go in More options.
+    bench.beforeOptions.append(controls.sectionSlot);
+    bench.own.append(controls.common);
     // Which call is made decides what the rest of the form means, so the choice comes before everything else in the pane.
     controls.noCase = el('p', {class: 'small pas-nocase', hidden: true});
     const scroll = bench.form.querySelector('.case-pane__scroll');
@@ -420,7 +424,7 @@ function buildSubscriptions() {
             + 'values of the active environment, not fields here. "Show the create request" lists each value that will be used and where it comes from.'),
         el('div', {class: 'field-grid'}, controls.variableName.node));
     sections.notifications = el('div', {class: 'pas-section__body'},
-        el('p', {class: 'small'}, 'The notifications the receiver has taken in are listed on the right, newest first, and refreshed every few seconds while this tab is open.'));
+        el('p', {class: 'small'}, 'The notifications the receiver has taken in are listed under Notifications received, newest first, and refreshed every few seconds while this tab is open.'));
 }
 
 function subscriptionBody() {
@@ -480,7 +484,8 @@ async function subscriptionCall(kind) {
         const said = {title: 'There is no subscription id. Nothing was sent.', action: 'Enter the id of the subscription, or list the subscriptions to find it.',
             fieldErrors: [{field: 'subscriptionId', message: 'Enter the id of the subscription to ' + kind + '.'}]};
         bench.say(said.title);
-        fill(bench.problem, formProblem(said, markFieldErrors([panel], said.fieldErrors)));
+        const placed = [];
+        fill(bench.problem, formProblem(said, markFieldErrors([panel], said.fieldErrors, {placed}), placed));
         return;
     }
     const send = {
@@ -564,11 +569,15 @@ function drawScenarioSelector() {
  * is one node, moved to whichever protocol tab is open.
  */
 function drawOverrideNote() {
+    if (bench) {
+        // The selector may have been drawn again with no event, so the fold's summary is said again too.
+        bench.optionsChanged();
+    }
     if (!bench || !bench.form.contains(app.caseContext.node)) {
         return;
     }
     const chosen = controls.scenario ? scenarioOverride(mode === 'subscriptions' ? null : vocabulary.byUse.get(useOf(mode)), controls.scenario.value()) : null;
-    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'in the Mock scenario field below', letTheMemberIdDecide) : null);
+    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'under More options', letTheMemberIdDecide) : null);
 }
 
 
@@ -714,7 +723,7 @@ function showRun(envelope) {
     // No inquiry is sent from here on the browser's own account; the Send inquiry call is filled from this submission, and the way to it is offered.
     if (step.action === 'CHECK_ENVIRONMENT' && envelope.operation === 'PAS_SUBMIT' && hasClaim && row) {
         row.closest('.nextstep').append(el('p', {class: 'small pas-nextstep-way'},
-            'Send inquiry, on the left, is already filled with the claim identifier of this submission. ',
+            'Send inquiry, in the form, is already filled with the claim identifier of this submission. ',
             button('Choose Send inquiry', () => {
                 showMode('inquire');
                 controls.inquiryClaimId.input.focus();
@@ -843,13 +852,13 @@ function drawEmptyState() {
     const own = bench.ownRequestActive();
     if (mode === 'submit') {
         parts.push(el('p', null, own
-            ? 'Paste the request body on the left, then choose "Send PAS request". The member, provider and codes on the form are not sent with it.'
-            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code on the left, then choose "Send PAS request". '
+            ? 'Paste the request body in the form, then choose "Send PAS request". The member, provider and codes on the form are not sent with it.'
+            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code in the form, then choose "Send PAS request". '
                 + '"Show the request" shows the bundle first and lists what it leaves out. The answer appears here: what the payer decided for each item, '
                 + 'the authorization number, whether it matched what you expected, and what to do next.'));
     } else if (mode === 'inquire') {
         parts.push(el('p', null, 'An inquiry asks for the status of a submitted request. Send a submission first and the inquiry follows it, '
-            + 'or type the claim identifier of the request to ask about. The member and the provider of the case on the left go with it.'));
+            + 'or type the claim identifier of the request to ask about. The member and the provider of the case in the form go with it.'));
     } else if (mode === 'subscriptions') {
         parts.push(el('p', null, 'A subscription asks the service to call this tool back when a decision changes. Create one, list what the service holds, '
             + 'or read, update or delete one by its id.'));

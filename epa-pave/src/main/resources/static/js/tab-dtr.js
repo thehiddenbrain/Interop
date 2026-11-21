@@ -37,6 +37,7 @@ const slots = {};
 function mount(panel, application) {
     app = application;
     bench = createWorkbench(app, panel, {
+        moreOptions: true,
         formLabel: 'The case and the DTR package request',
         readoutLabel: 'The readout: the request, the questionnaires and the result',
         onSubmit: fetchPackage,
@@ -63,16 +64,17 @@ function mount(panel, application) {
     controls.send = el('button', {type: 'submit', class: 'button button--primary'}, 'Fetch the questionnaire package');
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
-        'Fetching the package again starts the questionnaires over: the answers typed on the right are dropped.');
+        'Fetching the package again starts the questionnaires over: the answers typed in the questionnaire are dropped.');
     // The summary of a refused package form goes here; a refused loop or response step has its own,
     // beside the button that sent it, in the questionnaire.
     controls.problemHome = el('div', {class: 'dtr-problem-home'}, bench.problem);
 
     // The questionnaire field takes one url a line, and Enter in it starts the next line.
     controls.questionnaires.input.wrap = 'soft';
+    // What CRD handed on, and the warning that the case has changed since, are read before sending,
+    // so they are never folded. The rest is optional and goes in More options.
+    bench.beforeOptions.append(controls.carried);
     bench.own.append(
-        el('h2', {class: 'case-legend'}, 'DTR questionnaire package'),
-        controls.carried,
         el('div', {class: 'field-grid'}, controls.questionnaires.node, controls.assertionId.node, controls.date.node, controls.testerRef.node,
             controls.scenarioSlot, controls.note.node));
     bench.actions.append(
@@ -180,11 +182,15 @@ function drawScenarioSelector(list) {
  * is one node, moved to whichever protocol tab is open.
  */
 function drawOverrideNote() {
+    if (bench) {
+        // The selector may have been drawn again with no event, so the fold's summary is said again too.
+        bench.optionsChanged();
+    }
     if (!bench || !bench.form.contains(app.caseContext.node)) {
         return;
     }
     const chosen = controls.scenario ? scenarioOverride(vocabulary.scenarios, controls.scenario.value()) : null;
-    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'in the Mock scenario field below', letTheMemberIdDecide) : null);
+    app.caseContext.identifierNote('member', chosen ? scenarioOverrideNote(chosen, 'under More options', letTheMemberIdDecide) : null);
 }
 
 
@@ -536,8 +542,8 @@ function drawEmptyState() {
         el('p', {class: 'dtr-honest dtr-honest--lead'},
             'There is no SMART launch here and no patient record: you type each answer yourself. Answers marked as pre-populated come from the payer\'s service.'),
         el('p', null, own
-            ? 'Paste the package request body on the left, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
-            : 'With the member ID, the ordering provider\'s NPI and a procedure code on the left, choose "Fetch the questionnaire package". '
+            ? 'Paste the package request body in the form, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
+            : 'With the member ID, the ordering provider\'s NPI and a procedure code in the form, choose "Fetch the questionnaire package". '
                 + 'What CRD handed on goes with it. The questions then appear here to be answered, one step at a time for an adaptive '
                 + 'questionnaire, and the completed response is handed to PAS.')
     ];
