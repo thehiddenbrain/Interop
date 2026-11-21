@@ -975,7 +975,8 @@ curl -s -F file=@samples/postman/pave-sample.postman_collection.json localhost:8
   and lists deeper than the 500 levels this tool reads: the level past that limit opens at line L,
   column C. It was not read, and nothing was stored.", with "In Postman, move the requests of the
   deepest folders into folders nearer the top, export the collection again and upload that file."
-  (an environment nested that deep gets the same sentence; about 250 folders inside each other reach
+  (an environment nested that deep gets the same sentence, with "Export the environment from Postman
+  again and upload the file it saves."; about 250 folders inside each other reach
   that limit).
 - The folder tree is walked: requests nested in folders are found.
 - Each request's method, url with placeholders intact, headers, raw body and saved example
@@ -2348,10 +2349,12 @@ seen to work:
 
 **If an upload met this error before this version** (D-279). A collection holding one long text in
 a request body or a saved example made the upload fail with this error while the collection was
-stored all the same, and every later reading of the store failed too, after a restart as well. After
-you pull this version (Team, Pull, then Gradle, Refresh Gradle Project) and start the tool again, the
-Config tab opens again. It may list more than one copy of the collection, one for each differently
-named file you tried: delete the extras. Upload the files again. If an internal error still appears,
+stored all the same, and for longer texts (3,000 characters in the tests) every later reading of the
+store failed too, after a restart as well. After you pull this version (Team, Pull, then Gradle,
+Refresh Gradle Project) and start the tool again, the Config tab opens again (seen on the version of
+the fix before the screen changes were merged with it). It may list more than one copy of the
+collection, one for each collection name (the name Postman gives it, inside the file) that was
+tried: delete the extras (Config tab, Collections and mapping, `Remove` on the row, then confirm). Upload the files again. If an internal error still appears,
 press `Copy reference and cause` and send what it copies.
 
 **6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
@@ -2881,10 +2884,12 @@ repeat every finding id; it leaves out nothing a tester has to know.
   the sentences that fix changed were taken from its reports and looked for in the sources of
   `ba4661b` (the nesting sentences and the shortened name are there); the only one this README
   quotes is the refusal under [Uploading a collection](#uploading-a-collection), added. Seen on the
-  jar of the fix by its builder, and in part again by four agents that wrote none of it: the old jar of `e70af34` failing
+  jar of the fix by its builder and by the agent that corrected it, and in part again by three agents that wrote none of it: the old jar of `e70af34` failing
   and the new one not, the corpus of 118 odd files, texts of 1 to 20 MB, a store poisoned by the old
   jar opening in the new one (the Config tab in Chromium listing both copies and removing one), and
-  live answers of 2 MB from a stand-in on this machine. Nothing of it on Windows, and nobody walked
+  live answers of 2 MB from a stand-in on this machine. No proof ran on the jar of `ba4661b` beyond
+  its whole build; the old store opening and the Config tab removing a copy were seen on the jar of
+  `4456ea5`, before the screen changes were merged. Nothing of it on Windows, and nobody walked
   the screens again for it.
   Apart from these, the commits after `902e0d9` change this README, `PROGRESS.md` and
   `DECISIONS.md` only.

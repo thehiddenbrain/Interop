@@ -140,8 +140,8 @@ has looked.
    **A defect that produces that very log entry was found and corrected** (D-279): a collection
    holding one quoted text of about 1,300 characters or more in a request body or a saved example
    (an encoded attachment, a saved response, a token) threw `StackOverflowError` in the scan for
-   credentials, after the collection had been stored, so that every later reading of the store threw
-   again, after a restart too. The sample files hold no text that long, which is why no earlier
+   credentials, after the collection had been stored, and for longer texts (3,000 characters in the tests)
+   every later reading of the store threw again, after a restart too. The sample files hold no text that long, which is why no earlier
    attempt met it. **Whether it was the operator's failure is not confirmed.** It is the only way
    anyone has made the tool write that entry at default settings, but after a shorter long text was
    stored the sample files still uploaded, so "every upload fails" follows only for longer texts,
@@ -151,8 +151,9 @@ has looked.
    with compile errors gives the same entry. **What would confirm it:** the line of the operator's log
    entry after " <- caused by ", or the cause the screen now names (D-277). For the operator, once this version is on the
    branch of their clone: pull, start again (the Config tab opens again on the store the old version
-   left, and may list one copy of the collection for each differently named file tried: delete the
-   extras), upload again, and if an internal error still appears press `Copy reference and cause` and
+   left, seen on the jar of `4456ea5` before the screen changes were merged, and may list one copy of
+   the collection for each collection name inside the files tried: delete the extras on the Config
+   tab, Collections and mapping, `Remove` on the row, then confirm), upload again, and if an internal error still appears press `Copy reference and cause` and
    send what it copies. Nothing of this ran on Windows, and the operator has not pulled it. Until the
    uploads work there, nothing can be configured for the live profile on that workstation: the
    vendor's environment and collection reach the tool only by these uploads.
@@ -331,7 +332,8 @@ has looked.
    - **The smallest supported thread stack is 512 KB.** A 64-bit Java gives 1 MB unless told
      otherwise. Below 512 KB an answer nested close to 500 levels still throws `StackOverflowError`:
      only the masking of returned secrets is a loop, the other walks over an answer take a frame per
-     level. `DeepAnswerStackTest` holds every protocol's 500-level answer at 512 KB.
+     level. `DeepAnswerStackTest` holds a 500-level CRD answer, DTR package, PAS answer and inquiry
+     answer at 512 KB; subscription, lookup and raw answers were not run that deep.
    - The answer the browser receives is about twelve times the body the service sent (a 10 MB value
      gave about 120 MB). No Error at the default heap; left, because cutting long values changes what
      section 21 says the wire view shows, and needs a decision of its own.

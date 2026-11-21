@@ -34,7 +34,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-276 | The operator's verdict was answered with a first round of screen changes, without waiting for the three worst things they were asked for | A look, a doubt, a plan, an attack, two batches, a walk, an audit and three rounds of correction and check, all by agents. On mock one click gives a case that can be sent; a good run no longer looks wrong; the form opens with what a send needs; DTR questions come first; a result is ordered and folded; Config opens with "Ready to send?" and says that signing in is off; a failed call names its address and cause. **The operator has not seen it, no person has used it, nothing of it ran on Windows.** Left: long results, History, reload, the values the vendor's file lacks, a sign-in |
 | D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
 | D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
-| D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and every later reading of it threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion left is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
+| D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and for longer texts (3,000 characters in the tests) every later reading of the store threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion the guard can see is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5548,7 +5548,8 @@ the operator is reported, not seen by the writers of these documents.
 Later: D-279. A stress of the upload found a defect that writes this very log entry at default
 settings: a collection holding one quoted text of about 1,300 characters or more in a request body or
 a saved example threw `StackOverflowError` in the scan for credentials, after the collection had been
-stored, so that every later reading of the store threw again. It is corrected, and a store left by
+stored, and for longer texts (3,000 characters in the tests) every later reading of the store threw
+again, after a restart too. It is corrected, and a store left by
 the old version opens again. Whether it was the operator's failure is not confirmed; the line of their
 log entry after " <- caused by ", or the cause the screen now names (D-277), would settle it. The
 compiler of the IDE was tested as a cause and refuted, except that a project started with compile
@@ -6105,8 +6106,8 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
      1,278 for a Binary resource's `data`, 1,287 in a saved example; about 3,450 once the Java has
      warmed up (measured in a thread of its own, 3,456 on Java 25 and Java 21); about 1,600 with
      `-XX:TieredStopAtLevel=1`, which the IDE's fast start adds (1,613, measured once on a partly warmed
-     tool); 1,173 with the interpreter only. Real exports hold such texts as a rule: an encoded
-     attachment, a saved response, a token. The sample files' longest text is 79 characters, which is
+     tool); 1,173 with the interpreter only. Real exports commonly hold such texts (an encoded
+     attachment, a saved response, a token); no vendor export was seen. The sample files' longest text is 79 characters, which is
      why no earlier attempt to reproduce the operator's failure met it.
   2. The pattern at fault was `LiteralCredentials.JSON_MEMBER`, the scan that looks for a credential
      typed into a body. It repeated a group holding an alternation, which `java.util.regex` evaluates
@@ -6176,7 +6177,7 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
   added failed the list check. `RecursionGuardTest` is its companion for methods: it scans the
   compiled main classes for every call cycle (direct calls, lambdas, method references, overrides)
   and fails on one that is not listed with what bounds it: the depth of a JSON tree (at most 500
-  levels), a fixed cap, or the backslashes of a configured secret; 37 cycles are listed. It does not
+  levels), a fixed cap, or the backslashes of a configured secret; 35 cycles are listed. It does not
   see a recursion through a library type held in a field, as its Javadoc says. **At the merge** the
   screen round had added an inline pattern (the one in `Faults` that makes the cause of a failure one
   line) and removed one (the NPI check `ProviderLookupService` no longer holds); the guard failed on
@@ -6205,8 +6206,9 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
   fix attacked it on the jar of `583ccbe`.
   - *A DTR questionnaire whose items enable each other in a chain of thousands* threw the same
     `StackOverflowError`, with nothing to do with an upload: `EnableWhenEvaluator` called itself once
-    per item, and the items are a flat list, so the 500-level limit does not bound it. From 1,500
-    items on Java 25 and 3,000 on Java 21 at the default stack, 400 at 256 KB; on the package fetch
+    per item, and the items are a flat list, so the 500-level limit does not bound it. At the default
+    stack, 1,200 items passed and 1,500 failed on Java 25; on Java 21, 1,000 passed and 3,000 failed
+    (nothing in between was tried); on Java 21 at 256 KB, 200 passed and 400 failed; on the package fetch
     (live) and on `POST /api/dtr/response` (mock too); the call had reached the service and no ledger
     line was written. The old jar fails the same way: the fix missed it, it did not cause it. It is
     a legal questionnaire, if an unusual one. **Corrected** (`91dfb34`): the evaluator works from a
@@ -6217,9 +6219,10 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
   - *An answer nested past 500 levels was still called not valid JSON*: corrected, above.
   - *The masking of returned secrets recursed once per JSON level* and threw on a 256 KB stack from
     about 300 levels: it is a loop now (`a36fca1`). The other walks over an answer still take a frame
-    per level. `DeepAnswerStackTest` runs a 500-level answer of each protocol through its service on
-    a 512 KB thread, masked, recorded and serialized; at 256 KB it fails. On the final jar every such
-    answer passed at 512 KB and at the default stack, on Java 21 and Java 25; at 384 KB and 256 KB
+    per level. `DeepAnswerStackTest` runs a 500-level CRD answer, DTR package, PAS answer and inquiry
+    answer through their services on a 512 KB thread, masked, recorded and serialized; at 256 KB it
+    fails. Subscription, lookup and raw answers were not run that deep, by the test or on the jar. On
+    the final jar each of those four kinds of answer passed at 512 KB and at the default stack, on Java 21 and Java 25; at 384 KB and 256 KB
     with `-XX:TieredStopAtLevel=1` on Java 25, 6 of 9 failed (the check: 4 of 10 at 256 KB; the old
     jar 7 of 9). **Decided by the integrator: the smallest thread stack the tool supports is 512 KB.**
     A 64-bit Java gives 1 MB unless told otherwise, so a tester who sets nothing has nothing to do;
@@ -6248,8 +6251,9 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     200 on each, its reads 200. The attack repeated this with texts of 100,000 characters in a body
     and in a saved example; the last check repeated it on the final jar with a 256 KB stack and
     `-XX:TieredStopAtLevel=1`.
-  - *The corpus.* The 118 files on the new jar (126 uploads by the builder, 162 by the attack, 162 by
-    the last check): each answered 200, or 422 or 413 with its reason. No "internal error", no
+  - *The corpus* on the new jar (118 files, 126 uploads, by the builder; 162 uploads by the attack;
+    128 files, 162 uploads, by the last check): each upload that was answered got 200, or 422 or 413
+    with its reason. No "internal error", no
     `StackOverflowError`. The environments of 100,000 or 200,000 variables took many minutes or gave no
     answer within the client's time (the time left out on purpose), and the builder's client giving up
     on them left two "Unhandled exception" entries in the log (open, below).
@@ -6269,7 +6273,8 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     new jar: the list, "In force now" and each request detail answer 200, and in Chromium the Config
     tab listed both copies and removed one (screenshots looked at, on Java 21 and Java 25, the last
     check on a 256 KB stack with three collections and two removals). **Limit:** the same file uploaded
-    twice is held once, because its id comes from its name; copies need different names. The Config
+    twice is held once, because its id comes from the collection's name inside the file, not from the file's name; copies
+    need different collection names. The Config
     tab on the old version after poisoning was never watched in a browser.
   - *The answers of the service.* On live against a stand-in on 127.0.0.1: a CRD answer, a DTR package
     and a PAS answer each carrying a text of 2 MB, and an error answer of 2 MB, on Java 21 and Java
@@ -6281,6 +6286,9 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     and in the last check: `store.json` and the stored files byte for byte as before. That the view is
     built before the commit has no proof on the jar beyond the upload's view equalling the listed one,
     because nothing makes a view fail at run time.
+  - *The merged code.* No proof ran on the jar of `ba4661b` beyond its whole build; the old store
+    opening and the Config tab removing a copy were seen on the jar of `4456ea5`, before the screen
+    changes were merged.
   - *Commits* were not built one by one; the whole build ran on `583ccbe` (2,896 tests) and on
     `4456ea5` (2,913), each with 0 failures, 0 errors and 2 skipped.
 - **What is not confirmed: whether this is the operator's failure.** It is the only way anyone has
@@ -6293,8 +6301,10 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
   log entry after " <- caused by ", or the cause the screen now names (D-277), settles it.
 - **What the operator has to do**, once this version is on the branch of their clone: pull (in STS:
   Team, Pull, then Gradle, Refresh Gradle Project) and start the tool again. The Config tab opens
-  again on the store the earlier attempts left; it may list more than one copy of the collection, one
-  for each differently named file that was tried: delete the extras. Upload the files again. If an
+  again on the store the earlier attempts left (seen on the jar of `4456ea5`, before the screen changes
+  were merged); it may list more than one copy of the collection, one for each collection name (the
+  name Postman gives it, inside the file) that was tried: delete the extras (Config tab, Collections
+  and mapping, `Remove` on the row, then confirm). Upload the files again. If an
   internal error still appears, press `Copy reference and cause` under it and send what it copies.
 - **Seen on the way and left, each with why.**
   - Resolving an environment takes time in the square of its variables, inside the store's lock: an
