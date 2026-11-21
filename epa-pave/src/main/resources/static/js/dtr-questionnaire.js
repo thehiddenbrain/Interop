@@ -473,7 +473,7 @@ export function createSession(packageEnvelope, hooks) {
             // line, because this is where the tester is working when the answer arrives.
             parts.push(el('p', {class: 'dtr-laststep', tabIndex: -1}, toneMark(last.tone), ' ',
                 el('span', {class: 'quiet'}, (last.kind === 'loop' ? 'Step ' + last.number : 'The response step') + (last.worked ? ' answered: ' : ' did not work: ')),
-                last.headline, ' ', el('span', {class: 'quiet small'}, 'The whole result is above.')));
+                last.headline));
         }
         if (adaptive) {
             const loops = entry.steps.filter(step => step.kind === 'loop').length;

@@ -1,15 +1,19 @@
 // The result view. One function draws the result of a run for every protocol, in one order:
 //
 //   1. the verdict strip      what the service said, in its tone
-//   2. the test result        what was expected, what happened, whether they match
+//   2. the test result        what was expected, what happened, whether they match. A run with
+//                             nothing declared says so in one quiet line under the strip instead
 //   3. the next step          what to do now, with the button that does it when the tool can
-//   4. the ledger line        recorded, or NOT recorded
+//   4. the run line           the run id, the response time and the ledger: recorded, or NOT recorded
 //   5. the findings           what a person should look at, apart from the determination
-//   6. the determination      the standard codes
+//   6. the determination      the standard codes; elements not returned in a fold under the table
 //   7. the response detail    the protocol's own part, passed in by the tab
-//   8. the additional fields  everything returned that the view above did not use
-//   9. the wire view          the request as built and the response as received, collapsed
-//  10. the error panel        when the call failed, was refused, or the tool failed after it
+//   8. the additional fields  everything returned that the view above did not use, its table folded
+//   9. the details            the wire view and what was typed with the run, in one closed fold
+//  10. the error panel        when the call failed, was refused, or the tool failed after it; never folded
+//
+// What the service answered is open; what was not returned and the tool's own internals are one
+// click away, and never hidden: each fold says what it holds and how many.
 //
 // Nothing here is decided in the browser. The verdict, the test result, the next step and the
 // findings are worded by the server and shown as sent. The authorization outcome and the test
@@ -46,15 +50,23 @@ export function operationName(name) {
  * options.detailTitle         the heading of that part
  * options.nextStepControl(nextStep, envelope)  returns {label, run} when the next step is
  *                             something the tool can do from here, otherwise null
+ * options.lead                a node the tab puts right under the verdict, before everything
+ *                             else: the questions of a DTR session, which are the work of the step
  */
 export function renderResult(envelope, options) {
     const settings = options || {};
     const root = el('article', {class: 'result', aria: {label: 'Result of run ' + envelope.runId}});
+    // Unverified with nothing declared is the common case, and not a failure: one quiet line in the
+    // server's words says it. A declared expectation, compared or not, keeps the box beside the strip.
+    const quiet = undeclared(envelope.expectation);
     append(root,
-        el('div', {class: 'result__top'}, verdictStrip(envelope), testResult(envelope.expectation)),
+        el('div', {class: 'result__top' + (quiet ? ' result__top--alone' : '')}, verdictStrip(envelope),
+            quiet ? null : testResult(envelope.expectation)),
+        quiet ? el('p', {class: 'result__unverified'}, envelope.expectation.explanation) : null,
+        settings.lead || null,
         ownBody(envelope),
         runFacts(envelope, settings),
-        findingsSection(envelope.findings || []),
+        findingsSection(envelope),
         determinationSection(envelope.determination || []));
 
     const detailTitle = settings.detailTitle || 'Response detail';
@@ -62,8 +74,13 @@ export function renderResult(envelope, options) {
     root.append(section(heading(3, detailTitle),
         detailNode || el('p', {class: 'quiet'}, 'This run has no response detail. The verdict above says why.')));
 
-    root.append(additionalFieldsSection(envelope.additionalFields || [], null, envelope.wire));
-    root.append(el('section', {class: 'result__section'}, wireView(envelope.wire)));
+    root.append(additionalFieldsSection(envelope.additionalFields || [], null, envelope.wire, {folded: true}));
+    // The tool's own record of the run and the bytes on the wire: one click away, closed. The wire
+    // view keeps its own fold inside, so it is collapsed by default as before.
+    root.append(el('details', {class: 'fold result__details'},
+        el('summary', null, 'Details: the wire view and what was typed with the run'),
+        facts(typedWithRun(envelope.ledger), 'runfacts facts--ruled'),
+        el('section', {class: 'result__section'}, wireView(envelope.wire))));
     if (envelope.error) {
         // A refusal is worded once by the server and sent as the headline, as the error's title
         // and as the next step: a request the guardrail refused has its reason as the headline of
@@ -172,6 +189,11 @@ function ownBody(envelope) {
 
 /* ---------- 2. the test result ---------- */
 
+/** True for a run that is unverified because nothing at all was declared, the case one quiet line says. */
+function undeclared(expectation) {
+    return Boolean(expectation) && expectation.result === 'unverified' && !expectation.expected && !expectation.expectedLabel;
+}
+
 function testResult(expectation) {
     return el('div', {class: 'testresult'},
         el('h3', {class: 'testresult__title'}, 'Test result'),
@@ -203,13 +225,15 @@ function expected(expectation) {
 /* ---------- 3 and 4. the next step, the ledger line, and the facts of the run ---------- */
 
 function runFacts(envelope, settings) {
+    const recorded = Boolean(envelope.ledger && envelope.ledger.recorded);
     const rows = [
         ['Next step', nextStep(envelope, settings)],
-        ['Ledger', ledgerLine(envelope.ledger, envelope.runId)],
-        ['Response time', responseTime(envelope.timing)],
-        ['Run', runLine(envelope)],
-        ...typedWithRun(envelope.ledger)
-    ];
+        // One line for the run: its id, how long it took (with the slow flag when it was slow) and
+        // that it was recorded. A run the ledger did not keep gets the full alert as a row of its own.
+        ['Run', [runLine(envelope), el('div', {class: 'run-line'}, responseTime(envelope.timing),
+            recorded ? [el('span', {class: 'run-line__sep', aria: {hidden: 'true'}}, ' | '), ledgerLine(envelope.ledger, envelope.runId)] : null)]],
+        recorded ? null : ['Ledger', ledgerLine(envelope.ledger, envelope.runId)]
+    ].filter(row => row !== null);
     const memberId = envelope.wire ? envelope.wire.memberId : null;
     if (memberId && memberId.changed) {
         // The tool removes spaces from a member ID on the way out. It is said here, in the open,
@@ -239,7 +263,7 @@ function nextStep(envelope, settings) {
 
 function ledgerLine(ledger, runId) {
     if (ledger.recorded) {
-        return el('div', {class: 'ledger'}, el('strong', null, 'Recorded.'), ' ',
+        return el('span', {class: 'ledger'}, el('strong', null, 'Recorded.'), ' ',
             typeof ledger.runsToday === 'number'
                 ? 'The ledger holds ' + count(ledger.runsToday) + (ledger.runsToday === 1 ? ' run' : ' runs') + ' for today.'
                 : 'The ledger did not say how many runs it holds for today.');
@@ -273,9 +297,9 @@ function responseTime(timing) {
     if (!timing) {
         return el('span', {class: 'presence presence--none', title: 'The result carries no timing.'}, 'not measured');
     }
-    return [el('strong', null, millis(timing.elapsedMillis)), timing.slow ? [' ', slowFlag()] : null,
+    return el('span', {class: 'run-line__time'}, el('strong', null, millis(timing.elapsedMillis)), timing.slow ? [' ', slowFlag()] : null,
         el('span', {class: 'quiet'}, timing.slow ? ' Longer than the threshold of ' : ' The threshold for slow is ',
-            millis(timing.thresholdMillis), '.')];
+            millis(timing.thresholdMillis), '.'));
 }
 
 function runLine(envelope) {
@@ -292,13 +316,37 @@ function runLine(envelope) {
 
 /* ---------- 5. the findings ---------- */
 
-function findingsSection(findings) {
-    if (findings.length === 0) {
-        return section(heading(3, 'Findings', 0), el('p', {class: 'quiet'}, 'None were raised on this run.'));
+/**
+ * True for a finding that a run on the mock profile with no environment active raises as a matter
+ * of course: the request went out without elements only an environment or a lookup supplies. It is
+ * still drawn whole, under its own heading inside Findings, and counted with the rest.
+ */
+export function expectedOnMock(envelope, item) {
+    return Boolean(envelope) && envelope.profile === 'mock' && Boolean(item) && item.kind === 'REQUEST_INCOMPLETE'
+        && !(envelope.environment && envelope.environment.active);
+}
+
+function findingsSection(envelope) {
+    const findings = envelope.findings || [];
+    const shown = findings.filter(item => !expectedOnMock(envelope, item));
+    const onMock = findings.filter(item => expectedOnMock(envelope, item));
+    // The heading counts every finding the run raised, the ones grouped below included.
+    const node = section(heading(3, 'Findings', findings.length));
+    if (shown.length > 0) {
+        node.append(el('p', {class: 'quiet'}, 'Something a person should look at. A finding is not a failure of the call.'),
+            el('div', null, shown.map(finding)));
+    } else if (onMock.length === 0) {
+        node.append(el('p', {class: 'quiet'}, 'None were raised on this run.'));
+    } else {
+        node.append(el('p', {class: 'quiet'}, 'None apart from the ones expected on the mock profile, below.'));
     }
-    return section(heading(3, 'Findings', findings.length),
-        el('p', {class: 'quiet'}, 'Something a person should look at. A finding is not a failure of the call.'),
-        el('div', null, findings.map(finding)));
+    if (onMock.length > 0) {
+        node.append(el('div', {class: 'result__mock-notes'},
+            heading(4, 'Expected on the mock profile', onMock.length),
+            el('p', {class: 'quiet'}, 'On the mock profile, with no environment active, this is expected.'),
+            el('div', null, onMock.map(finding))));
+    }
+    return node;
 }
 
 /**
@@ -346,20 +394,41 @@ function determinationSection(rows) {
     if (rows.length === 0) {
         return section(heading(3, 'Determination'), el('p', {class: 'quiet'}, 'This run produced no determination rows.'));
     }
+    // Decided once over every row, so the folded table is grouped exactly when the open one is.
     const grouped = rows.some(row => row.subject);
+    // Only an element that was not returned at all is folded. Null, empty and sent with no value
+    // are answers the service gave, and stay in view.
+    const absent = row => (row.presence || 'ABSENT') === 'ABSENT' && row.sentWithNoValue !== true;
+    const open = rows.filter(row => !absent(row));
+    const notReturned = rows.filter(absent);
+    const grid = list => el('table', {class: 'grid determination'}, determinationHead(), el('tbody', null, determinationBody(list, grouped)));
+    return section(heading(3, 'Determination'),
+        open.length > 0 ? grid(open) : el('p', {class: 'quiet'}, 'The response returned none of these elements.'),
+        notReturned.length > 0 ? el('details', {class: 'fold determination__absent'},
+            el('summary', null, 'Not returned', el('span', {class: 'quiet'}, '(' + count(notReturned.length) + ')')),
+            grid(notReturned)) : null);
+}
+
+function determinationHead() {
+    return el('thead', null, el('tr', null,
+        ['What', 'Code returned', 'Meaning', 'Element'].map(text => el('th', {scope: 'col'}, text))));
+}
+
+/** The rows of one determination table, each subject headed by a group row when grouped. A subject with no row here gets none. */
+function determinationBody(rows, grouped) {
     const body = [];
     let subject;
+    let first = true;
     for (const row of rows) {
-        if (grouped && row.subject !== subject) {
+        if (grouped && (first || row.subject !== subject)) {
             subject = row.subject;
             body.push(el('tr', {class: 'group'}, el('th', {colSpan: 4, scope: 'colgroup'},
                 subject ? ['For ', code(subject)] : 'For the request as a whole')));
         }
+        first = false;
         body.push(determinationRow(row));
     }
-    const head = el('thead', null, el('tr', null,
-        ['What', 'Code returned', 'Meaning', 'Element'].map(text => el('th', {scope: 'col'}, text))));
-    return section(heading(3, 'Determination'), el('table', {class: 'grid determination'}, head, el('tbody', null, body)));
+    return body;
 }
 
 /**
@@ -503,8 +572,11 @@ function atPath(body, path) {
  * wire, optional: the wire view of the same answer. When it is given and says secrets were masked,
  * the values are drawn masked as the wire's body is (see maskedLikeTheWire). Pass it wherever the
  * answer has one.
+ * options, optional: {folded: true} keeps the heading, its count and the line under it open and
+ * puts what they count into one closed fold, so a field the view does not know still shows on
+ * screen by its count. Left out, everything is open, as the lookup panels want it.
  */
-export function additionalFieldsSection(givenFields, title, wire) {
+export function additionalFieldsSection(givenFields, title, wire, options) {
     const fields = wire ? maskedLikeTheWire(givenFields, wire) : givenFields;
     const label = title || 'Returned but not interpreted';
     if (fields.length === 0) {
@@ -515,19 +587,32 @@ export function additionalFieldsSection(givenFields, title, wire) {
     const plain = fields.filter(field => field.kind !== 'NOTE' && field.kind !== 'RAW_BODY');
     const node = section(heading(3, label, fields.length),
         el('p', {class: 'quiet'}, 'The response carried these and this tool has no designed view for them. They are shown so that nothing is dropped.'));
+    let into = node;
+    if (options && options.folded) {
+        into = fieldsFold(fields.length);
+        node.append(into);
+    }
     if (notes.length > 0) {
-        node.append(el('ul', {class: 'note-list'}, notes.map(note => el('li', null, el('strong', null, 'About the body: '), note.value))));
+        into.append(el('ul', {class: 'note-list'}, notes.map(note => el('li', null, el('strong', null, 'About the body: '), note.value))));
     }
     for (const body of bodies) {
         const text = el('pre', {class: 'body-text body-text--wrap', tabIndex: 0, aria: {label: 'The body as received'}}, body.value === undefined ? '' : body.value);
-        node.append(el('div', {class: 'raw-body'},
+        into.append(el('div', {class: 'raw-body'},
             el('p', null, el('strong', null, 'The body as received.'), ' It could not be read as JSON, so it is shown whole. ', code(body.path)),
             text, copyButton('Copy this body', () => text.textContent, text)));
     }
     if (plain.length > 0) {
-        node.append(additionalFieldsTable(plain));
+        into.append(additionalFieldsTable(plain));
     }
     return node;
+}
+
+/**
+ * What a fold of returned fields says on its summary, and the fold around them, closed. The
+ * heading above it, with its count, stays open, so a field nobody designed a view for still shows.
+ */
+export function fieldsFold(howMany, ...content) {
+    return el('details', {class: 'fold'}, el('summary', null, 'Show the ' + count(howMany) + (howMany === 1 ? ' field' : ' fields')), content);
 }
 
 /**

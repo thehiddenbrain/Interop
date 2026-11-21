@@ -11,7 +11,7 @@
 import {el, append, code, facts, table, heading, externalLink} from './dom.js';
 import {shown, presenceMark, hasValue, noValueMark} from './shown.js';
 import {outcome} from './marks.js';
-import {additionalFieldsTable, issuesTable, listState as presenceOfList, listValue} from './result.js';
+import {additionalFieldsTable, issuesTable, listState as presenceOfList, listValue, fieldsFold} from './result.js';
 
 // What kind of thing came back, said before any of it is shown. A kind this page does not know
 // is shown under its own name.
@@ -136,7 +136,18 @@ function coverageBlock(item, vocabulary) {
         block.append(el('p', {class: 'vendor-callout'}, 'Delegated vendor: ', el('strong', null, item.delegatedVendor),
             item.delegatedVendorBasis ? el('span', {class: 'quiet'}, ' Recognised from ', item.delegatedVendorBasis, '.') : null));
     }
-    block.append(table(['Element', 'Code returned', 'Meaning'], rows, {class: 'elements'}));
+    // Every element the extension can carry stays listed. Those the response did not carry at all
+    // are one click away under the table, so what was returned reads first; null, empty and sent
+    // with no value are answers and stay in the table.
+    const open = rows.filter(row => !onlyNotReturned(row));
+    const notReturned = rows.filter(onlyNotReturned);
+    block.append(open.length > 0 ? table(['Element', 'Code returned', 'Meaning'], open, {class: 'elements'})
+        : el('p', {class: 'quiet'}, 'The response returned none of these elements.'));
+    if (notReturned.length > 0) {
+        block.append(el('details', {class: 'fold coverage__absent'},
+            el('summary', null, 'Not returned', el('span', {class: 'quiet'}, '(' + notReturned.length + ')')),
+            table(['Element', 'Code returned', 'Meaning'], notReturned, {class: 'elements'})));
+    }
 
     const details = item.details || [];
     block.append(el('p', {class: 'sub-heading'}, 'Detail list (' + details.length + ')'));
@@ -184,6 +195,18 @@ function repeatedOf(name, values, options, noValue) {
     }
     const cell = (value, index) => (noValue.has(name + '[' + index + ']') ? noValueMark() : shown(value, options));
     return values.length === 1 ? cell(values[0], 0) : el('ul', {class: 'plain-list'}, values.map((value, index) => el('li', null, cell(value, index))));
+}
+
+/**
+ * True for a row of the coverage table whose value is the mark of an element the response did not
+ * carry, and nothing else. Read from what the row draws, so a row is folded exactly when it says
+ * "not returned" and no other answer.
+ */
+function onlyNotReturned(row) {
+    const cell = row[1];
+    const node = cell && typeof cell === 'object' && !(cell instanceof Node) && !Array.isArray(cell) ? cell.node : cell;
+    const parts = [node].flat(Infinity).filter(part => part !== null && part !== undefined && part !== false);
+    return parts.length === 1 && parts[0] instanceof Element && parts[0].classList.contains('presence--absent');
 }
 
 /** One element of the extension that is a plain value and not a code. */
@@ -279,7 +302,7 @@ function actionBlock(action) {
         ], 'facts--ruled'),
         el('p', {class: 'sub-heading'}, 'The rest of the resource (' + rest.length + ')'),
         rest.length === 0 ? el('p', {class: 'quiet'}, 'Nothing further was returned with this action.')
-            : additionalFieldsTable(rest, shownWire));
+            : fieldsFold(rest.length, additionalFieldsTable(rest, shownWire)));
 }
 
 /* ---------- how the request was built ---------- */

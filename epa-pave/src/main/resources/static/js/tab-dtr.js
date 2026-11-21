@@ -419,6 +419,10 @@ async function fetchPackage() {
     const envelope = answer.body;
     session = hasQuestionnaires(envelope) && envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? createSession(envelope, hooks()) : null;
     controls.restart.hidden = !session;
+    // With questions on screen, the questionnaire's own button is the one main button: fetching
+    // again would start over. The fetch button keeps its words and steps back.
+    controls.send.classList.toggle('button--primary', !session);
+    controls.send.classList.toggle('button--quiet', Boolean(session));
     clearExpectation(envelope);
     show(envelope);
 }
@@ -479,8 +483,11 @@ function sayAgain(slot, label) {
 
 function show(envelope) {
     bench.showResult(envelope, {
-        detailTitle: session ? 'The questionnaire, and what this step returned' : 'DTR response detail',
-        detail: shownEnvelope => [session ? session.node : null, dtrDetail(shownEnvelope)],
+        // The questions are the work of this step, so they start right under the verdict; what the
+        // package held follows in the response detail.
+        lead: session ? session.node : null,
+        detailTitle: 'DTR response detail',
+        detail: shownEnvelope => dtrDetail(shownEnvelope),
         // While questionnaires are being answered, the hand-over to PAS is the session's: it is
         // withdrawn while the answers on screen differ from the ones last completed.
         nextStepControl: step => (session ? session.resultControl(step) : null)

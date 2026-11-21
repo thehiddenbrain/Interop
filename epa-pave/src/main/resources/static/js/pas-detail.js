@@ -12,7 +12,7 @@
 import {el, append, code, facts, table, heading} from './dom.js';
 import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {outcome} from './marks.js';
-import {additionalFieldsTable, issuesTable, listState, listValue} from './result.js';
+import {additionalFieldsTable, issuesTable, listState, listValue, fieldsFold} from './result.js';
 
 const PAS_KINDS = {
     BUNDLE: 'The response is a FHIR Bundle and was read entry by entry.',
@@ -283,7 +283,8 @@ function awaitedPart(attachments, lists) {
                 ['Found at', code(item.foundAt)]
             ], 'facts--ruled'),
             item.rest && item.rest.length > 0
-                ? [el('p', {class: 'sub-heading'}, 'The rest of that resource (' + item.rest.length + ')'), additionalFieldsTable(item.rest)] : null)));
+                ? [el('p', {class: 'sub-heading'}, 'The rest of that resource (' + item.rest.length + ')'),
+                    fieldsFold(item.rest.length, additionalFieldsTable(item.rest))] : null)));
 }
 
 /* ---------- errors and process notes ---------- */

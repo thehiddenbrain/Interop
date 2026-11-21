@@ -1004,9 +1004,16 @@ legend, .case-legend {
     transform: rotate(-45deg);
 }
 
-/* Unverified is neither. A dashed outline around an open ring: nothing was compared. */
+/* Unverified is neither. In a table it is the common case, so a quiet hairline around an open
+   ring says it; the large stamp of a result with a declared expectation keeps the dashed frame. */
 .stamp--unverified {
+    border: 1px solid var(--line);
+    font-weight: 400;
+}
+
+.stamp--large.stamp--unverified {
     border: 2px dashed var(--ink);
+    font-weight: 700;
 }
 
 .stamp--unverified .stamp__glyph::before {
@@ -1493,6 +1500,36 @@ legend, .case-legend {
     /* The strip is as tall as what it says. Stretched to the test result beside it, a short
        headline left an empty box under it. */
     align-items: start;
+}
+
+/* Nothing declared: the strip alone across the width, and one quiet line under it. */
+.result__top--alone {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.result__unverified {
+    margin-top: calc(-1 * var(--gap-2));
+    font-size: var(--text-small);
+    color: var(--ink);
+}
+
+.run-line {
+    margin-top: 2px;
+}
+
+.run-line__sep {
+    color: var(--ink-soft);
+}
+
+/* The findings a mock run with no environment raises as a matter of course, under their own heading inside Findings. */
+.result__mock-notes {
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-2);
+    border-top: 1px solid var(--rule);
+}
+
+.result__details {
+    margin-top: var(--gap-4);
 }
 
 .runfacts {

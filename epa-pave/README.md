@@ -530,8 +530,11 @@ From the top:
    a scenario answered (or "done in this tool, nobody answered" for a step that sent nothing), and
    the outcome code (`Outcome code DOCUMENTATION_REQUIRED`).
 2. **Test result**, beside the strip: `Passed`, `Failed` or `Unverified`, with `Expected` (what you
-   declared, or "nothing declared") and `Happened`. This is the answer to "did it match", and it is
-   a different fact from the outcome.
+   declared) and `Happened`. This is the answer to "did it match", and it is a different fact from
+   the outcome. A run with nothing declared has no box: one quiet line under the strip says "No
+   expectation was declared, so this run is unverified." It is still `Unverified` in History and in
+   the ledger. On DTR, while a questionnaire is being answered, its questions come next, right
+   under the verdict.
 3. **Next step**: what to do now, in one line, with a button where the next step is on another
    tab, for example `Continue in DTR` after a CRD answer that asks for documentation, `Continue in
    PAS` after a completed questionnaire, or the PAS tab's own `Send inquiry` after a pended
@@ -547,26 +550,34 @@ From the top:
    no authorization answer, an unrecognised code or mixed answers, on DTR an answer that asks
    nothing more and is not complete, or a status the tool does not act on, and a request sent as
    written still say only that the tool cannot say what should happen next. Record such a run by its run id and report it, as for no determination.
-4. **Ledger**: "Recorded." with today's count, or, in a heavy frame, "NOT recorded" with the reason.
-5. **Response time**, flagged `slow` above the threshold.
-6. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, the
-   tester reference and the note.
-7. **Findings**: things a person should look at, grouped by what they are about (the request this
+4. **Run**: the run id (`Copy run id`), the operation, the environment and profile, the chain, and
+   on one line the response time (flagged `slow` above the threshold) and "Recorded." with today's
+   count. A run the ledger did not keep shows, in a heavy frame of its own, "NOT recorded" with the
+   reason.
+5. **Findings**: things a person should look at, grouped by what they are about (the request this
    tool sent, the response held to the guide, the code list beside the service, and so on). A
    finding is not a failure of the call. `REQUEST_INCOMPLETE`, for example, lists what the request
-   went out without because nobody supplied it, and the variable that would supply each.
-8. **Determination**: the standard codes returned, each with its meaning and the element it came
-   from.
-9. **The response detail**: cards and coverage information for CRD, the questionnaire for DTR, the
-   decision for each item for PAS.
-10. **Returned but not interpreted**: everything the service sent that the tool did not use, so
-    nothing is dropped in silence. "not returned", "null" and "empty" are different statements,
+   went out without because nobody supplied it, and the variable that would supply each. On mock
+   with no environment active, that finding is drawn whole under "Expected on the mock profile"
+   inside Findings, and the count beside "Findings" includes it.
+6. **Determination**: the standard codes returned, each with its meaning and the element it came
+   from. An element the response did not carry at all is listed under a closed "Not returned (N)"
+   below the table; null, empty and "sent with no value" stay in the table.
+7. **The response detail**: cards and coverage information for CRD (the coverage table folds its
+   not-returned elements the same way), the package for DTR, the decision for each item for PAS.
+   The rest of a resource carried with an action is counted under its heading, its fields behind
+   "Show the N fields".
+8. **Returned but not interpreted**: everything the service sent that the tool did not use, so
+    nothing is dropped in silence. The heading and its count are always on screen; the fields are
+    behind "Show the N fields". "not returned", "null" and "empty" are different statements,
     in this list and in the designed views above it, and none is shown as a blank. A key repeated
     inside one object is listed with every value, in order ("(value 1 of 2)"), here and on a
     request sent as written, the two lookups and CRD discovery; on CRD, DTR, PAS and subscriptions
     a finding also names it ("... is sent 2 times in one object").
-11. **The wire view**, collapsed: the request and the response as they went over the wire. On mock
-    the request reads "not sent". See [The wire view carries member data](#the-wire-view-carries-member-data).
+9. **Details: the wire view and what was typed with the run**, closed: the tester reference and
+   the note as the ledger kept them, and the wire view, itself collapsed: the request and the
+   response as they went over the wire. On mock the request reads "not sent". See [The wire view
+   carries member data](#the-wire-view-carries-member-data).
 
 A result made before the configuration changed is marked as such in a heavy frame. A refusal by
 the server (a field it refused, a 409, a blocked write) is shown with its own sentence, beside the
@@ -604,8 +615,9 @@ What CRD handed on ("Handed on from the CRD result": the codes, the questionnair
 coverage assertion, the order) is listed at the top of the DTR fields; without it, the package is
 asked for by the codes of the case or by a questionnaire url you type. Choose `Fetch the
 questionnaire package`. The questions appear on the right under "Answering the questionnaire",
-each with its link id, its type and whether it is required, and "In the response:" for what the
-response holds so far. Answers the payer pre-populated are marked as such; one you change is
+directly under the verdict, each with its link id, its type and whether it is required, and "In
+the response:" for what the response holds so far. Once they are there the fetch button steps back
+to a plain one (fetching again starts over) and the questionnaire's own button is the main one. Answers the payer pre-populated are marked as such; one you change is
 marked as overridden.
 
 - For a static questionnaire, answer and choose `Complete the response`. It sends nothing to the
