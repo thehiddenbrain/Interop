@@ -307,7 +307,6 @@ public class ConfigStore {
 
         String id = Ids.named(parsed.name());
         String file = ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
-        writeAtomically(directory.resolve(file), content);
         StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file, displayName(originalFileName),
                 clock.instant().toString(), kind != EnvironmentKind.PROD && (needsConfirmation || acknowledgedNotProd), signs);
 
@@ -328,14 +327,20 @@ public class ConfigStore {
                         && plain.stream().anyMatch(each -> new UrlNormal.Destination(null, known.destination().host(), -1, "", false)
                         .sameOrigin(each))))
                 .toList();
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(),
-                remembered, before.applicationYml()), file, previous == null ? null : previous.file());
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(), remembered,
+                before.applicationYml());
 
+        // Every check that can fail runs before anything is written, so an upload that fails
+        // leaves the store as it was. A check that threw after the commit used to answer "internal
+        // error" for a file that had been stored all the same.
         List<String> warnings = new ArrayList<>(secretWarnings(parsed.variables(), file));
-        warnings.addAll(AddressChecks.of(current.byName(stored.name()), current));
-        warnings.addAll(leftBehind);
-        warnings.addAll(parsed.notes());
-        warnings.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+        warnings.addAll(AddressChecks.of(next.byName(stored.name()), next));
+        List<String> listedLast = new ArrayList<>(parsed.notes());
+        listedLast.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+
+        writeAtomically(directory.resolve(file), content);
+        warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
+        warnings.addAll(listedLast);
         // The name, the kind and a count. Never a variable value.
         log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
@@ -402,7 +407,6 @@ public class ConfigStore {
                 }
             }
         }
-        writeAtomically(directory.resolve(file), content);
         StoredCollection stored = new StoredCollection(id, parsed, file, displayName(originalFileName), clock.instant().toString(),
                 mapped(parsed, corrections));
 
@@ -412,14 +416,21 @@ public class ConfigStore {
         } else {
             collections.set(collections.indexOf(previous), stored);
         }
-        List<String> leftBehind = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
-                before.remembered(), before.applicationYml()), file, previous == null ? null : previous.file());
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
+                before.remembered(), before.applicationYml());
 
+        // Every check that can fail runs before anything is written, so an upload that fails
+        // leaves the store as it was. The scan for literal credentials once threw after the commit:
+        // the upload answered "internal error", the collection was stored all the same, and every
+        // later reading of it threw again.
         warnings.addAll(secretWarnings(parsed.variables(), file));
         warnings.addAll(literalCredentialWarnings(parsed, file));
-        warnings.addAll(leftBehind);
-        warnings.addAll(parsed.notes());
-        warnings.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
+        List<String> listedLast = new ArrayList<>(parsed.notes());
+        listedLast.addAll(memberDataWarnings("collection", parsed.variables(), parsed.requests(), file));
+
+        writeAtomically(directory.resolve(file), content);
+        warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
+        warnings.addAll(listedLast);
         // The name and counts only. Never a url, a header or a body.
         log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
@@ -629,8 +640,10 @@ public class ConfigStore {
      * A warning when an upload can hold member data: a variable whose name reads as a member,
      * patient or subscriber identifier, a name or a birth date, or a request with a saved example
      * response. The variables and requests are named. A value never is.
+     *
+     * <p>Package-private so that a test can make this check fail and see that the upload stores nothing.
      */
-    private List<String> memberDataWarnings(String what, List<PostmanVariable> variables, List<PostmanRequest> requests, String file) {
+    List<String> memberDataWarnings(String what, List<PostmanVariable> variables, List<PostmanRequest> requests, String file) {
         List<String> warnings = new ArrayList<>();
         String kept = " The " + what + " is kept on disk exactly as it was uploaded, values included, in the file "
                 + directory.resolve(file) + ". An environment or a collection that holds real member data must not be uploaded: use "
