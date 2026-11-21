@@ -4,9 +4,31 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**The head** is `ba4661b` on the branch `final`, with the commit that adds these records. It is the
-merge of two lines that both start at `e70af34` (the records of D-275 and their check, on the code of
-`8463174`). One is the screen round, whose head is `963d5b0`: the first round of screen changes and the
+**The head** is `6ab0e69` on the branch `final`, with the commit that adds these records. It holds
+`0b7e534` (the records of the upload fix, which is what the branch `epa-pave` on the remote holds) and
+four merges on top of it, none with a textual conflict and nothing settled by hand, of three branches
+built side by side from `ba4661b` to correct what the checks of the upload fix left (D-280):
+`stop-and-gone` at `4f83dd8` (merge `83c37f7`): a stop of the tool lets a call that is out finish, up
+to 30 seconds, and keeps its ledger line, and a client that went away is one INFO line, not an
+unhandled exception; `long-names` at `38ac780` (merge `e1a4eec`): a long name from an uploaded file is
+quoted by its start and its length, and the slow pattern no longer sees a long part of an address;
+and `echo-secrets` at `0cb3c0b` (merge `1ac0458`) and again at `14fc20f` (merge `6ab0e69`): an answer is
+masked wherever it repeats a secret the tool holds, carried or not, a verdict read from a mask says so,
+an id read from a header is masked, and a mask fills no field and is never sent; on the way an older
+leak was closed, a credential typed into the address to call back or a lookup url shown in clear in
+"In force now" and on the PAS tab. After each of the first two merges and at `6ab0e69` the guard tests
+(`RegexStackGuardTest`, `RecursionGuardTest`, `DeepAnswerStackTest`, `RewrittenPatternsTest`,
+`HouseStyleTest`) passed on the merged code, and at `1ac0458` the whole build (3,082 tests, 0 failures,
+0 errors, 2 skipped). **The last whole build** is that of `6ab0e69`, through the shared runner: BUILD
+SUCCESSFUL in 9m 53s, 3,093 tests, 0 failures, 0 errors, 2 skipped (counts from `build/test-results`);
+the jar's sha1 is `17f77be1588da9a4d61a42dd3c056cee989407fd`. The last whole build of each branch:
+`echo-secrets` 3,065 at `14fc20f`, `stop-and-gone` 3,024 at `4f83dd8`, `long-names` 3,016 at `38ac780`,
+each with 0 failures, 0 errors and 2 skipped. The jar of the merged head was not run; each branch was
+seen on its own jar, against stand-ins on a loopback port, and nothing of it on Windows. These records
+reach `epa-pave` when the integrator pushes them.
+
+`ba4661b`, below it, is the merge of two lines that both start at `e70af34` (the records of D-275 and
+their check, on the code of `8463174`). One is the screen round, whose head is `963d5b0`: the first round of screen changes and the
 internal error that names its cause (D-276, D-277): `2590656` to `99a939c` built the letters A to K of
 the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and `87dee6f` corrected what the walk, the
 audit and the checks found, and `56c3e64`, `4fb199f`, `e0f3333`, `425e16a` and `6a6fe2f` made the cause
@@ -23,12 +45,13 @@ an upload stores nothing until every check that can fail has run, a file or an a
 enableWhen conditions form a chain of thousands no longer throws, and two guard tests hold the
 patterns and the recursions of the main code. No file conflicted in the merge; the guard's list of
 inline patterns was brought up to the merged code in the merge commit (D-279). **The last whole
-build** is that of `ba4661b`, through the shared runner (`clean build`): 3006 tests, 0 failures, 0
+build** of that merge, through the shared runner (`clean build`), gave 3006 tests, 0 failures, 0
 errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872 tests; the screen round ended at
 2965 (`ef069d9`; on the way 2896, 2908, 2909, 2916, 2930, 2937 at `6a6fe2f`, 2946, 2951 and 2962), the
 upload fix at 2913 (2896 at `583ccbe`), each with 0 failures, 0 errors and 2 skipped. **The
-integrator's gates** last passed on `e70af34`; they are due on the new head, after these records, and
-had not run when this was written. The rest of this section
+integrator's gates** (two builds from clean, a fresh clone, the start, the handover proofs) last
+passed on `e70af34`; they are due on the new head `6ab0e69`, after these records, and had not run when
+this was written. The rest of this section
 describes the line up to `e70af34`, from `902e0d9` on.
 
 This describes revision `902e0d9` on branch `epa-pave`, which is on the remote, before the commit that
@@ -90,11 +113,15 @@ the Java runtime could print the message of an exception into the log around `Fa
 were built, and how every thread of the tool was closed against it, with what the tests and copies of
 the jar with a class removed showed and what is left. D-279 records the upload that threw on a long
 text in a Postman file, the theory it replaced (the compiler of the IDE), the fix, what two attacks on
-it found and what was corrected, what the proofs showed, what is still not confirmed and what is left.
+it found and what was corrected, what the proofs showed, what is still not confirmed and what is left. D-280 records what
+the checks of the upload fix left and how it was closed: a secret a service repeats that the request
+did not carry, with an older leak found on the way, a verdict read from a mask, an id read from a
+header and a mask carried into a field or a request; a ledger line lost at a stop; a client that went
+away; the environment list nobody had explained; long names; and a slow pattern.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, the code changes of
-D-276, D-277, D-278 and D-279 (above), and before them three code changes:
+D-276, D-277, D-278, D-279 and D-280 (above), and before them three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
 `HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
 tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
@@ -110,7 +137,7 @@ Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b10
 `classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
 `-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
 whole build was run on it. At `e70af34` the code was that of `647b102` with that launch file; since then the code has changed
-with D-276, D-277, D-278 and D-279 (the head, above), whose last whole build is that of `ba4661b`;
+with D-276, D-277, D-278, D-279 and D-280 (the head, above), whose last whole build is that of `6ab0e69`;
 the integrator's gates, which last passed on `e70af34`, run after this file, and their result is in
 the pull request description.
 
@@ -154,7 +181,8 @@ has looked.
    left, seen on the jar of `4456ea5` before the screen changes were merged, and may list one copy of
    the collection for each collection name inside the files tried: delete the extras on the Config
    tab, Collections and mapping, `Remove` on the row, then confirm), upload again, and if an internal error still appears press `Copy reference and cause` and
-   send what it copies. Nothing of this ran on Windows, and the operator has not pulled it. Until the
+   send what it copies. Nothing of this ran on Windows, and the operator has not said whether they
+   pulled it (it is on the branch `epa-pave`). Until the
    uploads work there, nothing can be configured for the live profile on that workstation: the
    vendor's environment and collection reach the tool only by these uploads.
 2. **The operator's verdict after that first session**, the only judgement of the tool by the person
@@ -305,12 +333,8 @@ has looked.
 14. **What the last two steps left** (D-277, "Later:", and D-278).
    - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
      made to fire on the real jar; tests hold them, each seen to fail without its guard.
-   - On live, a service answer that echoes the value of a secret the request did not carry (a
-     `clientSecret` while signing in is off, say) is shown unmasked on screen, in the returned fields
-     and the wire view; only secrets the request carried are masked (D-179). The log and the ledger
-     do not hold it. For the integrator to decide; not changed.
-   - Shutting the tool down while a suite runs interrupts the case being written: the ledger logs a
-     write failure (types only) and that case's line may be lost.
+   - Closed since (D-280): a service answer that echoes a secret the request did not carry is masked
+     like one it carried; a stop while a suite's case is out keeps that case's ledger line.
    - A failure inside one of `ApiExceptionHandler`'s own methods is kept out of the log only by the
      logger level of Spring's handler resolver, and named nowhere. A `VirtualMachineError` in the
      server's error report would reach the server's own log with its frames.
@@ -320,15 +344,10 @@ has looked.
    - The self-check, most of the code picker and the History list could not be tried with a class
      removed: the copy did not start.
 15. **What the upload fix left** (D-279).
-   - **Open, being corrected or looked at in the next step:** after 89 uploads into one store, an
-     answer of `GET /api/config/environments` that the corrector's script could not read, never
-     explained (on a fresh store it answered with the list); a client that gives up on a slow answer
-     leaves an "Unhandled exception" entry in the log although nothing in the tool failed; a
-     credential warning still quotes the name of a request or of a saved example whole, however long
-     (field, header and query names are now cut at 60 characters with their length); and
-     `RunRecord.IDENTIFIER_OR_DATE` takes seconds on a questionnaire address of megabytes, which no
-     cap limits (the corrector's reason for leaving it, "only on ledger text of at most 4,000
-     characters", was found untrue by the check that followed).
+   - **The four it named as open are settled** (D-280): the environment list after 89 uploads was
+     right and very slow (line 16); a client that gives up is one INFO line; every name a file
+     supplies is quoted by its start and its length when long; and a part of a questionnaire address
+     over 128 characters is no longer handed to `RunRecord.IDENTIFIER_OR_DATE`.
    - **The smallest supported thread stack is 512 KB.** A 64-bit Java gives 1 MB unless told
      otherwise. Below 512 KB an answer nested close to 500 levels still throws `StackOverflowError`:
      only the masking of returned secrets is a loop, the other walks over an answer take a frame per
@@ -350,6 +369,45 @@ has looked.
      never used with `find()`. `RecursionGuardTest` does not see a recursion through a library type
      held in a field. The 1, 5 and 20 MB texts and the live answers of 2 MB ran on the jar of
      `583ccbe`, before the corrections; the commits of the fix were not built one by one.
+16. **What the step after the upload fix left** (D-280). Each part was built, checked on its own jar
+   by an agent that wrote none of it, corrected and checked again; the jar of the merged head
+   `6ab0e69` was built and not run. Every live check used a stand-in on a loopback port.
+   - **An older leak, closed, whose reach is not known.** A credential typed into the address to call
+     back or into a lookup url was shown in clear in "In force now" and in the PAS Notifications
+     sentence since those were built (`9d080da`, `bbdeb2e`). No screen or log of the operator's has
+     been seen, so whether a real credential was ever shown that way is not known.
+   - **A held secret that is an ordinary word of the answers changes what a verdict says.** The answer
+     is masked before it is read, so with `Bundle` or `active` held as a secret the verdict reads the
+     mask. The verdict now says so under its headline ("Read from a mask, not from what the service
+     sent: ...") and marks its next step; the headline itself is still the masked reading. It was so
+     before for a secret the request carried.
+   - **The environment list is slow on a very large store**: 200 with the documented answer, but 488
+     to 637 s and about 32 MB after the 89 uploads of a test corpus, against 8 to 10 s on a fresh
+     store, because the view of every environment is built on each call. An open performance item,
+     no fault of the answer.
+   - **The cost of the secret search has a worst case**: wherever backslashes lie closer together than
+     the longest held secret and the answer repeats most of that secret, the old cost applies (2 MB
+     about 9 to 10 s, 20 MB about 90 s against a secret of 1,000 characters; 20 MB about 187 s against
+     2,000). An ordinary answer of 20 MB takes about a third of a second. The client reads an answer to
+     its end; not made linear, because it could not be proved to mask the same.
+   - Not masked or not checked, by decision: a value given for one run, outside that run; a value
+     typed into a Postman authentication helper or a header Postman disables; a subscription id the
+     tester typed (carried and shown as typed) and a part of the configured address to call back that
+     merely equals a held secret; answers typed into the DTR questionnaire; a notification's headers
+     (not taken in). The subscription's response note names masks of the body only.
+   - A hand-over holding a mask is refused under any key, also one never sent (`dtrAppContext`).
+   - **History no longer keeps an ordinary questionnaire address with a part of 129 characters or
+     more** ("(not recorded, N characters)"). A 5 MB address split by `/` into short parts still
+     writes a 5 MB ledger line and takes 3.3 to 3.6 s.
+   - Names given as labels stay whole: a 1,000,000-character name is in the upload answer once, and at
+     100,000 characters a row is tens of thousands of pixels tall; a production name of 200,000
+     characters takes 438 of 900 px of the frame.
+   - The stop button of an IDE on Windows ends the process at once (by reading), so a call then out
+     gets no ledger line; a chain case in flight may still send its next step within the 30 s. During
+     those 30 s a client that leaves is logged as "The connection closed while this tool was stopping".
+   - Unit tests only, not seen on the jar: the client-gone line of the server's error report, the guard
+     in `StopMark`, a suite case that ignores its interrupt, an interrupt during a ledger write. The
+     upload corpus was not run again after the corrections of the long names (the sample files were).
 
 ### Gates, first
 
@@ -389,8 +447,8 @@ has looked.
   paths) **last passed on `e70af34`**. On the new head they are due, after these records, on the
   commit that holds them, and had not run when this was written. Their result goes in the pull
   request description, part 2; a file cannot hold the result of a build of the commit it is part of
-  (D-267). The whole build of `ba4661b` through the shared runner gave 3006 tests, 0 failures, 0
-  errors, 2 skipped (D-279).
+  (D-267). The whole build of `6ab0e69` through the shared runner gave 3,093 tests, 0 failures, 0
+  errors, 2 skipped (D-280); that of `ba4661b` 3006 (D-279).
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
   An agent ran the tool on a Windows Java under Wine (D-275), not through `run.cmd`.
 - **Nothing has been observed against the vendor's service.** Every live check any agent reported used

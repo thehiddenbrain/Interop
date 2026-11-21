@@ -62,7 +62,8 @@ strip reads "Prior authorization is required."
 
 To reach the vendor's service, upload its Postman environment and collection on the Config tab
 (see [Configuration through Postman](#configuration-through-postman)). To stop the tool, press
-Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
+Ctrl+C in its terminal. If a call to a service is still out, the stop waits for it, up to 30 seconds,
+so that its ledger line is written. Go on with [Using the screens](#using-the-screens).
 
 ## Before you rely on it
 
@@ -709,21 +710,30 @@ So:
 - On the mock profile every member is synthetic, which is what makes the default safe to demo.
 
 What the wire view hides: credential headers (`Authorization`, `Cookie`, API key headers) show at
-most their scheme, and a secret the request carried that the service sends back (a token, a key,
-a secret variable) is masked wherever it is repeated in the response. The designed view and the
-returned fields of CRD, DTR, PAS, subscriptions and both lookups are read from that masked body
-(D-162, D-179). What it does not catch: a secret sent back re-encoded (percent, base64, another
-case), shorter than six characters, or as a JSON number; and, for a request sent from the
-collection as it is, the "returned but not interpreted" fields are built from the body as
-received, so there the page masks what it can and the server does not (D-196). A credential typed
-into a pasted CRD request is shown as typed by the comparison.
+most their scheme, and a secret this tool holds that the service sends back is masked wherever it
+is repeated in the response, in a value, a property name or a header, whether or not this request
+carried it: the secret variables of the active environment, of the collection and of
+`application.yml`, a value given for this run, a credential typed into a request of the collection,
+the client secret, the access token, and the credentials of the address to call back and of both
+lookups. The mask names the secret, for example `[secret clientSecret]`, and the wire view says how
+many places were masked ("... masked because they repeat a secret this tool holds."). The designed
+view and the returned fields of CRD, DTR, PAS, subscriptions and both lookups are read from that
+masked body (D-162, D-179, D-280). So when a secret equals an ordinary word of the answers (a
+variable typed secret with the value `active`, say), the tool reads the mask, and the verdict says
+so under its headline: "Read from a mask, not from what the service sent: ... Look at that value in
+the Config tab." Do not act on that verdict before you have looked at the variable the mask names.
+A value an answer gave masked fills no field and is never sent: the field stays empty with "Not
+filled in: the answer gave this value masked ..." beside it. What it does not catch: a secret sent
+back re-encoded (percent, base64, another case) or shorter than six characters (the wire view says
+how many such secrets it holds), and a value given for another run. A credential typed into a
+pasted CRD request is shown as typed by the comparison.
 
 A notification a service sends to the receiver is masked the same way before it is held or shown,
-with everything PAVE could have sent to that service: every secret variable of the active
-environment and of `application.yml`, the access token it holds, the client secret, and the
-credentials of the address to call back. A notification that had something masked says so: "1
-place in this payload is masked because it repeats a secret this tool could have sent to the
-service ... What is shown is therefore not exactly what was received." This was checked by the
+with every secret PAVE holds: every secret variable of the active environment, of each uploaded
+collection and of `application.yml`, the access token it holds, the client secret, and the
+credentials of the address to call back, of a lookup and of a request of a collection. A
+notification that had something masked says so: "1 place in this payload is masked because it
+repeats a secret this tool could have sent to the service ... What is shown is therefore not exactly what was received." This was checked by the
 fix's author, and again by an agent that did not write the fix, against stand-ins on this machine,
 not for this README. A secret shorter than six characters repeated in a notification is shown in
 clear, and the notification's notes say so, as the wire view does ("... 1 secret shorter than 6
@@ -732,7 +742,7 @@ be worked out and the payload was therefore not searched for it (covered by a te
 on the running tool).
 
 A lookup field whose value holds masked text is marked `masked` and is not taken into the case:
-"This value holds a secret the request sent, which this tool masked, so it is not what the
+"This value repeats a secret this tool holds, which this tool masked, so it is not what the
 service returned and is not offered for the case." (seen by the fix's author on live against a
 stand-in, not for this README).
 
@@ -1084,7 +1094,10 @@ verbatim in `config-store/`. So:
   from the url or the header.
 - **The call back address.** In `onyx.subscription.callback-url`, a query parameter whose name
   reads as a credential, or a secret variable, is masked in the Subscription shown and sent as
-  written; a secret written into its path with no variable is not masked.
+  written; a secret written into its path with no variable is not masked. In "In force now" the
+  rows of that address and of `lookup.member.url` and `lookup.provider.url` show a credential typed
+  into them masked, as `...?access_token=[secret access_token as typed]`, and so does the sentence
+  of PAS Notifications that names the address; before D-280 both showed it in clear.
 - **Keep the secret out of the file.** Give the variable the value `{{env:PAVE_NAME}}` in Postman,
   export, and set the operating system variable `PAVE_NAME` where PAVE runs. The sample does this:
 
@@ -1300,7 +1313,8 @@ with its result.
 gender, subscriber ID, or any request or response body. What the service or a tester can fill is
 checked before it is kept (D-151): a code or a line of business that reads like an identifier or a
 date is not kept; a line of business is written only when the code list knows it, otherwise as its
-length; a questionnaire address is kept only in a strict form. A procedure code that the loaded
+length; a questionnaire address is kept only in a strict form, and one with a part longer than 128
+characters is written as `(not recorded, N characters)`. A procedure code that the loaded
 code list holds is kept as written, whatever its shape (a seven-digit or longer code included),
 unless it holds the run's member ID. One the list does not hold and that reads like an identifier
 or a date, or holds the run's member ID, is written as `(not a code, N characters)`, and so is the
@@ -2325,14 +2339,20 @@ the build's style gate). The Console shows `No active profile set, falling back 
 PaveApplication`, but not the two lines `run.sh` prints; the Boot Dashboard shows
 `epa-pave [:8057]`. Go on with step 5 of the checklist. `config-store/` and `run-history/` appear in
 the project folder, the launch's working directory, and are in `.gitignore`. Stop it with the stop
-button of the Boot Dashboard or of the Console. A plain Eclipse without Spring Tools ignores the
+button of the Boot Dashboard or of the Console. Wait for a call that is out to answer first: that
+button may end the process at once, without the tool's own stop, and on Windows it does (read, not
+seen), so a call still out gets no ledger line. A plain Eclipse without Spring Tools ignores the
 launch file without a word: there, use Run As, Java Application on `PaveApplication`.
 
 **When the running tool answers "This tool hit an internal error".** Under that sentence the
 screen shows `Reference <id>` and "Cause, as the server log names it:" with a line such as
 `jakarta.servlet.ServletException <- java.lang.NoClassDefFoundError <- ...; java.lang.NoClassDefFoundError says: <a class name>`.
 Press `Copy reference and cause` and send what it copies with what you were doing. The same line is
-the first line of the log entry `Unhandled exception, reference` in the Console. A suite that this
+the first line of the log entry `Unhandled exception, reference` in the Console. A browser that goes
+away while an answer is written (a page reloaded during a slow call) leaves one INFO line instead,
+which is no failure of the tool: `The client closed the connection before the answer was written:
+POST /api/crd, ...` (while the tool is stopping: `The connection closed while this tool was stopping,
+before the answer was written: ...`). A suite that this
 tool stopped, and a notification it failed to read, show the same `Reference <id>`, cause and button
 under their own sentence. Seen in a copy of
 the jar with one class removed by hand, on Linux; the cause on the one Windows workstation that met
@@ -2508,9 +2528,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   paths) last passed on `e70af34`. On the code handed over they are due after this README is
   written, on the commit that holds it. A file cannot hold the result of a build of the commit it is
   part of, so their results are in the pull request description (part 2). The last whole build this
-  README can name is that of `ba4661b`, whose code is the code handed over, through the shared
-  wrapper: 3,006 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276 to D-279); the
-  screen changes alone gave 2,965 at `ef069d9`, and the upload fix alone 2,913 at `4456ea5`.
+  README can name is that of `6ab0e69`, whose code is the code handed over, through the shared
+  wrapper: 3,093 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-280); `ba4661b`, before
+  the corrections of D-280, gave 3,006 (D-276 to D-279); the screen changes alone gave 2,965 at
+  `ef069d9`, and the upload fix alone 2,913 at `4456ea5`.
   Before the screen changes, `647b102`, `ace5914` and `05acbf7` gave 2,872 tests, and `902e0d9` 2,870,
   each with 0 failures, 0 errors and 2 skipped.
   Every build on the machine this README was checked on went through a wrapper that adds
@@ -2543,8 +2564,8 @@ repeat every finding id; it leaves out nothing a tester has to know.
   there. A defect that writes that very log entry was found and corrected (D-279): a collection with
   one long text in a request body or a saved example. Whether it was the operator's failure is not
   confirmed; nothing of it ran on Windows. Since D-277 the screen names the cause and `Copy reference
-  and cause` copies it with the reference. These changes are on the branch `final` and reach
-  `epa-pave`, the branch of the operator's clone, only when they are merged there; then pull
+  and cause` copies it with the reference. The upload fix is on `epa-pave`, the branch of the
+  operator's clone; the operator has not said whether they pulled it. Pull
   `epa-pave`, start again and do what "If an upload met this error before this version" under step 5
   of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says (D-275, D-277, D-279).
 - **The smallest thread stack PAVE supports is 512 KB.** A 64-bit Java gives 1 MB unless told
@@ -2773,10 +2794,20 @@ repeat every finding id; it leaves out nothing a tester has to know.
   standard FHIR operation paths and `/cds-services`.
 - Concurrency in the configuration store (two uploads or a switch at the same moment) is reasoned
   about and not tested.
+- **The list of environments is slow on a very large store** (`GET /api/config/environments`, the
+  Config tab): after 89 uploads of a test corpus it took 8 to 11 minutes and about 32 MB, against
+  8 to 10 seconds on a fresh store, and then answered right (D-280).
+- Masking an answer of megabytes that repeats most of a long secret, with backslashes closer together
+  than that secret is long, can take seconds to minutes (2 MB about 9 s against a secret of 1,000
+  characters). An ordinary answer of 20 MB takes about a third of a second (D-280).
 - A key written into a url, or held by a variable with an ordinary name, or typed into a path
   segment or a host of a collection, is shown as written (see [Secrets](#secrets)). A secret a
-  service sends back re-encoded, shorter than six characters, or as a JSON number, is not masked;
-  for a request sent as it is written, the server does not mask it in the returned fields.
+  service sends back re-encoded or shorter than six characters is not masked, nor a value given for
+  another run. A secret that is an ordinary word of the answers turns the verdict into a reading of
+  the mask, which the verdict then says under its headline: look at that variable on the Config tab
+  before acting on it (D-280). The configured address to call back is shown as configured in PAS
+  Notifications where a part of it merely equals a secret, and a subscription id you type is shown
+  as typed.
 - **The token request** authenticates the client by HTTP Basic, a choice made in code (see
   [Open items](#open-items)). It was never sent to a real token server.
 - **On mock, a CRD, DTR or PAS run does not check that its url resolves.** Use the Config tab or
@@ -2789,7 +2820,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   set back across midnight is on disk and not applied when the run is read. A run with a body of
   your own records no member, NPI or line of business, and nothing on its line tells two such runs
   apart. After the ledger folder was restored, the server kept saying it cannot write until the
-  next write succeeded. A folder that cannot be created stops the tool at start.
+  next write succeeded. A folder that cannot be created stops the tool at start. A stop with Ctrl+C
+  waits up to 30 seconds for a call that is out and keeps its line; a kill, or the stop button of an
+  IDE on Windows, does not (D-280). A questionnaire address with a part longer than 128 characters is
+  written `(not recorded, N characters)`, also an ordinary one that was kept before.
 - **Lookups** have never met the real member API or provider directory. A name returned in one
   piece cannot fill first and last name. An identifier with an encoded slash in the path form ends
   as a 400; use the query form.
@@ -2891,6 +2925,18 @@ repeat every finding id; it leaves out nothing a tester has to know.
   its whole build; the old store opening and the Config tab removing a copy were seen on the jar of
   `4456ea5`, before the screen changes were merged. Nothing of it on Windows, and nobody walked
   the screens again for it.
+- **Since then also the corrections of what the checks of the upload fix left** (D-280; three
+  branches from `ba4661b`, merged at `83c37f7`, `e1a4eec`, `1ac0458` and `6ab0e69`): what an answer is
+  masked by, the line of a verdict read from a mask, an id read from a header, a mask kept out of a
+  field and a request, the settings rows of the address to call back and the lookup urls, the stop of
+  the tool while a call is out, the log line of a client that went away, long names in sentences, and
+  the questionnaire address in the ledger. The whole build of `6ab0e69` through the same wrapper:
+  3,093 tests, 0 failures, 0 errors, 2 skipped. For this README the sentences those changes made were
+  taken from their reports and looked for in the sources of `6ab0e69`; the ones quoted here are there.
+  Each branch was seen on its own jar by its builder, an agent that wrote none of it, its corrector
+  and a second checking agent, on mock and on live against stand-ins on this machine, the screens in
+  Chromium at 1440 by 900 where a report says so. The jar of `6ab0e69` was not run, nothing of it on
+  Windows, and the integrator's final gates had not run on it when this was written.
   Apart from these, the commits after `902e0d9` change this README, `PROGRESS.md` and
   `DECISIONS.md` only.
 - **Windows.** What this README says of Windows is the operator's report (one workstation, STS, an
@@ -2952,9 +2998,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran with
   `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run for
-  this revision. The last whole build this README names is that of `ba4661b`, the code at the head,
-  through that wrapper (`clean build`): 3,006 tests, 0 failures, 0 errors, 2 skipped, BUILD
-  SUCCESSFUL (D-276 to D-279); `ef069d9` gave 2,965 and `4456ea5` 2,913. Before the screen changes, `647b102` with the JDK 21 present gave 2,872
+  this revision. The last whole build this README names is that of `6ab0e69`, the code at the head,
+  through that wrapper (`clean build`): 3,093 tests, 0 failures, 0 errors, 2 skipped, BUILD
+  SUCCESSFUL in 9m 53s (D-280); `ba4661b` gave 3,006 (D-276 to D-279), `ef069d9` 2,965 and `4456ea5` 2,913. Before the screen changes, `647b102` with the JDK 21 present gave 2,872
   tests, 0 failures, 0 errors, 2 skipped (D-274); `6201644` gave the same counts with the JDK 21 hidden and Gradle
   on a Java 25 (simulated), and with it present; `ace5914` and `05acbf7` gave the same counts, and
   `902e0d9` 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
