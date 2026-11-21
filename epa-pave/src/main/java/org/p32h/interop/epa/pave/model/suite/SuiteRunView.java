@@ -24,6 +24,13 @@ import org.p32h.interop.epa.pave.model.EnvironmentRef;
  * @param countGroups  each count group of {@code counts} that every row is counted in, from
  *                     passed to waiting, with its words and its count, in that order. A row's
  *                     {@code countedIn} names one of them
+ * @param stopReference when this tool itself failed and that ended the run, the reference its log
+ *                     entry carries. Null otherwise. Held in memory with the run only: the results
+ *                     CSV keeps it inside {@code stopReason}, and the ledger never holds a suite run
+ * @param stopCause    with a stop reference, the first line of that log entry: the chain of
+ *                     exception types and the detail {@code Faults.cause} allows. A failure such as a
+ *                     missing class ends a whole suite and is reported nowhere else, and the log can
+ *                     be on a machine the tester never looks at. Never in the CSV or the ledger
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SuiteRunView(
@@ -47,7 +54,9 @@ public record SuiteRunView(
         List<String> notes,
         List<SuiteCaseResult> results,
         Boolean stopping,
-        List<SuiteCountGroup.Labelled> countGroups) {
+        List<SuiteCountGroup.Labelled> countGroups,
+        String stopReference,
+        String stopCause) {
 
     public SuiteRunView {
         findingCounts = findingCounts == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(findingCounts));
@@ -61,7 +70,15 @@ public record SuiteRunView(
                         String testerRef, String comparedWith, SuiteCounts counts, SuiteTiming timing, Map<String, Integer> findingCounts,
                         List<String> notes, List<SuiteCaseResult> results, Boolean stopping) {
         this(suiteRunId, name, format, state, headline, stopReason, startedAt, finishedAt, mode, target, environment, epoch, testerRef,
-                comparedWith, counts, timing, findingCounts, notes, results, stopping, null);
+                comparedWith, counts, timing, findingCounts, notes, results, stopping, null, null, null);
+    }
+
+    public SuiteRunView(String suiteRunId, String name, String format, SuiteState state, String headline, String stopReason,
+                        String startedAt, String finishedAt, String mode, String target, EnvironmentRef environment, long epoch,
+                        String testerRef, String comparedWith, SuiteCounts counts, SuiteTiming timing, Map<String, Integer> findingCounts,
+                        List<String> notes, List<SuiteCaseResult> results, Boolean stopping, List<SuiteCountGroup.Labelled> countGroups) {
+        this(suiteRunId, name, format, state, headline, stopReason, startedAt, finishedAt, mode, target, environment, epoch, testerRef,
+                comparedWith, counts, timing, findingCounts, notes, results, stopping, countGroups, null, null);
     }
 
     /** Every count group with its words and its count, from the counts themselves, so the two cannot differ. */
@@ -76,7 +93,8 @@ public record SuiteRunView(
     /** The same run without its rows, for a list of runs. */
     public SuiteRunView summary() {
         return new SuiteRunView(suiteRunId, name, format, state, headline, stopReason, startedAt, finishedAt, mode, target,
-                environment, epoch, testerRef, comparedWith, counts, timing, findingCounts, notes, null, stopping, countGroups);
+                environment, epoch, testerRef, comparedWith, counts, timing, findingCounts, notes, null, stopping, countGroups, stopReference,
+                stopCause);
     }
 
     /** Prints the run id and its state. The name, the tester reference and the rows come from the file. */

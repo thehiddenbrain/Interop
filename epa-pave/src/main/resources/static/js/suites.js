@@ -7,7 +7,7 @@
 // sentence, and never as a failure: it has no test result at all.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText, faultReport} from './dom.js';
+import {el, fill, clear, button, code, facts, table, tableRow, heading, copyButton, count, millis, when, whenText, faultReport, withoutReference} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {outcome, stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
@@ -283,6 +283,7 @@ export function createSuites(app, context) {
         const visible = filter ? rows.filter(filter.test) : rows;
 
         const unrecorded = counts.notRecorded > 0;
+        const stopFault = {reference: run.stopReference, cause: run.stopCause};
         const head = el('div', {class: 'suite-head'},
             el('h2', {class: 'suite-head__headline'}, run.headline),
             // Said as loudly as the headline: a suite whose runs were not kept cannot be traced afterwards from History.
@@ -299,7 +300,9 @@ export function createSuites(app, context) {
                 // The export is the server's own file: every case as it stands when the link is used.
                 el('a', {class: 'button button--quiet', href: '/api/suites/' + encodeURIComponent(run.suiteRunId) + '/results.csv', download: ''},
                     'Export results as CSV')),
-            run.stopReason ? el('p', {class: 'suite-head__stop'}, run.stopReason) : null);
+            run.stopReason ? el('p', {class: 'suite-head__stop'}, withoutReference(run.stopReason, stopFault)) : null,
+            // A failure of this tool that ended the suite: a missing class ends it here and nowhere else.
+            run.stopReason ? faultReport(stopFault) : null);
 
         const about = el('div', {class: 'facts-pair'},
             facts([
@@ -399,11 +402,12 @@ export function createSuites(app, context) {
         }
         // A row that was not sent says so here in the server's sentence, with the reason. It has no
         // outcome and no test result, so it cannot be read as a failure.
+        const rowFault = {reference: row.faultReference, cause: row.faultCause};
         cells.push([
             el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'}, row.statusLine),
-            row.reason ? el('div', null, row.reason) : null,
+            row.reason ? el('div', null, withoutReference(row.reason, rowFault)) : null,
             // A failure of this tool: its cause beside the reference, as the server log names it, and one copy of both.
-            faultReport({reference: row.faultReference, cause: row.faultCause}),
+            faultReport(rowFault),
             (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
             (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
             runIdsOf(row)

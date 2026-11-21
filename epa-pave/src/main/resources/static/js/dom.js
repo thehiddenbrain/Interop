@@ -219,6 +219,21 @@ export function faultReport(error) {
 }
 
 /**
+ * A server sentence about a failure of this tool, for a screen that shows faultReport under it.
+ * The server writes the reference into the sentence so that the sentence stands alone in the
+ * results CSV, which has no column for the cause. On the screen the reference stands in the report
+ * below, beside its cause, so it is not given a second time in the sentence.
+ */
+export function withoutReference(sentence, fault) {
+    if (!sentence || !fault || !fault.reference) {
+        return sentence;
+    }
+    return sentence.split(' Reference ' + fault.reference + '.').join('')
+        .split('Report the reference ' + fault.reference + '.')
+        .join(fault.cause ? 'Report the reference and the cause below.' : 'Report the reference below.');
+}
+
+/**
  * A link taken from a response. It becomes an anchor only when its address starts with http:// or
  * https://, opens in a new tab without handing this page to it, and always shows the address
  * itself so a tester sees where it goes. Anything else is shown as the text it is.

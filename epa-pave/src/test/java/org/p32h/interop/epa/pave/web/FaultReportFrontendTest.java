@@ -32,7 +32,8 @@ class FaultReportFrontendTest {
     @Test
     void aSuiteRowAndAReplayEntryShowTheCauseWithTheReference() throws IOException {
         // These carried the reference only inside a server sentence, with no cause and no copy button.
-        assertThat(read("suites.js")).contains("faultReport({reference: row.faultReference, cause: row.faultCause})");
+        assertThat(read("suites.js")).contains("const rowFault = {reference: row.faultReference, cause: row.faultCause};")
+                .contains("faultReport(rowFault),");
         String replay = read("history-replay.js");
         assertThat(CaseCodesFrontendTest.body(replay, "function whyCell(entry, vocabulary) {"))
                 .contains("faultReport({reference: entry.faultReference, cause: entry.faultCause})");
@@ -41,5 +42,25 @@ class FaultReportFrontendTest {
         // The error panel of every call made from a screen, and the code list.
         assertThat(read("result.js")).contains("panel.append(faultReport(error));");
         assertThat(read("code-picker.js")).contains("faultReport(answer.body)");
+    }
+
+    @Test
+    void aSuiteThatThisToolEndedShowsTheCauseUnderTheStopSentence() throws IOException {
+        // A missing class ends a whole suite, and before this the stop sentence carried the reference alone.
+        String suites = read("suites.js");
+        assertThat(suites).contains("const stopFault = {reference: run.stopReference, cause: run.stopCause};")
+                .contains("el('p', {class: 'suite-head__stop'}, withoutReference(run.stopReason, stopFault))")
+                .contains("run.stopReason ? faultReport(stopFault) : null");
+    }
+
+    @Test
+    void theSentenceAboveTheReportDoesNotRepeatTheReference() throws IOException {
+        String strip = CaseCodesFrontendTest.body(read("dom.js"), "export function withoutReference(sentence, fault) {");
+        assertThat(strip).contains("sentence.split(' Reference ' + fault.reference + '.').join('')")
+                .contains(".split('Report the reference ' + fault.reference + '.')")
+                .contains("'Report the reference and the cause below.'").contains("'Report the reference below.'")
+                // A sentence with no reference is left exactly as the server wrote it.
+                .contains("if (!sentence || !fault || !fault.reference) {");
+        assertThat(read("suites.js")).contains("withoutReference(row.reason, rowFault)").contains("faultReport(rowFault)");
     }
 }

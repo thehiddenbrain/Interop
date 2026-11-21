@@ -436,6 +436,9 @@ public class SuiteService implements AutoCloseable {
             // A reference and the exception types and frames only. Never a message, and never a case, which holds a member ID.
             log.error("A suite run failed inside this tool, reference {}: {}", reference, Faults.describe(e));
             ended = "This tool failed while running the suite. Reference " + reference + ".";
+            // The cause goes on the screen beside the reference: a missing class ends a suite here
+            // and nowhere else, and the server log may be on a machine the tester does not see.
+            run.fault(reference, Faults.cause(e));
             if (e instanceof Error error) {
                 run.finish(ended, RunStamps.timestamp(support.clock()));
                 throw error;
@@ -679,6 +682,11 @@ public class SuiteService implements AutoCloseable {
         String stopRequested;
         String stopReason;
         String finishedAt;
+        /** A failure of this tool that ended the run, kept apart until the run ends, when it holds only if the run stopped. */
+        String faultReference;
+        String faultCause;
+        String stopReference;
+        String stopCause;
 
         Run(String id, SuiteDefinition definition, String startedAt, EnvironmentRef environment, long epoch, String testerRef,
             String comparedWith, Map<String, Previous> previous) {
@@ -706,6 +714,11 @@ public class SuiteService implements AutoCloseable {
             }
         }
 
+        synchronized void fault(String reference, String cause) {
+            faultReference = reference;
+            faultCause = cause;
+        }
+
         /** Ends the run. Every case not attempted is marked as not run and its member ID is dropped. */
         synchronized void finish(String why, String when) {
             if (state != SuiteState.RUNNING) {
@@ -721,6 +734,9 @@ public class SuiteService implements AutoCloseable {
             }
             state = all ? SuiteState.COMPLETED : SuiteState.STOPPED;
             stopReason = all ? null : Texts.orElse(why, Texts.orElse(stopRequested, STOPPED_BY_TESTER));
+            // Given only with the stop sentence it belongs to. A run that had attempted every case has none.
+            stopReference = all ? null : faultReference;
+            stopCause = all ? null : faultCause;
             finishedAt = when;
         }
 
@@ -825,7 +841,8 @@ public class SuiteService implements AutoCloseable {
             boolean stopping = state == SuiteState.RUNNING && stopRequested != null;
             return new SuiteRunView(id, name, format, state, headline(counts, stopping), stopReason, startedAt, finishedAt, epa.mode(),
                     epa.target(), environment, epoch, testerRef, comparedWith, counts, timings.summarise(support.slowThresholdMillis()),
-                    findingCounts, notes(counts, caseLinesNotRecorded), withRows ? rows : null, stopping ? Boolean.TRUE : null);
+                    findingCounts, notes(counts, caseLinesNotRecorded), withRows ? rows : null, stopping ? Boolean.TRUE : null, null,
+                    stopReference, stopCause);
         }
 
         private String headline(SuiteCounts c, boolean stopping) {

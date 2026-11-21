@@ -657,9 +657,86 @@ class SuiteServiceTest {
                     + "not known. The reason gives the reference.");
         });
         assertThat(run.headline()).isEqualTo("Finished: 2 cases. 2 tool failures.");
+        // Each row carries its own fault. The suite itself did not stop, so it has none.
+        assertThat(run.stopReference()).isNull();
+        assertThat(run.stopCause()).isNull();
+        assertThat(JsonSafe.mapper().writeValueAsString(run)).doesNotContain("S123456789").doesNotContain("exploded");
         assertThat(run.counts().toolFailed()).isEqualTo(2);
         assertThat(run.counts().notRunnable()).isZero();
         assertThat(output.getAll()).contains("A suite case failed inside this tool").doesNotContain("S123456789").doesNotContain("exploded");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aMissingClassThatEndsTheSuiteNamesItsCauseOnTheRunAndNowhereThatIsKept(CapturedOutput output) {
+        // A LinkageError is not caught per case, so it ends the whole suite: the place a missing class surfaces.
+        String missing = "org/p32h/interop/epa/pave/service/crd/CrdRunRequest$Builder";
+        bed.wrap = runner -> spec -> {
+            throw new NoClassDefFoundError(missing);
+        };
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String id = service.start("cases.csv", suite(row("TC-1", "S123456789", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
+                .suiteRunId();
+        assertThatThrownBy(() -> bed.queued.remove().run()).isInstanceOf(NoClassDefFoundError.class);
+
+        SuiteRunView run = service.get(id, true);
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(run.stopReference()).isNotBlank();
+        assertThat(run.stopReason()).isEqualTo("This tool failed while running the suite. Reference " + run.stopReference() + ".");
+        assertThat(run.stopCause()).isEqualTo("java.lang.NoClassDefFoundError; java.lang.NoClassDefFoundError says: " + missing);
+        // The list of runs gives the summary of each, and the stop is part of it.
+        assertThat(service.list()).singleElement().satisfies(summary -> {
+            assertThat(summary.stopReference()).isEqualTo(run.stopReference());
+            assertThat(summary.stopCause()).isEqualTo(run.stopCause());
+        });
+        String json = JsonSafe.mapper().writeValueAsString(run);
+        assertThat(json).contains("\"stopCause\"").doesNotContain("S123456789").doesNotContain("\tat ").doesNotContain("    at ");
+
+        // The results CSV keeps the stop sentence with its reference, as before, and has no column for the cause.
+        String csv = service.resultsCsv(id);
+        assertThat(csv).contains("Reference " + run.stopReference() + ".").doesNotContain(missing).doesNotContain("NoClassDefFoundError")
+                .startsWith("\uFEFF" + String.join(",", SuiteResultsCsv.HEADER) + "\r\n");
+        assertThat(bed.ledger.records()).isEmpty();
+        // The first line of the log entry names the class, beside the same reference.
+        assertThat(output.getAll()).contains("A suite run failed inside this tool, reference " + run.stopReference() + ": "
+                + run.stopCause() + System.lineSeparator()).doesNotContain("S123456789");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aFailureWhoseMessageCouldQuoteMemberDataEndsTheSuiteWithItsTypeOnly(CapturedOutput output) {
+        // An Error that is not about the program, wrapping a RuntimeException whose message quotes a member ID.
+        bed.wrap = runner -> spec -> {
+            throw new ExceptionInInitializerError(new IllegalStateException("no plan for " + spec.memberId()));
+        };
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String id = service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null).suiteRunId();
+        assertThatThrownBy(() -> bed.queued.remove().run()).isInstanceOf(ExceptionInInitializerError.class);
+
+        SuiteRunView run = service.get(id, true);
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(run.stopCause()).isEqualTo("java.lang.ExceptionInInitializerError <- java.lang.IllegalStateException");
+        assertThat(JsonSafe.mapper().writeValueAsString(run)).doesNotContain("S123456789").doesNotContain("no plan");
+        assertThat(service.resultsCsv(id)).doesNotContain("S123456789").doesNotContain("IllegalStateException");
+        assertThat(output.getAll()).doesNotContain("S123456789").doesNotContain("no plan");
+    }
+
+    @Test
+    void aRunThatEndsAnyOtherWayGivesNoStopReferenceOrCause() {
+        bed.hold = true;
+        SuiteService service = bed.service();
+        String id = service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
+                .suiteRunId();
+        service.stop(id);
+        bed.queued.remove().run();
+        SuiteRunView run = service.get(id, true);
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        assertThat(run.stopReason()).isNotBlank();
+        assertThat(run.stopReference()).isNull();
+        assertThat(run.stopCause()).isNull();
+        assertThat(JsonSafe.mapper().writeValueAsString(run)).doesNotContain("stopReference").doesNotContain("stopCause");
     }
 
     @Test
