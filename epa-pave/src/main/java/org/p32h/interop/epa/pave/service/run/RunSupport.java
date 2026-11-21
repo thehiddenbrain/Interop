@@ -441,6 +441,29 @@ public class RunSupport {
     }
 
     /**
+     * True when the request as it went out carried an Authorization header. Only whether one went
+     * out is read, never its value.
+     */
+    public static boolean carriedAuthorization(VendorExchange exchange) {
+        return exchange != null && exchange.request() != null && exchange.request().sent() && exchange.request().headers() != null
+                && exchange.request().headers().stream()
+                .anyMatch(header -> header != null && "Authorization".equalsIgnoreCase(Texts.orElse(header.name(), "").strip()));
+    }
+
+    /**
+     * Why a 401 or a 403 sends the tester to the credentials, for every protocol alike. This tool
+     * knows whether the request carried an Authorization header, so it says which: credentials
+     * that were not accepted, or none sent at all.
+     */
+    public static String credentialsReason(int status, VendorExchange exchange) {
+        return carriedAuthorization(exchange)
+                ? "The service answered HTTP " + status + ", which means it did not accept the credentials this tool sent. The request "
+                + "itself may be fine."
+                : "The service answered HTTP " + status + ", and the request as sent carried no Authorization header: no credentials "
+                + "were sent. The request itself may be fine.";
+    }
+
+    /**
      * The next step after a 401 or a 403 to a request that carried no Authorization header because
      * signing in is off: that, and not a wrong credential, is the likely cause. Any other step is
      * returned as it is, so the words of a verdict stay true when a header did go out.
@@ -604,9 +627,12 @@ public class RunSupport {
                             ? "This tool sent no Authorization header: signing in is off (onyx.auth.enabled is false) and the request "
                             + "carried none of its own. Ready to send, on the Config tab, says how to switch signing in on. The request "
                             + "that was sent is in the wire view."
-                            : code == 401 || code == 403
-                            ? "This status means the credentials were not accepted, or none were sent. Check the client id, the "
+                            : (code == 401 || code == 403) && carriedAuthorization(exchange)
+                            ? "This status means the service did not accept the credentials this tool sent. Check the client id, the "
                             + "secret and the token url on the Config tab. The request that was sent is in the wire view."
+                            : code == 401 || code == 403
+                            ? "This status means credentials were wanted, and the request as sent carried no Authorization header. "
+                            + "Check the sign-in settings on the Config tab. The request that was sent is in the wire view."
                             : code == 404
                             ? "This status usually means the url or the service id is wrong. Check it on the Config tab. The request "
                             + "that was sent is in the wire view."

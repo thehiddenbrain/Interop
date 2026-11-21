@@ -69,12 +69,38 @@ class UnsignedNextStepTest {
                 .isEqualTo("Next: switch signing in on, then send again.");
     }
 
+    /**
+     * This tool knows whether the request went out with an Authorization header, so a 401 or a 403
+     * says which, in the verdict's next step and in the error panel alike, and never "or none were
+     * sent" when one went out. Only whether a header went out is read, never its value.
+     */
+    @Test
+    void aRefusalOfTheCredentialsSaysWhetherAnAuthorizationHeaderWentOut() {
+        VendorExchange signed = with(answered(401), List.of(new WireHeader("Authorization", "Bearer [redacted]")), true);
+        VendorExchange bare = with(answered(403), List.of(new WireHeader("Accept", "application/json")), true);
+        assertThat(RunSupport.credentialsReason(401, signed)).isEqualTo("The service answered HTTP 401, which means it did not accept the "
+                + "credentials this tool sent. The request itself may be fine.");
+        assertThat(RunSupport.credentialsReason(403, bare)).isEqualTo("The service answered HTTP 403, and the request as sent carried no "
+                + "Authorization header: no credentials were sent. The request itself may be fine.");
+        // The CRD verdict, read from the answer as a run reads it, takes the same sentence; DTR, PAS and subscriptions call the same method.
+        org.p32h.interop.epa.pave.service.crd.CrdResponseMapper mapper = new org.p32h.interop.epa.pave.service.crd.CrdResponseMapper();
+        NextStepView step = org.p32h.interop.epa.pave.service.crd.CrdVerdicts.nextStep(mapper.read(signed), signed);
+        assertThat(step.reason()).isEqualTo(RunSupport.credentialsReason(401, signed)).doesNotContain("or none").doesNotContain("Bearer");
+        assertThat(support(true).faultView(signed, List.of()).action()).isEqualTo("This status means the service did not accept the "
+                + "credentials this tool sent. Check the client id, the secret and the token url on the Config tab. The request that was "
+                + "sent is in the wire view.");
+        assertThat(support(true).faultView(bare, List.of()).action()).isEqualTo("This status means credentials were wanted, and the request "
+                + "as sent carried no Authorization header. Check the sign-in settings on the Config tab. The request that was sent is in "
+                + "the wire view.");
+    }
+
     @Test
     void anyOtherCaseKeepsTheStepItWasGiven() {
         // A header of the request's own, in any letter case.
         VendorExchange ownHeader = with(answered(401), List.of(new WireHeader("authorization", "Bearer [redacted]")), true);
         assertThat(support(false).unsignedNextStep(CREDENTIALS, ownHeader)).isSameAs(CREDENTIALS);
-        assertThat(support(false).faultView(ownHeader, List.of()).action()).startsWith("This status means the credentials were not accepted");
+        assertThat(support(false).faultView(ownHeader, List.of()).action()).startsWith("This status means the service did not accept the "
+                + "credentials this tool sent. Check the client id");
         // Signing in is on.
         assertThat(support(true).unsignedNextStep(CREDENTIALS, with(answered(401), List.of(), true))).isSameAs(CREDENTIALS);
         // Another status.

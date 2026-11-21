@@ -498,8 +498,7 @@ public final class DtrVerdicts {
         int status = exchange == null || exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 401 || status == 403) {
             return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
-                    "The service answered HTTP " + status + ", which means it did not accept the credentials this tool sent, or none "
-                            + "were sent. The request itself may be fine.", carry);
+                    RunSupport.credentialsReason(status, exchange), carry);
         }
         if (status == 404) {
             return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the DTR url on the Config tab.",
