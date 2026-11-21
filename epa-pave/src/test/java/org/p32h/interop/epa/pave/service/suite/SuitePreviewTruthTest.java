@@ -99,6 +99,20 @@ class SuitePreviewTruthTest {
         assertThat(preview.writeNote()).isNull();
     }
 
+    /** A name of a million characters made this one sentence a megabyte long. */
+    @Test
+    void theNoteAboutWritesOnLiveQuotesALongEnvironmentNameByItsStartAndItsLength() {
+        bed.mode = "live";
+        String name = "S".repeat(1_000_000);
+        bed.gateway.environment(name, EnvironmentKind.SANDBOX);
+        SuitePreview preview = bed.service().preview("cases.csv", file("pas,pas,,P32H-PA-REQ," + NPI + ",95810,,"));
+        assertThat(preview.writeNote()).isEqualTo("1 case can create or change something on the far side in " + "S".repeat(60)
+                + "... (a name of 1000000 characters).");
+        bed.gateway.environment("Onyx Sandbox", EnvironmentKind.SANDBOX);
+        assertThat(bed.service().preview("cases.csv", file("pas,pas,,P32H-PA-REQ," + NPI + ",95810,,")).writeNote())
+                .isEqualTo("1 case can create or change something on the far side in Onyx Sandbox.");
+    }
+
     @Test
     void anExpectationThatCanNeverHoldIsRefusedBeforeAnythingIsSent() {
         assertThat(only(define(file("e3,crd,,P32H-NO-AUTH," + NPI + ",95810,,AUTH_REQUIRED;NO_AUTH_REQUIRED"))).problems())
