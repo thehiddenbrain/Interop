@@ -38,6 +38,20 @@ class ChainFrontendTest {
     }
 
     @Test
+    void theBarNeverCutsTheMemberTheCodesOrTheWordForWhereAStageStands() throws IOException {
+        String chain = Files.readString(Path.of("src/main/resources/static/js/chain.js"), StandardCharsets.UTF_8);
+        String parts = CaseCodesFrontendTest.body(chain, "function stateParts(line) {");
+        assertThat(parts).contains("el('span', {class: 'chain-stage__word'}, text.slice(0, colon))")
+                .contains("el('span', {class: 'visually-hidden'}, ': ' + text.slice(colon + 2))");
+        String css = Files.readString(Path.of("src/main/resources/static/css/pave.css"), StandardCharsets.UTF_8);
+        assertThat(CaseCodesFrontendTest.body(css, ".chain-bar--line {")).contains("flex-wrap: wrap;");
+        assertThat(CaseCodesFrontendTest.body(css, ".chain-bar--line .chain-stage__word {")).contains("flex: 0 0 auto;");
+        String caseRule = CaseCodesFrontendTest.body(css, ".chain-bar__case {");
+        assertThat(caseRule).doesNotContain("text-overflow").doesNotContain("max-width");
+        assertThat(css).doesNotContain(".chain-bar__case, .chain-bar__case code");
+    }
+
+    @Test
     void theBoxIsOnTheBarWaitsForAChainAndAskingForTheValueChangesNothingOnScreen() throws IOException {
         String chain = read("chain.js");
         String create = CaseCodesFrontendTest.body(chain, "export function createChain(app, bar) {");

@@ -108,7 +108,8 @@ export function createChain(app, bar) {
         fill(bar, el('div', {class: 'chain-bar chain-bar--line'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
                 el('span', {class: 'chain-stage__name'}, stage.name),
-                el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null, stage.stateLine)))),
+                el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null,
+                    stateParts(stage.stateLine))))),
             // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
             // Set without the break points code() adds, which would break the one line even where wrapping is off.
             el('span', {class: 'chain-bar__case', title: caseLine(view)}, el('span', {class: 'quiet'}, 'for '),
@@ -117,6 +118,21 @@ export function createChain(app, bar) {
                     ? [', ', view.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])] : null),
             follow.checked ? null : el('span', {class: 'chain-bar__paused'}, 'Paused: runs sent now join no chain.'),
             actions()));
+    }
+
+    /**
+     * The server's line starts with where the stage stands ("Done", "Next", "Not reached", "In progress", "Needs attention")
+     * before its first colon. The bar shows that word whole and no fragment of the rest, which was cut to a few letters at
+     * every width; the rest is read out to a screen reader, is the title, and is whole in the journey on the History tab.
+     */
+    function stateParts(line) {
+        const text = String(line || '');
+        const colon = text.indexOf(': ');
+        if (colon < 0 || colon > 24) {
+            return el('span', {class: 'chain-stage__rest'}, text);
+        }
+        return [el('span', {class: 'chain-stage__word'}, text.slice(0, colon)),
+            el('span', {class: 'visually-hidden'}, ': ' + text.slice(colon + 2))];
     }
 
     function actions() {

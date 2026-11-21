@@ -2037,13 +2037,16 @@ details.fold > :not(summary) {
 }
 
 /*
- * The bar as one line: the stages, whose case it is, and the two buttons. It sits above every
- * protocol tab, so each pixel it takes is taken from the result; the next step is the result's own
- * row and is not repeated here. A stage's line is cut with its full text kept as its title.
+ * The bar as one line where it fits: the stages, whose case it is, and the two buttons. It sits above
+ * every protocol tab, so each pixel it takes is taken from the result; the next step is the result's
+ * own row and is not repeated here. Each stage keeps its name and the word for where it stands, and
+ * only the rest of its line is cut, kept whole as its title. The member and codes are never cut:
+ * where they do not fit beside the stages, the bar takes a second line for them.
  */
 .chain-bar--line {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    row-gap: 2px;
     align-items: center;
     gap: var(--gap-4);
     padding-top: 4px;
@@ -2052,13 +2055,13 @@ details.fold > :not(summary) {
 
 .chain-bar--line .chain-stages {
     display: flex;
-    flex: 1 1 auto;
-    min-width: 0;
+    flex: 1 1 0;
     gap: var(--gap-3);
 }
 
 .chain-bar--line .chain-stage {
-    flex: 1 1 0;
+    flex: 1 1 auto;
+    min-width: auto;
     display: flex;
     align-items: baseline;
     gap: var(--gap-2);
@@ -2070,31 +2073,40 @@ details.fold > :not(summary) {
 }
 
 .chain-bar--line .chain-stage__state {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
     min-width: 0;
+}
+
+.chain-bar--line .chain-stage__word {
+    flex: 0 0 auto;
+    font-weight: 600;
+}
+
+/* Contained, so the rest of a line asks for no room of its own: the stages are as wide as their names and words. */
+.chain-bar--line .chain-stage__rest {
+    flex: 1 1 auto;
+    min-width: 0;
+    contain: inline-size;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-/*
- * A member recorded as a token is a long code. It stays on the line and is cut, with the whole of it
- * kept as the title, past a third of the bar, so the stages keep room to say where each stands.
- */
+/* A member recorded as a token is a long code: it may break inside, never be cut. */
 .chain-bar__case {
     flex: 0 1 auto;
-    max-width: 32%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
 }
 
-.chain-bar__case, .chain-bar__case code, .chain-bar__paused {
-    white-space: nowrap;
+.chain-bar__case code {
+    overflow-wrap: anywhere;
 }
 
 .chain-bar__paused {
     flex: 0 0 auto;
-}
-
-.chain-bar__paused {
+    white-space: nowrap;
     font-weight: 600;
 }
 
