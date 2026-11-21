@@ -726,6 +726,23 @@ class SuiteServiceTest {
         }
     }
 
+    /** The web server's own grace can use up the bound before the suites are closed. With no case running, nothing is said. */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aStopWithNoCaseRunningSaysNothingEvenWhenTheBoundIsAlreadyOver(CapturedOutput output) throws Exception {
+        SuiteService service = bed.serviceOnItsOwnThread(java.time.Duration.ofMillis(1));
+        String id = service.start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "")), null, null, null).suiteRunId();
+        for (int i = 0; i < 400 && service.get(id, false).state() == SuiteState.RUNNING; i++) {
+            Thread.sleep(25);
+        }
+        service.onApplicationEvent(new org.springframework.context.event.ContextClosedEvent(
+                new org.springframework.context.support.GenericApplicationContext()));
+        Thread.sleep(20);
+        service.close();
+        assertThat(service.get(id, false).state()).isEqualTo(SuiteState.COMPLETED);
+        assertThat(output.getAll()).doesNotContain("A suite case was still running").doesNotContain("did not end after its thread");
+    }
+
     @Test
     void theStopIsBoundedByWhatTheWebServerGivesARequestInFlight() {
         org.p32h.interop.epa.pave.config.OnyxProperties defaults = org.p32h.interop.epa.pave.config.OnyxProperties.defaults();

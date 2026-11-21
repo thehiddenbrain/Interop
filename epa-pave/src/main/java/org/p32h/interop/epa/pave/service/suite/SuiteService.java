@@ -102,6 +102,8 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
     static final Duration LONGEST_STOP = Duration.ofSeconds(30);
     /** How long the stop still waits for the suite's thread once it has been interrupted. */
     static final Duration AFTER_INTERRUPT = Duration.ofSeconds(5);
+    /** The least the stop waits for the suite's thread before it takes it for one still running a case. */
+    static final Duration IDLE_END = Duration.ofMillis(500);
 
     private final ObjectProvider<CaseRunner> caseRunner;
     private final ObjectProvider<RunLedger> ledger;
@@ -415,8 +417,10 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
             return;
         }
         owned.shutdown();
-        long left = stopBound.toNanos() - (System.nanoTime() - began);
-        if (left > 0 && owned.awaitTermination(left, TimeUnit.NANOSECONDS)) {
+        // The web server's grace may already have used up the bound. An idle thread still needs a moment to end
+        // after the shutdown, and is not to be taken for a case that is running.
+        long left = Math.max(IDLE_END.toNanos(), stopBound.toNanos() - (System.nanoTime() - began));
+        if (owned.awaitTermination(left, TimeUnit.NANOSECONDS)) {
             return;
         }
         // The bound and nothing of the case, which holds a member ID and is never logged.
