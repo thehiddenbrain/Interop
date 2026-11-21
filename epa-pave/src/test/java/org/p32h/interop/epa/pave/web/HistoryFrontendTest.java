@@ -135,4 +135,20 @@ class HistoryFrontendTest {
         // The originals oldest first, and the list on screen left in its own order.
         assertThat(out).isEqualTo("[[\"a\",\"c\"],[\"c\",\"b\",\"a\"]]");
     }
+
+    @Test
+    void aRunThatCouldNotSignInSaysWhichOfTheTwoCausesToFixWhenNodeRunsIt() throws IOException, InterruptedException {
+        String run = read("js/history-run.js");
+        assertThat(run).contains("? [notSignedInStep(run) ? [el('strong', null, notSignedInStep(run)), ' ']");
+        String step = CaseCodesFrontendTest.body(run, "function notSignedInStep(run) {") + "\n}\n";
+        Assumptions.assumeTrue(CaseCodesFrontendTest.node() != null, "Node is not installed here; the text checks still apply.");
+        Process process = new ProcessBuilder(CaseCodesFrontendTest.node().toString(), "-e", step
+                + "console.log(JSON.stringify([notSignedInStep({outcome: 'NOT_SIGNED_IN', errorType: 'TOKEN_ENDPOINT_FAULT'}),"
+                + " notSignedInStep({outcome: 'NOT_SIGNED_IN', errorType: 'NOT_SIGNED_IN'}), notSignedInStep({outcome: 'UNREACHABLE'})]));")
+                .redirectErrorStream(true).start();
+        assertThat(process.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+        assertThat(out).isEqualTo("[\"Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to "
+                + "the service.\",\"Correct the sign-in settings on the Config tab: nothing was sent.\",null]");
+    }
 }

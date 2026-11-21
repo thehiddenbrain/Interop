@@ -99,7 +99,8 @@ class SuiteControllerTest {
         assertThat(first.get("countedIn").stringValue()).isEqualTo("passed");
         assertThat(second.get("countedIn").stringValue()).isEqualTo("failed");
         JsonNode groups = run.get("countGroups");
-        assertThat(groups).hasSize(11);
+        // Twelve: a case that could not sign in has a group of its own, apart from "nothing was declared".
+        assertThat(groups).hasSize(12);
         assertThat(groups.get(0).get("group").stringValue()).isEqualTo("passed");
         assertThat(groups.get(0).get("label").stringValue()).isEqualTo("Passed");
         assertThat(groups.get(0).get("count").intValue()).isEqualTo(1);

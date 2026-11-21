@@ -19,6 +19,7 @@ import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
 import org.p32h.interop.epa.pave.model.CaseStatus;
+import org.p32h.interop.epa.pave.model.RunOutcome;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -676,6 +677,15 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         return failing.stream().allMatch(code -> code != null && code.fault());
     }
 
+    /**
+     * A single-step case whose run was not sent because this tool could not sign in. It is completed, and unverified because
+     * nothing came back to compare, but it is counted apart: "nothing was declared" would be untrue of a row that declared
+     * something. A chain whose later step could not sign in sent its earlier steps, so it keeps its own words.
+     */
+    private static boolean notSignedIn(SuiteCaseResult row) {
+        return !row.chain() && RunOutcome.NOT_SIGNED_IN.name().equals(row.outcome());
+    }
+
     private static String label(RunRecord record) {
         return record.operation() == null ? "a step" : record.operation().label();
     }
@@ -684,6 +694,10 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
     private static String nextStep(RunRecord last) {
         if (last == null || Texts.blank(last.nextAction())) {
             return null;
+        }
+        if (RunOutcome.NOT_SIGNED_IN.name().equals(last.outcome())) {
+            // The action alone reads as the service failing or the tool not configured; the error type says which of the two causes it was.
+            return RunSupport.notSignedInInstruction(last.errorType());
         }
         try {
             return ChainService.instruction(NextAction.valueOf(last.nextAction().strip()));
@@ -710,6 +724,10 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         }
         if (status == CaseStatus.COMPLETED) {
             if (!entry.chain) {
+                RunRecord last = outcome.finalRun();
+                if (last != null && RunOutcome.NOT_SIGNED_IN.name().equals(last.outcome())) {
+                    return "Not sent: this tool could not sign in. The run in History says why.";
+                }
                 return statusLine(status, result, entry.expected);
             }
             if (result == null) {
@@ -884,6 +902,7 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
             int invalid = 0;
             int notConfigured = 0;
             int notRunnable = 0;
+            int notSignedIn = 0;
             int toolFailed = 0;
             int partly = 0;
             int failedByFault = 0;
@@ -923,6 +942,10 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
                     } else {
                         group = switch (row.status()) {
                             case COMPLETED -> {
+                                if (notSignedIn(row)) {
+                                    notSignedIn++;
+                                    yield SuiteCountGroup.NOT_SIGNED_IN;
+                                }
                                 if (row.result() == TestResult.PASS) {
                                     passed++;
                                     yield SuiteCountGroup.PASSED;
@@ -972,7 +995,7 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
             }
             int total = entries.size();
             int done = total - notRun - waiting;
-            SuiteCounts counts = new SuiteCounts(total, done, passed, failed, unverified, blocked, invalid, notConfigured, notRunnable,
+            SuiteCounts counts = new SuiteCounts(total, done, passed, failed, unverified, blocked, invalid, notConfigured, notRunnable, notSignedIn,
                     toolFailed, partly, notRun, waiting, notRecorded, withFindings, slow, changed, failedByFault);
             boolean stopping = state == SuiteState.RUNNING && stopRequested != null;
             return new SuiteRunView(id, name, format, state, headline(counts, stopping), stopReason, startedAt, finishedAt, epa.mode(),
@@ -997,6 +1020,7 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
             add(parts, c.invalid(), "not valid");
             add(parts, c.notConfigured(), "not configured");
             add(parts, c.notRunnable(), "not runnable");
+            add(parts, c.notSignedIn(), "not sent (sign-in)");
             add(parts, c.partly(), "stopped part way");
             add(parts, c.toolFailed(), c.toolFailed() == 1 ? "tool failure" : "tool failures");
             add(parts, c.notRun(), "not run");

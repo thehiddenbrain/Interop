@@ -63,7 +63,7 @@ class SuiteServiceTest {
         assertThat(run.finishedAt()).isNotNull();
         // Every case here has something for a person to look at. The test code list holds no row for 95810,
         // so nothing was compared, and the empty answer states no coverage information, which CRD 2.0.1 does not require.
-        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0));
+        assertThat(run.counts()).isEqualTo(new SuiteCounts(3, 3, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0));
         // Each case gives the member ID alone, so each request went without what CRD 2.0.1 requires of a Patient.
         assertThat(run.findingCounts()).containsExactly(Map.entry("CODE_LIST_NOT_COMPARED", 2), Map.entry("NOT_STATED", 1),
                 Map.entry("REQUEST_INCOMPLETE", 3));
@@ -1164,5 +1164,26 @@ class SuiteServiceTest {
         // Nothing went out, so the row says nothing was sent and claims no fault of the service.
         assertThat(row.statusLine()).doesNotContain("was sent");
         assertThat(row.outcomeFault()).isNull();
+    }
+
+    @Test
+    void aCaseThatCouldNotSignInIsCountedAndWordedAsNotSentNotAsNothingDeclared() {
+        bed.wrap = runner -> spec -> {
+            var ran = runner.run(spec);
+            List<RunRecord> notSent = ran.runs().stream().map(record -> record.toBuilder()
+                    .outcome(org.p32h.interop.epa.pave.model.RunOutcome.NOT_SIGNED_IN).errorType("TOKEN_ENDPOINT_FAULT")
+                    .result(org.p32h.interop.epa.pave.model.TestResult.UNVERIFIED).nextAction("CHECK_ENVIRONMENT").build()).toList();
+            return new org.p32h.interop.epa.pave.model.CaseOutcome(ran.spec(), ran.status(), ran.reason(), notSent);
+        };
+        // The row declares what it expected: the group "nothing was declared" would be untrue of it.
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("TC-1", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
+        SuiteCaseResult row = run.results().get(0);
+        assertThat(row.statusLine()).isEqualTo("Not sent: this tool could not sign in. The run in History says why.");
+        assertThat(row.countedIn()).isEqualTo(org.p32h.interop.epa.pave.model.suite.SuiteCountGroup.NOT_SIGNED_IN);
+        assertThat(run.counts().notSignedIn()).isEqualTo(1);
+        assertThat(run.counts().unverified()).isZero();
+        assertThat(run.headline()).isEqualTo("Finished: 1 case. 1 not sent (sign-in).");
+        assertThat(row.nextStep()).isEqualTo("Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing "
+                + "was sent to the service.");
     }
 }

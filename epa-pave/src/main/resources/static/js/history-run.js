@@ -119,7 +119,8 @@ export function createRunView(app, context) {
                     run.errorType && run.errorType !== 'NONE' ? [', error ', code(run.errorType)] : null, '.')]),
                 answer('Did it match', [stamp(run.result, 'large')]),
                 answer('What next', run.nextAction
-                    ? [vocabulary.nextAction(run.nextAction) ? [el('strong', null, vocabulary.nextAction(run.nextAction)), ' '] : null,
+                    ? [notSignedInStep(run) ? [el('strong', null, notSignedInStep(run)), ' ']
+                        : vocabulary.nextAction(run.nextAction) ? [el('strong', null, vocabulary.nextAction(run.nextAction)), ' '] : null,
                         el('span', {class: 'small'}, '(', code(run.nextAction), ')'),
                         aboutStep(el('p', {class: 'small quiet'}, 'The step this run named, in the server\'s words for it. The ledger keeps the name only, '
                         + 'so the reason the result gave beside it is not kept.')),
@@ -391,4 +392,18 @@ export function createRunView(app, context) {
     }
 
     return {node, open, openId: () => openId};
+}
+
+/**
+ * The next step of a run that was not sent because this tool could not sign in, from the error type the line keeps. The
+ * action's own words name a service that failed or a tool not configured, neither true here; these are the words the suite
+ * results give for the same line (RunSupport.notSignedInInstruction).
+ */
+function notSignedInStep(run) {
+    if (run.outcome !== 'NOT_SIGNED_IN') {
+        return null;
+    }
+    return run.errorType === 'TOKEN_ENDPOINT_FAULT'
+        ? 'Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to the service.'
+        : 'Correct the sign-in settings on the Config tab: nothing was sent.';
 }

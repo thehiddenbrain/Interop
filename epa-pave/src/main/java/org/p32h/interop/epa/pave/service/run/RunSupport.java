@@ -397,6 +397,17 @@ public class RunSupport {
                 .build();
     }
 
+    /**
+     * What to do after a run that was not sent because this tool could not sign in, in one sentence, from the error type the
+     * ledger line keeps. The next action alone names an environment that failed or a tool not configured, neither of which
+     * is true of a token endpoint that answered 400 or of a setting not given. Also read by the suite results.
+     */
+    public static String notSignedInInstruction(String errorType) {
+        return OnyxFailureType.TOKEN_ENDPOINT_FAULT.name().equals(errorType)
+                ? "Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to the service."
+                : "Correct the sign-in settings on the Config tab: nothing was sent.";
+    }
+
     /** True when an exchange is a call this tool did not send because it could not sign in. */
     public static boolean notSignedIn(VendorExchange exchange) {
         return exchange != null && (exchange.failureType() == OnyxFailureType.NOT_SIGNED_IN

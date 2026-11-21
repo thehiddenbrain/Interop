@@ -18,6 +18,8 @@ public enum SuiteCountGroup {
     INVALID("invalid", "Not valid: nothing was sent"),
     NOT_CONFIGURED("notConfigured", "Not configured: nothing was sent"),
     NOT_RUNNABLE("notRunnable", "Cannot be run from a suite row: nothing was sent"),
+    /** A case that declared what it expected but was not sent, because this tool could not sign in. Not "nothing declared". */
+    NOT_SIGNED_IN("notSignedIn", "Not sent: this tool could not sign in"),
     TOOL_FAILED("toolFailed", "This tool failed: whether a request left is not known"),
     PARTLY("partly", "Stopped part way, after some of their steps were sent"),
     NOT_RUN("notRun", "Not run: the suite stopped before them"),
@@ -52,6 +54,7 @@ public enum SuiteCountGroup {
             case INVALID -> counts.invalid();
             case NOT_CONFIGURED -> counts.notConfigured();
             case NOT_RUNNABLE -> counts.notRunnable();
+            case NOT_SIGNED_IN -> counts.notSignedIn();
             case TOOL_FAILED -> counts.toolFailed();
             case PARTLY -> counts.partly();
             case NOT_RUN -> counts.notRun();
