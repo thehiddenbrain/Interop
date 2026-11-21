@@ -125,7 +125,8 @@ public final class SubscriptionResponseMapper {
                     + "contradict each other, so whether the call was applied is not known.";
         }
         if (note == null) {
-            note = mismatch(operation, askedId, kind, subscriptions);
+            // The id asked is set beside the answer as masked as the answer is, so a held secret is neither shown nor found different.
+            note = mismatch(operation, received.maskedAsHeld(askedId), kind, subscriptions);
         }
         SubscriptionDetail detail = new SubscriptionDetail(kind, VendorExchange.withMaskedReading(note, received.maskedReadingNote(org.p32h.interop.epa.pave.model.MaskedReading.Reading.SUBSCRIPTION)), subscriptions, bundleType, bundleId, total, others, issues, null, null,
                 null, List.of(), true);

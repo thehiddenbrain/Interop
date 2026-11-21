@@ -208,6 +208,19 @@ public record VendorExchange(
         return masked == null ? null : masked.note();
     }
 
+    /**
+     * A value of the request, such as the id asked about or the address named to call back, as a
+     * verdict may say it: masked with the secrets this exchange's answer is masked with. Said in
+     * clear beside an answer that is masked, it would show what the mask hides, and a comparison of
+     * the two would find a difference the service did not make. Null stays null.
+     */
+    public String maskedAsHeld(String sent) {
+        if (sent == null || request == null || request.secrets() == null || request.secrets().searched() == 0) {
+            return sent;
+        }
+        return request.secrets().mask(sent).text();
+    }
+
     /** A note with the sentence about masked readings after it, either one alone when the other is absent. */
     public static String withMaskedReading(String note, String maskedReading) {
         if (Texts.blank(maskedReading)) {

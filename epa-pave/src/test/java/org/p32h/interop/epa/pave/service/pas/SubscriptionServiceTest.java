@@ -343,6 +343,9 @@ class SubscriptionServiceTest {
         assertThat(read.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: id was read as "
                 + "[secret subscriptionWord].");
         assertThat(read.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        // The id asked is set beside the answer as masked as the answer is: it is not shown in clear, nor found different.
+        assertThat(String.join(" ", read.verdict().supporting())).doesNotContain(ID).doesNotContain("asked about");
+        assertThat(String.join(" ", created.verdict().supporting())).doesNotContain(ID).contains("Its id is [secret subscriptionWord].");
     }
 
     @Test
@@ -353,6 +356,10 @@ class SubscriptionServiceTest {
         assertThat(created.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: endpoint was read as "
                 + "[secret receiverWord].");
         assertThat(created.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
+        // The address sent is said and compared as masked as the answer is: the same address, not "another address", and not in clear.
+        assertThat(created.verdict().supporting()).contains("It calls back https://[secret receiverWord]/api/pas/notifications, the "
+                + "address the request named.");
+        assertThat(String.join(" ", created.verdict().supporting())).doesNotContain("pave.example.invalid");
     }
 
     @Test

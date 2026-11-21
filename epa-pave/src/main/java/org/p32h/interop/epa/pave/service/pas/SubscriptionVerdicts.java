@@ -49,6 +49,9 @@ public final class SubscriptionVerdicts {
                                       boolean sentSubscription, String sentEndpoint) {
         SubscriptionOutcome outcome = reading.outcome();
         List<SubscriptionView> subscriptions = reading.detail().subscriptions();
+        // What the request named is said and compared as masked as the answer is, so a held secret in it is shown by its mask.
+        String sentAddress = exchange.maskedAsHeld(sentEndpoint);
+        String aboutId = exchange.maskedAsHeld(subscriptionId);
         List<String> supporting = new ArrayList<>();
         // First, so a canned answer is never mistaken for an answer from the service.
         String scenario = RunSupport.scenarioLine(exchange);
@@ -58,7 +61,7 @@ public final class SubscriptionVerdicts {
         // A switch expression with no default: adding an outcome without wording it here does not compile.
         String headline = switch (outcome) {
             case CREATED -> {
-                supporting.add(Texts.present(subscriptionId) ? "Its id is " + subscriptionId + "."
+                supporting.add(Texts.present(aboutId) ? "Its id is " + aboutId + "."
                         : "The response gave no id for the new subscription, so it cannot be read, updated or deleted from here by id.");
                 yield "The subscription was created.";
             }
@@ -109,7 +112,7 @@ public final class SubscriptionVerdicts {
                 if (view.status().code() != null) {
                     supporting.add(name + "Status: " + view.status().display() + ".");
                 }
-                supporting.add(name + endpointLine(view.endpoint().hasValue() ? view.endpoint().value() : null, sentSubscription, sentEndpoint));
+                supporting.add(name + endpointLine(view.endpoint().hasValue() ? view.endpoint().value() : null, sentSubscription, sentAddress));
             }
         }
         return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
