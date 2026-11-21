@@ -80,7 +80,9 @@ function mount(target, application) {
     controls.expectation = createExpectation();
     controls.buttons = el('div', {class: 'button-row pas-buttons'});
     controls.modeSaid = el('p', {class: 'small', role: 'status'});
-    bench.actions.append(controls.writes, controls.expectation.node, bench.problem, controls.modeSaid, controls.buttons);
+    bench.actions.append(controls.writes, controls.expectation.node, controls.modeSaid, controls.buttons);
+    // A refusal can name many fields; at the top of the scrolling form it takes no height from the pinned bar.
+    bench.scroll.prepend(bench.problem);
 
     controls.sectionSlot = el('div', {class: 'pas-section'});
     // The call's own fields (the claim identifier an inquiry needs among them) are never folded;

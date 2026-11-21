@@ -72,7 +72,17 @@ export function createCaseContext() {
         prefix: 'provider', fields: PROVIDER_FIELDS, changed, panelChanged,
         subject: 'provider', identifier: 'NPI', address: '/api/providers?npi=', record: 'provider', refusedAs: 'npi'
     });
-    codes = createCodePicker({lineOfBusiness: () => member.get('lineOfBusiness'), changed});
+    // A code added (by hand, by the picker or with a chosen case) answers a refusal of the codes
+    // field, so its mark goes. A code taken away answers nothing, and the mark stays.
+    let codesBefore = 0;
+    codes = createCodePicker({lineOfBusiness: () => member.get('lineOfBusiness'), changed: () => {
+        const now = codes.shown().length;
+        if (now > codesBefore) {
+            unmark(codes.node);
+        }
+        codesBefore = now;
+        changed();
+    }});
     codes.checkList();
     detail.append(member.lookup.panel, provider.lookup.panel);
 

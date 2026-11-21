@@ -69,8 +69,10 @@ function mount(panel, application) {
         controls.expected.node,
         el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), controls.assertions),
         controls.expectedText,
-        bench.problem,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
+    // A refusal can name many fields; at the top of the scrolling form it takes no height from the
+    // pinned bar, and each field it names is one click away.
+    bench.scroll.prepend(bench.problem);
     bench.track(controls.send, controls.preview, controls.discover);
     controls.ownRequest = bench.useOwnRequest({protocol: 'CRD', sendButton: controls.send, sendLabel: 'Send CRD request',
         modeChanged: () => { if (!bench.hasResult()) { drawEmptyState(); } }});

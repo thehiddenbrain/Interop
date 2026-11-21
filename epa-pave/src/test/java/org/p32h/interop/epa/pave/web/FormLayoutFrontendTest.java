@@ -69,9 +69,32 @@ class FormLayoutFrontendTest {
         }
         String workbench = read("workbench.js");
         assertThat(workbench).contains("el('details', {class: 'fold more-options'}, el('summary', null, 'More options', optionsSaid))")
-                .contains("caseSlot, beforeOptions,\n            folded ? [valuesSlot, moreOptions] : [own, valuesSlot]");
+                .contains("caseSlot, beforeOptions,\n        folded ? [valuesSlot, moreOptions] : [own, valuesSlot]");
         // The Config tab's request sent as written does not ask for the fold, so its fields stay open.
         assertThat(read("config-raw.js")).doesNotContain("moreOptions");
+    }
+
+    @Test
+    void theSummaryDropsAFieldOnceItIsCorrectedAndNeverSitsInThePinnedBar() throws IOException {
+        String forms = read("forms.js");
+        // A field loses its mark in more ways than typing (a lookup, a chosen case, the check on
+        // leaving it), so unmark itself tells the page, and the summary listens for that.
+        assertThat(CaseCodesFrontendTest.body(forms, "export function unmark(field) {")).contains("new CustomEvent(UNMARKED, {bubbles: true})");
+        String drop = CaseCodesFrontendTest.body(forms, "export function dropCorrected(slot, field) {");
+        assertThat(drop).contains("namedField.get(item) === field").contains("item.remove()").contains("summary.remove()");
+        assertThat(CaseCodesFrontendTest.body(forms, "export function formProblem(error, unplaced, placed) {")).contains("namedField.set(item, entry.field)");
+        assertThat(read("workbench.js")).contains("panel.addEventListener(UNMARKED, event => dropCorrected(problem, event.target));");
+        // A long summary in the bar that stays in view squeezed the form to half the pane.
+        for (String tab : List.of("tab-crd.js", "tab-pas.js")) {
+            String text = read(tab);
+            assertThat(text).as(tab).contains("bench.scroll.prepend(bench.problem);");
+            String actions = text.substring(text.indexOf("bench.actions.append("), text.indexOf(");", text.indexOf("bench.actions.append(")));
+            assertThat(actions).as(tab).doesNotContain("bench.problem");
+        }
+        String dtr = read("tab-dtr.js");
+        assertThat(dtr).contains("bench.scroll.prepend(controls.problemHome);");
+        String dtrActions = dtr.substring(dtr.indexOf("bench.actions.append("), dtr.indexOf(");", dtr.indexOf("bench.actions.append(")));
+        assertThat(dtrActions).doesNotContain("problemHome");
     }
 
     @Test

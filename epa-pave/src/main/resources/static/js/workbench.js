@@ -23,7 +23,7 @@
 // own fields, the preview included.
 
 import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
-import {clearFieldErrors, markFieldErrors, formProblem, unmark, fieldLabel} from './forms.js';
+import {clearFieldErrors, markFieldErrors, formProblem, unmark, fieldLabel, dropCorrected, UNMARKED} from './forms.js';
 import {renderResult, errorPanel, operationName} from './result.js';
 import {presenceMark} from './shown.js';
 import {resultWord} from './marks.js';
@@ -111,9 +111,9 @@ export function createWorkbench(app, panel, spec) {
         moreOptions.addEventListener('change', drawOptionsSaid);
         moreOptions.addEventListener('input', drawOptionsSaid);
     }
-    const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': spec.formLabel}},
-        el('div', {class: 'case-pane__scroll'}, modeSlot, caseNote, caseSlot, beforeOptions,
-            folded ? [valuesSlot, moreOptions] : [own, valuesSlot]), actions);
+    const scroll = el('div', {class: 'case-pane__scroll'}, modeSlot, caseNote, caseSlot, beforeOptions,
+        folded ? [valuesSlot, moreOptions] : [own, valuesSlot]);
+    const form = el('form', {class: 'case-pane', noValidate: true, attrs: {'aria-label': spec.formLabel}}, scroll, actions);
 
     const status = el('p', {class: 'readout__status', role: 'status', aria: {live: 'polite'}});
     const refusal = el('div', {class: 'readout__refusal', aria: {live: 'polite'}});
@@ -143,6 +143,9 @@ export function createWorkbench(app, panel, spec) {
             unmark(field);
         }
     });
+    // However a field loses its mark (typed in, filled by a lookup or a case, checked again on
+    // leaving it), the summary stops naming it, so it never lists a field that was corrected.
+    panel.addEventListener(UNMARKED, event => dropCorrected(problem, event.target));
 
     // Said in place of the form when the tab's first operation cannot be sent. Not a live region:
     // the status line says in one sentence that the form is withheld, and that is what is announced.
@@ -337,8 +340,10 @@ export function createWorkbench(app, panel, spec) {
         optionsChanged: () => drawOptionsSaid(),
         /** Where the tab puts what belongs with its send button. It stays in view while the case scrolls. */
         actions,
-        /** Where the summary of a refused form appears. The tab places it among its actions. */
+        /** Where the summary of a refused form appears. The tab places it, at the top of the form's scrolling part unless it says otherwise. */
         problem,
+        /** The part of the form that scrolls. A refusal's summary goes at its top, so it never takes height from the pinned send bar. */
+        scroll,
 
         /**
          * Places the shared case in this tab. Called whenever the tab is shown: there is one case

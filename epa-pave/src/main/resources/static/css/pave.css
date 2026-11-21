@@ -1294,6 +1294,13 @@ legend, .case-legend {
     display: none;
 }
 
+/* An empty summary slot at the top of the form leaves no gap there. */
+.case-pane__scroll > .form-problem-slot:empty,
+.case-pane__scroll > .dtr-problem-home:empty,
+.case-pane__scroll > .dtr-problem-home:has(> .form-problem-slot:empty) {
+    display: none;
+}
+
 .case, .case-slot {
     display: flex;
     flex-direction: column;

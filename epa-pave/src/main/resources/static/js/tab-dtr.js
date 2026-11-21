@@ -66,8 +66,9 @@ function mount(panel, application) {
     controls.preview = button('Show the request', showPackagePreview);
     controls.restart = el('p', {class: 'small dtr-restart', hidden: true},
         'Fetching the package again starts the questionnaires over: the answers typed in the questionnaire are dropped.');
-    // The summary of a refused package form goes here; a refused loop or response step has its own,
-    // beside the button that sent it, in the questionnaire.
+    // The summary of a refused package form goes at the top of the scrolling form, where it takes no
+    // height from the pinned bar; a refused loop or response step has its own, beside the button that
+    // sent it, in the questionnaire.
     controls.problemHome = el('div', {class: 'dtr-problem-home'}, bench.problem);
 
     // The questionnaire field takes one url a line, and Enter in it starts the next line.
@@ -82,9 +83,9 @@ function mount(panel, application) {
         controls.expected.node,
         el('details', {class: 'fold'}, el('summary', null, 'Assert standard codes as well'), controls.assertions),
         controls.expectedText,
-        controls.problemHome,
         controls.restart,
         el('div', {class: 'button-row'}, controls.send, controls.preview));
+    bench.scroll.prepend(controls.problemHome);
     bench.track(controls.send, controls.preview);
     bench.useOwnRequest({protocol: 'DTR', sendButton: controls.send, sendLabel: 'Fetch the questionnaire package',
         modeChanged: () => { if (!bench.hasResult()) { drawEmptyState(); } }});
@@ -385,7 +386,7 @@ function placeAnswerProblems(answer, posted) {
 
 /* ---------- sending ---------- */
 
-/** Puts the summary of a refused form beside the button that was pressed: the package form's, or a step's. */
+/** Puts the summary of a refused form where it belongs: the package form's at the top of the form, a step's beside its button. */
 function placeProblem(slot) {
     const home = slot || controls.problemHome;
     if (bench.problem.parentNode !== home) {

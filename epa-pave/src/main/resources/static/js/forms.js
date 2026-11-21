@@ -138,8 +138,12 @@ export function clearFieldErrors(root) {
     }
 }
 
+/** The event a field sends up the page when its mark is removed, so a summary that names it can drop it. */
+export const UNMARKED = 'pave-unmarked';
+
 /** Removes the mark of a refusal from one field: the frame, the server's sentence and what told assistive technology of both. */
 export function unmark(field) {
+    const wasMarked = field.classList.contains('field--invalid');
     field.classList.remove('field--invalid');
     const gone = [];
     for (const message of field.querySelectorAll('.field__error')) {
@@ -155,6 +159,9 @@ export function unmark(field) {
         } else {
             control.removeAttribute('aria-describedby');
         }
+    }
+    if (wasMarked) {
+        field.dispatchEvent(new CustomEvent(UNMARKED, {bubbles: true}));
     }
 }
 
@@ -251,6 +258,38 @@ function findField(roots, name) {
     return null;
 }
 
+// Which field each line of a summary names, so the line can go once that field is corrected.
+const namedField = new WeakMap();
+
+/**
+ * Takes out of a summary the lines that name a field whose mark is gone. The server's title
+ * counted the problems at the send, so once one is corrected the title says what is left instead,
+ * and with nothing left the summary goes.
+ */
+export function dropCorrected(slot, field) {
+    let dropped = false;
+    for (const item of slot.querySelectorAll('.form-problem__fields > li')) {
+        if (namedField.get(item) === field) {
+            item.remove();
+            dropped = true;
+        }
+    }
+    if (!dropped) {
+        return;
+    }
+    for (const summary of slot.querySelectorAll('.form-problem')) {
+        const left = summary.querySelectorAll('.form-problem__fields > li, .note-list > li').length;
+        if (left === 0) {
+            summary.remove();
+            continue;
+        }
+        const title = summary.querySelector('.form-problem__title');
+        if (title) {
+            title.textContent = 'Nothing was sent. Still to correct:';
+        }
+    }
+}
+
 /**
  * The summary of a refused form: the server's title, what to do, each field marked by its label,
  * as a button that takes the tester to it, and any problem that names no field on screen. Shown
@@ -263,8 +302,11 @@ export function formProblem(error, unplaced, placed) {
         el('p', {class: 'form-problem__title'}, error.title),
         error.action ? el('p', null, error.action) : null);
     if (placed && placed.length > 0) {
-        append(node, el('ul', {class: 'form-problem__fields'}, placed.map(entry =>
-            el('li', null, button(entry.label, () => focusField(entry.field), {class: 'button--text'}), ': ', entry.message))));
+        append(node, el('ul', {class: 'form-problem__fields'}, placed.map(entry => {
+            const item = el('li', null, button(entry.label, () => focusField(entry.field), {class: 'button--text'}), ': ', entry.message);
+            namedField.set(item, entry.field);
+            return item;
+        })));
     }
     if (unplaced && unplaced.length > 0) {
         append(node, el('ul', {class: 'note-list'}, unplaced.map(problem =>
