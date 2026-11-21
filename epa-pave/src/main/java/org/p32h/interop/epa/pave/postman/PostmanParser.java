@@ -88,7 +88,7 @@ public final class PostmanParser {
         List<PostmanVariable> variables = variables(JsonSafe.child(root, "values"), false, notes);
         String scope = JsonSafe.presentText(root, "_postman_variable_scope");
         if ("globals".equalsIgnoreCase(scope)) {
-            notes.add("This file is an export of Postman globals. Its variables are used as an environment named \"" + name + "\".");
+            notes.add("This file is an export of Postman globals. Its variables are used as an environment named \"" + Names.shown(name) + "\".");
         }
         return new PostmanEnvironment(JsonSafe.presentText(root, "id"), name, scope, variables, notes);
     }
@@ -173,7 +173,7 @@ public final class PostmanParser {
             }
             if (JsonSafe.isArray(JsonSafe.child(item, "item"))) {
                 String folder = Texts.orElse(JsonSafe.presentText(item, "name"), "(unnamed folder)");
-                String from = "the folder \"" + folder + "\"";
+                String from = "the folder \"" + Names.shown(folder) + "\"";
                 List<PostmanScript> scripts = new ArrayList<>(inherited.scripts());
                 scripts.addAll(scripts(item, from));
                 AuthSetting own = auth(item, from);
@@ -215,9 +215,8 @@ public final class PostmanParser {
             headers = headers(JsonSafe.child(request, "header"));
             ownAuth = auth(request, "this request");
             if (ownAuth.auth() != null) {
-                List<String> named = new ArrayList<>(path);
-                named.add(Texts.orElse(JsonSafe.presentText(item, "name"), "(unnamed request)"));
-                walk.helper(new AuthSetting(true, new PostmanAuth(ownAuth.auth().type(), "the request \"" + String.join(" / ", named) + "\"",
+                String named = Texts.orElse(JsonSafe.presentText(item, "name"), "(unnamed request)");
+                walk.helper(new AuthSetting(true, new PostmanAuth(ownAuth.auth().type(), "the request \"" + Names.path(path, named) + "\"",
                         ownAuth.auth().variables(), ownAuth.auth().literals())));
             }
 
@@ -237,7 +236,7 @@ public final class PostmanParser {
                         body = raw;
                     }
                 } else if (bodyMode != null && !"none".equals(bodyMode)) {
-                    notes.add("The body is in Postman's " + bodyMode + " mode. This tool loads raw bodies only, so this one is not loaded.");
+                    notes.add("The body is in Postman's " + Names.shown(bodyMode) + " mode. This tool loads raw bodies only, so this one is not loaded.");
                     formCredentials = formFields(JsonSafe.child(bodyNode, bodyMode));
                 }
             }
@@ -591,7 +590,7 @@ public final class PostmanParser {
                     + (unusable == 1 ? "was" : "were") + " ignored.");
         }
         enabledCount.entrySet().stream().filter(entry -> entry.getValue() > 1).map(Map.Entry::getKey).sorted()
-                .forEach(key -> notes.add("The variable \"" + key + "\" is defined " + enabledCount.get(key)
+                .forEach(key -> notes.add("The variable \"" + Names.shown(key) + "\" is defined " + enabledCount.get(key)
                         + " times. The last definition is the one in force, as in Postman."));
         return variables;
     }

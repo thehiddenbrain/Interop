@@ -32,6 +32,7 @@ import org.p32h.interop.epa.pave.postman.Ids;
 import org.p32h.interop.epa.pave.postman.OperationDetector;
 import org.p32h.interop.epa.pave.postman.Placeholders;
 import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.postman.PostmanAuth;
 import org.p32h.interop.epa.pave.postman.PostmanExample;
 import org.p32h.interop.epa.pave.postman.PostmanCollection;
@@ -306,7 +307,7 @@ public class ConfigStore {
         // the upload is confirmed it is no longer true.
         List<String> reasonsToAsk = new ArrayList<>(signs);
         if (previous != null && previous.kind() == EnvironmentKind.PROD) {
-            reasonsToAsk.add("an environment named \"" + oneLine(parsed.name()) + "\" is already stored here as prod, and this upload would replace it");
+            reasonsToAsk.add("an environment named \"" + quoted(parsed.name()) + "\" is already stored here as prod, and this upload would replace it");
         }
         if (kind != EnvironmentKind.PROD) {
             refuseProductionAddresses(before, parsed, kind);
@@ -359,7 +360,7 @@ public class ConfigStore {
         warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
         warnings.addAll(listedLast);
         // The name, the kind and a count. Never a variable value.
-        log.info("Environment \"{}\" uploaded as {}, variables {}{}", oneLine(stored.name()), kind.wire(), parsed.variables().size(),
+        log.info("Environment \"{}\" uploaded as {}, variables {}{}", quoted(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new Described<>(new EnvironmentUpload(stored, previous != null, warnings, current), view);
     }
@@ -377,7 +378,7 @@ public class ConfigStore {
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections(),
                 before.remembered(), before.applicationYml()), null, null);
         // The name and the kind only.
-        log.info("Active environment switched to \"{}\" ({})", oneLine(environment.name()), environment.kind().wire());
+        log.info("Active environment switched to \"{}\" ({})", quoted(environment.name()), environment.kind().wire());
         return current;
     }
 
@@ -390,7 +391,7 @@ public class ConfigStore {
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, environments, wasActive ? null : before.activeName(),
                 before.collections(), before.remembered(), before.applicationYml()), null, environment.file());
         // The name only.
-        log.info("Environment \"{}\" removed{}", oneLine(environment.name()), wasActive ? ". It was the active one, so none is active now" : "");
+        log.info("Environment \"{}\" removed{}", quoted(environment.name()), wasActive ? ". It was the active one, so none is active now" : "");
         return new Removal(environment.name(), wasActive, warnings, current.epoch());
     }
 
@@ -422,8 +423,8 @@ public class ConfigStore {
                 if (parsed.request(old.request().id()) == null) {
                     // "Unmapped request" is the label of no operation, so taking a request off is never said as mapping it.
                     warnings.add((old.correction() == EpaOperation.UNMAPPED
-                            ? "The correction that took \"" + old.request().qualifiedName() + "\" off every operation"
-                            : "The correction that mapped \"" + old.request().qualifiedName() + "\" to " + old.correction().label())
+                            ? "The correction that took \"" + old.request().quotedName() + "\" off every operation"
+                            : "The correction that mapped \"" + old.request().quotedName() + "\" to " + old.correction().label())
                             + " was dropped, because the new file has no request with that name in that folder.");
                 } else {
                     corrections.put(old.request().id(), old.correction());
@@ -456,7 +457,7 @@ public class ConfigStore {
         warnings.addAll(commit(next, file, previous == null ? null : previous.file()));
         warnings.addAll(listedLast);
         // The name and counts only. Never a url, a header or a body.
-        log.info("Collection \"{}\" uploaded, requests {}{}", oneLine(parsed.name()), parsed.requests().size(),
+        log.info("Collection \"{}\" uploaded, requests {}{}", quoted(parsed.name()), parsed.requests().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new Described<>(new CollectionUpload(stored, previous != null, warnings, current), view);
     }
@@ -470,7 +471,7 @@ public class ConfigStore {
         StoredCollection collection = requireCollection(before, collectionId);
         StoredCollection.Mapped request = collection.request(requestId);
         if (request == null) {
-            throw NotFoundException.noLongerHeld("That request of the collection \"" + oneLine(collection.name()) + "\"", "collections");
+            throw NotFoundException.noLongerHeld("That request of the collection \"" + quoted(collection.name()) + "\"", "collections");
         }
         if (operation == null) {
             throw ValidationException.of("operation", "Choose the operation this request stands for.");
@@ -506,7 +507,7 @@ public class ConfigStore {
         List<String> warnings = commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), collections,
                 before.remembered(), before.applicationYml()), null, collection.file());
         // The name only.
-        log.info("Collection \"{}\" removed, with its mapping corrections", oneLine(collection.name()));
+        log.info("Collection \"{}\" removed, with its mapping corrections", quoted(collection.name()));
         return new Removal(collection.name(), false, warnings, current.epoch());
     }
 
@@ -533,6 +534,15 @@ public class ConfigStore {
      */
     static String oneLine(String name) {
         return name == null ? "" : name.replaceAll("[\\p{Cntrl}]", " ").strip();
+    }
+
+    /**
+     * A name from an uploaded file as a sentence or the log quotes it: on one line, and a long one
+     * by its start and its length ({@link Names#shown(String)}). It is cut before it is made one
+     * line, so the length given is the length the file gives.
+     */
+    static String quoted(String name) {
+        return oneLine(Names.shown(name));
     }
 
     private static List<StoredCollection.Mapped> mapped(PostmanCollection collection, Map<String, EpaOperation> corrections) {
@@ -566,7 +576,7 @@ public class ConfigStore {
         if (owners.isEmpty()) {
             return;
         }
-        String named = owners.stream().map(owner -> "\"" + oneLine(owner) + "\"").collect(java.util.stream.Collectors.joining(" and "));
+        String named = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" and "));
         // The address is quoted only when no secret is part of it, and only as far as the first secret.
         // One the client cannot read is quoted as the file writes it, since this tool's own
         // reading of it is not an address the file holds.
@@ -576,7 +586,7 @@ public class ConfigStore {
         if (shown == null) {
             said = "one of its addresses is an address of the " + production + ", or lies above or beneath one.";
         } else if (!shown.destination().readable() && shown.written() != null) {
-            said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + oneLine(shown.variable())
+            said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + quoted(shown.variable())
                     + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
                     + production + ", or lies above or beneath one.";
         } else if (before.remembered().stream().anyMatch(known -> known.destination().everyPortAndPath()
@@ -625,7 +635,7 @@ public class ConfigStore {
                             + "and what no other environment may use, so this tool must " + (unreadable
                             ? "read them exactly as the HTTP client does. " : "know them before anything is sent. ") + plainly)));
         }
-        String name = "\"" + oneLine(environment.name()) + "\"";
+        String name = "\"" + quoted(environment.name()) + "\"";
         String refused = "activate".equals(step) ? name + " cannot be made active" : "Writes to " + name + " cannot be unlocked";
         throw new BadInputException(refused + ": it is a production environment, and " + holds + ".", "Nothing was changed. " + plainly
                 + (unreadable ? " Until then this tool takes every port and every path of that address's host as production." : ""));
@@ -633,7 +643,7 @@ public class ConfigStore {
 
     /** Where an address of a production environment is held and why it is not known, in words. A secret is named and never quoted. */
     private static String holds(ProductionDestinations.Problem problem) {
-        String variable = "the variable \"" + oneLine(problem.variable()) + "\"";
+        String variable = "the variable \"" + quoted(problem.variable()) + "\"";
         String where = problem.own() ? variable : variable + ", which this environment does not define and "
                 + (problem.from() == null ? "another layer" : problem.from()) + " gives,";
         String written = problem.secret() || problem.written() == null ? null : UrlNormal.asWritten(problem.written());
@@ -675,13 +685,13 @@ public class ConfigStore {
         List<String> names = MemberDataNames.in(variables);
         if (!names.isEmpty()) {
             warnings.add((names.size() == 1 ? "The variable " : "The variables ") + String.join(", ", names.stream()
-                    .map(name -> "\"" + oneLine(name) + "\"").toList()) + (names.size() == 1 ? " reads" : " read")
+                    .map(name -> "\"" + quoted(name) + "\"").toList()) + (names.size() == 1 ? " reads" : " read")
                     + " as member data: an identifier, a name, a birth date, an address or a telephone number." + kept);
         }
         List<String> withExamples = new ArrayList<>();
         for (PostmanRequest request : requests) {
             if (!request.examples().isEmpty()) {
-                withExamples.add(request.qualifiedName());
+                withExamples.add(request.quotedName());
             }
         }
         if (!withExamples.isEmpty()) {
@@ -703,7 +713,7 @@ public class ConfigStore {
         Set<String> named = new LinkedHashSet<>();
         for (PostmanVariable variable : variables) {
             if (variable.secret() && variable.hasValue() && !Placeholders.referencesOnly(variable.value()) && named.add(variable.key())) {
-                warnings.add("The variable \"" + variable.key() + "\" holds a secret in plain text, and it now sits in the file "
+                warnings.add("The variable \"" + Names.shown(variable.key()) + "\" holds a secret in plain text, and it now sits in the file "
                         + directory.resolve(file) + ". To keep it out of that file, give the variable the value {{env:"
                         + VariableResolver.OS_NAME_PREFIX + "YOUR_NAME}} in Postman, export again, and set the operating system "
                         + "variable of that name where this tool runs.");
@@ -724,12 +734,12 @@ public class ConfigStore {
             // Headers that are switched off are looked at too. They are not sent, and they are still in the file.
             for (PostmanHeader header : request.headers()) {
                 if (HeaderMasking.literalCredential(header.name(), header.value())) {
-                    requestsByHeader.computeIfAbsent(header.name().strip(), name -> new ArrayList<>()).add(request.qualifiedName());
+                    requestsByHeader.computeIfAbsent(header.name().strip(), name -> new ArrayList<>()).add(request.quotedName());
                 }
             }
         }
         List<String> warnings = new ArrayList<>();
-        requestsByHeader.forEach((header, requests) -> warnings.add("The header \"" + oneLine(LiteralCredentials.named(header)) + "\" holds a credential typed into "
+        requestsByHeader.forEach((header, requests) -> warnings.add("The header \"" + quoted(header) + "\" holds a credential typed into "
                 + "the collection in " + requests.size() + (requests.size() == 1 ? " request" : " requests") + ", the first being \""
                 + oneLine(requests.get(0)) + "\", and it now sits in the file " + directory.resolve(file) + " in plain text. This tool "
                 + "redacts it wherever it shows the header. To keep it out of that file, replace it in Postman with a {{placeholder}} and "
@@ -746,20 +756,20 @@ public class ConfigStore {
             List<String> places = new ArrayList<>();
             LiteralCredentials.inUrl(request.url()).found().forEach(found -> places.add(found.place()));
             LiteralCredentials.inBody(request.body()).found().forEach(found -> places.add(found.place()));
-            request.formCredentials().forEach(field -> places.add("the field " + oneLine(LiteralCredentials.named(field)) + " of its " + oneLine(request.bodyMode())
+            request.formCredentials().forEach(field -> places.add("the field " + quoted(field) + " of its " + quoted(request.bodyMode())
                     + " body"));
             if (!places.isEmpty()) {
-                warnings.add("The request \"" + oneLine(request.qualifiedName()) + "\" holds a credential typed into the collection, in "
+                warnings.add("The request \"" + oneLine(request.quotedName()) + "\" holds a credential typed into the collection, in "
                         + String.join(" and in ", places) + "." + stored + " This tool masks it wherever it shows the request, and sends it "
                         + "as written." + move);
             }
             for (PostmanExample example : request.examples()) {
                 List<String> inExample = new ArrayList<>();
                 example.headers().stream().filter(header -> HeaderMasking.literalCredential(header.name(), header.value()))
-                        .forEach(header -> inExample.add("its header " + oneLine(LiteralCredentials.named(header.name()))));
+                        .forEach(header -> inExample.add("its header " + quoted(header.name())));
                 LiteralCredentials.inBody(example.body()).found().forEach(found -> inExample.add(found.place()));
                 if (!inExample.isEmpty()) {
-                    warnings.add("The saved example \"" + oneLine(example.name()) + "\" of the request \"" + oneLine(request.qualifiedName())
+                    warnings.add("The saved example \"" + quoted(example.name()) + "\" of the request \"" + oneLine(request.quotedName())
                             + "\" holds a credential, in " + String.join(" and in ", inExample) + "." + stored + " This tool masks it "
                             + "wherever it shows the example. A saved example is never sent. If it is a real credential, have it revoked.");
                 }
@@ -768,9 +778,9 @@ public class ConfigStore {
         // Every helper the file sets, whether or not a request inherits it: each one is in the file as uploaded.
         for (PostmanAuth auth : collection.helpers()) {
             if (!auth.literals().isEmpty() && helpers.add(auth.type() + "|" + auth.from())) {
-                warnings.add("The authentication helper " + oneLine(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
+                warnings.add("The authentication helper " + quoted(auth.type()) + " set on " + oneLine(auth.from()) + " holds a credential "
                         + "typed into the collection, in its field " + String.join(" and its field ", auth.literals().stream()
-                        .map(LiteralCredentials::named).map(ConfigStore::oneLine).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
+                        .map(ConfigStore::quoted).toList()) + "." + stored + " This tool does not apply the helper, so it never sends or "
                         + "shows that value." + move);
             }
         }
@@ -967,13 +977,13 @@ public class ConfigStore {
                 throw unusable(state, "one of its environments has no name or no file");
             }
             if (!names.add(name)) {
-                throw unusable(state, "it lists the environment \"" + name + "\" twice");
+                throw unusable(state, "it lists the environment \"" + Names.shown(name) + "\" twice");
             }
             EnvironmentKind kind;
             try {
                 kind = EnvironmentKind.parse(JsonSafe.presentText(entry, "kind"));
             } catch (IllegalArgumentException e) {
-                throw unusable(state, "the environment \"" + name + "\" has no kind of sandbox, uat or prod, and a kind is never guessed");
+                throw unusable(state, "the environment \"" + Names.shown(name) + "\" has no kind of sandbox, uat or prod, and a kind is never guessed");
             }
             Path path = inside(file, state);
             PostmanEnvironment content;
@@ -983,7 +993,7 @@ public class ConfigStore {
                 throw unusable(path, "it is no longer a Postman environment export");
             }
             if (!content.name().equals(name)) {
-                throw unusable(path, "it holds an environment named \"" + content.name() + "\", and " + STATE_FILE + " lists it as \"" + name + "\"");
+                throw unusable(path, "it holds an environment named \"" + Names.shown(content.name()) + "\", and " + STATE_FILE + " lists it as \"" + Names.shown(name) + "\"");
             }
             environments.add(new StoredEnvironment(Ids.named(name), name, kind, content, file, JsonSafe.presentText(entry, "originalFileName"),
                     JsonSafe.presentText(entry, "uploadedAt"), Boolean.TRUE.equals(JsonSafe.bool(entry, "acknowledgedNotProd")),
@@ -1006,7 +1016,7 @@ public class ConfigStore {
             }
             String id = Ids.named(content.name());
             if (!ids.add(id)) {
-                throw unusable(state, "it lists the collection \"" + content.name() + "\" twice");
+                throw unusable(state, "it lists the collection \"" + Names.shown(content.name()) + "\" twice");
             }
             Map<String, EpaOperation> corrections = new LinkedHashMap<>();
             for (Map.Entry<String, JsonNode> correction : JsonSafe.properties(JsonSafe.child(entry, "corrections"))) {
@@ -1014,10 +1024,10 @@ public class ConfigStore {
                 try {
                     operation = EpaOperation.parse(JsonSafe.text(correction.getValue()));
                 } catch (IllegalArgumentException e) {
-                    throw unusable(state, "a mapping correction in the collection \"" + content.name() + "\" names no operation this tool knows");
+                    throw unusable(state, "a mapping correction in the collection \"" + Names.shown(content.name()) + "\" names no operation this tool knows");
                 }
                 if (operation == EpaOperation.DTR_RESPONSE) {
-                    throw unusable(state, "a mapping correction in the collection \"" + content.name() + "\" names " + operation.name()
+                    throw unusable(state, "a mapping correction in the collection \"" + Names.shown(content.name()) + "\" names " + operation.name()
                             + ", which no collection request can stand for");
                 }
                 corrections.put(correction.getKey(), operation);
@@ -1028,7 +1038,7 @@ public class ConfigStore {
 
         String active = JsonSafe.presentText(root, "activeEnvironment");
         if (active != null && !names.contains(active)) {
-            throw unusable(state, "it names \"" + active + "\" as the active environment, and it lists no environment of that name");
+            throw unusable(state, "it names \"" + Names.shown(active) + "\" as the active environment, and it lists no environment of that name");
         }
         Long epoch = JsonSafe.longValue(root, "epoch");
         List<ConfigSnapshot.KnownDestination> remembered = new ArrayList<>();

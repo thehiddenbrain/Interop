@@ -282,6 +282,22 @@ export function when(timestamp) {
     return el('time', {title: String(timestamp), attrs: {datetime: String(timestamp)}}, whenText(timestamp));
 }
 
+/**
+ * A name an uploaded file gives, as a sentence of this page quotes it: whole when it has at most 60
+ * characters, otherwise its first 60 and its length, in the words the server's own sentences use. A
+ * file can give a name of any length, and a sentence that quoted a long one whole ran off the side
+ * of the screen. A name shown as the tester's own label, in a list or the strip, is shown whole.
+ */
+export function named(name) {
+    const text = name === undefined || name === null ? '' : String(name);
+    if (text.length <= 60) {
+        return text;
+    }
+    const code = text.charCodeAt(59);
+    const cut = code >= 0xD800 && code <= 0xDBFF ? 59 : 60;
+    return text.slice(0, cut) + '... (a name of ' + text.length + ' characters)';
+}
+
 /** Turns a server value into something safe to use as part of a class name. */
 export function token(value) {
     return String(value === undefined || value === null ? '' : value).replace(/[^A-Za-z0-9_-]/g, '');

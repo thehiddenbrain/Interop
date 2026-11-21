@@ -7,7 +7,7 @@
 // this page: a correction is sent to the server, and the table is read again from its answer.
 
 import * as calls from './config-calls.js';
-import {el, fill, clear, button, code, facts, table, heading, when, copyButton} from './dom.js';
+import {el, fill, clear, button, code, facts, table, heading, when, copyButton, named} from './dom.js';
 import {clearFieldErrors} from './forms.js';
 import {errorPanel} from './result.js';
 import {none, flag, sentences, refusal, during, counted, requestName, requestMarks, readAgainAfter, staleRefusal} from './config-parts.js';
@@ -75,7 +75,7 @@ export function createCollectionsView(context) {
         const unplaced = requests.filter(request => request.effectiveOperation === 'UNMAPPED');
         const scripted = requests.filter(request => request.scripted || request.testScripted);
         return el('div', {class: 'config-done'},
-            el('p', {class: 'config-done__title'}, 'Stored the collection "', collection.name, '": ', counted(requests.length, 'request', 'requests'), '.',
+            el('p', {class: 'config-done__title'}, 'Stored the collection "', named(collection.name), '": ', counted(requests.length, 'request', 'requests'), '.',
                 done.replaced ? ' It replaced the one stored under that name.' : null),
             byOperation.size > 0
                 ? el('p', null, 'Mapped: ', [...byOperation.entries()].map(([label, number], index) =>
@@ -83,13 +83,13 @@ export function createCollectionsView(context) {
                 : el('p', null, el('strong', null, 'No request was mapped to an operation of this tool.')),
             unplaced.length > 0
                 ? el('p', null, el('strong', null, unplaced.length === 1 ? 'One request could not be placed: ' : unplaced.length + ' requests could not be placed: '),
-                    unplaced.map((request, index) => [index > 0 ? ', ' : null, request.name]),
+                    unplaced.map((request, index) => [index > 0 ? ', ' : null, named(request.name)]),
                     '. That is not an error: ', unplaced.length === 1 ? 'it' : 'each',
                     calls.canChangeMapping() ? ' can be sent as written, or mapped by hand below.' : ' can be sent from "Send as written".')
                 : el('p', null, 'Every request was placed.'),
             scripted.length > 0
                 ? el('p', null, el('strong', null, scripted.length === 1 ? 'One request carries a Postman script' : scripted.length + ' requests carry Postman scripts'),
-                    ' (', scripted.map((request, index) => [index > 0 ? ', ' : null, request.name]), '). '
+                    ' (', scripted.map((request, index) => [index > 0 ? ', ' : null, named(request.name)]), '). '
                     + 'This tool never runs a script, so a value a script would have set is not set. Each such request is marked wherever it appears.')
                 : null,
             (done.warnings || []).length > 0 ? el('div', {class: 'config-warnings', role: 'alert'},
@@ -224,7 +224,7 @@ export function createCollectionsView(context) {
                         collectionsHeld() > 1 ? el('div', {class: 'small quiet'}, 'from ', available.collectionName) : null),
                     el('td', null, mappedHow(request)),
                     el('td', null, el('div', {class: 'config-change'},
-                        button('Look at it in full', () => showInFull(available.collectionId, request.id), {class: 'button--text', aria: {label: 'Look at ' + request.name + ' in full'}}),
+                        button('Look at it in full', () => showInFull(available.collectionId, request.id), {class: 'button--text', aria: {label: 'Look at ' + named(request.name) + ' in full'}}),
                         calls.canChangeMapping() && request.effectiveOperation !== 'UNMAPPED' ? takeOffControl(available.collectionId, request, row) : null,
                         index === requests.length - 1 && changeCell ? changeCell : null))));
             });
@@ -274,7 +274,7 @@ export function createCollectionsView(context) {
 
     function takeOffControl(collectionId, request, row) {
         const control = button('Take it off this operation', () => during(control, () => remap(collectionId, request.id, 'UNMAPPED', null, row.label)),
-            {class: 'button--text', aria: {label: 'Take ' + request.name + ' off ' + row.label}});
+            {class: 'button--text', aria: {label: 'Take ' + named(request.name) + ' off ' + row.label}});
         return control;
     }
 
@@ -350,12 +350,12 @@ export function createCollectionsView(context) {
         choosing = null;
         const title = el('p', {class: 'config-done__title'}, done.changed && operation === 'UNMAPPED' && fromLabel
             // Taken off: what changed is that the operation no longer uses it, and where it went is the list below.
-            ? ['"', done.request.name, '" is no longer used for ', fromLabel, '. It is listed below, among the requests not mapped to any operation.']
+            ? ['"', named(done.request.name), '" is no longer used for ', fromLabel, '. It is listed below, among the requests not mapped to any operation.']
             : done.changed && done.request.effectiveOperation === 'UNMAPPED'
-            ? ['"', done.request.name, '" is not mapped to any operation now.']
+            ? ['"', named(done.request.name), '" is not mapped to any operation now.']
             : done.changed
-            ? ['"', done.request.name, '" is mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' now.']
-            : ['"', done.request.name, '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']);
+            ? ['"', named(done.request.name), '" is mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' now.']
+            : ['"', named(done.request.name), '" was mapped to ', done.request.effectiveLabel || done.request.effectiveOperation, ' already. Nothing changed.']);
         // A change that moved nothing leaves the configuration as it was, so the frame is not asked to say it changed.
         if (done.changed) {
             await context.changed();
@@ -405,7 +405,7 @@ export function createCollectionsView(context) {
         const row = now.row;
         const label = el('strong', null, row.label);
         if (now.used) {
-            return [label, moved ? ' now uses "' : ' still uses "', now.used.request.name, '" by default',
+            return [label, moved ? ' now uses "' : ' still uses "', named(now.used.request.name), '" by default',
                 collectionsHeld() > 1 ? [', from the collection "', now.used.collectionName, '"'] : null, '.'];
         }
         const target = row.target;
@@ -432,8 +432,8 @@ export function createCollectionsView(context) {
                     [requestName(request), requestMarks(request)],
                     el('span', {class: 'small'}, code(request.method), ' ', code(request.urlTemplate), el('div', {class: 'quiet'}, request.detectionBasis || '')),
                     el('div', {class: 'config-change'},
-                        button('Look at it in full', () => showInFull(collection.id, request.id), {class: 'button--text', aria: {label: 'Look at ' + request.name + ' in full'}}),
-                        button('Send as written', () => context.go('raw', collection.id + '/' + request.id), {class: 'button--text', aria: {label: 'Send as written: ' + request.name}}))
+                        button('Look at it in full', () => showInFull(collection.id, request.id), {class: 'button--text', aria: {label: 'Look at ' + named(request.name) + ' in full'}}),
+                        button('Send as written', () => context.go('raw', collection.id + '/' + request.id), {class: 'button--text', aria: {label: 'Send as written: ' + named(request.name)}}))
                 ]), {class: 'config-unmapped'}));
     }
 
@@ -452,7 +452,7 @@ export function createCollectionsView(context) {
             const actions = [];
             if (calls.canRemove()) {
                 actions.push(button('Remove', () => { removing = collection.id; draw(); focusKeep(); },
-                    {class: 'button--text', aria: {label: 'Remove the collection ' + collection.name, expanded: String(removing === collection.id)}}));
+                    {class: 'button--text', aria: {label: 'Remove the collection ' + named(collection.name), expanded: String(removing === collection.id)}}));
             }
             body.push(el('tr', null,
                 el('td', null, el('strong', null, collection.name),
@@ -490,10 +490,10 @@ export function createCollectionsView(context) {
 
     function removalRow(collection) {
         const keep = button('Keep it', () => { removing = null; draw(); }, {class: 'button--quiet', id: 'config-collection-keep'});
-        const remove = button(['Remove the collection "', collection.name, '"'], () => during(remove, () => removeNow(collection)), {class: 'button--quiet'});
+        const remove = button(['Remove the collection "', named(collection.name), '"'], () => during(remove, () => removeNow(collection)), {class: 'button--quiet'});
         return el('tr', {class: 'config-removal'}, el('td', {colSpan: 5},
-            el('div', {class: 'config-removal__box', role: 'group', aria: {label: 'Remove the collection ' + collection.name}},
-                el('p', null, el('strong', null, 'Remove the collection "', collection.name, '"?'),
+            el('div', {class: 'config-removal__box', role: 'group', aria: {label: 'Remove the collection ' + named(collection.name)}},
+                el('p', null, el('strong', null, 'Remove the collection "', named(collection.name), '"?'),
                     ' Its uploaded file is deleted from the tool, with every mapping chosen by hand for its requests. '
                     + 'Operations that use one of its requests fall back to another collection or to application.yml. '
                     + 'The file you uploaded it from is not touched.'),
@@ -516,7 +516,7 @@ export function createCollectionsView(context) {
         removing = null;
         await context.changed();
         if (answer.kind !== 'ok') {
-            fill(status, staleRefusal(answer, 'the collection "' + collection.name + '"'));
+            fill(status, staleRefusal(answer, 'the collection "' + named(collection.name) + '"'));
         } else {
             fill(status, el('div', {class: 'config-done'},
                 el('p', {class: 'config-done__title'}, 'Removed the collection "', answer.body.removed, '".'),
@@ -568,11 +568,11 @@ function requestDetail(detail, close) {
     const scripts = detail.scripts || [];
     const examples = detail.examples || [];
     const pathVariables = detail.pathVariables || [];
-    const body = detail.body !== undefined ? el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'The sample body of ' + request.name}}, detail.body) : null;
+    const body = detail.body !== undefined ? el('pre', {class: 'body-text', tabIndex: 0, aria: {label: 'The sample body of ' + named(request.name)}}, detail.body) : null;
     const auth = detail.auth;
     return [
         el('div', {class: 'panel__head'},
-            heading(2, 'One request in full: ' + request.name),
+            heading(2, 'One request in full: ' + named(request.name)),
             button('Close this request', close, {class: 'button--quiet button--small'})),
         facts([
             ['Collection', detail.collectionName],

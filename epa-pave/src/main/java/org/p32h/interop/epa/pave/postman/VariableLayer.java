@@ -41,11 +41,11 @@ public record VariableLayer(VariableSource source, String label, Map<String, Ent
     }
 
     public static VariableLayer environment(String name, Map<String, PostmanVariable> inForce) {
-        return postman(VariableSource.ENVIRONMENT, "the environment \"" + name + "\"", inForce);
+        return postman(VariableSource.ENVIRONMENT, "the environment \"" + Names.shown(name) + "\"", inForce);
     }
 
     public static VariableLayer collection(String name, Map<String, PostmanVariable> inForce) {
-        return postman(VariableSource.COLLECTION, "the collection \"" + name + "\"", inForce);
+        return postman(VariableSource.COLLECTION, "the collection \"" + Names.shown(name) + "\"", inForce);
     }
 
     /** The {@code onyx.variables} map. */

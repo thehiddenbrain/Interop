@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
 import org.p32h.interop.epa.pave.postman.PostmanVariable;
 
@@ -35,14 +36,14 @@ final class ProductionSigns {
     static List<String> in(PostmanEnvironment environment) {
         List<String> signs = new ArrayList<>();
         if (saysProd(environment.name())) {
-            signs.add("its name is \"" + environment.name() + "\"");
+            signs.add("its name is \"" + Names.shown(environment.name()) + "\"");
         }
         Set<String> named = new LinkedHashSet<>();
         // Disabled variables are looked at too. They are in the file, and the file is what is being judged.
         for (PostmanVariable variable : environment.variables()) {
             if (variable.hasValue() && looksLikeUrl(variable.value()) && saysProd(variable.value()) && named.add(variable.key())) {
                 // The variable is named. Its value is not quoted, here or anywhere.
-                signs.add("the variable " + variable.key() + " holds a url that contains \"prod\"");
+                signs.add("the variable " + Names.shown(variable.key()) + " holds a url that contains \"prod\"");
             }
         }
         return signs;

@@ -27,13 +27,13 @@ final class AddressChecks {
         }
         ProductionDestinations.Context urlForming = snapshot.context();
         for (String name : ProductionDestinations.unreadable(environment.content(), urlForming)) {
-            warnings.add("The variable \"" + ConfigStore.oneLine(name) + "\" holds an address whose scheme, host and port this tool "
+            warnings.add("The variable \"" + ConfigStore.quoted(name) + "\" holds an address whose scheme, host and port this tool "
                     + "cannot read the way the HTTP client reads them, for example a port above 65535 or a host written in a form the "
                     + "client does not accept. A request that can change something is refused when it would go there. Write the "
                     + "address as scheme://host:port/path and upload the environment again.");
         }
         for (String name : ProductionDestinations.encodedSeparators(environment.content(), urlForming)) {
-            warnings.add("The variable \"" + ConfigStore.oneLine(name) + "\" holds an address whose path has an encoded slash, "
+            warnings.add("The variable \"" + ConfigStore.quoted(name) + "\" holds an address whose path has an encoded slash, "
                     + "backslash, semicolon or dot segment in it, such as %2F, or a percent-escape of a byte above 0x7F, such as %C0, or a "
                     + "character above 0x7F, which the client sends as such an escape. "
                     + "A server in front of the service can decode it before "
@@ -62,19 +62,19 @@ final class AddressChecks {
                 }
             }
             for (String production : unreadHost) {
-                warnings.add("This environment is on the host of the production environment \"" + ConfigStore.oneLine(production)
+                warnings.add("This environment is on the host of the production environment \"" + ConfigStore.quoted(production)
                         + "\", an address of which could not be read the way the HTTP client reads it. This tool takes every port and "
                         + "every path of that host as production, so a write from this environment to it is refused. "
                         + replaced(production, snapshot));
             }
             unreadPath.forEach((production, path) -> warnings.add("This environment is on the host of the production environment \""
-                    + ConfigStore.oneLine(production) + "\", an address of which could not be read the way the HTTP client reads it. "
+                    + ConfigStore.quoted(production) + "\", an address of which could not be read the way the HTTP client reads it. "
                     + "This tool takes the path " + (path.isEmpty() ? "/" : ConfigStore.oneLine(path)) + " and every path beneath it, on "
                     + "every port of that host, as production. A write from this environment to those paths is refused, and one to another "
                     + "path of that host is not. " + replaced(production, snapshot)));
             for (String production : sharing) {
                 warnings.add("This environment is on the same server, by scheme, host and port, as the production environment \""
-                        + ConfigStore.oneLine(production) + "\", under another base path. This tool treats it as "
+                        + ConfigStore.quoted(production) + "\", under another base path. This tool treats it as "
                         + environment.kind().wire() + " because the base path differs, and sends writes to it without an unlock. If "
                         + "that server routes this path to production, upload this environment with the kind prod.");
             }
@@ -85,7 +85,7 @@ final class AddressChecks {
     /** How the production environment's unreadable address stops standing for more than it is: what is true now that it is stored or deleted. */
     private static String replaced(String production, ConfigSnapshot snapshot) {
         return snapshot.byName(production) != null
-                ? "Upload \"" + ConfigStore.oneLine(production) + "\" again with its address written plainly, as scheme://host:port/path."
-                : "\"" + ConfigStore.oneLine(production) + "\" is no longer stored, and an address that was production stays production.";
+                ? "Upload \"" + ConfigStore.quoted(production) + "\" again with its address written plainly, as scheme://host:port/path."
+                : "\"" + ConfigStore.quoted(production) + "\" is no longer stored, and an address that was production stays production.";
     }
 }

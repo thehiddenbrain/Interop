@@ -5,7 +5,7 @@
 // banner that cannot be scrolled past for production, for UAT and for the mock profile.
 
 import * as api from './api.js';
-import {el, fill, clear, button, token} from './dom.js';
+import {el, fill, clear, button, token, named} from './dom.js';
 import {createCaseContext} from './case-context.js';
 import {createChain} from './chain.js';
 import {openLegend} from './legend.js';
@@ -305,7 +305,7 @@ function serverSilent(error) {
 function environmentSentence(mode) {
     const environment = mode.environment || {};
     return environment.active
-        ? 'The active environment is ' + environment.name + ' (' + environment.kind + '), on the ' + mode.mode + ' profile.'
+        ? 'The active environment is ' + named(environment.name) + ' (' + environment.kind + '), on the ' + mode.mode + ' profile.'
         : 'No environment is active, on the ' + mode.mode + ' profile.';
 }
 
@@ -322,7 +322,7 @@ function drawFrame() {
         const access = mode.writeAccess || {};
         const unlocked = environment.active && environment.kind === 'prod' && access.production === true && access.writesAllowed === true;
         document.title = mode.name + ' ' + mode.version + ' | '
-            + (environment.active ? environment.name + ' (' + environment.kind + ')' : 'no environment')
+            + (environment.active ? named(environment.name) + ' (' + environment.kind + ')' : 'no environment')
             + (unlocked ? ' | writes UNLOCKED' : '') + ' | ' + mode.mode;
     }
     drawStrip();
@@ -373,7 +373,7 @@ function drawStrip() {
     const ledger = ledgerItem();
     announceStrip([state.pollFailed ? 'The server is not answering.' : null,
         'Profile ' + mode.mode + ', target ' + mode.target + ', '
-        + (environment.active ? 'environment ' + environment.name + ' (' + environment.kind + ').' : 'no environment active.'),
+        + (environment.active ? 'environment ' + named(environment.name) + ' (' + environment.kind + ').' : 'no environment active.'),
         ledger.state].filter(Boolean).join(' '));
     const items = [];
     if (state.pollFailed) {
@@ -382,7 +382,10 @@ function drawStrip() {
     items.push(stripItem('Profile', [mode.mode === 'mock' ? el('span', {class: 'hatch', aria: {hidden: 'true'}}) : null, mode.mode]));
     items.push(stripItem('Target', mode.target));
     items.push(stripItem('Environment', environment.active
-        ? [environment.name, el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
+        // The strip holds a line of facts: a name a file made long is given by its start and its
+        // length there, as in a sentence, or it pushed every other fact off the screen. The whole
+        // name is on the Environments view and in the tooltip.
+        ? [el('span', {title: environment.name}, named(environment.name)), el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
         : 'none active'));
     items.push(ledger.node);
     fill(strip, items);
@@ -487,11 +490,11 @@ function drawBanners() {
         // words before the server's sentence, from the server's own flag. Unlocked is framed, so it
         // reads differently from across the room as well.
         const unlocked = access.production === true && access.writesAllowed === true;
-        host.append(banner('prod', 'Production', environment.name, access.reason,
+        host.append(banner('prod', 'Production', named(environment.name), access.reason,
             el('span', {class: 'banner__writes' + (unlocked ? ' banner__writes--unlocked' : '')},
                 unlocked ? 'Writes UNLOCKED for this browser session' : 'Writes locked')));
     } else if (environment.active && environment.kind === 'uat') {
-        host.append(banner('uat', 'UAT', environment.name, access.reason));
+        host.append(banner('uat', 'UAT', named(environment.name), access.reason));
     }
     if (mode.mode === 'mock') {
         host.append(el('div', {class: 'banner banner--mock'}, el('div', {class: 'banner__inner'},

@@ -1,6 +1,6 @@
 // Small pieces the views of the Config tab share, so that one fact is drawn one way on all of them.
 
-import {el, code, token} from './dom.js';
+import {el, code, token, named} from './dom.js';
 import {formProblem, markFieldErrors} from './forms.js';
 import {errorPanel} from './result.js';
 
@@ -43,8 +43,8 @@ export function addressWarnings(name, list) {
         return null;
     }
     return el('div', {class: 'config-warnings config-address-warnings'},
-        el('p', {class: 'sub-heading'}, list.length === 1 ? 'The tool warns about an address of "' + name + '"'
-            : 'The tool has ' + list.length + ' warnings about the addresses of "' + name + '"'),
+        el('p', {class: 'sub-heading'}, list.length === 1 ? 'The tool warns about an address of "' + named(name) + '"'
+            : 'The tool has ' + list.length + ' warnings about the addresses of "' + named(name) + '"'),
         sentences(list));
 }
 

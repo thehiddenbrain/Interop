@@ -9,7 +9,7 @@
 // A secret is masked by the server and stays masked. There is no control here that reveals one.
 
 import * as calls from './config-calls.js';
-import {el, fill, clear, button, code, table, tableRow, heading, when} from './dom.js';
+import {el, fill, clear, button, code, table, tableRow, heading, when, named} from './dom.js';
 import {clearFieldErrors} from './forms.js';
 import {kindMark, none, flag, sentences, refusal, during, counted, staleRefusal, addressWarnings} from './config-parts.js';
 
@@ -123,7 +123,7 @@ export function createEnvironmentsView(context) {
         const environment = done.environment;
         const warnings = done.warnings || [];
         return el('div', {class: 'config-done'},
-            el('p', {class: 'config-done__title'}, 'Stored the environment "', environment.name, '" as ', kindMark(environment.kind), '.',
+            el('p', {class: 'config-done__title'}, 'Stored the environment "', named(environment.name), '" as ', kindMark(environment.kind), '.',
                 done.replaced ? ' It replaced the one stored under that name.' : null),
             environment.active
                 ? el('p', null, 'It is the active environment, so every tab uses it now.')
@@ -204,12 +204,12 @@ export function createEnvironmentsView(context) {
             actions.push(el('strong', null, 'Active'));
         } else {
             const control = button('Make active', () => during(control, () => activate(environment)),
-                {class: 'button--quiet button--small', aria: {label: 'Make ' + environment.name + ' the active environment'}});
+                {class: 'button--quiet button--small', aria: {label: 'Make ' + named(environment.name) + ' the active environment'}});
             actions.push(control);
         }
         if (calls.canRemove()) {
             actions.push(button('Remove', () => { removing = environment.id; draw(); focusRemoval(); },
-                {class: 'button--text', aria: {label: 'Remove the environment ' + environment.name, expanded: String(removing === environment.id)}}));
+                {class: 'button--text', aria: {label: 'Remove the environment ' + named(environment.name), expanded: String(removing === environment.id)}}));
         }
         return tableRow({class: environment.active ? 'config-row config-row--active' : 'config-row', cells: [
             [el('strong', null, environment.name),
@@ -221,7 +221,7 @@ export function createEnvironmentsView(context) {
                 // The visible words begin the accessible name, so a person who says what they see reaches it.
                 el('div', null, button('List the variables',
                     () => { shownId = environment.id; draw(); focusVariables(); },
-                    {class: 'button--text', aria: {label: 'List the variables of ' + environment.name}}))],
+                    {class: 'button--text', aria: {label: 'List the variables of ' + named(environment.name)}}))],
             when(environment.uploadedAt),
             {class: 'config-actions', node: actions}
         ]});
@@ -242,11 +242,11 @@ export function createEnvironmentsView(context) {
         clear(listStatus);
         const answer = await calls.activateEnvironment(environment.id);
         if (answer.kind !== 'ok') {
-            fill(listStatus, staleRefusal(answer, 'the environment "' + environment.name + '"'));
+            fill(listStatus, staleRefusal(answer, 'the environment "' + named(environment.name) + '"'));
         } else {
             // The variables listed are those of the active environment again, unless the tester chooses another.
             shownId = null;
-            fill(listStatus, el('p', {class: 'config-done__title'}, '"', answer.body.environment.name, '" is now the active environment.'),
+            fill(listStatus, el('p', {class: 'config-done__title'}, '"', named(answer.body.environment.name), '" is now the active environment.'),
                 (answer.body.addressWarnings || []).length > 0
                     ? el('div', {role: 'alert'}, addressWarnings(answer.body.environment.name, answer.body.addressWarnings)) : null);
         }
@@ -257,11 +257,11 @@ export function createEnvironmentsView(context) {
 
     function removalRow(environment) {
         const keep = button('Keep it', () => { removing = null; draw(); }, {class: 'button--quiet', id: 'config-environment-keep'});
-        const remove = button(['Remove the environment "', environment.name, '"'], () => during(remove, () => removeNow(environment)),
+        const remove = button(['Remove the environment "', named(environment.name), '"'], () => during(remove, () => removeNow(environment)),
             {class: 'button--quiet'});
         return el('tr', {class: 'config-removal'}, el('td', {colSpan: 5},
-            el('div', {class: 'config-removal__box', role: 'group', aria: {label: 'Remove the environment ' + environment.name}},
-                el('p', null, el('strong', null, 'Remove the environment "', environment.name, '"?'),
+            el('div', {class: 'config-removal__box', role: 'group', aria: {label: 'Remove the environment ' + named(environment.name)}},
+                el('p', null, el('strong', null, 'Remove the environment "', named(environment.name), '"?'),
                     ' Its uploaded file is deleted from the tool. The file you uploaded it from is not touched, so it can be uploaded again.',
                     environment.active ? el('strong', null, ' It is the active environment: afterwards no environment is active.') : null),
                 el('div', {class: 'button-row'}, keep, remove))));
@@ -280,7 +280,7 @@ export function createEnvironmentsView(context) {
         const answer = await calls.removeEnvironment(environment.id);
         removing = null;
         if (answer.kind !== 'ok') {
-            fill(listStatus, staleRefusal(answer, 'the environment "' + environment.name + '"'));
+            fill(listStatus, staleRefusal(answer, 'the environment "' + named(environment.name) + '"'));
         } else {
             const done = answer.body;
             fill(listStatus, el('div', {class: 'config-done'},
@@ -318,7 +318,7 @@ export function createEnvironmentsView(context) {
         const environment = shownEnvironment(environments);
         const all = environment.variables || [];
         fill(variables,
-            el('h2', {class: 'section-heading'}, 'Variables of ', environment.name, ' ', kindMark(environment.kind),
+            el('h2', {class: 'section-heading'}, 'Variables of ', named(environment.name), ' ', kindMark(environment.kind),
                 ' ', el('span', {class: 'section-heading__count'}, '(' + all.length + ')')),
             el('p', environment.active ? {class: 'quiet'} : null,
                 environment.active ? 'This is the active environment. ' : el('strong', null, 'This is not the active environment. Nothing uses these values until it is made active. '),
