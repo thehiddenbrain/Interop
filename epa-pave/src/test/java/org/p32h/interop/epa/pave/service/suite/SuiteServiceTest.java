@@ -678,7 +678,8 @@ class SuiteServiceTest {
         SuiteService service = bed.service();
         String id = service.start("cases.csv", suite(row("TC-1", "S123456789", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
                 .suiteRunId();
-        assertThatThrownBy(() -> bed.queued.remove().run()).isInstanceOf(NoClassDefFoundError.class);
+        // The run ends on it and is not thrown on, so no default handler prints its message.
+        bed.queued.remove().run();
 
         SuiteRunView run = service.get(id, true);
         assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
@@ -713,7 +714,8 @@ class SuiteServiceTest {
         bed.hold = true;
         SuiteService service = bed.service();
         String id = service.start("cases.csv", suite(row("TC-1", "S123456789", "")), null, null, null).suiteRunId();
-        assertThatThrownBy(() -> bed.queued.remove().run()).isInstanceOf(ExceptionInInitializerError.class);
+        // The run ends on it and is not thrown on, so no default handler prints its message.
+        bed.queued.remove().run();
 
         SuiteRunView run = service.get(id, true);
         assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
@@ -721,6 +723,37 @@ class SuiteServiceTest {
         assertThat(JsonSafe.mapper().writeValueAsString(run)).doesNotContain("S123456789").doesNotContain("no plan");
         assertThat(service.resultsCsv(id)).doesNotContain("S123456789").doesNotContain("IllegalStateException");
         assertThat(output.getAll()).doesNotContain("S123456789").doesNotContain("no plan");
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void anErrorOnTheSuitesOwnThreadIsLoggedOnceUnderItsReferenceAndNeverWithItsMessage(CapturedOutput output) throws Exception {
+        // On the application's own thread nothing above the run catches an Error, so whatever
+        // escapes the run reaches the JVM's default handler, which prints every message and frame.
+        AtomicReference<Thread> thread = new AtomicReference<>();
+        bed.wrap = runner -> spec -> {
+            thread.set(Thread.currentThread());
+            throw new ExceptionInInitializerError(new IllegalStateException("no plan for " + spec.memberId()));
+        };
+        SuiteService service = bed.serviceOnItsOwnThread();
+        String id = service.start("cases.csv", suite(row("TC-1", "S123456789", ""), row("TC-2", "P32H-NO-AUTH", "")), null, null, null)
+                .suiteRunId();
+        SuiteRunView run = service.get(id, true);
+        for (int i = 0; i < 400 && run.state() == SuiteState.RUNNING; i++) {
+            Thread.sleep(25);
+            run = service.get(id, true);
+        }
+        assertThat(run.state()).isEqualTo(SuiteState.STOPPED);
+        // Closing ends the thread, so anything it would still print has been printed when the join returns.
+        service.close();
+        thread.get().join(20_000);
+        assertThat(thread.get().isAlive()).isFalse();
+
+        assertThat(run.stopCause()).isEqualTo("java.lang.ExceptionInInitializerError <- java.lang.IllegalStateException");
+        String all = output.getAll();
+        assertThat(all).contains("A suite run failed inside this tool, reference " + run.stopReference() + ": " + run.stopCause())
+                .doesNotContain("S123456789").doesNotContain("no plan").doesNotContain("Caused by:")
+                .doesNotContain("Exception in thread");
     }
 
     @Test

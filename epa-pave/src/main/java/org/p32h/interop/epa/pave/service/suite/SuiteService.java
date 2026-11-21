@@ -125,6 +125,10 @@ public class SuiteService implements AutoCloseable {
             this.owned = Executors.newSingleThreadExecutor(task -> {
                 Thread thread = new Thread(task, "suite-runner");
                 thread.setDaemon(true);
+                // The JVM's default handler prints messages, which can quote a member ID. Whatever
+                // escapes a run is logged the way the run logs its own failures: types and frames only.
+                thread.setUncaughtExceptionHandler((failed, e) ->
+                        log.error("The suite thread ended on a failure inside this tool: {}", Faults.describe(e)));
                 return thread;
             });
             this.executor = owned;
@@ -439,10 +443,8 @@ public class SuiteService implements AutoCloseable {
             // The cause goes on the screen beside the reference: a missing class ends a suite here
             // and nowhere else, and the server log may be on a machine the tester does not see.
             run.fault(reference, Faults.cause(e));
-            if (e instanceof Error error) {
-                run.finish(ended, RunStamps.timestamp(support.clock()));
-                throw error;
-            }
+            // Not thrown on: nothing above the run catches it, so the JVM's default handler would
+            // print it again with every message, and a message can quote the member ID of the case.
         } finally {
             run.finish(ended, RunStamps.timestamp(support.clock()));
         }
