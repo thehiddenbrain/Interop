@@ -40,6 +40,8 @@ class ChainFrontendTest {
     @Test
     void theBarNeverCutsTheMemberTheCodesOrTheWordForWhereAStageStands() throws IOException {
         String chain = Files.readString(Path.of("src/main/resources/static/js/chain.js"), StandardCharsets.UTF_8);
+        assertThat(CaseCodesFrontendTest.body(chain, "function draw() {"))
+                .contains("[el('span', {aria: {hidden: 'true'}}, stage.protocol), el('span', {class: 'visually-hidden'}, stage.name)]");
         String parts = CaseCodesFrontendTest.body(chain, "function stateParts(line) {");
         assertThat(parts).contains("el('span', {class: 'chain-stage__word'}, text.slice(0, cut))")
                 .contains("el('span', {class: 'visually-hidden'}, text.slice(cut))");

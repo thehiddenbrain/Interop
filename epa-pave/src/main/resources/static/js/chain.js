@@ -107,7 +107,9 @@ export function createChain(app, bar) {
         // One line: the result's own Next step row says what to do, so the bar does not say it again.
         fill(bar, el('div', {class: 'chain-bar chain-bar--line'},
             el('ol', {class: 'chain-stages'}, (view.stages || []).map(stage => el('li', {class: 'chain-stage chain-stage--' + token(stage.state)},
-                el('span', {class: 'chain-stage__name'}, stage.name),
+                // The bar names a stage by its protocol, so the bar keeps one line at 1440 wide; the whole name is read out and is the title.
+                el('span', {class: 'chain-stage__name', title: stage.name}, stage.protocol
+                    ? [el('span', {aria: {hidden: 'true'}}, stage.protocol), el('span', {class: 'visually-hidden'}, stage.name)] : stage.name),
                 el('span', {class: 'chain-stage__state', title: stage.stateLine || ''}, stage.latest ? [toneMark(stage.latest.tone, stage.latest.answeredBy), ' '] : null,
                     stateParts(stage.stateLine))))),
             // Whose journey this is, as the ledger shows it, so a case changed on screen is not taken for the case of the chain.
