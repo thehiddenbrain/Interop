@@ -257,7 +257,7 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2, "\"sentinelMemberId\":\"p32h-twice \","));
         ScenarioRepository.Loaded loaded = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd");
         assertThat(loaded.problems()).containsExactly(
-                "b.json: the sentinel member ID P32H-TWICE is already claimed by a.json. One sentinel selects one scenario.");
+                "b.json: the test member ID P32H-TWICE is already claimed by a.json. One test identifier selects one scenario.");
     }
 
     @Test
@@ -267,7 +267,7 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2, "\"sentinelNpi\":\" 9999999995\","));
         ScenarioRepository.Loaded loaded = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd");
         assertThat(loaded.problems()).containsExactly(
-                "b.json: the sentinel NPI 9999999995 is already claimed by a.json. One sentinel selects one scenario.");
+                "b.json: the test NPI 9999999995 is already claimed by a.json. One test identifier selects one scenario.");
     }
 
     @Test
@@ -358,17 +358,17 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("dtr/b.json"), scenario("b", 2,
                 "\"sentinelMemberId\":\"P32H-DTR-B\",\"crdSentinelMemberIds\":[\"P32H-NOPROV\",\"p32h-nomem\"],"));
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
-        assertThat(external.load("dtr").problems()).containsExactly("b.json: the CRD sentinel member ID P32H-NOMEM in its "
-                + "crdSentinelMemberIds is already claimed by a.json. One sentinel selects one scenario.");
+        assertThat(external.load("dtr").problems()).containsExactly("b.json: the CRD test member ID P32H-NOMEM in its "
+                + "crdSentinelMemberIds is already claimed by a.json. One test identifier selects one scenario.");
         // Within one list, and against the file's own sentinel.
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"crdSentinelMemberIds\":[\"P32H-NOMEM\",\" p32h-nomem\"],")))
-                .hasMessage("it names one CRD sentinel member ID twice.");
+                .hasMessage("it names one CRD test member ID twice.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1,
                 "\"sentinelMemberId\":\"P32H-NOMEM\",\"crdSentinelMemberIds\":[\"P32H-NOMEM\"],")))
-                .hasMessage("it names one sentinel member ID both as its own and among its crdSentinelMemberIds.");
+                .hasMessage("it names one test member ID both as its own and among its crdSentinelMemberIds.");
         // A CRD sentinel is held to the same rule as any sentinel: only this tool's own identifiers.
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"crdSentinelMemberIds\":[\"S123456789\"],")))
-                .hasMessageStartingWith("one of its sentinel member IDs is not a P32H- sentinel.").hasMessageNotContaining("S123456789");
+                .hasMessageStartingWith("one of its test member IDs is not a P32H- test member ID.").hasMessageNotContaining("S123456789");
     }
 
     @Test
@@ -379,8 +379,8 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("pas/pas-15.json"), scenario("pas-15", 15,
                 "\"sentinelMemberId\":\"P32H-PAS-NOMEM\",\"crdSentinelMemberIds\":[\"P32H-NOMEM\"],"));
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
-        assertThat(external.load("pas").problems()).containsExactly("pas-15.json: the CRD sentinel member ID P32H-NOMEM in its "
-                + "crdSentinelMemberIds is already claimed by pas-02.json. One sentinel selects one scenario.");
+        assertThat(external.load("pas").problems()).containsExactly("pas-15.json: the CRD test member ID P32H-NOMEM in its "
+                + "crdSentinelMemberIds is already claimed by pas-02.json. One test identifier selects one scenario.");
     }
 
     @Test
@@ -471,10 +471,10 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("pas/c.json"), scenario("c", 1, "\"answersDtrSentinels\":true,"));
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
         assertThat(external.load("crd").problems()).containsExactly(
-                "b.json: a CRD scenario cannot list crdSentinelMemberIds. Give a CRD sentinel as the file's own sentinelMemberId.",
-                "b.json: answersDtrSentinels is already true in a.json. One CRD scenario answers every DTR sentinel.");
+                "b.json: a CRD scenario cannot list crdSentinelMemberIds. Give a CRD test member ID as the file's own sentinelMemberId.",
+                "b.json: answersDtrSentinels is already true in a.json. One CRD scenario answers every DTR test member ID.");
         assertThat(external.load("pas").problems()).containsExactly(
-                "c.json: only a CRD scenario can answer DTR sentinels, so answersDtrSentinels belongs in a CRD file.");
+                "c.json: only a CRD scenario can answer DTR test member IDs, so answersDtrSentinels belongs in a CRD file.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("x", 1, "\"answersDtrSentinels\":\"yes\",")))
                 .hasMessage("its answersDtrSentinels is not true or false.");
     }
@@ -497,11 +497,11 @@ class ScenarioRepositoryTest {
                 "notes.txt: it is not read, because only files whose names end in .json are scenario files.",
                 "sub: it is a folder, and folders inside crd are not read. A scenario file belongs directly in crd.",
                 "crd-00-zero.json: it is the default, because its number (0) is the lowest. A run that neither a chosen scenario nor a "
-                        + "sentinel selects is answered from it.",
+                        + "test member ID or NPI selects is answered from it.",
                 "crd-00-zero.json: its expect block claims HTTP 500, and the file answers with HTTP 200, so the outcome it claims may not "
                         + "be the one it produces.",
                 // The set holds a DTR file and no CRD file answers DTR sentinels (N-OLD-SCENARIO-DIR).
-                "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no CRD scenario "
+                "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR test member ID typed in CRD selects no CRD scenario "
                         + "and is answered by the CRD default, crd-00-zero.json, and a journey with it does not reach DTR as the DTR "
                         + "scenario's label says.");
         // The scenario list carries the notes about each file on that file's own line: the warning
@@ -526,11 +526,11 @@ class ScenarioRepositoryTest {
         Files.writeString(dir.resolve("pas/pas-15.json"), scenario("pas-15", 15, "\"description\":\"The CRD sentinel P32H-NOMEM selects it "
                 + "too.\",\"sentinelMemberId\":\"P32H-PAS-NOMEM\","));
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
-        String noAnswering = "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no "
+        String noAnswering = "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR test member ID typed in CRD selects no "
                 + "CRD scenario and is answered by the CRD default, crd-01.json, and a journey with it does not reach DTR as the DTR "
                 + "scenario's label says.";
-        String crd04 = "crd-04.json: its description speaks of DTR sentinel member IDs, and the file does not carry \"answersDtrSentinels\": "
-                + "true, so it answers none of them. The CRD scenario that answers every DTR sentinel now says so with that key; a "
+        String crd04 = "crd-04.json: its description speaks of DTR test member IDs, and the file does not carry \"answersDtrSentinels\": "
+                + "true, so it answers none of them. The CRD scenario that answers every DTR test member ID now says so with that key; a "
                 + "directory copied before the key existed needs it added.";
         ScenarioRepository.Loaded crd = external.load("crd");
         assertThat(crd.problems()).isEmpty();
@@ -539,8 +539,8 @@ class ScenarioRepositoryTest {
         assertThat(crd.scenarios()).filteredOn(s -> s.id().equals("crd-04")).singleElement()
                 .satisfies(s -> assertThat(s.summary().notes()).containsExactly(crd04));
         ScenarioRepository.Loaded dtr = external.load("dtr");
-        String dtr09 = "dtr-09.json: its description speaks of a CRD sentinel member ID that selects it, and the file lists none under "
-                + "crdSentinelMemberIds, so no CRD sentinel selects it. A DTR or PAS scenario now names the CRD sentinels it answers for "
+        String dtr09 = "dtr-09.json: its description speaks of a CRD test member ID that selects it, and the file lists none under "
+                + "crdSentinelMemberIds, so no CRD test member ID selects it. A DTR or PAS scenario now names the CRD test member IDs it answers for "
                 + "the same case under that key; a directory copied before the key existed needs it added.";
         assertThat(dtr.notes()).contains(dtr09, noAnswering);
         assertThat(dtr.warnedAtStart()).containsExactly(dtr09, noAnswering);
@@ -579,9 +579,9 @@ class ScenarioRepositoryTest {
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
         ScenarioRepository.Loaded pas = external.load("pas");
         assertThat(pas.problems()).isEmpty();
-        String nosuch = "pas-03.json: P32H-NOSUCH in its crdSentinelMemberIds is the sentinel member ID of no CRD scenario, so it selects "
+        String nosuch = "pas-03.json: P32H-NOSUCH in its crdSentinelMemberIds is the test member ID of no CRD scenario, so it selects "
                 + "this file without meaning the same case in CRD.";
-        String dtrSentinel = "pas-03.json: P32H-DTR in its crdSentinelMemberIds is the sentinel member ID of no CRD scenario, so it "
+        String dtrSentinel = "pas-03.json: P32H-DTR in its crdSentinelMemberIds is the test member ID of no CRD scenario, so it "
                 + "selects this file without meaning the same case in CRD.";
         assertThat(pas.warnedAtStart()).containsExactly(nosuch, dtrSentinel);
         assertThat(pas.notes()).contains(nosuch, dtrSentinel);
@@ -665,7 +665,7 @@ class ScenarioRepositoryTest {
                         + " Mock scenarios for crd: crd-02-truncated.json: The file is not valid JSON (line 1, column 26)."
                         + " crd-05-misspelt.json: it has a key this tool does not know: sentinelMemberID. Check its spelling."
                         + " crd-03-duplicate-id.json: the id \"crd-01\" is already used by crd-01.json."
-                        + " crd-01.json: the sentinel member ID P32H-CRD is already claimed by crd-04-shadow.json. One sentinel selects one scenario."
+                        + " crd-01.json: the test member ID P32H-CRD is already claimed by crd-04-shadow.json. One test identifier selects one scenario."
                         + " Mock scenarios for dtr: The scenario directory " + dir.resolve("dtr") + " holds no scenario files."
                         + " Mock scenarios for raw: The scenario directory " + dir.resolve("raw") + " does not exist.");
     }
@@ -677,7 +677,7 @@ class ScenarioRepositoryTest {
         external.checkEveryProtocol();
         Files.writeString(dir.resolve("crd/crd-02.json"), scenario("crd-02", 2, "\"sentinelMemberId\":\"P32H-CRD\","));
         assertThatThrownBy(() -> external.select("crd", MockSelection.of(null, "P32H-CRD", null))).isInstanceOf(BadInputException.class)
-                .hasMessageContaining("crd-02.json: the sentinel member ID P32H-CRD is already claimed by crd-01.json.");
+                .hasMessageContaining("crd-02.json: the test member ID P32H-CRD is already claimed by crd-01.json.");
         // Another protocol is not held back by it.
         assertThat(external.select("dtr", MockSelection.of(null, "P32H-DTR", null)).scenario().id()).isEqualTo("dtr-01");
         Files.delete(dir.resolve("crd/crd-02.json"));
@@ -723,29 +723,29 @@ class ScenarioRepositoryTest {
         // A sentinel in a list is claimed as surely as a single one.
         Files.writeString(dir.resolve("pas/c.json"), scenario("c", 3, "\"sentinelMemberId\":\"P32H-PA-REQ\","));
         assertThat(external.load("pas").problems()).containsExactly(
-                "c.json: the sentinel member ID P32H-PA-REQ is already claimed by b.json. One sentinel selects one scenario.");
+                "c.json: the test member ID P32H-PA-REQ is already claimed by b.json. One test identifier selects one scenario.");
     }
 
     @Test
     void aSentinelThatIsNotThisToolsOwnIsRefusedWithoutQuotingIt() {
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"W123456789\",")))
-                .hasMessageStartingWith("one of its sentinel member IDs is not a P32H- sentinel.")
+                .hasMessageStartingWith("one of its test member IDs is not a P32H- test member ID.")
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":[\"P32H-A\",\"W123456789\"],")))
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("W123456789"));
         // Said in terms a tester editing the file can act on, not as a call into this tool's code.
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpi\":\"9999999999\",")))
-                .hasMessage("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. Use ten digits whose "
+                .hasMessage("one of its test NPIs does not pass the NPI check, so no request could ever carry it. Use ten digits whose "
                         + "last digit is the NPI check digit of the first nine, such as 9999999995.");
         assertThat(Npi.isValid("9999999995")).isTrue();
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberIds\":\"P32H-A\",")))
                 .hasMessage("its sentinelMemberIds is not a list.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelNpis\":[9999999995],")))
-                .hasMessage("its sentinelNpis holds something that is not a sentinel NPI.");
+                .hasMessage("its sentinelNpis holds something that is not a test NPI.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":7,")))
                 .hasMessage("its sentinelMemberId is not text.");
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberId\":\"P32H-A\",\"sentinelMemberIds\":[\"p32h-a\"],")))
-                .hasMessage("it names one sentinel member ID twice.");
+                .hasMessage("it names one test member ID twice.");
     }
 
     @Test

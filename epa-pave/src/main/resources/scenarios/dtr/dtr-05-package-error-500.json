@@ -2,7 +2,7 @@
   "id": "dtr-05-package-error-500",
   "number": 5,
   "label": "Package fails to load, HTTP 500",
-  "description": "The service fails while putting the questionnaire package together and says so in an OperationOutcome. This is a finding about the environment, not about the member or the order. It models DTR 2.0.1, whose operation answers a failure with an OperationOutcome. The CRD sentinel member ID P32H-ERR500 selects it too, so a case means the same thing in CRD and in DTR.",
+  "description": "The service fails while putting the questionnaire package together and says so in an OperationOutcome. This is a finding about the environment, not about the member or the order. It models DTR 2.0.1, whose operation answers a failure with an OperationOutcome. The CRD test member ID P32H-ERR500 selects it too, so a case means the same thing in CRD and in DTR.",
   "sentinelMemberId": "P32H-DTR-ERR500",
   "crdSentinelMemberIds": [
     "P32H-ERR500"

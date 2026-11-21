@@ -410,7 +410,7 @@ public class RunReplay {
         if (Texts.blank(original.memberId()) && Texts.present(original.memberToken())) {
             return "The member ID of this run was not recorded. The line holds a token in its place, and a token cannot be turned back "
                     + "into the ID, so the same request cannot be sent again. Member IDs are kept only while tracking.record-member-id is true, "
-                    + "and on the mock profile only for this tool's own P32H- sentinels and S123456789-style placeholders.";
+                    + "and on the mock profile only for this tool's own P32H- test member IDs and S123456789-style placeholders.";
         }
         String needed = SENT_FROM_CORRELATION.get(original.operation());
         String sent = needed == null ? null : original.correlation().get(needed);

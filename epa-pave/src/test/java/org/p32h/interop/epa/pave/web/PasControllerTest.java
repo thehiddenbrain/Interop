@@ -713,7 +713,7 @@ class PasControllerTest {
         assertThat(all.get("problems")).isEmpty();
         // N-LISTNOTES-UNTESTED: the list carries its notes, which is what makes a file that is not read, or the default, visible.
         assertThat(all.get("notes")).extracting(JsonNode::asString).containsExactly("pas-01-approved.json: it is the default, because its number (1) is the lowest. A run that neither a chosen scenario nor a "
-                + "sentinel selects is answered from it.");
+                + "test member ID or NPI selects is answered from it.");
         // Every outcome a tester can meet on this tab, each once, with its label and tone: 22 of a
         // submission or an inquiry, 12 of a subscription call of which 5 faults carry the same code
         // as PAS, 8 of a notification, and the 2 about this tool itself.

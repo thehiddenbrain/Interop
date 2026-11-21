@@ -112,11 +112,11 @@ public class MockOnyxPasClient implements OnyxPasClient {
                     + call + ", or choose a scenario.");
         }
         if (by == ScenarioSelection.By.SENTINEL) {
-            throw ValidationException.of("member.memberId", "The member ID is the sentinel of scenario " + chosen.scenario().id()
+            throw ValidationException.of("member.memberId", "The member ID is the test member ID of scenario " + chosen.scenario().id()
                     + ", which has no answer for " + call + ". Use a member ID whose scenario answers " + call + ", or choose a scenario.");
         }
         if (by == ScenarioSelection.By.SENTINEL_NPI) {
-            throw ValidationException.of("provider.npi", "The NPI is the sentinel of scenario " + chosen.scenario().id()
+            throw ValidationException.of("provider.npi", "The NPI is the test NPI of scenario " + chosen.scenario().id()
                     + ", which has no answer for " + call + ". Use another NPI, or choose a scenario.");
         }
     }

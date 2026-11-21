@@ -556,7 +556,7 @@ class DtrControllerTest {
         assertThat(list.get("elements").get(0).asString()).isEqualTo("questionnaire-kind");
         // N-LISTNOTES-UNTESTED: the list carries its notes, which is what makes a file that is not read, or the default, visible.
         assertThat(list.get("notes")).extracting(JsonNode::asString).containsExactly("dtr-01-static-linear.json: it is the default, because its number (1) is the lowest. A run that neither a chosen scenario nor a "
-                + "sentinel selects is answered from it.");
+                + "test member ID or NPI selects is answered from it.");
 
         mvc("live").perform(get("/api/dtr/scenarios")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(false))

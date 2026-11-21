@@ -2,7 +2,7 @@
   "id": "crd-09-provider-not-found",
   "number": 9,
   "label": "Provider not found",
-  "description": "The service does not recognise the ordering provider. Selected by the sentinel NPI as well as by the sentinel member ID. CRD 2.0.1 has no code for this.",
+  "description": "The service does not recognise the ordering provider. Selected by the test NPI as well as by the test member ID. CRD 2.0.1 has no code for this.",
   "sentinelMemberId": "P32H-NOPROV",
   "sentinelNpi": "9999999995",
   "sampleCase": {"npi": "9999999995", "procedureCodes": ["E0470"]},

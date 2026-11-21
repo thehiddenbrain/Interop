@@ -186,7 +186,7 @@ public class LookupFixtures {
                 throw new IllegalArgumentException("its memberId must be written in the no-space form, which is the form that is sent.");
             }
             if (!SENTINEL.matcher(identifier).matches() && !PLACEHOLDER.matcher(identifier).matches()) {
-                throw new IllegalArgumentException("its memberId is neither a P32H- sentinel nor a placeholder in the S123456789 "
+                throw new IllegalArgumentException("its memberId is neither a P32H- test member ID nor a placeholder in the S123456789 "
                         + "style. Nothing that could be a real member ID may be served by the mock profile.");
             }
         } else if (!Npi.isValid(identifier)) {

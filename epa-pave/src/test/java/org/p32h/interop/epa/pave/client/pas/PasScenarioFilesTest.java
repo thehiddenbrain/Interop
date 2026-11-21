@@ -221,7 +221,7 @@ class PasScenarioFilesTest {
         assertThatThrownBy(() -> inquire(null, "P32H-PAS-BAD400", body)).isInstanceOfSatisfying(ValidationException.class,
                 e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
                     assertThat(error.field()).isEqualTo("member.memberId");
-                    assertThat(error.message()).isEqualTo("The member ID is the sentinel of scenario pas-09-invalid-bundle, which has no "
+                    assertThat(error.message()).isEqualTo("The member ID is the test member ID of scenario pas-09-invalid-bundle, which has no "
                             + "answer for an inquiry. Use a member ID whose scenario answers an inquiry, or choose a scenario.");
                 }));
         // A CRD sentinel that selects the PAS scenario for the same case is not that scenario's sentinel, and is not called one.

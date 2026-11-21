@@ -129,11 +129,11 @@ class ScenarioCheckAtStartTest {
             CapturedOutput output) throws IOException {
         // N-OLD-SCENARIO-DIR and N-LISTNOTES-UNTESTED, through the running application as a tester starts it.
         Path scenarios = directoryCopiedBeforeTheMappings(dir);
-        String noAnswering = "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no CRD "
+        String noAnswering = "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR test member ID typed in CRD selects no CRD "
                 + "scenario and is answered by the CRD default, crd-01-pa-required.json, and a journey with it does not reach DTR as the DTR "
                 + "scenario's label says.";
-        String lostCrdKey = ": its description speaks of a CRD sentinel member ID that selects it, and the file lists none under "
-                + "crdSentinelMemberIds, so no CRD sentinel selects it. A DTR or PAS scenario now names the CRD sentinels it answers for "
+        String lostCrdKey = ": its description speaks of a CRD test member ID that selects it, and the file lists none under "
+                + "crdSentinelMemberIds, so no CRD test member ID selects it. A DTR or PAS scenario now names the CRD test member IDs it answers for "
                 + "the same case under that key; a directory copied before the key existed needs it added.";
         try (ConfigurableApplicationContext context = start(dir, scenarios, "mock")) {
             assertThat(context.isRunning()).isTrue();
@@ -141,9 +141,9 @@ class ScenarioCheckAtStartTest {
             assertThat(crd).containsExactly(
                     "notes.txt: it is not read, because only files whose names end in .json are scenario files.",
                     "crd-01-pa-required.json: it is the default, because its number (1) is the lowest. A run that neither a chosen scenario "
-                            + "nor a sentinel selects is answered from it.",
-                    "crd-04-doc-dtr.json: its description speaks of DTR sentinel member IDs, and the file does not carry "
-                            + "\"answersDtrSentinels\": true, so it answers none of them. The CRD scenario that answers every DTR sentinel "
+                            + "nor a test member ID or NPI selects is answered from it.",
+                    "crd-04-doc-dtr.json: its description speaks of DTR test member IDs, and the file does not carry "
+                            + "\"answersDtrSentinels\": true, so it answers none of them. The CRD scenario that answers every DTR test member ID "
                             + "now says so with that key; a directory copied before the key existed needs it added.",
                     noAnswering);
             java.util.List<String> dtr = notes(get(context, "/api/dtr/scenarios"));

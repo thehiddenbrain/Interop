@@ -179,7 +179,7 @@ public class ScenarioRepository {
                     for (String entry : scenario.crdSentinelMemberIds()) {
                         if (!crdSentinels.contains(memberKey(entry))) {
                             aboutFile.get(scenario.source()).add(scenario.source() + ": " + memberKey(entry) + " in its crdSentinelMemberIds is "
-                                    + "the sentinel member ID of no CRD scenario, so it selects this file without meaning the same case in CRD.");
+                                    + "the test member ID of no CRD scenario, so it selects this file without meaning the same case in CRD.");
                         }
                     }
                 }
@@ -190,7 +190,7 @@ public class ScenarioRepository {
             Loaded dtr = DTR.equals(protocolDirectory) ? own : loadOwn(DTR);
             if (crd.problems().isEmpty() && dtr.problems().isEmpty() && !crd.scenarios().isEmpty() && !dtr.scenarios().isEmpty()
                     && crd.scenarios().stream().noneMatch(Scenario::answersDtrSentinels)) {
-                listOnly.add("No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no CRD "
+                listOnly.add("No CRD scenario carries \"answersDtrSentinels\": true, so a DTR test member ID typed in CRD selects no CRD "
                         + "scenario and is answered by the CRD default, " + crd.scenarios().get(0).source() + ", and a journey with it does "
                         + "not reach DTR as the DTR scenario's label says.");
             }
@@ -227,25 +227,25 @@ public class ScenarioRepository {
         String description = scenario.description() == null ? "" : scenario.description();
         if (CRD.equals(protocolDirectory)) {
             if (!scenario.answersDtrSentinels() && SPEAKS_OF_DTR_SENTINELS.matcher(description).find()) {
-                return List.of(scenario.source() + ": its description speaks of DTR sentinel member IDs, and the file does not carry "
-                        + "\"answersDtrSentinels\": true, so it answers none of them. The CRD scenario that answers every DTR sentinel now "
+                return List.of(scenario.source() + ": its description speaks of DTR test member IDs, and the file does not carry "
+                        + "\"answersDtrSentinels\": true, so it answers none of them. The CRD scenario that answers every DTR test member ID now "
                         + "says so with that key; a directory copied before the key existed needs it added.");
             }
             return List.of();
         }
         if ((DTR.equals(protocolDirectory) || PAS.equals(protocolDirectory)) && scenario.crdSentinelMemberIds().isEmpty()
                 && SPEAKS_OF_A_CRD_SENTINEL.matcher(description).find()) {
-            return List.of(scenario.source() + ": its description speaks of a CRD sentinel member ID that selects it, and the file lists "
-                    + "none under crdSentinelMemberIds, so no CRD sentinel selects it. A DTR or PAS scenario now names the CRD sentinels it "
+            return List.of(scenario.source() + ": its description speaks of a CRD test member ID that selects it, and the file lists "
+                    + "none under crdSentinelMemberIds, so no CRD test member ID selects it. A DTR or PAS scenario now names the CRD test member IDs it "
                     + "answers for the same case under that key; a directory copied before the key existed needs it added.");
         }
         return List.of();
     }
 
     /** How the bundled files, before and after the mappings became data, speak of a CRD sentinel that selects them. */
-    private static final Pattern SPEAKS_OF_A_CRD_SENTINEL = Pattern.compile("(?i)\\bCRD sentinels?(?: member IDs?)? P32H-");
+    private static final Pattern SPEAKS_OF_A_CRD_SENTINEL = Pattern.compile("(?i)\\bCRD (?:sentinels?|test member IDs?)(?: member IDs?)? P32H-");
     /** How the CRD file that answers DTR sentinels speaks of them. */
-    private static final Pattern SPEAKS_OF_DTR_SENTINELS = Pattern.compile("(?i)\\bDTR sentinel");
+    private static final Pattern SPEAKS_OF_DTR_SENTINELS = Pattern.compile("(?i)\\bDTR (?:sentinel|test member ID)");
 
     /** One protocol's files read on their own: what a run needs, and every note that needs no other protocol. */
     private Loaded loadOwn(String protocolDirectory) {
@@ -287,23 +287,23 @@ public class ScenarioRepository {
                 String key = memberKey(sentinel);
                 String earlier = memberSentinels.putIfAbsent(key, scenario.source());
                 if (earlier != null) {
-                    problems.add(scenario.source() + ": the sentinel member ID " + key + " is already claimed by " + earlier
-                            + ". One sentinel selects one scenario.");
+                    problems.add(scenario.source() + ": the test member ID " + key + " is already claimed by " + earlier
+                            + ". One test identifier selects one scenario.");
                 }
             }
             for (String sentinel : scenario.crdSentinelMemberIds()) {
                 String key = memberKey(sentinel);
                 String earlier = memberSentinels.putIfAbsent(key, scenario.source());
                 if (earlier != null) {
-                    problems.add(scenario.source() + ": the CRD sentinel member ID " + key + " in its crdSentinelMemberIds is already "
-                            + "claimed by " + earlier + ". One sentinel selects one scenario.");
+                    problems.add(scenario.source() + ": the CRD test member ID " + key + " in its crdSentinelMemberIds is already "
+                            + "claimed by " + earlier + ". One test identifier selects one scenario.");
                 }
             }
             for (String sentinel : scenario.sentinelNpis()) {
                 String earlier = npiSentinels.putIfAbsent(sentinel.strip(), scenario.source());
                 if (earlier != null) {
-                    problems.add(scenario.source() + ": the sentinel NPI " + sentinel.strip() + " is already claimed by " + earlier
-                            + ". One sentinel selects one scenario.");
+                    problems.add(scenario.source() + ": the test NPI " + sentinel.strip() + " is already claimed by " + earlier
+                            + ". One test identifier selects one scenario.");
                 }
             }
         }
@@ -324,7 +324,7 @@ public class ScenarioRepository {
      */
     static String defaultNote(Scenario scenario) {
         return scenario.source() + ": it is the default, because its number (" + scenario.number() + ") is the lowest. A run that "
-                + "neither a chosen scenario nor a sentinel selects is answered from it.";
+                + "neither a chosen scenario nor a test member ID or NPI selects is answered from it.";
     }
 
     /**
@@ -365,16 +365,16 @@ public class ScenarioRepository {
         String answering = null;
         for (Scenario scenario : scenarios) {
             if (CRD.equals(protocolDirectory) && !scenario.crdSentinelMemberIds().isEmpty()) {
-                problems.add(scenario.source() + ": a CRD scenario cannot list crdSentinelMemberIds. Give a CRD sentinel as the file's own "
+                problems.add(scenario.source() + ": a CRD scenario cannot list crdSentinelMemberIds. Give a CRD test member ID as the file's own "
                         + "sentinelMemberId.");
             }
             if (scenario.answersDtrSentinels()) {
                 if (!CRD.equals(protocolDirectory)) {
-                    problems.add(scenario.source() + ": only a CRD scenario can answer DTR sentinels, so answersDtrSentinels belongs in a "
+                    problems.add(scenario.source() + ": only a CRD scenario can answer DTR test member IDs, so answersDtrSentinels belongs in a "
                             + "CRD file.");
                 } else if (answering != null) {
                     problems.add(scenario.source() + ": answersDtrSentinels is already true in " + answering + ". One CRD scenario answers "
-                            + "every DTR sentinel.");
+                            + "every DTR test member ID.");
                 } else {
                     answering = scenario.source();
                 }
@@ -646,12 +646,12 @@ public class ScenarioRepository {
         if (!unknown.isEmpty()) {
             throw new IllegalArgumentException(unknownKeys(unknown));
         }
-        List<String> memberSentinels = sentinels(root, "sentinelMemberId", "sentinelMemberIds", "sentinel member ID");
-        List<String> npiSentinels = sentinels(root, "sentinelNpi", "sentinelNpis", "sentinel NPI");
-        List<String> crdSentinels = sentinels(root, null, "crdSentinelMemberIds", "CRD sentinel member ID");
+        List<String> memberSentinels = sentinels(root, "sentinelMemberId", "sentinelMemberIds", "test member ID");
+        List<String> npiSentinels = sentinels(root, "sentinelNpi", "sentinelNpis", "test NPI");
+        List<String> crdSentinels = sentinels(root, null, "crdSentinelMemberIds", "CRD test member ID");
         for (String sentinel : crdSentinels) {
             if (memberSentinels.stream().anyMatch(own -> memberKey(own).equals(memberKey(sentinel)))) {
-                throw new IllegalArgumentException("it names one sentinel member ID both as its own and among its crdSentinelMemberIds.");
+                throw new IllegalArgumentException("it names one test member ID both as its own and among its crdSentinelMemberIds.");
             }
         }
         JsonNode dtrFlag = JsonSafe.child(root, "answersDtrSentinels");
@@ -662,13 +662,13 @@ public class ScenarioRepository {
         for (String sentinel : java.util.stream.Stream.concat(memberSentinels.stream(), crdSentinels.stream()).toList()) {
             if (!SENTINEL.matcher(memberKey(sentinel)).matches()) {
                 // The value is not quoted: something that is not a sentinel could be a real member ID.
-                throw new IllegalArgumentException("one of its sentinel member IDs is not a P32H- sentinel. A scenario is selected only by "
+                throw new IllegalArgumentException("one of its test member IDs is not a P32H- test member ID. A scenario is selected only by "
                         + "this tool's own identifiers, so nothing that could be a real member ID is written in a scenario file.");
             }
         }
         for (String sentinel : npiSentinels) {
             if (!Npi.isValid(sentinel.strip())) {
-                throw new IllegalArgumentException("one of its sentinel NPIs does not pass the NPI check, so no request could ever carry it. "
+                throw new IllegalArgumentException("one of its test NPIs does not pass the NPI check, so no request could ever carry it. "
                         + "Use ten digits whose last digit is the NPI check digit of the first nine, such as 9999999995.");
             }
         }

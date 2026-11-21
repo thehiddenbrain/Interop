@@ -76,7 +76,7 @@ class LookupFixturesTest {
         for (String id : new String[] {"NOT-A-PLACEHOLDER", "p32h-lower-case", "P32H-", "S12345678", "S12345678901", "X123456789",
                 "S12345678A", "123456789"}) {
             assertThatThrownBy(() -> member("{\"memberId\":\"" + id + "\",\"httpStatus\":200}")).as(id)
-                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("neither a P32H- sentinel nor a placeholder");
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("neither a P32H- test member ID nor a placeholder");
         }
         // The key is the form that is sent, so the written form with spaces is not a key.
         assertThatThrownBy(() -> member("{\"memberId\":\"S12345678   01\",\"httpStatus\":200}"))
