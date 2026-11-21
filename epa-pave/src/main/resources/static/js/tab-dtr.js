@@ -504,7 +504,10 @@ async function sendStep(entry, kind) {
 
 /** After a refused step, names the button to press again, beside the summary of what to correct. */
 function sayAgain(slot, label) {
-    if (slot && bench.problem.parentNode === slot && bench.problem.childNodes.length > 0) {
+    // A step refused for a mask in what it would post is sent again only after the package is fetched again, which the
+    // refusal itself says; sending the same step again would be refused the same way.
+    const forAMask = bench.problem.textContent.includes('then fetch the questionnaire package again');
+    if (slot && bench.problem.parentNode === slot && bench.problem.childNodes.length > 0 && !forAMask) {
         slot.append(el('p', {class: 'dtr-step-again'}, 'Then choose "' + label + '" again.'));
     }
 }

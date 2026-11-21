@@ -54,6 +54,15 @@ class DtrSessionFrontendTest {
     }
 
     @Test
+    void aStepRefusedForAMaskIsNotToldToSendTheSameStepAgainAndTheJudgementIsThisTools() throws IOException {
+        String again = CaseCodesFrontendTest.body(read("tab-dtr.js"), "function sayAgain(slot, label) {");
+        assertThat(again).contains("bench.problem.textContent.includes('then fetch the questionnaire package again')").contains("&& !forAMask)");
+        String source = read("dtr-questionnaire.js");
+        assertThat(source).contains("'This tool judged the response complete.'").contains("'This tool did not judge the response complete.'")
+                .doesNotContain("The server judged").doesNotContain("The server did not judge");
+    }
+
+    @Test
     void afterAPlayedLoopFaultSendingAgainIsWhatARealServiceWouldCallFor() throws IOException {
         String source = read("dtr-questionnaire.js");
         assertThat(source).contains("played: envelope.answeredBy === 'SCENARIO'};");

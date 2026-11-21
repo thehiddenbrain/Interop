@@ -570,7 +570,8 @@ export function createSession(packageEnvelope, hooks) {
                 entry.lastFailed ? 'After the last step that worked: ' : 'After the last step: ', el('strong', null, String(form.questionCount)), form.questionCount === 1 ? ' question, ' : ' questions, ',
                 el('strong', null, String(form.answeredCount)), ' answered, completion status ',
                 status.presence === 'VALUE' ? code(status.code) : el('span', {class: 'presence presence--absent'}, 'not returned'), '. ',
-                form.complete ? el('strong', null, 'The server judged the response complete.') : 'The server did not judge the response complete.'));
+                // "The server" read as the payer; the judgement is this tool's own.
+                form.complete ? el('strong', null, 'This tool judged the response complete.') : 'This tool did not judge the response complete.'));
             if ((form.requiredUnanswered || []).length > 0) {
                 parts.push(el('p', {class: 'dtr-mark dtr-mark--required'}, el('strong', null, 'Required and unanswered, each marked at its question: '),
                     form.requiredUnanswered.map((ref, index) => [index > 0 ? '; ' : null, code(ref.linkId), ref.text ? ' ' + ref.text : null])));
