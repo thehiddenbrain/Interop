@@ -405,12 +405,18 @@ export function createSuites(app, context) {
         // A row that was not sent says so here in the server's sentence, with the reason. It has no
         // outcome and no test result, so it cannot be read as a failure.
         const rowFault = {reference: row.faultReference, cause: row.faultCause};
+        // The case that was running when this tool ended the suite failed with the stop itself. Its
+        // cause and the copy button stand once, in the stop block, and the row points there.
+        const sameAsStop = Boolean(rowFault.reference) && rowFault.reference === run.stopReference;
+        const rowShown = sameAsStop ? {reference: rowFault.reference} : rowFault;
         cells.push([
             el('div', {class: row.status && row.status !== 'COMPLETED' ? 'suite-status suite-status--unsent' : 'suite-status'},
-                withoutReference(row.statusLine, rowFault)),
-            row.reason ? el('div', null, withoutReference(row.reason, rowFault)) : null,
+                withoutReference(row.statusLine, rowShown)),
+            row.reason ? el('div', null, withoutReference(row.reason, rowShown)) : null,
             // A failure of this tool: its cause beside the reference, as the server log names it, and one copy of both.
-            faultReport(rowFault),
+            sameAsStop
+                ? el('p', {class: 'fault-report__reference'}, 'The same failure as the stop above. Reference ', code(rowFault.reference))
+                : faultReport(rowFault),
             (row.notes || []).map(text => el('div', {class: 'small quiet'}, text)),
             (row.notRecorded || []).map(text => el('div', {class: 'ledger--missing small'}, el('strong', null, 'NOT recorded. '), text)),
             runIdsOf(row)

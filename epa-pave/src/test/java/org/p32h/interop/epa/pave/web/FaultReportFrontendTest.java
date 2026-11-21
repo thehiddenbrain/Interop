@@ -37,7 +37,7 @@ class FaultReportFrontendTest {
     void aSuiteRowAndAReplayEntryShowTheCauseWithTheReference() throws IOException {
         // These carried the reference only inside a server sentence, with no cause and no copy button.
         assertThat(read("suites.js")).contains("const rowFault = {reference: row.faultReference, cause: row.faultCause};")
-                .contains("faultReport(rowFault),");
+                .contains(": faultReport(rowFault),");
         String replay = read("history-replay.js");
         assertThat(CaseCodesFrontendTest.body(replay, "function faultOf(entry) {"))
                 .contains("return {reference: entry.faultReference, cause: entry.faultCause};");
@@ -67,7 +67,7 @@ class FaultReportFrontendTest {
                 .contains("'Report the reference and the cause below.'").contains("'Report the reference below.'")
                 // A sentence with no reference is left exactly as the server wrote it.
                 .contains("if (!sentence || !fault || !fault.reference) {");
-        assertThat(read("suites.js")).contains("withoutReference(row.reason, rowFault)").contains("faultReport(rowFault)");
+        assertThat(read("suites.js")).contains("withoutReference(row.reason, rowShown)").contains("faultReport(rowFault)");
     }
 
     @Test
@@ -84,10 +84,23 @@ class FaultReportFrontendTest {
     @Test
     void aSuiteRowDrawsItsReportUnconditionallyAndItsStatusLineSendsTheReaderToIt() throws IOException {
         String row = CaseCodesFrontendTest.body(read("suites.js"), "function resultRow(row, compared) {");
-        assertThat(Pattern.compile("(?m)^ +faultReport\\(rowFault\\),$").matcher(row).results().count()).isEqualTo(1);
-        assertThat(row).contains("withoutReference(row.statusLine, rowFault)").contains("withoutReference(row.reason, rowFault)");
+        // Drawn for every row with a reference: the report, or for the stop's own case the pointer to it.
+        assertThat(Pattern.compile("(?m)^ +sameAsStop\\R +\\? el\\('p', \\{class: 'fault-report__reference'\\}, 'The same failure as the "
+                + "stop above\\. Reference ', code\\(rowFault\\.reference\\)\\)\\R +: faultReport\\(rowFault\\),$").matcher(row).results().count())
+                .isEqualTo(1);
+        assertThat(row).contains("withoutReference(row.statusLine, rowShown)").contains("withoutReference(row.reason, rowShown)");
         // Whether a call went out is not known after a failure of this tool, so its time is not "no call".
         assertThat(row).contains(": none(row.faultReference ? 'not known' : 'no call')},");
+    }
+
+    @Test
+    void theCaseThatWasRunningWhenTheSuiteStoppedPointsToTheStopAndDoesNotRepeatItsCause() throws IOException {
+        // The recheck saw the stop's reference, cause and copy button twice: in the stop block and in this row.
+        String row = CaseCodesFrontendTest.body(read("suites.js"), "function resultRow(row, compared) {");
+        assertThat(row).contains("const sameAsStop = Boolean(rowFault.reference) && rowFault.reference === run.stopReference;")
+                // Without the cause the status line says the reference is below the reason, and not the cause.
+                .contains("const rowShown = sameAsStop ? {reference: rowFault.reference} : rowFault;")
+                .contains("'The same failure as the stop above. Reference '");
     }
 
     /**
