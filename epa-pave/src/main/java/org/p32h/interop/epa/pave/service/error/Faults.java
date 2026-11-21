@@ -108,8 +108,18 @@ public final class Faults {
         if (message == null || message.isBlank() || !mayGiveDetail(t)) {
             return null;
         }
-        String line = message.replaceAll("\\s+", " ").replaceAll("\\p{Cntrl}", " ").strip();
-        return line.length() <= DETAIL_LIMIT ? line : line.substring(0, DETAIL_LIMIT - 3) + "...";
+        // Without the Unicode flag \s and \p{Cntrl} miss NEL and the line and paragraph separators,
+        // which a log viewer and \R still break a line at.
+        String line = message.replaceAll("[\\s\\p{Cntrl}\\u0085\\u2028\\u2029]+", " ").strip();
+        if (line.length() <= DETAIL_LIMIT) {
+            return line;
+        }
+        int end = DETAIL_LIMIT - 3;
+        // A cut between the two halves of a character outside the basic plane would leave half of it.
+        if (Character.isHighSurrogate(line.charAt(end - 1))) {
+            end--;
+        }
+        return line.substring(0, end) + "...";
     }
 
     private static boolean mayGiveDetail(Throwable t) {

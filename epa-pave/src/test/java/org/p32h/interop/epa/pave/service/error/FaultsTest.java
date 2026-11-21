@@ -46,6 +46,14 @@ class FaultsTest {
         // An Error of exactly that class gives a detail only when the compiler wrote it.
         assertThat(Faults.cause(new Error("member S123456789"))).isEqualTo("java.lang.Error");
         assertThat(Faults.cause(new AssertionError("Unresolved compilation problem: S123456789"))).isEqualTo("java.lang.AssertionError");
+        // An initializer's failure built from text, as the runtime builds one when it names what an
+        // earlier initializer threw, quotes that message too; it stays the bare type.
+        ExceptionInInitializerError written = new ExceptionInInitializerError(
+                "Exception java.lang.RuntimeException: member S123456789 [in thread \"main\"]");
+        assertThat(written.getMessage()).contains("S123456789");
+        assertThat(Faults.cause(written)).isEqualTo("java.lang.ExceptionInInitializerError");
+        assertThat(Faults.describe(written)).doesNotContain("S123456789");
+        assertThat(Faults.cause(new IllegalStateException("x", written))).isEqualTo("java.lang.IllegalStateException <- java.lang.ExceptionInInitializerError");
         assertThat(Faults.describe(new RuntimeException("member S123456789", new IOException("S123456789"))))
                 .doesNotContain("S123456789").contains("java.lang.RuntimeException <- java.io.IOException");
     }
@@ -57,6 +65,27 @@ class FaultsTest {
         assertThat(detail).hasSize(Faults.DETAIL_LIMIT).endsWith("...").doesNotContain("\n").doesNotContain("\t")
                 .startsWith("Unresolved compilation problems: x cannot be resolved to a variable x cannot");
         assertThat(Faults.cause(new Error(problems)).lines().count()).isEqualTo(1);
+    }
+
+    @Test
+    void aDetailIsOneLineWhateverLineBreakTheMessageUses() {
+        // NEL and the Unicode line and paragraph separators are line breaks to \R, and \s and
+        // \p{Cntrl} without the Unicode flag do not see them.
+        String detail = Faults.detail(new NoClassDefFoundError("org/x/A\u2028second line\u0085third\u2029fourth\r\nfifth"));
+        assertThat(detail).isEqualTo("org/x/A second line third fourth fifth");
+        assertThat(Faults.cause(new NoClassDefFoundError("org/x/A\u2028second\u0085third\u2029fourth")).split("\\R")).hasSize(1);
+    }
+
+    @Test
+    void aDetailIsNeverCutBetweenTheTwoHalvesOfACharacter() {
+        // A character outside the basic plane is two chars; a cut between them left half of one.
+        String message = "org/x/" + "a".repeat(Faults.DETAIL_LIMIT - 10) + "\uD835\uDC9C".repeat(10);
+        String detail = Faults.detail(new NoClassDefFoundError(message));
+        assertThat(detail).endsWith("...").hasSizeLessThanOrEqualTo(Faults.DETAIL_LIMIT);
+        String kept = detail.substring(0, detail.length() - 3);
+        assertThat(Character.isHighSurrogate(kept.charAt(kept.length() - 1))).isFalse();
+        assertThat(kept.codePoints().filter(c -> Character.getType(c) == Character.SURROGATE).count()).isZero();
+        assertThat(message).startsWith(kept);
     }
 
     @Test

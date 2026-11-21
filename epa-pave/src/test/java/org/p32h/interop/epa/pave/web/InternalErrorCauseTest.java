@@ -44,11 +44,15 @@ class InternalErrorCauseTest {
         public String fail(@PathVariable String what) throws Exception {
             switch (what) {
                 case "missing-class" -> throw new NoClassDefFoundError(MISSING);
+                case "missing-class-separators" -> throw new NoClassDefFoundError(MISSING + "\u2028second\u0085third\u2029fourth");
                 case "not-compiled" -> throw new Error("Unresolved compilation problem: \n\tPostmanEnvironmentReader cannot be resolved to a type\n");
                 case "stack" -> throw new StackOverflowError();
                 case "plain-error" -> throw new Error("Could not read member " + MEMBER);
                 case "state" -> throw new IllegalStateException("No coverage for member " + MEMBER);
                 case "initializer" -> throw new ExceptionInInitializerError(new RuntimeException("Bad sample for member " + MEMBER));
+                // The runtime builds one from text when it names what an earlier initializer threw.
+                case "initializer-text" -> throw new ExceptionInInitializerError(
+                        "Exception java.lang.RuntimeException: Bad sample for member " + MEMBER + " [in thread \"main\"]");
                 case "wrapped" -> {
                     // What DispatcherServlet.doDispatch does with an Error a handler throws: the
                     // wrapper's message quotes the Error's own text.
@@ -130,6 +134,15 @@ class InternalErrorCauseTest {
     }
 
     @Test
+    void aDetailWithUnicodeLineBreaksStaysOnTheFirstLineOfTheLogEntry() throws Exception {
+        Seen seen = fail("missing-class-separators");
+        String expected = SERVLET + " <- java.lang.NoClassDefFoundError; java.lang.NoClassDefFoundError says: " + MISSING + " second third fourth";
+        commonTo(seen, expected);
+        // A log viewer breaks lines at these too, so the first line is read the way \R reads it.
+        assertThat(seen.logEntry().split("\\R")[0]).isEqualTo("Unhandled exception, reference " + seen.reference() + ": " + expected);
+    }
+
+    @Test
     void aClassTheIdeCouldNotCompileIsNamedWithTheCompilersWordsOnOneLine() throws Exception {
         Seen seen = fail("not-compiled");
         commonTo(seen, SERVLET + " <- java.lang.Error; java.lang.Error says: Unresolved compilation problem: "
@@ -160,6 +173,13 @@ class InternalErrorCauseTest {
     void anInitializerFailureGivesNoDetailBecauseItsTextQuotesWhatTheInitializerThrew() throws Exception {
         Seen seen = fail("initializer");
         commonTo(seen, SERVLET + " <- java.lang.ExceptionInInitializerError <- java.lang.RuntimeException");
+        assertThat(seen.body() + seen.logEntry()).doesNotContain("Bad sample");
+    }
+
+    @Test
+    void anInitializerFailureBuiltFromTextGivesNoDetailEither() throws Exception {
+        Seen seen = fail("initializer-text");
+        commonTo(seen, SERVLET + " <- java.lang.ExceptionInInitializerError");
         assertThat(seen.body() + seen.logEntry()).doesNotContain("Bad sample");
     }
 
