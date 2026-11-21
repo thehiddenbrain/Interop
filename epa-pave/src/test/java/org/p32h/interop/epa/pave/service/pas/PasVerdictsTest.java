@@ -267,9 +267,9 @@ class PasVerdictsTest {
     @Test
     void aMockAnswerSaysFirstWhichScenarioItCameFrom() {
         VendorExchange exchange = response(200, bundle(claimResponse(items(decided(1, "A1"))))).withScenario("pas-01-approved",
-                "selected by the sentinel member ID P32H-PAS-APPROVED");
+                "selected by the test member ID P32H-PAS-APPROVED");
         VerdictView verdict = PasVerdicts.verdict(mapper.read(exchange, sent("95810")), exchange, EpaOperation.PAS_SUBMIT);
-        assertThat(verdict.supporting().get(0)).isEqualTo("Mock scenario pas-01-approved answered: selected by the sentinel member ID "
+        assertThat(verdict.supporting().get(0)).isEqualTo("Mock scenario pas-01-approved answered: selected by the test member ID "
                 + "P32H-PAS-APPROVED.");
     }
 

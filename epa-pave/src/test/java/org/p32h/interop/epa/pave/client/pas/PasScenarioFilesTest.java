@@ -193,7 +193,7 @@ class PasScenarioFilesTest {
             }
             VendorExchange exchange = submit(null, scenario.sentinelMemberId(), request("claim-test-1", "95810"));
             assertThat(exchange.scenarioId()).as(scenario.sentinelMemberId()).isEqualTo(scenario.id());
-            assertThat(exchange.scenarioNote()).contains("sentinel member ID " + scenario.sentinelMemberId());
+            assertThat(exchange.scenarioNote()).contains("test member ID " + scenario.sentinelMemberId());
             assertThat(exchange.request().sent()).isFalse();
         }
         VendorExchange ordinary = submit(null, "S123456789", request("claim-test-1", "95810"));
@@ -247,7 +247,7 @@ class PasScenarioFilesTest {
         VendorExchange submittedByNpi = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT), ResolvedText.plain(pasted),
                 MockSelection.of(null, null, null));
         assertThat(submittedByNpi.scenarioId()).isEqualTo("pas-21-provider-not-found");
-        assertThat(submittedByNpi.scenarioNote()).startsWith("selected by the sentinel NPI 9999999995 found in the request body");
+        assertThat(submittedByNpi.scenarioNote()).startsWith("selected by the test NPI 9999999995 found in the request body");
         // And a scenario that describes only subscription calls does not answer a submission.
         assertThatThrownBy(() -> submit("pas-10-subscription-lifecycle", null, body)).isInstanceOf(ValidationException.class);
     }
@@ -330,7 +330,7 @@ class PasScenarioFilesTest {
             VendorExchange exchange = pas.submit(TestPreparedCalls.unconfigured(EpaOperation.PAS_SUBMIT),
                     ResolvedText.plain(request("claim-test-1", "95810")), MockSelection.of(null, crd.toLowerCase(java.util.Locale.ROOT), "1234567893"));
             assertThat(exchange.scenarioId()).as(crd).isEqualTo(scenario);
-            assertThat(exchange.scenarioNote()).as(crd).startsWith("selected by the CRD sentinel member ID " + crd
+            assertThat(exchange.scenarioNote()).as(crd).startsWith("selected by the CRD test member ID " + crd
                     + ", which this scenario answers for the same case");
         });
         // The sentinel NPI the specification ties to an unknown provider selects that case here as it does in CRD and DTR.

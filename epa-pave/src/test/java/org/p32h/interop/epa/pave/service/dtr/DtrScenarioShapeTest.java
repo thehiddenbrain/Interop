@@ -179,7 +179,7 @@ class DtrScenarioShapeTest {
         sameCase.forEach((sentinel, outcome) -> {
             RunEnvelope<DtrDetail> result = service.runPackage(DtrFixtures.packageRequest(sentinel).build(), RunOrigin.manual(), null);
             assertThat(result.verdict().outcomeCode()).as(sentinel).isEqualTo(outcome);
-            assertThat(result.verdict().supporting().get(0)).as(sentinel).contains("selected by the CRD sentinel member ID " + sentinel
+            assertThat(result.verdict().supporting().get(0)).as(sentinel).contains("selected by the CRD test member ID " + sentinel
                     + ", which this scenario answers for the same case");
         });
         // Case is forgiven, as for a DTR sentinel.

@@ -821,7 +821,7 @@ class CrdServiceTest {
     void onMockTheWireViewSaysNothingWasSentAndWhichScenarioAnswered() {
         RunEnvelope<CrdDetail> result = run("P32H-NO-AUTH");
         assertThat(result.wire().request().sent()).isFalse();
-        assertThat(result.wire().request().note()).isEqualTo("Mock profile. Answered from scenario crd-02-no-auth, selected by the sentinel "
+        assertThat(result.wire().request().note()).isEqualTo("Mock profile. Answered from scenario crd-02-no-auth, selected by the test "
                 + "member ID P32H-NO-AUTH. Nothing left this machine.");
         assertThat(result.wire().request().method()).isEqualTo("POST");
         assertThat(result.wire().response().status()).isEqualTo(200);

@@ -970,7 +970,7 @@ class DtrServiceTest {
         RunEnvelope<DtrDetail> result = fetch("P32H-DTR-PREPOP");
         assertThat(result.wire().request().sent()).isFalse();
         assertThat(result.wire().request().note()).isEqualTo("Mock profile. Answered from scenario dtr-03-prepopulated, selected by the "
-                + "sentinel member ID P32H-DTR-PREPOP. Nothing left this machine.");
+                + "test member ID P32H-DTR-PREPOP. Nothing left this machine.");
         assertThat(result.wire().request().method()).isEqualTo("POST");
         assertThat(result.wire().request().headers()).extracting(h -> h.name() + ": " + h.value())
                 .contains("Accept: application/fhir+json", "Content-Type: application/fhir+json");

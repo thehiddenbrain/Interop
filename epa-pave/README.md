@@ -271,7 +271,7 @@ How a scenario is chosen is one rule for the three protocols, and it is all in t
   lowest number. The result says which rule chose it, for example "found in the request body". In
   a pasted body a member ID is looked for before an NPI, as on the form: a sentinel NPI found
   there as a whole value (`9999999995` as a Practitioner identifier) selects its scenario, and the
-  result says "selected by the sentinel NPI 9999999995 found in the request body".
+  result says "selected by the test NPI 9999999995 found in the request body".
 - A DTR or PAS file lists, under `crdSentinelMemberIds`, the CRD sentinels it answers for the same
   case (`P32H-NOMEM` selects PAS scenario `pas-15-member-not-found`, for example). The scenario
   list shows them. No two files of one protocol may claim one sentinel: the start stops and names

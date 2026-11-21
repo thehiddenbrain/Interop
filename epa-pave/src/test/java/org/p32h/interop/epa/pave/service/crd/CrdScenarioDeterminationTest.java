@@ -187,8 +187,8 @@ class CrdScenarioDeterminationTest {
             assertThat(reading.outcome()).as(sentinel).isEqualTo(CrdOutcome.DOCUMENTATION_REQUIRED);
             assertThat(CrdVerdicts.nextStep(reading, exchange).action()).as(sentinel).isEqualTo(org.p32h.interop.epa.pave.model.NextAction.START_DTR);
             if (!sentinel.equals("P32H-DOC-DTR")) {
-                assertThat(exchange.scenarioNote()).as(sentinel).startsWith("selected because " + sentinel + " is the sentinel member ID of "
-                        + "DTR scenario dtr-").contains("CRD answers documentation required for every DTR sentinel");
+                assertThat(exchange.scenarioNote()).as(sentinel).startsWith("selected because " + sentinel + " is the test member ID of "
+                        + "DTR scenario dtr-").contains("CRD answers documentation required for every DTR test member ID");
             }
         }
         // A CRD sentinel keeps its own scenario, a chosen scenario wins, and the sentinel NPI still selects provider-not-found.
@@ -292,7 +292,7 @@ class CrdScenarioDeterminationTest {
         VendorExchange exchange = call(null, "P32H-TIMEOUT", "1234567893");
         assertThat(exchange.httpStatus()).isNull();
         assertThat(exchange.request().sent()).isFalse();
-        assertThat(exchange.request().note()).contains("crd-13-timeout").contains("sentinel member ID P32H-TIMEOUT");
+        assertThat(exchange.request().note()).contains("crd-13-timeout").contains("test member ID P32H-TIMEOUT");
         CrdReading reading = mapper.read(exchange);
         assertThat(reading.detail().responseKind()).isEqualTo(CrdResponseKind.NO_RESPONSE);
         assertThat(reading.answers()).isEmpty();

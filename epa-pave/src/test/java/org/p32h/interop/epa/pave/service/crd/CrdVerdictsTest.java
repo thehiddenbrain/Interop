@@ -93,9 +93,9 @@ class CrdVerdictsTest {
         VendorExchange byDefault = client.hook(TestPreparedCalls.unconfigured(EpaOperation.CRD_ORDER_SIGN), ResolvedText.plain("{}"),
                 MockSelection.of(null, "S123456789", "1234567893"));
         assertThat(CrdVerdicts.verdict(mapper.read(byDefault), byDefault).supporting().get(0)).isEqualTo(
-                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no sentinel matched.");
+                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no test member ID or NPI matched.");
         assertThat(verdict("P32H-NO-AUTH").supporting().get(0))
-                .isEqualTo("Mock scenario crd-02-no-auth answered: selected by the sentinel member ID P32H-NO-AUTH.");
+                .isEqualTo("Mock scenario crd-02-no-auth answered: selected by the test member ID P32H-NO-AUTH.");
         // An answer from a real service carries no such line.
         VendorExchange live = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"no-auth\"}"));
         assertThat(CrdVerdicts.verdict(mapper.read(live), live).supporting()).noneMatch(line -> line.startsWith("Mock scenario"));

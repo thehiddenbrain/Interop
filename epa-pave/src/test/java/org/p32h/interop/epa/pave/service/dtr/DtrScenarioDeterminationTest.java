@@ -170,7 +170,7 @@ class DtrScenarioDeterminationTest {
         table.forEach((sentinel, outcome) -> {
             VendorExchange exchange = fetch(null, sentinel, DtrFixtures.NPI);
             assertThat(mapper.readPackage(exchange, List.of()).outcome()).as(sentinel).isEqualTo(outcome);
-            assertThat(exchange.scenarioNote()).as(sentinel).isEqualTo("selected by the sentinel member ID " + sentinel);
+            assertThat(exchange.scenarioNote()).as(sentinel).isEqualTo("selected by the test member ID " + sentinel);
         });
         // An ordinary member gets the first scenario, and the result says it is the default.
         VendorExchange ordinary = fetch(null, "S123456789", DtrFixtures.NPI);

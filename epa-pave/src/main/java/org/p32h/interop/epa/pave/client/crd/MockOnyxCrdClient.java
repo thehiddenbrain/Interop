@@ -80,8 +80,8 @@ public class MockOnyxCrdClient implements OnyxCrdClient {
      */
     private static VendorExchange nameTheQuestionnairesOf(Scenario dtr, VendorExchange exchange, boolean selectedBySentinel) {
         // The selection note already says the member is a DTR sentinel when that is what selected the file; a choice in the selector does not.
-        String why = selectedBySentinel ? "" : ". The member ID is the sentinel member ID of DTR scenario " + dtr.id() + ", and this "
-                + "scenario answers every DTR sentinel";
+        String why = selectedBySentinel ? "" : ". The member ID is the test member ID of DTR scenario " + dtr.id() + ", and this "
+                + "scenario answers every DTR test member ID";
         List<String> held = questionnairesHeldBy(dtr);
         if (held.isEmpty() || exchange.json() == null || !exchange.json().isContainer()) {
             return exchange.withScenario(exchange.scenarioId(), exchange.scenarioNote() + why + ". The package of DTR scenario " + dtr.id()

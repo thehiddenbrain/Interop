@@ -1159,7 +1159,7 @@ class PasServiceTest {
     void onMockTheWireViewSaysNothingWasSentAndWhichScenarioAnswered() {
         RunEnvelope<PasDetail> result = submit("P32H-PAS-DENIED");
         assertThat(result.wire().request().sent()).isFalse();
-        assertThat(result.wire().request().note()).isEqualTo("Mock profile. Answered from scenario pas-03-denied, selected by the sentinel "
+        assertThat(result.wire().request().note()).isEqualTo("Mock profile. Answered from scenario pas-03-denied, selected by the test "
                 + "member ID P32H-PAS-DENIED. Nothing left this machine.");
         assertThat(result.wire().request().method()).isEqualTo("POST");
         // FHIR JSON, not plain JSON, on the way out.
@@ -1168,7 +1168,7 @@ class PasServiceTest {
         // An ordinary member gets the default scenario, and the result says it is the default.
         RunEnvelope<PasDetail> ordinary = submit("S123456789");
         assertThat(ordinary.wire().request().note()).contains("pas-01-approved").contains("the default");
-        assertThat(ordinary.verdict().supporting().get(0)).contains("the default, because no scenario was chosen and no sentinel matched");
+        assertThat(ordinary.verdict().supporting().get(0)).contains("the default, because no scenario was chosen and no test member ID or NPI matched");
     }
 
     @Test

@@ -366,7 +366,7 @@ class PasScenarioDeterminationTest {
         VendorExchange timeout = submit(null, "P32H-PAS-TIMEOUT", "95810");
         assertThat(timeout.httpStatus()).isNull();
         assertThat(timeout.request().sent()).isFalse();
-        assertThat(timeout.request().note()).contains("pas-16-timeout").contains("sentinel member ID P32H-PAS-TIMEOUT");
+        assertThat(timeout.request().note()).contains("pas-16-timeout").contains("test member ID P32H-PAS-TIMEOUT");
         assertThat(read(timeout, "95810").detail().responseKind()).isEqualTo(PasResponseKind.NO_RESPONSE);
         assertThat(read(timeout, "95810").answers()).isEmpty();
         assertThat(read(timeout, "95810").ledgerCodes()).isEmpty();

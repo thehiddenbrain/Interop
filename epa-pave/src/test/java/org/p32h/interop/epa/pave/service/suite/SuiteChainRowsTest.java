@@ -135,7 +135,7 @@ class SuiteChainRowsTest {
     void aRowSaysWhenTheDefaultMockScenarioAnswered() {
         SuiteCaseResult row = run("M06,pas,P32H-NOT-KNOWN," + NPI + ",95810,").results().get(0);
         assertThat(row.notes()).contains("Mock scenario pas-01-approved answered: the default, because no scenario was chosen and no "
-                + "sentinel matched.");
+                + "test member ID or NPI matched.");
     }
 
     @Test

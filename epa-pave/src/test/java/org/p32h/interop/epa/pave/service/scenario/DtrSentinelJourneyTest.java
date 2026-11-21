@@ -122,7 +122,7 @@ class DtrSentinelJourneyTest {
             }
             // The note says why the questionnaire is not the file's own: the selector chose the file, the member ID named the DTR scenario.
             assertThat(crd.toString()).as(sentinel).contains("Mock scenario " + answering + " answered: " + ScenarioRepository.CHOSEN_BY_ID
-                    + ". The member ID is the sentinel member ID of DTR scenario " + dtr.id() + ", and this scenario answers every DTR sentinel.");
+                    + ". The member ID is the test member ID of DTR scenario " + dtr.id() + ", and this scenario answers every DTR test member ID.");
             ObjectNode withCarry = (ObjectNode) JsonSafe.parse(form(sentinel)).node();
             withCarry.set("carry", carry);
             JsonNode package_ = json(post("/api/dtr/package").contentType(MediaType.APPLICATION_JSON).content(withCarry.toString()), 200);
@@ -136,7 +136,7 @@ class DtrSentinelJourneyTest {
         ObjectNode plain = (ObjectNode) JsonSafe.parse(form("S123456789")).node();
         plain.put("scenarioId", answering);
         JsonNode crd = json(post("/api/crd").contentType(MediaType.APPLICATION_JSON).content(plain.toString()), 200);
-        assertThat(crd.toString()).doesNotContain("sentinel member ID of DTR scenario");
+        assertThat(crd.toString()).doesNotContain("test member ID of DTR scenario");
     }
 
     @Test

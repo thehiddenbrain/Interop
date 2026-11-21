@@ -299,6 +299,6 @@ class ProtocolCaseRunnerTest {
                 "The provider lookup is not configured. The request was sent with the NPI alone.");
         // The CRD mock goes on to say how it builds its answer, which is its own sentence to word.
         assertThat(sent.get(2)).startsWith(
-                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no sentinel matched.");
+                "Mock scenario crd-01-pa-required answered: the default, because no scenario was chosen and no test member ID or NPI matched.");
     }
 }

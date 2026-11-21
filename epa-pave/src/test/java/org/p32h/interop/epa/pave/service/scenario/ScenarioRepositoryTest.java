@@ -84,14 +84,14 @@ class ScenarioRepositoryTest {
         assertThat(bundled.select("crd", MockSelection.of("crd-14-empty", "P32H-PA-REQ", "9999999995")).scenario().number()).isEqualTo(14);
         ScenarioSelection byMember = bundled.select("crd", MockSelection.of(null, "P32H-NO-AUTH", "9999999995"));
         assertThat(byMember.scenario().number()).isEqualTo(2);
-        assertThat(byMember.how()).isEqualTo("selected by the sentinel member ID P32H-NO-AUTH");
+        assertThat(byMember.how()).isEqualTo("selected by the test member ID P32H-NO-AUTH");
         ScenarioSelection byNpi = bundled.select("crd", MockSelection.of(null, "S123456789", "9999999995"));
         assertThat(byNpi.scenario().number()).isEqualTo(9);
-        assertThat(byNpi.how()).isEqualTo("selected by the sentinel NPI 9999999995");
+        assertThat(byNpi.how()).isEqualTo("selected by the test NPI 9999999995");
         ScenarioSelection byDefault = bundled.select("crd", MockSelection.of(" ", "S123456789", "1234567893"));
         assertThat(byDefault.scenario().number()).isEqualTo(1);
         // A default must never look like a deliberate choice.
-        assertThat(byDefault.how()).contains("default").contains("no sentinel matched");
+        assertThat(byDefault.how()).contains("default").contains("no test member ID or NPI matched");
         assertThat(bundled.select("crd", null).scenario().number()).isEqualTo(1);
     }
 
@@ -341,7 +341,7 @@ class ScenarioRepositoryTest {
         assertThat(bundled.select("crd", null, body.formatted("P32H-PA-SAT")).scenario().number()).isEqualTo(3);
         assertThat(bundled.select("crd", null, body.formatted("p32h-pa-sat")).scenario().number()).isEqualTo(3);
         assertThat(bundled.select("crd", null, body.formatted(" P32H-PA-SAT ")).how())
-                .isEqualTo("selected by the sentinel member ID P32H-PA-SAT found in the request body");
+                .isEqualTo("selected by the test member ID P32H-PA-SAT found in the request body");
         // A sentinel is a whole value, never a part of one.
         assertThat(bundled.select("crd", null, body.formatted("P32H-PA-SAT-2")).scenario().number()).isEqualTo(1);
         // A body that is not JSON holds no values to compare.
@@ -417,13 +417,13 @@ class ScenarioRepositoryTest {
         }
         ScenarioSelection pas = bundled.select("pas", null, body.formatted("P32H-NOMEM"));
         assertThat(pas.scenario().id()).isEqualTo("pas-15-member-not-found");
-        assertThat(pas.how()).isEqualTo("selected by the CRD sentinel member ID P32H-NOMEM found in the request body, which this scenario "
+        assertThat(pas.how()).isEqualTo("selected by the CRD test member ID P32H-NOMEM found in the request body, which this scenario "
                 + "answers for the same case");
         ScenarioSelection crd = bundled.select("crd", null, body.formatted("P32H-DTR-ADAPT"));
         assertThat(crd.scenario().id()).isEqualTo("crd-04-doc-dtr");
         assertThat(crd.via().id()).isEqualTo("dtr-02-adaptive-branching");
-        assertThat(crd.how()).isEqualTo("selected because P32H-DTR-ADAPT, found in the request body, is the sentinel member ID of DTR "
-                + "scenario dtr-02-adaptive-branching, and CRD answers documentation required for every DTR sentinel so that the journey "
+        assertThat(crd.how()).isEqualTo("selected because P32H-DTR-ADAPT, found in the request body, is the test member ID of DTR "
+                + "scenario dtr-02-adaptive-branching, and CRD answers documentation required for every DTR test member ID so that the journey "
                 + "reaches DTR");
         // A CRD sentinel keeps its own CRD scenario, in a body as on the form.
         assertThat(bundled.select("crd", null, body.formatted("P32H-NOMEM")).scenario().id()).isEqualTo("crd-07-member-not-found");
@@ -443,10 +443,10 @@ class ScenarioRepositoryTest {
                 assertThat(pasted.by()).as(protocol + " " + value).isEqualTo(ScenarioSelection.By.SENTINEL_NPI);
                 assertThat(pasted.inBody()).as(protocol + " " + value).isTrue();
                 assertThat(pasted.how()).as(protocol + " " + value)
-                        .isEqualTo("selected by the sentinel NPI 9999999995 found in the request body");
+                        .isEqualTo("selected by the test NPI 9999999995 found in the request body");
             }
             // The typed form says nothing of a body.
-            assertThat(typed.how()).as(protocol).isEqualTo("selected by the sentinel NPI 9999999995");
+            assertThat(typed.how()).as(protocol).isEqualTo("selected by the test NPI 9999999995");
             // Inside a longer value it is not the NPI, as a member ID is not.
             assertThat(bundled.select(protocol, null, practitioner.formatted("\"NPI 9999999995\"")).by()).as(protocol)
                     .isEqualTo(ScenarioSelection.By.DEFAULT);
@@ -716,9 +716,9 @@ class ScenarioRepositoryTest {
         ScenarioRepository external = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString())));
         ScenarioSelection byList = external.select("pas", MockSelection.of(null, "p32h-pa-req", null));
         assertThat(byList.scenario().id()).isEqualTo("b");
-        assertThat(byList.how()).isEqualTo("selected by the sentinel member ID P32H-PA-REQ");
+        assertThat(byList.how()).isEqualTo("selected by the test member ID P32H-PA-REQ");
         assertThat(external.select("pas", MockSelection.of(null, "S123456789", "9999999995")).how())
-                .isEqualTo("selected by the sentinel NPI 9999999995");
+                .isEqualTo("selected by the test NPI 9999999995");
         assertThat(external.select("pas", null, "{\"identifier\":[{\"value\":\"P32H-PA-REQ\"}]}").scenario().id()).isEqualTo("b");
         // A sentinel in a list is claimed as surely as a single one.
         Files.writeString(dir.resolve("pas/c.json"), scenario("c", 3, "\"sentinelMemberId\":\"P32H-PA-REQ\","));

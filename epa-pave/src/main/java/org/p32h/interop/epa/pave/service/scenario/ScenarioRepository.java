@@ -469,7 +469,7 @@ public class ScenarioRepository {
                 return byBody;
             }
         }
-        return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no sentinel matched",
+        return new ScenarioSelection(scenarios.get(0), "the default, because no scenario was chosen and no test member ID or NPI matched",
                 ScenarioSelection.By.DEFAULT, false, null);
     }
 
@@ -513,7 +513,7 @@ public class ScenarioRepository {
         for (Scenario scenario : scenarios) {
             for (String sentinel : scenario.sentinelMemberIds()) {
                 if (keys.contains(memberKey(sentinel))) {
-                    return new ScenarioSelection(scenario, "selected by the sentinel member ID " + sentinel + where,
+                    return new ScenarioSelection(scenario, "selected by the test member ID " + sentinel + where,
                             ScenarioSelection.By.SENTINEL, inBody, null);
                 }
             }
@@ -521,7 +521,7 @@ public class ScenarioRepository {
         for (Scenario scenario : scenarios) {
             for (String sentinel : scenario.crdSentinelMemberIds()) {
                 if (keys.contains(memberKey(sentinel))) {
-                    return new ScenarioSelection(scenario, "selected by the CRD sentinel member ID " + sentinel + where
+                    return new ScenarioSelection(scenario, "selected by the CRD test member ID " + sentinel + where
                             + ", which this scenario answers for the same case", ScenarioSelection.By.CRD_SENTINEL, inBody, null);
                 }
             }
@@ -535,8 +535,8 @@ public class ScenarioRepository {
             for (String sentinel : dtr.sentinelMemberIds()) {
                 if (keys.contains(memberKey(sentinel))) {
                     return new ScenarioSelection(answering, "selected because " + sentinel + (inBody ? ", found in the request body," : "")
-                            + " is the sentinel member ID of DTR scenario " + dtr.id() + ", and CRD answers documentation required for "
-                            + "every DTR sentinel so that the journey reaches DTR", ScenarioSelection.By.DTR_SENTINEL, inBody, dtr);
+                            + " is the test member ID of DTR scenario " + dtr.id() + ", and CRD answers documentation required for "
+                            + "every DTR test member ID so that the journey reaches DTR", ScenarioSelection.By.DTR_SENTINEL, inBody, dtr);
                 }
             }
         }
@@ -548,7 +548,7 @@ public class ScenarioRepository {
         for (Scenario scenario : scenarios) {
             for (String sentinel : scenario.sentinelNpis()) {
                 if (npis.contains(sentinel.strip())) {
-                    return new ScenarioSelection(scenario, "selected by the sentinel NPI " + sentinel + (inBody ? " found in the request body" : ""),
+                    return new ScenarioSelection(scenario, "selected by the test NPI " + sentinel + (inBody ? " found in the request body" : ""),
                             ScenarioSelection.By.SENTINEL_NPI, inBody, null);
                 }
             }

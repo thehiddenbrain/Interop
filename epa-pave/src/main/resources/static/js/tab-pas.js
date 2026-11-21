@@ -869,10 +869,13 @@ function drawEmptyState() {
     const notes = vocabulary.operations.filter(item => (mode === 'submit' && item.operation === 'PAS_SUBMIT')
         || (mode === 'inquire' && item.operation === 'PAS_INQUIRE')
         || (mode === 'subscriptions' && item.protocol === 'SUBSCRIPTION' && item.operation !== 'SUBSCRIPTION_NOTIFICATION'));
-    if (notes.length > 0) {
-        parts.push(el('div', null, el('p', {class: 'sub-heading'}, 'Where these calls go'),
-            el('ul', {class: 'note-list'}, notes.map(item => el('li', null, el('strong', null, item.label + '. '), item.unavailable || item.note || 'Configured.'))),
-            app.isMock() ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'}))));
+    // On live this says what is missing before a send, so it stays in view. On mock nothing is sent
+    // and there is nothing to fix, so it is kept for whoever asks, in About this step.
+    const whereTheyGo = notes.length === 0 ? null : el('div', null, el('p', {class: 'sub-heading'}, 'Where these calls go'),
+        el('ul', {class: 'note-list'}, notes.map(item => el('li', null, el('strong', null, item.label + '. '), item.unavailable || item.note || 'Configured.'))),
+        app.isMock() ? null : el('p', null, button('Open the Config tab', () => app.navigate('config'), {class: 'button--text'})));
+    if (whereTheyGo && !app.isMock()) {
+        parts.push(whereTheyGo);
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {
@@ -886,7 +889,8 @@ function drawEmptyState() {
         mode === 'submit' && !own ? el('p', null, '"Show the request" shows the bundle first and lists what it leaves out. The answer appears here: '
             + 'what the payer decided for each item, the authorization number, whether it matched what you expected, and what to do next.') : null,
         mode === 'submit' || mode === 'inquire' ? el('p', null, CODE_PICKER_ABOUT) : null,
-        listed ? scenarioDefaultNotes(list) : null));
+        listed ? scenarioDefaultNotes(list) : null,
+        app.isMock() ? whereTheyGo : null));
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 

@@ -70,7 +70,7 @@ export function createOwnRequest(spec) {
                 + 'and what they hold is kept for when you go back to the body built by this tool.'),
             spec.isMock()
                 ? el('li', null, 'On the mock profile the scenario is chosen by the Mock scenario field when one is chosen there, '
-                    + 'otherwise by a sentinel member ID found inside the text, such as ', code('P32H-NO-AUTH'),
+                    + 'otherwise by a test member ID found inside the text, such as ', code('P32H-NO-AUTH'),
                     '. With neither, the first scenario answers, and the result says so.')
                 : null,
             el('li', null, 'The ledger records that a body of your own was sent, with the codes it finds in the body. It records no '
