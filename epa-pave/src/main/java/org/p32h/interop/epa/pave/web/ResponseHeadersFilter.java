@@ -72,16 +72,20 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterNestedErrorDispatch(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+    protected void doFilterNestedErrorDispatch(HttpServletRequest request, HttpServletResponse response, FilterChain chain) {
         apply(response);
-        chain.doFilter(request, response);
+        // An error dispatch made while the first one is still under way gets the same last word:
+        // left to the server, what it throws is logged with its message.
+        answerFailures(request, response, chain);
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) {
         apply(response);
+        answerFailures(request, response, chain);
+    }
+
+    private static void answerFailures(HttpServletRequest request, HttpServletResponse response, FilterChain chain) {
         try {
             chain.doFilter(request, response);
         } catch (IOException | ServletException | RuntimeException | Error e) {
@@ -93,9 +97,15 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
             // Exception types and frames under a reference, never a message beyond what Faults.cause
             // allows: a message can quote the request. The browser gets the first line, without frames.
             log.error("Unhandled exception at the edge, reference {}: {}", reference, Faults.describe(e));
-            EdgeAnswers.write(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorKind.INTERNAL,
-                    "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION, reference,
-                    Faults.cause(e));
+            try {
+                EdgeAnswers.write(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorKind.INTERNAL,
+                        "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION, reference,
+                        Faults.cause(e));
+            } catch (IOException | RuntimeException | Error unanswered) {
+                // Nothing is thrown on from here: the server would log it with its message. The
+                // failure is in the log above; what kept it from the browser is named by its types.
+                log.error("The answer under reference {} could not be written: {}", reference, Faults.cause(unanswered));
+            }
         }
     }
 
