@@ -333,8 +333,10 @@ class ProcedureCodeControllerTest {
                     .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.kind").value("INTERNAL"))
                     .andExpect(jsonPath("$.reference").isNotEmpty())
+                    // The cause is named by type, so it can be reported without the server log, and not by its message.
+                    .andExpect(jsonPath("$.cause").value("java.lang.IllegalStateException"))
                     .andReturn().getResponse().getContentAsString();
-            assertThat(body).as(path).doesNotContain("text of a cell").doesNotContain("IllegalStateException");
+            assertThat(body).as(path).doesNotContain("text of a cell").doesNotContain("\tat ").doesNotContain("    at ");
         }
     }
 }
