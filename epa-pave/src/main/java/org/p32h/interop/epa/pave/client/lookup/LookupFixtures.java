@@ -84,8 +84,8 @@ public class LookupFixtures {
     static final String MEMBERS = "classpath*:fixtures/members/*.json";
     static final String PROVIDERS = "classpath*:fixtures/providers/*.json";
 
-    /** This tool's own sentinel IDs. */
-    static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
+    /** This tool's own sentinel IDs. Possessive, so that java.util.regex reads the parts in a loop and not by one call per part. */
+    static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]++(?:-[A-Z0-9]++)*+");
     /** The placeholder style: S and nine digits, or ten for an ID whose written form has a two digit suffix. */
     static final Pattern PLACEHOLDER = Pattern.compile("S\\d{9,10}");
 

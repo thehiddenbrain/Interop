@@ -19,8 +19,14 @@ import org.p32h.interop.epa.pave.postman.PostmanVariable;
  */
 final class ProductionSigns {
 
-    /** A host with no scheme in front of it, such as api.example.org or api.example.org:8443/fhir. */
-    private static final Pattern BARE_HOST = Pattern.compile("[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(:\\d+)?(/.*)?");
+    /**
+     * A host with no scheme in front of it, such as api.example.org or api.example.org:8443/fhir.
+     *
+     * <p>Possessive, so that java.util.regex reads the labels in a loop: the greedy form called
+     * itself once per label and overflowed the stack on a value of some 1,600 dotted labels. A
+     * label stops only at a dot, a colon, a slash or the end, so nothing given back could match.
+     */
+    private static final Pattern BARE_HOST = Pattern.compile("[A-Za-z0-9-]++(\\.[A-Za-z0-9-]++)++(:\\d++)?+(/.*)?");
 
     private ProductionSigns() {
     }

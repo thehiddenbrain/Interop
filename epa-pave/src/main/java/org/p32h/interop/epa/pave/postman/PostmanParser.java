@@ -40,7 +40,8 @@ public final class PostmanParser {
     private static final String EXPORT_COLLECTION = "In Postman, open the menu of the collection, choose Export, select Collection v2.1, "
             + "and upload the file it saves.";
 
-    private static final Pattern VERSION = Pattern.compile("v\\d+(?:\\.\\d+)*");
+    /** Possessive, so that a schema text with thousands of numbers is read in a loop and not by one call per number. */
+    private static final Pattern VERSION = Pattern.compile("v\\d++(?:\\.\\d++)*+");
 
     /** The mark some editors write at the start of a UTF-8 file. Written as a number so this source stays plain ASCII. */
     private static final char BYTE_ORDER_MARK = (char) 0xFEFF;

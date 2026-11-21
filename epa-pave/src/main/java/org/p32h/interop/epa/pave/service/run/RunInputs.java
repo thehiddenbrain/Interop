@@ -35,9 +35,11 @@ public final class RunInputs {
     /**
      * What an expectation term is about: one word, or several joined by a comma and a space, as the
      * ledger writes them. The one subject with a space is how PAS names an item it cannot tie to a
-     * code: "item" and its sequence number.
+     * code: "item" and its sequence number. The repetition is possessive, so that java.util.regex
+     * reads the subjects in a loop and not by one call per subject; a subject ends only at a comma,
+     * white space or the end, so nothing it gave back could have matched.
      */
-    private static final Pattern SUBJECT = Pattern.compile("(?:item \\d{1,4}|[^\\s,]+)(?:, ?(?:item \\d{1,4}|[^\\s,]+))*");
+    private static final Pattern SUBJECT = Pattern.compile("(?:item \\d{1,4}|[^\\s,]+)(?:, ?(?:item \\d{1,4}|[^\\s,]+))*+");
     private static final Pattern CODE = Pattern.compile("\\S+");
 
     private final List<FieldError> errors = new ArrayList<>();

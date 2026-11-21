@@ -50,9 +50,10 @@ final class TrackingPolicy {
 
     /**
      * The member IDs that are synthetic by construction: the tool's sentinels and the placeholder
-     * style its fixtures use. The same two shapes the lookup fixtures are held to.
+     * style its fixtures use. The same two shapes the lookup fixtures are held to. The sentinel is
+     * read possessively, so that java.util.regex reads its parts in a loop and not by one call per part.
      */
-    private static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]+(?:-[A-Z0-9]+)*");
+    private static final Pattern SENTINEL = Pattern.compile("P32H-[A-Z0-9]++(?:-[A-Z0-9]++)*+");
     private static final Pattern PLACEHOLDER = Pattern.compile("S\\d{9,10}");
 
     private final boolean recordMemberId;
