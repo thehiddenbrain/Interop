@@ -52,4 +52,13 @@ class PasReadoutFrontendTest {
         assertThat(newer).contains("item.correlatedRunId === shownRunId").contains("result__newer")
                 .contains("was given before it").doesNotContain("item.nextStep").doesNotContain("item.verdict");
     }
+
+    @Test
+    void afterAPlayedFaultTheWayToTheInquiryIsPartOfTheRehearsalAndIsLeftOffAPlayedUnreachable() throws IOException {
+        String show = CaseCodesFrontendTest.body(read("tab-pas.js"), "function showRun(envelope) {");
+        assertThat(show).contains("const played = envelope.answeredBy === 'SCENARIO';")
+                .contains("&& !(played && unreached)) {")
+                .contains("'Had this been a real service, Send inquiry would check whether the payer has it. It is filled in the form with the '")
+                .contains("'Send inquiry, in the form, is already filled with the claim identifier of this submission. '");
+    }
 }

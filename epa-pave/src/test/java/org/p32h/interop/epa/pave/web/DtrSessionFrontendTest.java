@@ -54,6 +54,14 @@ class DtrSessionFrontendTest {
     }
 
     @Test
+    void afterAPlayedLoopFaultSendingAgainIsWhatARealServiceWouldCallFor() throws IOException {
+        String source = read("dtr-questionnaire.js");
+        assertThat(source).contains("played: envelope.answeredBy === 'SCENARIO'};");
+        assertThat(CaseCodesFrontendTest.body(source, "function stepState(entry) {"))
+                .contains("entry.lastFailed.played ? 'Had this been a real service, \"' + buttonName.loop() + '\" would send the same step again.'");
+    }
+
+    @Test
     void aStepThisToolCouldNotSendIsNotCountedAsSentToTheService() throws IOException {
         String source = read("dtr-questionnaire.js");
         assertThat(CaseCodesFrontendTest.body(source, "function applyResult(entry, kind, envelope) {"))

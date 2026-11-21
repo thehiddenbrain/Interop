@@ -239,7 +239,7 @@ export function createSession(packageEnvelope, hooks) {
             }
             entry.lastFailed = null;
         } else {
-            entry.lastFailed = {headline: envelope.verdict.headline, runId: envelope.runId, kind};
+            entry.lastFailed = {headline: envelope.verdict.headline, runId: envelope.runId, kind, played: envelope.answeredBy === 'SCENARIO'};
         }
         const carried = envelope.nextStep ? envelope.nextStep.carry : null;
         // A result that hands nothing on does not wipe what the package and the steps before it
@@ -557,9 +557,11 @@ export function createSession(packageEnvelope, hooks) {
         if (entry.lastFailed) {
             parts.push(el('div', {class: 'dtr-failed', role: 'alert'},
                 el('p', null, el('strong', null, 'The last step failed: '), entry.lastFailed.headline, ' Run ', code(entry.lastFailed.runId), '.'),
-                el('p', null, 'Everything answered so far is kept below. ', entry.lastFailed.kind === 'loop'
-                    ? '"' + buttonName.loop() + '" sends the same step again.'
-                    : '"' + buttonName.complete() + '" puts it together again.')));
+                el('p', null, 'Everything answered so far is kept below. ', entry.lastFailed.kind !== 'loop'
+                    ? '"' + buttonName.complete() + '" puts it together again.'
+                    // A fault a mock scenario played is rehearsed: sending again is what a real fault would call for.
+                    : entry.lastFailed.played ? 'Had this been a real service, "' + buttonName.loop() + '" would send the same step again.'
+                        : '"' + buttonName.loop() + '" sends the same step again.')));
         }
         const form = entry.form;
         if (form) {
