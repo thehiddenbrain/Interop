@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PAS-NOPROV",
+  "description": "Sentinel for PAS scenario 21, provider not found. A Commercial member with active coverage: it is the provider the payer does not know, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PAS-NOPROV",
+    "firstName": "Lennox",
+    "lastName": "Placeholder-PasNoProvider",
+    "dateOfBirth": "1968-09-14",
+    "gender": "male",
+    "lineOfBusiness": "Commercial",
+    "planName": "Synthetic Commercial PPO",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PAS-NOPROV",
+    "address": {
+      "line1": "48 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

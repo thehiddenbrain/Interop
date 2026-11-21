@@ -1,0 +1,176 @@
+{
+  "id": "pas-14-no-decision",
+  "number": 14,
+  "label": "A ClaimResponse that carries no decision",
+  "description": "The service answers HTTP 200 with a ClaimResponse that carries no review action on any item. Its disposition wording says approved. The tool reads codes and never wording, so this is no decision: not approved, not pended and not denied. It is in the shape PAS 2.0.1 gives.",
+  "sentinelMemberId": "P32H-PAS-NO-DECISION",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 200,
+  "expect": {
+    "outcome": "NO_DECISION",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "claim-outcome": "complete"
+    }
+  },
+  "basis": "Synthetic, in the shape PAS 2.0.1 gives a response (input/fsh and the examples of the guide's 2.0.1 source): the claim identifier echoed in ClaimResponse.identifier, the request named by reference, and an item with its item trace number and, on purpose, no review action, which PAS 2.0.1 makes optional (0..1 on item.adjudication). Every value the guide leaves open is a placeholder of this project. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "Bundle",
+    "id": "pas-response-bundle",
+    "type": "collection",
+    "timestamp": "2026-01-15T10:00:00Z",
+    "entry": [
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+        "resource": {
+          "resourceType": "ClaimResponse",
+          "id": "claimresponse-{{claimId}}",
+          "identifier": [
+            {
+              "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+              "value": "{{claimId}}"
+            }
+          ],
+          "status": "active",
+          "type": {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                "code": "professional"
+              }
+            ]
+          },
+          "use": "preauthorization",
+          "patient": {
+            "reference": "Patient/patient-1"
+          },
+          "created": "2026-01-15T10:00:00Z",
+          "insurer": {
+            "reference": "Organization/organization-insurer-1"
+          },
+          "requestor": {
+            "reference": "PractitionerRole/practitioner-role-1"
+          },
+          "request": {
+            "reference": "Claim/claim-1"
+          },
+          "outcome": "complete",
+          "disposition": "Approved.",
+          "item": [
+            {
+              "extension": [
+                {
+                  "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                  "valueIdentifier": {
+                    "value": "{{claimId}}-1"
+                  }
+                }
+              ],
+              "itemSequence": 1,
+              "adjudication": [
+                {
+                  "category": {
+                    "coding": [
+                      {
+                        "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                        "code": "submitted"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "inquire": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "NO_DECISION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "claim-outcome": "complete"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "pas-response-bundle",
+        "type": "collection",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+            "resource": {
+              "resourceType": "ClaimResponse",
+              "id": "claimresponse-{{claimId}}",
+              "identifier": [
+                {
+                  "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+                  "value": "{{claimId}}"
+                }
+              ],
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                    "code": "professional"
+                  }
+                ]
+              },
+              "use": "preauthorization",
+              "patient": {
+                "reference": "Patient/patient-1"
+              },
+              "created": "2026-01-15T10:00:00Z",
+              "insurer": {
+                "reference": "Organization/organization-insurer-1"
+              },
+              "requestor": {
+                "reference": "PractitionerRole/practitioner-role-1"
+              },
+              "request": {
+                "reference": "Claim/claim-1"
+              },
+              "outcome": "complete",
+              "disposition": "Approved.",
+              "item": [
+                {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                      "valueIdentifier": {
+                        "value": "{{claimId}}-1"
+                      }
+                    }
+                  ],
+                  "itemSequence": 1,
+                  "adjudication": [
+                    {
+                      "category": {
+                        "coding": [
+                          {
+                            "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                            "code": "submitted"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

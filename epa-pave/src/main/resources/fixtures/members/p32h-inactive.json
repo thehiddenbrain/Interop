@@ -1,0 +1,31 @@
+{
+  "memberId": "P32H-INACTIVE",
+  "description": "Sentinel for CRD scenario 8, coverage inactive on the date of service. A Medicaid member who is found and whose coverage is not active: the status says so and the end date has passed. This is the needs a look state.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true,
+    "lineOfBusiness": "Medicaid"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-INACTIVE",
+    "firstName": "Gray",
+    "lastName": "Placeholder-Inactive",
+    "dateOfBirth": "1969-11-20",
+    "gender": "female",
+    "lineOfBusiness": "Medicaid",
+    "planName": "Synthetic Medicaid Plan",
+    "coverageStatus": "Termed",
+    "coverageStart": "2023-01-01",
+    "coverageEnd": "2024-12-31",
+    "subscriberId": "P32H-INACTIVE",
+    "address": {
+      "line1": "7 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

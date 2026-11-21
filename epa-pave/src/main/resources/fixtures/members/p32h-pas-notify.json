@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-PAS-NOTIFY",
+  "description": "Sentinel for PAS scenario 6, submitted, then notified by subscription. A Commercial member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-PAS-NOTIFY",
+    "firstName": "Tatum",
+    "lastName": "Placeholder-PasNotify",
+    "dateOfBirth": "1983-05-15",
+    "gender": "other",
+    "lineOfBusiness": "Commercial",
+    "planName": "Synthetic Commercial PPO",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-PAS-NOTIFY",
+    "address": {
+      "line1": "38 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "npi": "1000000053",
+  "description": "A clinical geneticist whose network status is a tier and not a yes or a no. The status is said to be unrecognised and is treated as neither in network nor out of network. The record arrives as a list of one, the name follows the FHIR shape, and acceptingNewPatients is a field the mapping does not know.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": [
+    {
+      "npi": "1000000053",
+      "name": {
+        "given": [
+          "Taylor"
+        ],
+        "family": "Placeholder-Genetics"
+      },
+      "specialty": "Clinical Genetics",
+      "networkStatus": "Tier 2",
+      "telephone": "617-555-0106",
+      "acceptingNewPatients": true,
+      "address": {
+        "line": [
+          "6 Placeholder Avenue"
+        ],
+        "city": "Sampletown",
+        "state": "MA",
+        "postalCode": "00000"
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+caseId,protocol,memberId,npi,procedureCodes,dateOfService,expected,testerRef,#purpose
+sample-01,crd,P32H-PA-REQ,1234567893,95810,2026-03-02,AUTH_REQUIRED,SAMPLE,Scenario 1: prior authorization required
+sample-02,crd,P32H-NO-AUTH,1234567893,95810,2026-03-02,NO_AUTH_REQUIRED,SAMPLE,Scenario 2: no-auth is an answer
+sample-03,crd,P32H-EMPTY,1234567893,95810,2026-03-02,NO_DETERMINATION,SAMPLE,"Scenario 14: no answer at all, which is not no-auth"
+sample-04,crd,P32H-ERR500,1234567893,95810,2026-03-02,SERVICE_ERROR,SAMPLE,Scenario 12: the service fails with HTTP 500
+sample-05,crd,P32H-NO-AUTH,1234567893,95810,2026-03-02,AUTH_REQUIRED,SAMPLE,Expected to fail: the mock answers no-auth
+sample-06,crd,P32H-DELEG,1234567893,70553,2026-03-02,,SAMPLE,No expectation: the result is unverified

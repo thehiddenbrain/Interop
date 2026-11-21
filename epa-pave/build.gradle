@@ -1,0 +1,225 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version "${springBootVersion}"
+}
+
+group = 'org.p32h.interop.epa'
+version = '1.0.0'
+
+// A JDK 21 that Gradle can find is used as the toolchain, as it always was. A workstation with only
+// the Java that an IDE brings (STS 5 runs Gradle on its own Java 25) has none, and Gradle would
+// otherwise stop with a sentence about toolchain download repositories that only shows in the
+// IDE's Problems view. So the build asks Gradle's own toolchain service, and when that finds
+// nothing it compiles for Java 21 on the Java that runs Gradle, if that Java is new enough. No
+// toolchain download is configured: fetching a JDK onto a workstation is not this build's call.
+def paveJava = JavaLanguageVersion.of(21)
+def gradleJava = "Java ${System.getProperty('java.version')} at ${System.getProperty('java.home')}"
+def jdk21Found = true
+try {
+    javaToolchains.compilerFor { languageVersion = paveJava }.get()
+} catch (org.gradle.jvm.toolchain.internal.install.exceptions.ToolchainProvisioningException noneFound) {
+    jdk21Found = false
+    logger.info(noneFound.message)
+}
+// The fallback compiles in Gradle's own process, so a Java runtime without a compiler cannot do it.
+def gradleJavaProblem = !JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21) ? 'is older than 21'
+        : !ModuleLayer.boot().findModule('jdk.compiler').present ? 'is a Java runtime without a compiler' : null
+if (!jdk21Found && gradleJavaProblem != null) {
+    throw new GradleException("Gradle is running on ${gradleJava}, which ${gradleJavaProblem}, and Gradle " +
+            'found no JDK 21. PAVE needs Gradle to find a JDK 21, or to run on a JDK 21 or newer. Point ' +
+            'Gradle at a JDK 21 or newer (install a JDK 21 if there is none): in STS, set Java home to it ' +
+            'on the Import Options page of the Gradle import (tick Override workspace settings) or under ' +
+            'Window, Preferences, Gradle; from a terminal, set JAVA_HOME to it.')
+}
+if (!jdk21Found) {
+    logger.lifecycle("Gradle found no JDK 21, so PAVE is compiled for Java 21 with the Java that runs Gradle: ${gradleJava}.")
+}
+
+java {
+    if (jdk21Found) {
+        toolchain { languageVersion = paveJava }
+    } else {
+        // What an IDE reads as the project's source and target level.
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+}
+
+// One property points dependency resolution at an internal mirror. settings.gradle applies the same
+// switch to plugin resolution, so a workstation that cannot reach Maven Central changes one line
+// in gradle.properties instead of editing this file.
+repositories {
+    if (project.hasProperty('internalRepoUrl')) {
+        maven {
+            url = project.property('internalRepoUrl')
+            if (project.hasProperty('internalRepoUser')) {
+                credentials {
+                    username = project.property('internalRepoUser')
+                    password = project.findProperty('internalRepoPassword')
+                }
+            }
+        }
+    } else {
+        mavenCentral()
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+    if (!jdk21Found) {
+        // A newer javac with only source and target levels would still link against its own API;
+        // release keeps the class files and the API calls those of Java 21.
+        options.release = 21
+    }
+}
+
+// There is deliberately no io.spring.dependency-management plugin. Spring Boot 4 versions are
+// imported with platform(...) below, and the old plugin beside it causes resolution conflicts.
+dependencies {
+    implementation platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-jackson'
+    implementation 'tools.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+
+    // The annotationProcessor configuration does not extend implementation, so it needs its own
+    // import of the platform. Without this line the processor has no version and the build fails
+    // with "Could not find org.springframework.boot:spring-boot-configuration-processor:".
+    annotationProcessor platform("org.springframework.boot:spring-boot-dependencies:${springBootVersion}")
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Writes META-INF/build-info.properties so a test can assert that epa.version in application.yml
+// has not drifted from the version above. The build time is left out to keep the jar reproducible.
+springBoot {
+    buildInfo {
+        excludes = ['time']
+    }
+}
+
+// Only the executable jar is produced, so there is exactly one epa-pave-1.0.0.jar to hand over.
+tasks.named('jar') {
+    enabled = false
+}
+
+test {
+    useJUnitPlatform()
+    // gradle.properties switches the build cache on. With it, a second "clean build" of unchanged
+    // sources would restore this task's result from the cache and run no test, and a gate that
+    // says "build twice from clean" would be reporting the first run twice. So the result of the
+    // tests is never taken from the cache: after a clean they run.
+    outputs.cacheIf { false }
+    // RegexStackGuardTest reads the node graph java.util.regex compiles each pattern of the tool to,
+    // to find every repetition it evaluates by recursion. Only the test JVM is opened; the jar is not.
+    jvmArgs '--add-opens=java.base/java.util.regex=ALL-UNNAMED'
+    testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gate: the -parameters compiler flag.
+//
+// What follows was observed by experiment on this exact stack (Spring Boot 4.0.7, Spring
+// Framework 7.0.8, JDK 21). It is not the usual shorthand that "Spring needs -parameters".
+//
+//  * Without the flag the project still compiles and the application context still starts.
+//  * @ConfigurationProperties records still bind and Jackson still reads records, because javac
+//    stores the canonical constructor parameter names of a record whether or not the flag is set.
+//  * What breaks is every controller argument that relies on its Java name, such as
+//    "@PathVariable String memberId" or "@RequestParam String q". The first request to such an
+//    endpoint fails with IllegalArgumentException "Name for argument of type [java.lang.String]
+//    not specified, and parameter name information not available via reflection". Nothing fails
+//    at compile time or at startup, which is why this needs a gate and not a code review.
+//  * The Spring Boot Gradle plugin adds the flag on its own, so the explicit line above is
+//    redundant while that plugin is applied. It is kept so the flag survives a change to the
+//    plugin. This task therefore checks the effective arguments of every JavaCompile task and
+//    not the text of this file.
+//
+// The application no longer relies on the flag: every controller argument names itself, and
+// HandlerArgumentNamesTest fails the build when one does not, so an IDE build such as STS, whose
+// compiler keeps no parameter names by default, runs the controllers too. The flag and this
+// check stay as a second guard, for code the test cannot see and for the records above.
+// ---------------------------------------------------------------------------------------------
+def javaCompileTasks = tasks.withType(JavaCompile)
+def verifyParametersFlag = tasks.register('verifyParametersFlag') {
+    group = 'verification'
+    description = 'Fails when any JavaCompile task is configured without the -parameters flag.'
+    doLast {
+        def missing = []
+        javaCompileTasks.each { compile ->
+            def args = compile.options.compilerArgs.collect { arg -> arg.toString() }
+            if (!args.contains('-parameters')) {
+                missing << compile.name
+            }
+        }
+        if (!missing.isEmpty()) {
+            throw new GradleException("The -parameters compiler flag is missing from: ${missing.join(', ')}. " +
+                    'Controller arguments that rely on their Java name would fail on the first request. ' +
+                    'See the comment above the verifyParametersFlag task in build.gradle.')
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gate: house style, build prompt section 23.
+//
+// The rules and the scan are written once, in src/houseStyle/java/.../style/HouseStyle.java, a
+// source set of its own that never reaches the application jar. This task runs that class, and
+// HouseStyleTest runs the same class on planted violations, so the gate and its test read one copy
+// of the rules. HouseStyleTest also fails when this task is gone, is no longer part of check, or
+// runs some other class: the three values it checks are handed to it below.
+//
+// The files checked are the ones git tracks under this directory, plus new files git would track,
+// dot files such as .gitignore included; the name of each file is checked as well as its lines.
+// What this gate cannot read: commit messages and the pull request description, which section 23
+// also covers. Nor can it tell a colleague's name or a comment that restates the code. Nobody
+// should take a green build for more than the rules in HouseStyle.java.
+// ---------------------------------------------------------------------------------------------
+sourceSets {
+    houseStyle
+}
+
+dependencies {
+    testImplementation sourceSets.houseStyle.output
+}
+
+def houseStyleCheck = tasks.register('houseStyleCheck', JavaExec) {
+    group = 'verification'
+    description = 'Fails when a file in the tree, or its name, breaks the house style rules.'
+    classpath = sourceSets.houseStyle.runtimeClasspath
+    mainClass = 'org.p32h.interop.epa.pave.style.HouseStyle'
+    maxHeapSize = '64m'
+    def reportFile = layout.buildDirectory.file('reports/house-style/violations.txt')
+    args layout.projectDirectory.asFile.absolutePath, reportFile.get().asFile.absolutePath
+    ignoreExitValue = true
+    // No file inputs or outputs are declared, so the scan runs on every build. A gate that can be
+    // skipped as up to date is a gate that can be wrong.
+    doLast {
+        if (executionResult.get().exitValue != 0) {
+            throw new GradleException(reportFile.get().asFile.getText('UTF-8'))
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyParametersFlag, houseStyleCheck
+}
+
+// What HouseStyleTest checks about the wiring above. Read when the tests start, after every
+// build script has been evaluated, so a dependency added to check later is counted.
+tasks.named('test') {
+    def projectDirectory = layout.projectDirectory.asFile.absolutePath
+    doFirst {
+        def check = tasks.named('check').get()
+        def checkNeeds = check.taskDependencies.getDependencies(check).collect { it.name }.sort().join(',')
+        def gate = tasks.findByName('houseStyleCheck')
+        systemProperty 'pave.houseStyle.checkDependsOn', checkNeeds
+        systemProperty 'pave.houseStyle.mainClass', gate instanceof JavaExec ? gate.mainClass.getOrElse('') : ''
+        systemProperty 'pave.houseStyle.projectDir', projectDirectory
+    }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "dtr-15-no-package-bundle",
+  "number": 15,
+  "label": "Package returns with no bundle in it",
+  "description": "The service answers successfully with a Parameters resource that holds no package bundle. From STU 2.1.0 the DTR guide has a service answer this way when no questionnaire needs to be completed. DTR 2.0.1 does not: it requires at least one package bundle. This tool reports it as an empty package and does not turn it into an answer that no documentation is needed. It is kept in the later shape on purpose, because nobody has confirmed which version the service follows, and this tool names the shape as a later version's rather than calling it wrong.",
+  "sentinelMemberId": "P32H-DTR-NOBUNDLE",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "NO_QUESTIONNAIRE",
+    "errorType": "NONE",
+    "httpStatus": 200
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "Whether the live service answers this way when it has no questionnaire for an order is not known. This file models the answer the DTR guide defines from STU 2.1.0: a Parameters resource with no package bundle. It carries the outcome parameter of the 2.2.0-ballot output profile, under the name that profile gives it, with an informational issue whose wording is made up.",
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "operationOutcome",
+        "resource": {
+          "resourceType": "OperationOutcome",
+          "issue": [
+            {
+              "severity": "information",
+              "code": "informational",
+              "details": {
+                "text": "No questionnaire needs to be completed for this order."
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

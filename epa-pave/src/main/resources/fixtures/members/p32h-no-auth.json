@@ -1,0 +1,32 @@
+{
+  "memberId": "P32H-NO-AUTH",
+  "description": "Sentinel for CRD scenario 2, no prior authorization required. A Commercial member who is a dependent, so the subscriber ID differs from the member ID. The record is wrapped in data, with snake_case names, dates written month first and the address written beside the other fields.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "request_id": "mock-request-0002",
+    "data": {
+      "member_id": "P32H-NO-AUTH",
+      "first_name": "Blair",
+      "last_name": "Placeholder-NoAuth",
+      "dob": "02/28/1985",
+      "sex": "M",
+      "lob": "Commercial",
+      "plan_name": "Synthetic Commercial PPO",
+      "coverage_status": "ACTIVE",
+      "effective_date": "01/01/2025",
+      "term_date": "12/31/2099",
+      "subscriber_id": "S900000002",
+      "address_line_1": "2 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "zip": "00000"
+    }
+  }
+}

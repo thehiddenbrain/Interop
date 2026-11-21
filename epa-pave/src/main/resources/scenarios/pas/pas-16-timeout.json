@@ -1,0 +1,123 @@
+{
+  "id": "pas-16-timeout",
+  "number": 16,
+  "label": "No response inside the read timeout",
+  "description": "The service accepts the submission and does not answer inside the read timeout. The submission may still have been received. The mock reports the timeout after this file's delay and does not wait for the full configured timeout. The CRD test member ID P32H-TIMEOUT selects it too. The answer to the submission has no body, so it is in no version's shape. An inquiry with the same member, which its next step asks for first, finds the submission: the service received it and pended it.",
+  "sentinelMemberId": "P32H-PAS-TIMEOUT",
+  "crdSentinelMemberIds": [
+    "P32H-TIMEOUT"
+  ],
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "timeout",
+  "delayMillis": 400,
+  "expect": {
+    "outcome": "TIMEOUT",
+    "errorType": "TIMEOUT"
+  },
+  "basis": "Synthetic. The answer to the submission models the transport and has no body in the shape of PAS 2.0.1 or any other version. It has not been observed from the live service. The answer to an inquiry is in the shape PAS 2.0.1 gives, with each decision in a review action on item.adjudication (the same shape as scenario 5), so that the next step of a timed-out submission can be followed on mock.",
+  "steps": {
+    "inquire": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "PENDED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "review-action": "A4",
+          "claim-outcome": "queued"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "pas-response-bundle",
+        "type": "collection",
+        "timestamp": "2026-01-15T10:00:00Z",
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/ClaimResponse/claimresponse-{{claimId}}",
+            "resource": {
+              "resourceType": "ClaimResponse",
+              "id": "claimresponse-{{claimId}}",
+              "identifier": [
+                {
+                  "system": "https://example.org/p32h-placeholder/patient-event-trace-number",
+                  "value": "{{claimId}}"
+                }
+              ],
+              "status": "active",
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/claim-type",
+                    "code": "professional"
+                  }
+                ]
+              },
+              "use": "preauthorization",
+              "patient": {
+                "reference": "Patient/patient-1"
+              },
+              "created": "2026-01-15T10:00:00Z",
+              "insurer": {
+                "reference": "Organization/organization-insurer-1"
+              },
+              "requestor": {
+                "reference": "PractitionerRole/practitioner-role-1"
+              },
+              "request": {
+                "reference": "Claim/claim-1"
+              },
+              "outcome": "queued",
+              "disposition": "Pended for clinical review. The submission arrived although its answer did not.",
+              "item": [
+                {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+                      "valueIdentifier": {
+                        "value": "{{claimId}}-1"
+                      }
+                    }
+                  ],
+                  "itemSequence": 1,
+                  "adjudication": [
+                    {
+                      "extension": [
+                        {
+                          "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewAction",
+                          "extension": [
+                            {
+                              "url": "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-reviewActionCode",
+                              "valueCodeableConcept": {
+                                "coding": [
+                                  {
+                                    "system": "https://codesystem.x12.org/005010/306",
+                                    "code": "A4",
+                                    "display": "Pended"
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "category": {
+                        "coding": [
+                          {
+                            "system": "http://terminology.hl7.org/CodeSystem/adjudication",
+                            "code": "submitted"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "id": "crd-04-doc-dtr",
+  "number": 4,
+  "label": "Documentation required, with DTR link",
+  "description": "The payer answers that prior authorization is needed and that clinical documentation must go with it. In CRD 2.0.1 doc-needed is itself what says DTR is next; a questionnaire is named, and the card also carries a SMART link. Models CRD 2.0.1. On mock this answer is also given for every DTR test member ID, so a journey with one of them reaches DTR. For such a member the questionnaire named is the one, or the ones, the package of that DTR scenario holds, so DTR answers as its label says, whether the member ID selected this scenario or it was chosen in the selector; a DTR scenario whose package holds no questionnaire gets the questionnaire named here.",
+  "sentinelMemberId": "P32H-DOC-DTR",
+  "answersDtrSentinels": true,
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "DOCUMENTATION_REQUIRED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "covered",
+      "pa-needed": "auth-needed",
+      "doc-needed": "clinical",
+      "doc-purpose": "withpa"
+    }
+  },
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-doc-dtr",
+        "summary": "Clinical documentation is required with the prior authorization request",
+        "detail": "Complete the payer questionnaire, then submit the prior authorization request.",
+        "indicator": "warning",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        },
+        "links": [
+          {
+            "label": "Complete the payer questionnaire",
+            "url": "https://example.org/p32h-placeholder/dtr/launch",
+            "type": "smart",
+            "appContext": "questionnaire=https://example.org/p32h-placeholder/Questionnaire/sleep-study-criteria"
+          }
+        ]
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information added to the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "covered"
+                },
+                {
+                  "url": "pa-needed",
+                  "valueCode": "auth-needed"
+                },
+                {
+                  "url": "doc-needed",
+                  "valueCode": "clinical"
+                },
+                {
+                  "url": "doc-purpose",
+                  "valueCode": "withpa"
+                },
+                {
+                  "url": "questionnaire",
+                  "valueCanonical": "https://example.org/p32h-placeholder/Questionnaire/sleep-study-criteria"
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-doc-dtr"
+                }
+              ]
+            }
+          ],
+          "status": "draft",
+          "intent": "order",
+          "subject": {
+            "reference": "Patient/patient-1"
+          }
+        }
+      }
+    ]
+  }
+}

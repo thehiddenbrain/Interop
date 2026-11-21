@@ -1,0 +1,147 @@
+spring:
+  application:
+    name: epa-pave
+  profiles:
+    # Mock is the default and needs no configuration, no credentials and no network.
+    # Start with --spring.profiles.active=live to call the real services.
+    default: mock
+  servlet:
+    multipart:
+      # A vendor collection carries sample bodies and saved responses, so it can be several megabytes.
+      max-file-size: 25MB
+      # Also the limit on any request body, JSON included: a tester's own PAS bundle with a document
+      # inline is the largest body sent, and is refused with 413 above this (RequestShapeFilter).
+      # -1 means no limit, to the framework and to that filter alike.
+      max-request-size: 30MB
+      # Nothing a tester uploads is written to disk outside the configuration store. A part is held
+      # in memory up to this size, and the server holds every uploaded file to max-file-size, which
+      # is below it, so none is written to the temporary folder, where a hard kill in the middle of
+      # an upload would leave it. Raising max-file-size above this undoes that, and the start-up log
+      # then says so.
+      file-size-threshold: 30MB
+      # An upload is read only by a handler that takes one. Otherwise a multipart request to any
+      # address is read in full before the framework finds there is nothing there to take it.
+      resolve-lazily: true
+  mvc:
+    formcontent:
+      filter:
+        # No endpoint takes a form body. The filter read one for every PUT, PATCH and DELETE, outside
+        # the exception handler, and a bad escape in it was a 500 that wrote the body to the log.
+        enabled: false
+
+server:
+  # Deliberately not 8080. The existing tools on this programme use 8080 and this one is meant to
+  # run beside them. 8057 is the regulation number, so it is easy to remember and unlikely to clash.
+  port: 8057
+  # This machine only. The tool has no sign-in, and on the live profile its API looks up real UAT
+  # members, so it is not offered to the network unless someone decides to. To let a vendor's
+  # notification reach the receiver, set this to an address the vendor can reach and read the
+  # README section on the receiver first.
+  address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        # Browsers share cookies between ports on one host. The default cookie name would collide
+        # with any other tool on localhost and each would keep discarding the other's session.
+        name: PAVESESSION
+        # The production unlock lives in the session. A page on another site must not be able to
+        # borrow it, and no script needs to read it.
+        same-site: strict
+        http-only: true
+      # The session, and the production unlock in it, is carried by the cookie only and never by
+      # the address: the cookie's protections do not apply to an id written into a url.
+      tracking-modes: cookie
+  error:
+    whitelabel:
+      enabled: false
+
+logging:
+  level:
+    # No member data in the log includes what the server and the framework write themselves. An
+    # address can hold a member ID, and with their default levels each writes a refused address to
+    # the log: the server for a request with a character an address may not hold, the framework
+    # for a path that climbs with "../". Neither request reaches a lookup. These two levels keep
+    # the address out of the log; nothing else these loggers say at the lower levels is needed.
+    org.apache.coyote.http11.Http11Processor: WARN
+    org.springframework.web.servlet.resource.ResourceHandlerUtils: ERROR
+    # Two more of the same kind. The server's file lookup writes a whole address at WARN when no
+    # controller takes it and it holds a character the platform's file name encoding cannot
+    # represent. The cookie parser writes the name and value of a cookie it cannot parse at INFO,
+    # and a browser sends this tool the cookies every other tool on localhost has set.
+    org.apache.catalina.webresources.AbstractFileResourceSet: ERROR
+    org.apache.tomcat.util.http.parser.Cookie: WARN
+    # When a method of the exception handler itself fails, the framework writes that failure with
+    # its message at WARN, and the message can quote the request. The original exception then goes
+    # on to the outermost filter, which logs its types and frames under a reference.
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
+
+epa:
+  name: "PAVE"              # shown in the tab title, the masthead and /api/mode
+  version: "1.0.0"
+  target: onyx              # onyx | nehen
+  mode: mock                # mock | live, drives the UI badge. Follows the Spring profile; do not set by hand
+
+config-store:
+  directory: "./config-store"
+  active-environment: ""
+  allow-prod-writes: false
+
+tracking:
+  enabled: true
+  directory: "./run-history"
+  record-member-id: false     # mock overrides to true
+  record-npi: true            # an NPI is not PHI
+  salt-file: ""               # blank: installation-salt inside the config store directory
+  slow-threshold-ms: 0        # 0: use onyx.read-timeout-ms
+
+codelist:
+  # The path of the P32H code list export. A relative path is taken from the directory the tool is
+  # started in. While this is blank the tool loads the placeholder list that ships with it. Every
+  # row of that list is synthetic: the picker says so, and on the live profile no answer of a
+  # service is compared with it. After pointing this at an export, restart and look at
+  # GET /api/procedure-codes/self-check before anything else.
+  file: ""                    # blank: the bundled placeholder list
+  format: auto                # auto | csv | json
+  # The one character that separates the cells of a CSV file, or the word tab.
+  delimiter: ","
+  # Candidate header names per column are listed under codelist.columns. The defaults are in
+  # CodelistProperties; override a column here only when an export uses a header none of them match.
+  # A list set here replaces the built-in names for that column, so repeat the ones still wanted.
+  # A header is matched ignoring case, spaces, underscores, hyphens, dots, slashes, question marks
+  # and colons. A bracketed part at the end of a header is ignored too, unless two headers differ
+  # only in that part: then name the one that is meant, exactly as the file writes it.
+  #   columns:
+  #     code: ["Proc Cd", "code"]
+  #     auth-required: ["PA Required (Medicare)"]
+  #
+  # codelist.line-of-business-aliases maps a line of business as the member API names it to the
+  # names the code list uses for it. A name is matched ignoring case, spaces, underscores, hyphens
+  # and dots, so a name that differs from the list's only in those needs no alias. A key that
+  # holds a slash or a bracket has to be written inside square brackets and quotes, as the second
+  # one below is. Written without them, the key loses those characters when this file is read,
+  # and then matches nothing.
+  #   line-of-business-aliases:
+  #     MCR: [Medicare]
+  #     "[Medicaid/CHIP (MassHealth)]": [Medicaid]
+
+app:
+  scenario-dir: ""
+  autocomplete-limit: 25
+  mock-latency-enabled: true
+  # Host names, besides localhost, under which this tool answers API requests. See the README.
+  allowed-hosts: []
+
+# Fallback layer only, used when no uploaded environment supplies a url.
+onyx:
+  crd: { url: "" }
+  dtr: { url: "" }
+  pas: { url: "", attachment-mode: fhir }     # fhir | x12-275
+  subscription: { url: "", callback-url: "" }
+  connect-timeout-ms: 5000
+  read-timeout-ms: 15000
+  auth: { enabled: false, token-url: "", client-id: "", client-secret: "", scopes: "" }
+  variables: {}
+
+lookup:
+  member:   { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000, headers: {} }
+  provider: { url: "", enabled: true, connect-timeout-ms: 3000, read-timeout-ms: 5000, headers: {} }

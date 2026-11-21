@@ -1,0 +1,66 @@
+{
+  "id": "dtr-06-malformed-package",
+  "number": 6,
+  "label": "Package returns but is malformed",
+  "description": "The service answers successfully with a package whose questionnaire cannot be used: one question has no linkId and two questions share one, so an answer could not be tied to its question. The body is valid JSON and is shown in full. It departs from DTR 2.0.1 on purpose: besides the linkIds, the package carries no draft response, because a questionnaire that cannot be used has nothing for a response to be tied to.",
+  "sentinelMemberId": "P32H-DTR-MALFORMED",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "MALFORMED_QUESTIONNAIRE",
+    "errorType": "NONE",
+    "httpStatus": 200
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/malformed-criteria",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "malformed-criteria",
+                "text": {
+                  "status": "generated",
+                  "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Malformed criteria (placeholder)</div>"
+                },
+                "url": "https://example.org/p32h-placeholder/Questionnaire/malformed-criteria",
+                "version": "0.1.0",
+                "title": "Malformed criteria (placeholder)",
+                "status": "active",
+                "subjectType": [
+                  "Patient"
+                ],
+                "item": [
+                  {
+                    "text": "A question that carries no linkId",
+                    "type": "boolean",
+                    "required": true
+                  },
+                  {
+                    "linkId": "dup-1",
+                    "text": "The first of two questions that share a linkId",
+                    "type": "string"
+                  },
+                  {
+                    "linkId": "dup-1",
+                    "text": "The second of two questions that share a linkId",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

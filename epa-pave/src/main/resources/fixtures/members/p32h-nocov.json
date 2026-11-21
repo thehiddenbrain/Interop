@@ -1,0 +1,35 @@
+{
+  "memberId": "P32H-NOCOV",
+  "description": "Sentinel for CRD scenario 6, not a covered benefit. A Commercial member with active coverage: the benefit is what is not covered, not the member. The record is a list of one inside data, dates are written as eight digits, and loyaltyTier is a field the mapping does not know.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "data": [
+      {
+        "memberNumber": "P32H-NOCOV",
+        "givenName": "Finley",
+        "familyName": "Placeholder-NotCovered",
+        "dob": "19820612",
+        "gender": "unknown",
+        "businessLine": "Commercial",
+        "benefitPlan": "Synthetic Commercial High Deductible",
+        "eligibilityStatus": "Active",
+        "eligibilityStartDate": "20250101",
+        "subscriberNumber": "P32H-NOCOV",
+        "loyaltyTier": "placeholder-tier",
+        "homeAddress": {
+          "street": "6 Placeholder Street",
+          "town": "Sampletown",
+          "stateCode": "MA",
+          "zip": "00000"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "crd-13-timeout",
+  "number": 13,
+  "label": "No response inside the read timeout",
+  "description": "The service accepts the request and does not answer inside the read timeout. The mock reports the timeout after this file's delay and does not wait for the full configured timeout.",
+  "sentinelMemberId": "P32H-TIMEOUT",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["T1030"]},
+  "behavior": "timeout",
+  "delayMillis": 400,
+  "expect": {
+    "outcome": "TIMEOUT",
+    "errorType": "TIMEOUT"
+  },
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service."
+}

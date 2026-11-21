@@ -1,0 +1,31 @@
+{
+  "memberId": "S111111111",
+  "description": "A placeholder for the needs a look state reached by a date alone: a Medicare member whose status still says active and whose coverage end date has passed.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S111111111",
+    "firstName": "Quinn",
+    "lastName": "Placeholder-Ended",
+    "dateOfBirth": "1951-03-03",
+    "gender": "male",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan B",
+    "coverageStatus": "Active",
+    "coverageStart": "2024-01-01",
+    "coverageEnd": "2025-06-30",
+    "subscriberId": "S111111111",
+    "address": {
+      "line1": "17 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

@@ -1,0 +1,928 @@
+{
+  "id": "dtr-02-adaptive-branching",
+  "number": 2,
+  "label": "Adaptive sequence, a later question depends on an earlier answer",
+  "description": "The package holds one adaptive questionnaire with no questions of its own, and the response to start it from. Each next-question call returns the questions so far. Answering yes to the first question brings one follow-up, answering no brings a different one, and changing the first answer afterwards makes the earlier follow-up disappear. It models DTR 2.0.1.",
+  "sentinelMemberId": "P32H-DTR-ADAPT",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "1",
+      "questionnaire-kind": "adaptive",
+      "questionnaire-status": "active",
+      "questions": "0"
+    }
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "What the live service does at each of these points is not confirmed. This file models what DTR 2.0.1 and SDC publish: the questionnaire in the package declares the adaptive search profile, holds no items and carries the questionnaireAdaptive extension as a url; the package carries a draft QuestionnaireResponse to start from, which names the coverage and the order in qr-context, states its intended use, and holds the questionnaire inside itself with no url of its own, derived from the one in the package; each next-question answer is that response with the questions so far in the contained questionnaire; the status is in-progress while questions remain and completed at the end. The draft holds no item, as SDC has the first next-question call carry none, although DTR 2.0.1 asks every QuestionnaireResponse for at least one: the two guides differ there. It also models a service that returns the answers it was sent and drops the answer to a question it no longer asks, which the guides do not define. Each step holds only what the service changes at that point, the questions and the status: the mock returns the response it was sent with those replaced, so the response that comes back carries the coverage, the order, the intended use, the subject and the time it was authored that were sent.",
+  "nextQuestion": {
+    "rule": "The step is chosen from the answers in the QuestionnaireResponse that was sent. Each entry lists linkIds with the answer each must have: a code or a value, (any) for any answer at all, or (none) for no answer. The first entry that fits, in the order written, names the step. Answers that fit no entry are refused.",
+    "select": [
+      {
+        "when": {
+          "mri-1-therapy": "(none)"
+        },
+        "step": "first-question"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "yes",
+          "mri-2-weeks": "(none)"
+        },
+        "step": "therapy-weeks"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "yes",
+          "mri-2-weeks": "(any)"
+        },
+        "step": "complete-after-therapy"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "no",
+          "mri-2-red-flag": "(none)"
+        },
+        "step": "red-flag"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "no",
+          "mri-2-red-flag": "true",
+          "mri-3-red-flag-detail": "(none)"
+        },
+        "step": "red-flag-detail"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "no",
+          "mri-2-red-flag": "true",
+          "mri-3-red-flag-detail": "(any)"
+        },
+        "step": "complete-with-red-flag"
+      },
+      {
+        "when": {
+          "mri-1-therapy": "no",
+          "mri-2-red-flag": "false"
+        },
+        "step": "complete-without-red-flag"
+      }
+    ]
+  },
+  "paths": [
+    {
+      "name": "conservative therapy was completed",
+      "calls": [
+        {
+          "answers": [],
+          "step": "first-question",
+          "asked": [
+            "mri-1-therapy"
+          ],
+          "appeared": [
+            "mri-1-therapy"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-1-therapy",
+              "values": [
+                "yes"
+              ]
+            }
+          ],
+          "step": "therapy-weeks",
+          "asked": [
+            "mri-2-weeks"
+          ],
+          "appeared": [
+            "mri-2-weeks"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-2-weeks",
+              "values": [
+                "8"
+              ]
+            }
+          ],
+          "step": "complete-after-therapy",
+          "asked": []
+        }
+      ]
+    },
+    {
+      "name": "no conservative therapy, and a red-flag symptom",
+      "calls": [
+        {
+          "answers": [],
+          "step": "first-question",
+          "asked": [
+            "mri-1-therapy"
+          ],
+          "appeared": [
+            "mri-1-therapy"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-1-therapy",
+              "values": [
+                "no"
+              ]
+            }
+          ],
+          "step": "red-flag",
+          "asked": [
+            "mri-2-red-flag"
+          ],
+          "appeared": [
+            "mri-2-red-flag"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-2-red-flag",
+              "values": [
+                "true"
+              ]
+            }
+          ],
+          "step": "red-flag-detail",
+          "asked": [
+            "mri-3-red-flag-detail"
+          ],
+          "appeared": [
+            "mri-3-red-flag-detail"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-3-red-flag-detail",
+              "values": [
+                "Placeholder description of the symptom"
+              ]
+            }
+          ],
+          "step": "complete-with-red-flag",
+          "asked": []
+        }
+      ]
+    },
+    {
+      "name": "no conservative therapy, and no red-flag symptom",
+      "calls": [
+        {
+          "answers": [],
+          "step": "first-question",
+          "asked": [
+            "mri-1-therapy"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-1-therapy",
+              "values": [
+                "no"
+              ]
+            }
+          ],
+          "step": "red-flag",
+          "asked": [
+            "mri-2-red-flag"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-2-red-flag",
+              "values": [
+                "false"
+              ]
+            }
+          ],
+          "step": "complete-without-red-flag",
+          "asked": []
+        }
+      ]
+    },
+    {
+      "name": "the first answer is changed after its follow-up was asked",
+      "calls": [
+        {
+          "answers": [],
+          "step": "first-question",
+          "asked": [
+            "mri-1-therapy"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-1-therapy",
+              "values": [
+                "yes"
+              ]
+            }
+          ],
+          "step": "therapy-weeks",
+          "asked": [
+            "mri-2-weeks"
+          ]
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-2-weeks",
+              "values": [
+                "8"
+              ]
+            }
+          ],
+          "step": "complete-after-therapy",
+          "asked": []
+        },
+        {
+          "answers": [
+            {
+              "linkId": "mri-1-therapy",
+              "values": [
+                "no"
+              ]
+            }
+          ],
+          "step": "red-flag",
+          "asked": [
+            "mri-2-red-flag"
+          ],
+          "appeared": [
+            "mri-2-red-flag"
+          ],
+          "disappeared": [
+            "mri-2-weeks"
+          ]
+        }
+      ]
+    }
+  ],
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "lumbar-mri-adaptive",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt-search"
+                  ]
+                },
+                "text": {
+                  "status": "generated",
+                  "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                    "valueUrl": "https://example.org/p32h-placeholder/fhir"
+                  }
+                ],
+                "url": "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive",
+                "version": "1.0.0",
+                "name": "LumbarMriAdaptive",
+                "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+                "status": "active"
+              }
+            },
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/lumbar-mri-draft",
+              "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "lumbar-mri-draft",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+                  ]
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "Coverage/coverage-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "ServiceRequest/service-request-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+                    "valueCodeableConcept": {
+                      "coding": [
+                        {
+                          "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                          "code": "withpa"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "contained": [
+                  {
+                    "resourceType": "Questionnaire",
+                    "id": "lumbar-mri-adaptive",
+                    "meta": {
+                      "profile": [
+                        "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+                      ]
+                    },
+                    "text": {
+                      "status": "generated",
+                      "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+                    },
+                    "extension": [
+                      {
+                        "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                        "valueUrl": "https://example.org/p32h-placeholder/fhir"
+                      }
+                    ],
+                    "derivedFrom": [
+                      "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+                    ],
+                    "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+                    "status": "active"
+                  }
+                ],
+                "questionnaire": "#lumbar-mri-adaptive",
+                "status": "in-progress",
+                "subject": {
+                  "reference": "Patient/patient-1"
+                },
+                "authored": "2026-03-10T09:00:00-04:00"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "first-question": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NEXT_QUESTION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "1",
+          "answered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "in-progress"
+      }
+    },
+    "therapy-weeks": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NEXT_QUESTION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "2",
+          "answered": "1"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-weeks",
+                "text": "How many weeks of conservative therapy were completed?",
+                "type": "integer",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "in-progress"
+      }
+    },
+    "complete-after-therapy": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "completed",
+          "questions": "2",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-weeks",
+                "text": "How many weeks of conservative therapy were completed?",
+                "type": "integer",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "completed"
+      }
+    },
+    "red-flag": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NEXT_QUESTION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "2",
+          "answered": "1"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-red-flag",
+                "text": "Is a red-flag symptom documented?",
+                "type": "boolean",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "in-progress"
+      }
+    },
+    "red-flag-detail": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NEXT_QUESTION",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "3",
+          "answered": "2"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-red-flag",
+                "text": "Is a red-flag symptom documented?",
+                "type": "boolean",
+                "required": true
+              },
+              {
+                "linkId": "mri-3-red-flag-detail",
+                "text": "Describe the red-flag symptom",
+                "type": "string",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "in-progress"
+      }
+    },
+    "complete-with-red-flag": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "completed",
+          "questions": "3",
+          "answered": "3",
+          "required-unanswered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-red-flag",
+                "text": "Is a red-flag symptom documented?",
+                "type": "boolean",
+                "required": true
+              },
+              {
+                "linkId": "mri-3-red-flag-detail",
+                "text": "Describe the red-flag symptom",
+                "type": "string",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "completed"
+      }
+    },
+    "complete-without-red-flag": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "completed",
+          "questions": "2",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "lumbar-mri-adaptive",
+            "meta": {
+              "profile": [
+                "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaire-adapt"
+              ]
+            },
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Lumbar spine MRI criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueUrl": "https://example.org/p32h-placeholder/fhir"
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/lumbar-mri-adaptive|1.0.0"
+            ],
+            "title": "Lumbar spine MRI criteria, adaptive (placeholder)",
+            "status": "active",
+            "item": [
+              {
+                "linkId": "mri-1-therapy",
+                "text": "Has the member completed a course of conservative therapy?",
+                "type": "choice",
+                "required": true,
+                "answerOption": [
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "yes",
+                      "display": "Yes"
+                    }
+                  },
+                  {
+                    "valueCoding": {
+                      "system": "https://example.org/p32h-placeholder/CodeSystem/yes-no",
+                      "code": "no",
+                      "display": "No"
+                    }
+                  }
+                ]
+              },
+              {
+                "linkId": "mri-2-red-flag",
+                "text": "Is a red-flag symptom documented?",
+                "type": "boolean",
+                "required": true
+              }
+            ]
+          }
+        ],
+        "questionnaire": "#lumbar-mri-adaptive",
+        "status": "completed"
+      }
+    }
+  }
+}

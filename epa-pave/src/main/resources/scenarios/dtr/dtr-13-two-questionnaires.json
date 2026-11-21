@@ -1,0 +1,307 @@
+{
+  "id": "dtr-13-two-questionnaires",
+  "number": 13,
+  "label": "Package with two questionnaires, as a Bundle",
+  "description": "The package arrives as a Bundle, not as Parameters, and holds two conventional questionnaires. Both are listed and each is answered by itself. The second has a question that is enabled only when two conditions both hold. It models DTR 2.0.1 in each questionnaire and its draft response, and departs from it in the shape of the package, as the assumption says.",
+  "sentinelMemberId": "P32H-DTR-TWO",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "2",
+      "questionnaire-kind": "static"
+    }
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "Whether the live service returns a package as Parameters or as a Bundle is not confirmed. The other scenario files model Parameters. This one models a Bundle of type collection that holds the questionnaires directly. DTR 2.0.1 defines the Parameters shape, with one bundle for each questionnaire, so this file models a departure from it.",
+  "responses": [
+    {
+      "name": "the first questionnaire answered in full",
+      "questionnaire": 1,
+      "answers": [
+        {
+          "linkId": "card-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "card-2",
+          "values": [
+            "55"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "2",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      }
+    },
+    {
+      "name": "the second questionnaire with both conditions met and the follow-up left unanswered",
+      "questionnaire": 2,
+      "answers": [
+        {
+          "linkId": "msk-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "msk-2",
+          "values": [
+            "12"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "REQUIRED_UNANSWERED",
+        "unanswered": [
+          "msk-3"
+        ],
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "3",
+          "answered": "2",
+          "required-unanswered": "1"
+        }
+      }
+    },
+    {
+      "name": "the second questionnaire with only one of the two conditions met",
+      "questionnaire": 2,
+      "answers": [
+        {
+          "linkId": "msk-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "msk-2",
+          "values": [
+            "4"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "3",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      }
+    }
+  ],
+  "response": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria",
+        "resource": {
+          "resourceType": "Questionnaire",
+          "id": "cardiology-criteria",
+          "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Cardiology criteria (placeholder)</div>"
+          },
+          "url": "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria",
+          "version": "1.0.0",
+          "title": "Cardiology criteria (placeholder)",
+          "status": "active",
+          "subjectType": [
+            "Patient"
+          ],
+          "item": [
+            {
+              "linkId": "card-1",
+              "text": "Has the member had an echocardiogram in the past 6 months?",
+              "type": "boolean",
+              "required": true
+            },
+            {
+              "linkId": "card-2",
+              "text": "Most recent ejection fraction, in percent",
+              "type": "decimal",
+              "required": true
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria",
+        "resource": {
+          "resourceType": "Questionnaire",
+          "id": "musculoskeletal-criteria",
+          "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Musculoskeletal criteria (placeholder)</div>"
+          },
+          "url": "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria",
+          "version": "1.0.0",
+          "title": "Musculoskeletal criteria (placeholder)",
+          "status": "draft",
+          "subjectType": [
+            "Patient"
+          ],
+          "item": [
+            {
+              "linkId": "msk-1",
+              "text": "Has the member completed physical therapy?",
+              "type": "boolean",
+              "required": true
+            },
+            {
+              "linkId": "msk-2",
+              "text": "Weeks of physical therapy completed",
+              "type": "integer",
+              "required": true
+            },
+            {
+              "linkId": "msk-3",
+              "text": "Describe the response to physical therapy",
+              "type": "text",
+              "required": true,
+              "enableBehavior": "all",
+              "enableWhen": [
+                {
+                  "question": "msk-1",
+                  "operator": "=",
+                  "answerBoolean": true
+                },
+                {
+                  "question": "msk-2",
+                  "operator": ">=",
+                  "answerInteger": 6
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/cardiology-criteria-draft",
+        "resource": {
+          "resourceType": "QuestionnaireResponse",
+          "id": "cardiology-criteria-draft",
+          "meta": {
+            "profile": [
+              "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+            ]
+          },
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+              "valueReference": {
+                "reference": "Coverage/coverage-1"
+              }
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+              "valueReference": {
+                "reference": "ServiceRequest/service-request-1"
+              }
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+              "valueCodeableConcept": {
+                "coding": [
+                  {
+                    "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                    "code": "withpa"
+                  }
+                ]
+              }
+            }
+          ],
+          "questionnaire": "https://example.org/p32h-placeholder/Questionnaire/cardiology-criteria|1.0.0",
+          "status": "in-progress",
+          "subject": {
+            "reference": "Patient/patient-1"
+          },
+          "authored": "2026-03-10T09:00:00-04:00",
+          "item": [
+            {
+              "linkId": "card-1",
+              "text": "Has the member had an echocardiogram in the past 6 months?"
+            },
+            {
+              "linkId": "card-2",
+              "text": "Most recent ejection fraction, in percent"
+            }
+          ]
+        }
+      },
+      {
+        "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/musculoskeletal-criteria-draft",
+        "resource": {
+          "resourceType": "QuestionnaireResponse",
+          "id": "musculoskeletal-criteria-draft",
+          "meta": {
+            "profile": [
+              "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+            ]
+          },
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+              "valueReference": {
+                "reference": "Coverage/coverage-1"
+              }
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+              "valueReference": {
+                "reference": "ServiceRequest/service-request-1"
+              }
+            },
+            {
+              "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+              "valueCodeableConcept": {
+                "coding": [
+                  {
+                    "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                    "code": "withpa"
+                  }
+                ]
+              }
+            }
+          ],
+          "questionnaire": "https://example.org/p32h-placeholder/Questionnaire/musculoskeletal-criteria|1.0.0",
+          "status": "in-progress",
+          "subject": {
+            "reference": "Patient/patient-1"
+          },
+          "authored": "2026-03-10T09:00:00-04:00",
+          "item": [
+            {
+              "linkId": "msk-1",
+              "text": "Has the member completed physical therapy?"
+            },
+            {
+              "linkId": "msk-2",
+              "text": "Weeks of physical therapy completed"
+            },
+            {
+              "linkId": "msk-3",
+              "text": "Describe the response to physical therapy"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "id": "dtr-08-adaptive-nothing-required",
+  "number": 8,
+  "label": "Adaptive questionnaire that asks nothing",
+  "description": "The package holds one adaptive questionnaire. The first next-question call comes back completed with no question in it: the payer asks for no documentation. That is an answer the service gives through the loop, and it is kept apart from scenarios 7 and 15, where the package holds no questionnaire. It models DTR 2.0.1, apart from the completed response holding no item, which is the point of it.",
+  "sentinelMemberId": "P32H-DTR-NOTHING",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "1",
+      "questionnaire-kind": "adaptive",
+      "questions": "0"
+    }
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "How the live service answers when its rules need no documentation is not known. This file models a first next-question call that returns the QuestionnaireResponse with the status completed and a contained questionnaire that holds no question. The marker is the boolean form, which DTR 2.0.1 allows and later versions do not. The questionnaire inside each response has no url of its own and is derived from the one in the package, which is how DTR 2.0.1 ties the two. The completed response holds no item, which DTR 2.0.1 does not allow a QuestionnaireResponse: that departure is what this scenario is for, and this tool does not hand such a response to PAS. Each step holds only what the service changes at that point, the questions and the status: the mock returns the response it was sent with those replaced, so the response that comes back carries the coverage, the order, the intended use, the subject and the time it was authored that were sent.",
+  "nextQuestion": {
+    "rule": "Every call gets the same step, whatever answers are sent: the service asks nothing.",
+    "select": [
+      {
+        "when": {},
+        "step": "nothing-required"
+      }
+    ]
+  },
+  "paths": [
+    {
+      "name": "the first call comes back complete",
+      "calls": [
+        {
+          "answers": [],
+          "step": "nothing-required",
+          "asked": []
+        }
+      ]
+    }
+  ],
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "imaging-adaptive",
+                "text": {
+                  "status": "generated",
+                  "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Imaging criteria, adaptive (placeholder)</div>"
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                    "valueBoolean": true
+                  }
+                ],
+                "url": "https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive",
+                "version": "1.0.0",
+                "title": "Imaging criteria, adaptive (placeholder)",
+                "status": "active"
+              }
+            },
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/imaging-adaptive-draft",
+              "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "imaging-adaptive-draft",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+                  ]
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "Coverage/coverage-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "ServiceRequest/service-request-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+                    "valueCodeableConcept": {
+                      "coding": [
+                        {
+                          "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                          "code": "withpa"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "contained": [
+                  {
+                    "resourceType": "Questionnaire",
+                    "id": "imaging-adaptive",
+                    "text": {
+                      "status": "generated",
+                      "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Imaging criteria, adaptive (placeholder)</div>"
+                    },
+                    "extension": [
+                      {
+                        "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                        "valueBoolean": true
+                      }
+                    ],
+                    "derivedFrom": [
+                      "https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive|1.0.0"
+                    ],
+                    "title": "Imaging criteria, adaptive (placeholder)",
+                    "status": "active"
+                  }
+                ],
+                "questionnaire": "#imaging-adaptive",
+                "status": "in-progress",
+                "subject": {
+                  "reference": "Patient/patient-1"
+                },
+                "authored": "2026-03-10T09:00:00-04:00"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": {
+    "nothing-required": {
+      "httpStatus": 200,
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "NOTHING_REQUIRED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "response-status": "completed",
+          "questions": "0",
+          "answered": "0",
+          "required-unanswered": "0"
+        }
+      },
+      "response": {
+        "resourceType": "QuestionnaireResponse",
+        "contained": [
+          {
+            "resourceType": "Questionnaire",
+            "id": "imaging-adaptive",
+            "text": {
+              "status": "generated",
+              "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Imaging criteria, adaptive (placeholder)</div>"
+            },
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/sdc/StructureDefinition/sdc-questionnaire-questionnaireAdaptive",
+                "valueBoolean": true
+              }
+            ],
+            "derivedFrom": [
+              "https://example.org/p32h-placeholder/Questionnaire/imaging-adaptive|1.0.0"
+            ],
+            "title": "Imaging criteria, adaptive (placeholder)",
+            "status": "active"
+          }
+        ],
+        "questionnaire": "#imaging-adaptive",
+        "status": "completed"
+      }
+    }
+  }
+}

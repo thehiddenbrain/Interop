@@ -1,0 +1,31 @@
+{
+  "id": "crd-12-server-error-500",
+  "number": 12,
+  "label": "Server error, HTTP 500",
+  "description": "The service fails while handling the request. This is a finding about the environment.",
+  "sentinelMemberId": "P32H-ERR500",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 500,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "SERVICE_ERROR",
+    "errorType": "SERVER_ERROR",
+    "httpStatus": 500
+  },
+  "basis": "Synthetic. CRD 2.0.1 defines no body for a failed call, so this models a FHIR OperationOutcome. It has not been observed from the live service.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "exception",
+        "details": {
+          "text": "An unexpected error occurred while evaluating the request."
+        },
+        "diagnostics": "An unexpected error occurred while evaluating the request.",
+        "expression": []
+      }
+    ]
+  }
+}

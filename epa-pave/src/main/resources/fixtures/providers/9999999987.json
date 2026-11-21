@@ -1,0 +1,11 @@
+{
+  "npi": "9999999987",
+  "description": "Sentinel for a provider directory that is failing, so the fault state can be seen without a network. The mock answers HTTP 500 with a body that is not JSON, which is shown as received. The sentinel 9999999995 has no file, and is not found.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
+  "expect": {
+    "status": "FAULT"
+  },
+  "behavior": "respond",
+  "httpStatus": 500,
+  "responseText": "<html><body><h1>500 Internal Server Error</h1><p>Synthetic fault from the mock profile.</p></body></html>"
+}

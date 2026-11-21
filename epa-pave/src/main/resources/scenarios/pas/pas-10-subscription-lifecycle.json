@@ -1,0 +1,338 @@
+{
+  "id": "pas-10-subscription-lifecycle",
+  "number": 10,
+  "label": "A subscription created and deleted",
+  "description": "The five subscription calls on one subscription: create, read, list, update and delete. Its notify step is the handshake a service sends when a subscription is activated. The topic is the one PAS 2.0.1 defines.",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
+  "assumption": "What a subscription must be subscribed to, and how much a notification carries, are not known for the live service. This file uses a placeholder topic, a placeholder filter and ids only.",
+  "steps": {
+    "subscription-create": {
+      "httpStatus": 201,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "CREATED",
+        "errorType": "NONE",
+        "httpStatus": 201,
+        "codes": {
+          "subscription-status": "requested",
+          "channel-type": "rest-hook",
+          "payload-content": "id-only"
+        }
+      },
+      "response": {
+        "resourceType": "Subscription",
+        "id": "subscription-placeholder-0001",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription"
+          ]
+        },
+        "status": "requested",
+        "end": "2026-12-31T00:00:00Z",
+        "reason": "Prior authorization status notifications for a PAVE test run",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
+        "_criteria": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-filter-criteria",
+              "valueString": "orgIdentifier=placeholder-organization"
+            }
+          ]
+        },
+        "channel": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-heartbeat-period",
+              "valueUnsignedInt": 86400
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-timeout",
+              "valueUnsignedInt": 60
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-max-count",
+              "valuePositiveInt": 10
+            }
+          ],
+          "type": "rest-hook",
+          "endpoint": "https://pave.example.invalid/api/pas/notifications",
+          "payload": "application/fhir+json",
+          "_payload": {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-payload-content",
+                "valueCode": "id-only"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "subscription-read": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "READ",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "subscription-status": "active"
+        }
+      },
+      "response": {
+        "resourceType": "Subscription",
+        "id": "subscription-placeholder-0001",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription"
+          ]
+        },
+        "status": "active",
+        "end": "2026-12-31T00:00:00Z",
+        "reason": "Prior authorization status notifications for a PAVE test run",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
+        "_criteria": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-filter-criteria",
+              "valueString": "orgIdentifier=placeholder-organization"
+            }
+          ]
+        },
+        "channel": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-heartbeat-period",
+              "valueUnsignedInt": 86400
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-timeout",
+              "valueUnsignedInt": 60
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-max-count",
+              "valuePositiveInt": 10
+            }
+          ],
+          "type": "rest-hook",
+          "endpoint": "https://pave.example.invalid/api/pas/notifications",
+          "payload": "application/fhir+json",
+          "_payload": {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-payload-content",
+                "valueCode": "id-only"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "subscription-list": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "LISTED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "subscription-status": "active"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "subscription-search-1",
+        "type": "searchset",
+        "total": 1,
+        "entry": [
+          {
+            "fullUrl": "https://example.org/p32h-placeholder/fhir/Subscription/subscription-placeholder-0001",
+            "resource": {
+              "resourceType": "Subscription",
+              "id": "subscription-placeholder-0001",
+              "meta": {
+                "profile": [
+                  "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription"
+                ]
+              },
+              "status": "active",
+              "end": "2026-12-31T00:00:00Z",
+              "reason": "Prior authorization status notifications for a PAVE test run",
+              "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
+              "_criteria": {
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-filter-criteria",
+                    "valueString": "orgIdentifier=placeholder-organization"
+                  }
+                ]
+              },
+              "channel": {
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-heartbeat-period",
+                    "valueUnsignedInt": 86400
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-timeout",
+                    "valueUnsignedInt": 60
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-max-count",
+                    "valuePositiveInt": 10
+                  }
+                ],
+                "type": "rest-hook",
+                "endpoint": "https://pave.example.invalid/api/pas/notifications",
+                "payload": "application/fhir+json",
+                "_payload": {
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-payload-content",
+                      "valueCode": "id-only"
+                    }
+                  ]
+                }
+              }
+            },
+            "search": {
+              "mode": "match"
+            }
+          }
+        ]
+      }
+    },
+    "subscription-update": {
+      "httpStatus": 200,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "UPDATED",
+        "errorType": "NONE",
+        "httpStatus": 200,
+        "codes": {
+          "subscription-status": "off"
+        }
+      },
+      "response": {
+        "resourceType": "Subscription",
+        "id": "subscription-placeholder-0001",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription"
+          ]
+        },
+        "status": "off",
+        "end": "2026-12-31T00:00:00Z",
+        "reason": "Prior authorization status notifications for a PAVE test run",
+        "criteria": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic",
+        "_criteria": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-filter-criteria",
+              "valueString": "orgIdentifier=placeholder-organization"
+            }
+          ]
+        },
+        "channel": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-heartbeat-period",
+              "valueUnsignedInt": 86400
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-timeout",
+              "valueUnsignedInt": 60
+            },
+            {
+              "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-max-count",
+              "valuePositiveInt": 10
+            }
+          ],
+          "type": "rest-hook",
+          "endpoint": "https://pave.example.invalid/api/pas/notifications",
+          "payload": "application/fhir+json",
+          "_payload": {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-payload-content",
+                "valueCode": "id-only"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "subscription-delete": {
+      "httpStatus": 204,
+      "delayMillis": 150,
+      "expect": {
+        "outcome": "DELETED",
+        "errorType": "NONE",
+        "httpStatus": 204
+      }
+    },
+    "notify": {
+      "httpStatus": 200,
+      "delayMillis": 0,
+      "expect": {
+        "outcome": "HANDSHAKE_RECEIVED",
+        "codes": {
+          "notification-type": "handshake",
+          "payload-content": "empty"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "notification-bundle-1",
+        "type": "history",
+        "timestamp": "2026-01-16T09:30:00Z",
+        "entry": [
+          {
+            "fullUrl": "urn:uuid:00000000-0000-4000-8000-0000000000a1",
+            "resource": {
+              "resourceType": "Parameters",
+              "id": "subscription-status-1",
+              "meta": {
+                "profile": [
+                  "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription-status-r4"
+                ]
+              },
+              "parameter": [
+                {
+                  "name": "subscription",
+                  "valueReference": {
+                    "reference": "https://example.org/p32h-placeholder/fhir/Subscription/{{subscriptionId}}"
+                  }
+                },
+                {
+                  "name": "topic",
+                  "valueCanonical": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic"
+                },
+                {
+                  "name": "status",
+                  "valueCode": "active"
+                },
+                {
+                  "name": "type",
+                  "valueCode": "handshake"
+                },
+                {
+                  "name": "events-since-subscription-start",
+                  "valueString": "0"
+                }
+              ]
+            },
+            "request": {
+              "method": "GET",
+              "url": "Subscription/{{subscriptionId}}/$status"
+            },
+            "response": {
+              "status": "200"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

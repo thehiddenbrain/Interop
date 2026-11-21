@@ -1,0 +1,15 @@
+{
+  "memberId": "P32H-LOOKUP-FAULT",
+  "description": "Sentinel for a member API that is failing, so the fault state can be seen without a network. The mock answers HTTP 503 with an error body.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FAULT"
+  },
+  "behavior": "respond",
+  "httpStatus": 503,
+  "response": {
+    "error": "service_unavailable",
+    "message": "Synthetic fault from the mock profile. The member API is not really down.",
+    "traceId": "mock-trace-0001"
+  }
+}

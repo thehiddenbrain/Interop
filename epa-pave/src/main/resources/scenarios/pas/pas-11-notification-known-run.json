@@ -1,0 +1,91 @@
+{
+  "id": "pas-11-notification-known-run",
+  "number": 11,
+  "label": "A notification correlating to a known run",
+  "description": "An event notification that carries ids only: the subscription and the ClaimResponse it is about. Delivered with the sample notification action for a run, it is matched to that submission and to the run that created the subscription. The topic is the one PAS 2.0.1 defines.",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
+  "steps": {
+    "notify": {
+      "httpStatus": 200,
+      "delayMillis": 0,
+      "expect": {
+        "outcome": "NOTIFICATION_RECEIVED",
+        "codes": {
+          "notification-type": "event-notification",
+          "payload-content": "id-only"
+        }
+      },
+      "response": {
+        "resourceType": "Bundle",
+        "id": "notification-bundle-1",
+        "type": "history",
+        "timestamp": "2026-01-16T09:30:00Z",
+        "entry": [
+          {
+            "fullUrl": "urn:uuid:00000000-0000-4000-8000-0000000000a1",
+            "resource": {
+              "resourceType": "Parameters",
+              "id": "subscription-status-1",
+              "meta": {
+                "profile": [
+                  "http://hl7.org/fhir/uv/subscriptions-backport/StructureDefinition/backport-subscription-status-r4"
+                ]
+              },
+              "parameter": [
+                {
+                  "name": "subscription",
+                  "valueReference": {
+                    "reference": "https://example.org/p32h-placeholder/fhir/Subscription/{{subscriptionId}}"
+                  }
+                },
+                {
+                  "name": "topic",
+                  "valueCanonical": "http://hl7.org/fhir/us/davinci-pas/SubscriptionTopic/PASSubscriptionTopic"
+                },
+                {
+                  "name": "status",
+                  "valueCode": "active"
+                },
+                {
+                  "name": "type",
+                  "valueCode": "event-notification"
+                },
+                {
+                  "name": "events-since-subscription-start",
+                  "valueString": "2"
+                },
+                {
+                  "name": "notification-event",
+                  "part": [
+                    {
+                      "name": "event-number",
+                      "valueString": "2"
+                    },
+                    {
+                      "name": "timestamp",
+                      "valueInstant": "2026-01-16T09:30:00Z"
+                    },
+                    {
+                      "name": "focus",
+                      "valueReference": {
+                        "reference": "ClaimResponse/{{claimResponseId}}"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "request": {
+              "method": "GET",
+              "url": "Subscription/{{subscriptionId}}/$status"
+            },
+            "response": {
+              "status": "200"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
