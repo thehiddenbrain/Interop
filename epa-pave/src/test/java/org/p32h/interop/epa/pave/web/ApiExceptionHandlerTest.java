@@ -365,6 +365,21 @@ class ApiExceptionHandlerTest {
         public String gone() throws Exception {
             throw new org.springframework.web.context.request.async.AsyncRequestNotUsableException("gone");
         }
+
+        /** What the framework throws when the client closed the connection while the answer was being written. */
+        @GetMapping("/gone/{memberId}")
+        public String goneWhileWriting(@org.springframework.web.bind.annotation.PathVariable("memberId") String memberId) {
+            throw new org.springframework.http.converter.HttpMessageNotWritableException("Could not write JSON for " + memberId,
+                    new org.springframework.web.context.request.async.AsyncRequestNotUsableException("ServletOutputStream failed for "
+                            + memberId, new org.apache.catalina.connector.ClientAbortException(new java.io.IOException("Broken pipe"))));
+        }
+
+        /** A write that failed for a reason of this tool's own: the same outer type, and no type of a connection that is gone. */
+        @GetMapping("/unwritable/{memberId}")
+        public String unwritable(@org.springframework.web.bind.annotation.PathVariable("memberId") String memberId) {
+            throw new org.springframework.http.converter.HttpMessageNotWritableException("Could not write JSON for " + memberId,
+                    new IllegalStateException("writer for " + memberId));
+        }
     }
 
     private final MockMvc edge = TestMvc.standalone(new EdgeController());
@@ -425,6 +440,40 @@ class ApiExceptionHandlerTest {
     @ExtendWith(OutputCaptureExtension.class)
     void aBrowserThatWentAwayIsNotLoggedAsAFault(CapturedOutput output) throws Exception {
         edge.perform(get("/gone")).andExpect(content().string(""));
-        assertThat(output.getAll()).doesNotContain("Unhandled");
+        // One line at INFO, which before said nothing at all, and no entry under a reference.
+        assertThat(output.getAll()).doesNotContain("Unhandled").doesNotContain("reference").contains("INFO")
+                .contains("The client closed the connection before the answer was written: GET /gone, "
+                        + "org.springframework.web.context.request.async.AsyncRequestNotUsableException");
+    }
+
+    /**
+     * The client closed the connection while the answer was written: the framework wraps the
+     * server's type in a failure to write the message, which is not a defect of this tool.
+     */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void aClientThatClosedTheConnectionWhileTheAnswerWasWrittenIsOneInfoLineAndNoReference(CapturedOutput output) throws Exception {
+        edge.perform(get("/gone/S123456789")).andExpect(content().string(""));
+        String all = output.getAll();
+        assertThat(all).contains(" INFO ").contains("The client closed the connection before the answer was written: GET /gone/{memberId}, "
+                + "org.springframework.http.converter.HttpMessageNotWritableException <- "
+                + "org.springframework.web.context.request.async.AsyncRequestNotUsableException <- "
+                + "org.apache.catalina.connector.ClientAbortException <- java.io.IOException" + System.lineSeparator());
+        assertThat(all.split("The client closed the connection", -1)).hasSize(2);
+        assertThat(all).doesNotContain("Unhandled").doesNotContain("reference").doesNotContain("S123456789").doesNotContain("Broken pipe")
+                .doesNotContain("\tat ").doesNotContain("    at ");
+    }
+
+    /** Any other failure to write an answer stays what it was: an entry under a reference. */
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void anotherFailureToWriteTheAnswerStillGetsItsReference(CapturedOutput output) throws Exception {
+        String body = edge.perform(get("/unwritable/S123456789")).andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.kind").value("INTERNAL")).andReturn().getResponse().getContentAsString();
+        String reference = org.p32h.interop.epa.pave.model.JsonSafe.parse(body).node().get("reference").stringValue();
+        assertThat(output.getAll()).contains("Unhandled exception, reference " + reference + ": "
+                + "org.springframework.http.converter.HttpMessageNotWritableException <- java.lang.IllegalStateException")
+                .doesNotContain("The client closed the connection").doesNotContain("S123456789");
+        assertThat(body).doesNotContain("S123456789");
     }
 }

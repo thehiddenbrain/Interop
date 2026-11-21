@@ -55,7 +55,11 @@ public class JsonErrorReportValve extends ErrorReportValve {
                 response.finishResponse();
             }
         } catch (IOException | IllegalStateException e) {
-            // The connection is gone or the response is already committed. There is nobody left to tell.
+            // The connection is gone or the response is already committed. There is nobody left to tell;
+            // a client that closed the connection gets its one line, as everywhere else.
+            if (ClientGone.is(e)) {
+                ClientGone.log(request, e);
+            }
         }
     }
 }
