@@ -51,6 +51,9 @@ class EveryScenarioDirectoryTest {
     /** A UUID, as a FHIR bundle's fullUrl carries one. Its groups of digits identify nobody. */
     private static final Pattern UUID = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
+    /** The one place the placeholder NPI may stand in a scenario file: its sample case, which one click on the mock table fills in. */
+    static final String SAMPLE_PLACEHOLDER_NPI = "\"sampleCase\":{\"npi\":\"1234567893\"";
+
     private final ScenarioRepository bundled = new ScenarioRepository(AppProperties.defaults());
     private final LookupFixtures fixtures = new LookupFixtures();
     private final MockMemberLookupClient members = new MockMemberLookupClient(fixtures, LookupProperties.defaults(), CLOCK);
@@ -73,6 +76,9 @@ class EveryScenarioDirectoryTest {
         for (String npi : scenario.sentinelNpis()) {
             text = text.replace("\"" + npi + "\"", "\"\"");
         }
+        // The sample case's NPI is the known placeholder 1234567893 (or the file's own sentinel NPI,
+        // set aside above), and is set aside only in that one place: anywhere else it still counts.
+        text = text.replace(SAMPLE_PLACEHOLDER_NPI, "\"sampleCase\":{\"npi\":\"\"");
         List<String> found = new ArrayList<>();
         for (Pattern pattern : List.of(LOOKS_LIKE_AN_IDENTIFIER, LOOKS_LIKE_AN_MBI, LOOKS_LIKE_A_SPACED_MEDICARE_ID)) {
             Matcher matcher = pattern.matcher(text);

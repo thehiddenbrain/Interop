@@ -73,6 +73,9 @@ class SampleCaseTest {
                 // A file that a sentinel NPI selects keeps that NPI in its sample, so the click does not pick another file.
                 if (scenario.sentinelNpi() != null) {
                     assertThat(sample.npi()).as(scenario.source()).isEqualTo(scenario.sentinelNpi());
+                } else {
+                    // The known valid example, never a number that could belong to a real provider.
+                    assertThat(sample.npi()).as(scenario.source()).isEqualTo("1234567893");
                 }
             }
         }

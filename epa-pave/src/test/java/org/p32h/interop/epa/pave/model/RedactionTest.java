@@ -145,6 +145,8 @@ class RedactionTest {
             Map.entry("org.p32h.interop.epa.pave.model.ScenarioList", "the mock scenario files, synthetic by construction, and the tool's "
                     + "problems with them"),
             Map.entry("org.p32h.interop.epa.pave.model.ScenarioSummary", "one mock scenario file, synthetic by construction"),
+            Map.entry("org.p32h.interop.epa.pave.model.SampleCase", "the NPI and codes a mock scenario file names, synthetic by "
+                    + "construction and refused at load unless the NPI passes the check"),
             Map.entry("org.p32h.interop.epa.pave.model.chain.ChainStage", "a stage name and a state line the tool writes; its runs print "
                     + "what identifies them"),
             Map.entry("org.p32h.interop.epa.pave.model.crd.ActionView", "where the action sat, a path the tool writes; every value is "

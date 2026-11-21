@@ -206,6 +206,6 @@ class LookupOverTheServerTest {
         assertThat(blank.json().at("/fieldErrors/0/field").asString()).isEqualTo("memberId");
         Answer badNpi = ask("/api/providers/1234567890", ownHost());
         assertThat(badNpi.status()).isEqualTo(422);
-        assertThat(badNpi.json().at("/fieldErrors/0/message").asString()).contains("check digit");
+        assertThat(badNpi.json().at("/fieldErrors/0/message").asString()).contains("The last digit of this NPI does not match the other nine.");
     }
 }

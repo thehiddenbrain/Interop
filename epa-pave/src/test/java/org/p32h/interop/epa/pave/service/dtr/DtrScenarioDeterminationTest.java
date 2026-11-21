@@ -123,7 +123,9 @@ class DtrScenarioDeterminationTest {
                 assertThat(Npi.isValid(scenario.sentinelNpi())).as(scenario.id() + " sentinel NPI").isTrue();
             }
             // Nothing in a file may look like a member ID or an NPI, apart from the sentinel NPI.
-            String text = JsonSafe.compact(scenario.raw()).replace("\"9999999995\"", "\"\"");
+            // The placeholder NPI may stand only in the sample case, the one place it is set aside.
+            String text = JsonSafe.compact(scenario.raw()).replace("\"9999999995\"", "\"\"")
+                    .replace("\"sampleCase\":{\"npi\":\"1234567893\"", "\"sampleCase\":{\"npi\":\"\"");
             assertThat(looksLikeAnIdentifier.matcher(text).find()).as(scenario.id() + " holds something that looks like an identifier").isFalse();
             // A step that answers a call of the loop says what it claims to produce.
             scenario.steps().forEach((name, step) -> assertThat(step.expect()).as(scenario.id() + " step " + name).isNotNull());
