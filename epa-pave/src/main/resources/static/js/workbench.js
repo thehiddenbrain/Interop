@@ -585,6 +585,13 @@ export function createWorkbench(app, panel, spec) {
                 nextStepControl: (step, shownEnvelope) => (own ? own(step, shownEnvelope) : null) || shared(step, shownEnvelope)}));
             drawBeforeSending();
             readout.scrollTop = 0;
+            // In one column the page scrolls, not the readout, and the window still shows the bottom of the form that was
+            // sent: the new result is brought to the top of the window, as a later DTR step already is. Where the readout
+            // scrolls on its own it is already at its top, and the page is left where it is.
+            if (getComputedStyle(readout).overflowY === 'visible') {
+                const shown = result.querySelector('.result') || result;
+                shown.scrollIntoView({block: 'start'});
+            }
             const verdict = result.querySelector('.verdict__headline');
             if (verdict) {
                 verdict.tabIndex = -1;

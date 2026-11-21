@@ -36,6 +36,16 @@ class EmptyStateFrontendTest {
     }
 
     @Test
+    void inOneColumnEveryNewResultIsBroughtToTheTopOfTheWindow() throws IOException {
+        String show = body("workbench.js", "showResult(envelope, options) {");
+        int scroll = show.indexOf("shown.scrollIntoView({block: 'start'});");
+        assertThat(scroll).isPositive();
+        // Only where the page scrolls: a readout that scrolls on its own is put at its top instead.
+        assertThat(show.lastIndexOf("if (getComputedStyle(readout).overflowY === 'visible') {", scroll)).isPositive();
+        assertThat(show.indexOf("readout.scrollTop = 0;")).isLessThan(scroll);
+    }
+
+    @Test
     void theNewestRunIsNamedByItsIdItsTimeAndItsOutcomeAndNothingOfItsCase() throws IOException {
         String since = body("workbench.js", "export function sinceLoaded(protocol, words, labelOf) {");
         assertThat(since).contains("run.runId").contains("run.timestamp").contains("labelOf(")
