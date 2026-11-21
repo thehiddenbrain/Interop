@@ -11,7 +11,7 @@ import {el, fill, clear, button, code, facts, table, heading, aboutStep} from '.
 import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection, maskedReading} from './result.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, sinceLoaded} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -297,7 +297,7 @@ function compareRequest() {
 }
 
 async function send() {
-    const answer = await bench.call(() => api.postJson('/api/crd', buildRequest()), {saying: 'Sending the CRD request.', control: controls.send});
+    const answer = await bench.call(() => api.postJson('/api/crd', buildRequest()), {saying: 'Sending the CRD request.', control: controls.send, result: true});
     if (answer) {
         // A comparison on screen is folded away, so the result below it is what is in view.
         comparison.fold();
@@ -498,7 +498,8 @@ function lookupSentences(member, provider) {
 
 async function discover() {
     const answer = await bench.call(() => api.get('/api/crd/discover'),
-        {saying: 'Asking the service which CDS services it offers.', control: controls.discover});
+        // Discovery sends nothing of the case, so text left in the code box does not hold it up.
+        {saying: 'Asking the service which CDS services it offers.', control: controls.discover, sendsCase: false});
     if (!answer) {
         return;
     }
@@ -554,11 +555,16 @@ function template(value) {
 
 /* ---------- before the first run ---------- */
 
+/** The server's label of an outcome, or the code itself while the list is not read. */
+function labelOf(code) {
+    return (vocabulary.outcomes.get(code) || {}).label || code;
+}
+
 function drawEmptyState() {
     // With a request of the tester's own chosen, the body is what goes and the form's member is not sent.
     const own = bench.ownRequestActive();
     const parts = [
-        el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.'),
+        sinceLoaded('CRD', 'Nothing has been sent from this tab since the page was loaded.', labelOf),
         el('p', null, own
             ? 'Paste the request body in the form, then choose "Send CRD request". The member, provider and codes on the form are not sent with it.'
             : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Send CRD request".')

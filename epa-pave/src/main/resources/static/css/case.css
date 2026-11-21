@@ -532,3 +532,31 @@
     margin: var(--gap-1) 0 0;
     padding-left: var(--gap-4);
 }
+
+/* Where a handed-on step starts: spaced as the empty state it leads. */
+.empty-state__handed {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gap-3);
+}
+
+/* The seconds counted while a call waits keep their width as they rise. */
+.sending__elapsed {
+    font-variant-numeric: tabular-nums;
+}
+
+/* The vendor's sample on DTR and PAS, drawn as CRD draws it beside its comparison. */
+.vendor-sample {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--gap-3);
+    padding-top: var(--gap-3);
+    border-top: 1px solid var(--rule);
+}
+
+.vendor-sample__title {
+    font-weight: 600;
+    color: var(--ink-strong);
+}

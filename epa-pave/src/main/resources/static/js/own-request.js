@@ -12,6 +12,7 @@
 
 import {el, fill, clear, button, code} from './dom.js';
 import {textArea} from './forms.js';
+import {sampleBlock} from './vendor-sample.js';
 
 let sequence = 0;
 
@@ -22,6 +23,8 @@ let sequence = 0;
  * spec.isMock()     true on the mock profile
  * spec.changed()    called when the choice or the text changes
  * spec.modeChanged() called when the choice changes, and not for each key typed in the box
+ * spec.say(text)     optional: the readout's status line, for the vendor's sample
+ * spec.track(...)    optional: controls disabled while a request is on its way
  */
 export function createOwnRequest(spec) {
     sequence += 1;
@@ -46,7 +49,24 @@ export function createOwnRequest(spec) {
         rules,
         box.node,
         el('div', {class: 'own__tools'}, validity, el('span', {class: 'own__format'}, format, formatSaid)));
-    const node = el('div', {class: 'case-group own'}, choice, panel);
+    // The vendor's sample of the call is offered beside the choice on DTR and PAS. CRD offers it
+    // with its comparison, in crd-compare.js, so nothing is added here for CRD.
+    const sampleOperation = spec.protocol === 'DTR' ? 'DTR_QUESTIONNAIRE_PACKAGE' : spec.protocol === 'PAS' ? 'PAS_SUBMIT' : null;
+    let sample = null;
+    if (spec.protocol === 'DTR' || spec.protocol === 'PAS') {
+        sample = sampleBlock({
+            operation: sampleOperation,
+            ownRequest: {
+                active: () => ownChoice.checked,
+                choose: () => ownChoice.click(),
+                box: () => box.input,
+                focus: () => box.input.focus()
+            },
+            say: text => { if (spec.say) { spec.say(text); } },
+            track: spec.track
+        });
+    }
+    const node = el('div', {class: 'case-group own'}, choice, sample ? sample.node : null, panel);
 
     builtChoice.addEventListener('change', drawMode);
     ownChoice.addEventListener('change', drawMode);
@@ -145,6 +165,10 @@ export function createOwnRequest(spec) {
         refresh() {
             if (own()) {
                 drawRules();
+            }
+            if (sample) {
+                // A change of configuration can map, unmap or replace the collection request.
+                sample.refresh();
             }
         }
     };

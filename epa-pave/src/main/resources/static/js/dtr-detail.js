@@ -207,6 +207,22 @@ export function notApplied(q) {
 }
 
 /**
+ * One line, in the questionnaire view, saying that rules are not applied, so the questions come
+ * first on the screen. Each rule is named, in the server's words, in the response detail below.
+ */
+export function notAppliedLine(q) {
+    const list = q.notApplied || [];
+    if (list.length === 0) {
+        return null;
+    }
+    return el('p', {class: 'dtr-notapplied-line'}, el('strong', null, 'Not applied by this tool: '),
+        list.length === 1
+            ? 'one rule this questionnaire carries. A blank where it would put a value is not an answer of "no value". It is named in the DTR response detail below.'
+            : list.length + ' rules this questionnaire carries. A blank where one of them would put a value is not an answer of "no value". Each is named in '
+                + 'the DTR response detail below.');
+}
+
+/**
  * The kind of a questionnaire in the server's words (kindLabel), or the code it sent when it sent
  * no words. Why it is of that kind is the server's kindBasis, shown beside it where there is room.
  */

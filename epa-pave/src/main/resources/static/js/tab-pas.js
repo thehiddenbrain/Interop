@@ -15,7 +15,7 @@ import * as api from './api.js';
 import {el, fill, clear, button, code, aboutStep} from './dom.js';
 import {textField, selectField, formProblem, showFormProblem, refusedSaying, markFieldErrors, clearFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
 import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
-    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
+    scenarioDefaultNotes, CODE_PICKER_ABOUT, handedOnLead, sinceLoaded} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -50,6 +50,11 @@ let following = null;
 
 // The request the payer asked documentation for, while the tester prepares to send it again from this tab.
 let resubmitting = null;
+
+// The run and the operation of the result on screen, so a notification about that run, or a call
+// chosen that did not make it, can be said at its top. Null while the readout holds no result.
+let shownRunId = null;
+let shownOperation = null;
 
 const controls = {};
 const sections = {};
@@ -134,6 +139,9 @@ function mount(target, application) {
     slots.preview = bench.slot('preview');
     slots.notifications = bench.slot('notifications');
     slots.notifications.append(notifications.node);
+    // An arrival is announced in the call chooser, where it is seen whichever call is chosen.
+    controls.modeChoice.after(notifications.statusNode);
+    notifications.onArrived(markNewer);
 
     app.caseContext.onChange(() => { controls.handover.redraw(); drawFollowing(); });
     showMode('submit');
@@ -147,6 +155,10 @@ function onShow() {
     takeHandover();
     drawWrites();
     notifications.start();
+    if (!bench.hasResult()) {
+        // A hand-over that arrived while the tab was hidden changes what the empty readout says.
+        drawEmptyState();
+    }
 }
 
 /* ---------- the four kinds of call ---------- */
@@ -163,6 +175,10 @@ function buildModeChoice() {
 }
 
 function showMode(id) {
+    if (slots.notifications) {
+        // The receiver's list is read while its call is chosen; above any other result it pushed the verdict down.
+        slots.notifications.hidden = id !== 'notifications';
+    }
     const leavingOwn = mode === 'submit' && id !== 'submit' && ownRequest && ownRequest.active();
     mode = id;
     controls.modeInputs.get(id).checked = true;
@@ -212,7 +228,52 @@ function showMode(id) {
     if (!bench.hasResult()) {
         drawEmptyState();
     }
+    markOther();
     bench.checkReadiness();
+}
+
+// The operations each call makes, to tell whether the result on screen is of the call chosen.
+const OPERATIONS_OF_MODE = {
+    submit: ['PAS_SUBMIT'],
+    inquire: ['PAS_INQUIRE'],
+    subscriptions: ['SUBSCRIPTION_CREATE', 'SUBSCRIPTION_GET', 'SUBSCRIPTION_UPDATE', 'SUBSCRIPTION_DELETE'],
+    notifications: []
+};
+
+/**
+ * Marks the result on screen when it is of another call than the one chosen, and takes the mark
+ * away when a call that matches it is chosen again. The result is kept: the tester may be reading it.
+ */
+function markOther() {
+    const shown = readoutResult().querySelector('.result');
+    if (!shown) {
+        return;
+    }
+    const other = shownOperation !== null && !(OPERATIONS_OF_MODE[mode] || []).includes(shownOperation);
+    const mark = shown.querySelector('.result__other');
+    if (other && !mark) {
+        shown.prepend(el('p', {class: 'result__other'},
+            'This result is of another call than the one now chosen. Sending the chosen call replaces it.'));
+    } else if (!other && mark) {
+        mark.remove();
+    }
+}
+
+/**
+ * A notification about the run on screen gives the next step now, so the result says its own next
+ * step came before it, in the tool's words, and points to the notification. Once per result.
+ */
+function markNewer(items) {
+    const shown = readoutResult().querySelector('.result');
+    if (!shown || !shownRunId || shown.querySelector('.result__newer')) {
+        return;
+    }
+    if (!items.some(item => item.correlatedRunId === shownRunId)) {
+        return;
+    }
+    shown.prepend(el('p', {class: 'result__newer'},
+        'A notification about this run arrived after this result. The next step below was given before it; the notification gives the next step now. ',
+        button('Choose the Notifications call', () => showMode('notifications'), {class: 'button--text'})));
 }
 
 /** The button a press of Enter would mean, if the form were ever submitted: the primary action of the call on screen. */
@@ -301,7 +362,7 @@ function submitRequest() {
 async function sendSubmit() {
     // What the hand-over held when the request left, so the result says what went with it even if the tester changes it afterwards.
     const answers = controls.handover.answersState();
-    const answer = await call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit});
+    const answer = await call(() => api.postJson('/api/pas/submit', submitRequest()), {saying: 'Sending the PAS request.', control: controls.submit, result: true});
     if (answer) {
         showRun(answer.body);
         showAnswersSent(answer.body, answers);
@@ -394,7 +455,7 @@ function inquiryRequest() {
 }
 
 async function sendInquiry() {
-    const answer = await call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire});
+    const answer = await call(() => api.postJson('/api/pas/inquire', inquiryRequest()), {saying: 'Sending the inquiry.', control: controls.inquire, result: true});
     if (answer) {
         showRun(answer.body);
     }
@@ -506,7 +567,7 @@ async function subscriptionCall(kind) {
         update: 'Updating the subscription.', delete: 'Deleting the subscription.'}[kind];
     const control = {create: controls.create, list: controls.list, read: controls.read, update: controls.update, delete: controls.remove}[kind];
     // A subscription call carries nothing of the case, so text left in its code box does not hold it up.
-    const answer = await call(send, {saying: words, control, sendsCase: false});
+    const answer = await call(send, {saying: words, control, sendsCase: false, result: true});
     if (answer) {
         showRun(answer.body);
     }
@@ -702,6 +763,8 @@ function showRun(envelope) {
     const step = envelope.nextStep || {};
     const carry = step.carry || {};
     const hasClaim = carry.claimId && carry.claimId.length > 0;
+    shownRunId = envelope.runId || null;
+    shownOperation = envelope.operation || null;
     bench.showResult(envelope, {detailTitle: envelope.protocol === 'SUBSCRIPTION' ? 'Subscription detail' : 'PAS response detail',
         detail: detailFor(vocabulary),
         // Asking for the status and sending a submission again are this tab's own steps. The shared
@@ -737,6 +800,7 @@ function showRun(envelope) {
             }, {class: 'button--text'})));
     }
     drawFollowing();
+    markOther();
 }
 
 /** The part of the readout that holds the result. */
@@ -851,13 +915,22 @@ async function showPreview(kind) {
 
 /* ---------- before the first run ---------- */
 
+/** The server's label of an outcome, or the code itself while the list is not read. */
+function labelOf(code) {
+    return (vocabulary.outcomes.get(code) || {}).label || code;
+}
+
 function drawEmptyState() {
     if (!bench) {
         return;
     }
-    const parts = [el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.')];
     const own = bench.ownRequestActive();
-    if (mode === 'submit') {
+    const handed = mode === 'submit' && !own ? controls.handover.current() : null;
+    const parts = [handed
+        ? handedOnLead(handed, 'Handed on from ' + (handed.fromProtocol || 'an earlier step'), 'Send PAS request', () => controls.submit.click())
+        : sinceLoaded('PAS', 'Nothing has been sent from this tab since the page was loaded.', labelOf)];
+    // With a case handed on, the lead above says what to do.
+    if (mode === 'submit' && !handed) {
         parts.push(el('p', null, own
             ? 'Paste the request body in the form, then choose "Send PAS request". The member, provider and codes on the form are not sent with it.'
             : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Send PAS request".'));
@@ -867,7 +940,7 @@ function drawEmptyState() {
     } else if (mode === 'subscriptions') {
         parts.push(el('p', null, 'A subscription asks the service to call this tool back when a decision changes. Create one, list what the service holds, '
             + 'or read, update or delete one by its id.'));
-    } else {
+    } else if (mode === 'notifications') {
         parts.push(el('p', null, 'Notifications appear in the list above as the receiver takes them in.'));
     }
     const notes = vocabulary.operations.filter(item => (mode === 'submit' && item.operation === 'PAS_SUBMIT')
@@ -883,10 +956,10 @@ function drawEmptyState() {
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {
-        parts.push(el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
-            : 'On mock, each member ID picks the answer. Pick a case:'));
-        parts.push(scenarioListNotes(list));
-        parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
+        const pick = [el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'), scenarioListNotes(list), scenarioTable(app, list, {own, onUse: letTheMemberIdDecide})];
+        // With a case handed on, a case from the table would replace it, so the table is folded away.
+        parts.push(handed ? el('details', {class: 'fold'}, el('summary', null, 'Start another case on mock (' + list.scenarios.length + ')'), pick) : pick);
     }
     const listed = mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0;
     parts.push(aboutStep(
@@ -895,6 +968,8 @@ function drawEmptyState() {
         mode === 'submit' || mode === 'inquire' ? el('p', null, CODE_PICKER_ABOUT) : null,
         listed ? scenarioDefaultNotes(list) : null,
         app.isMock() ? whereTheyGo : null));
+    shownRunId = null;
+    shownOperation = null;
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 

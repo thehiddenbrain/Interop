@@ -305,9 +305,15 @@ public class NotificationReceiver {
                 throw ValidationException.of("runId", "Name a PAS submission. The run " + runId + " is a " + run.operation().label() + " run.");
             }
         }
+        boolean fromRun = false;
         if (scenarioId == null && run != null) {
             // The notification that belongs to the answer the submission was given.
             scenarioId = Texts.trimToNull(run.scenarioId());
+            fromRun = scenarioId != null;
+        }
+        if (scenarioId == null && run == null) {
+            // On the usual path the scenario is left to the submission, so what is missing is the run.
+            throw ValidationException.of("runId", "Name the submission this notification is about, or choose a scenario.");
         }
         if (scenarioId == null) {
             throw ValidationException.of("scenarioId", "Choose the scenario whose notification to deliver.");
@@ -318,8 +324,11 @@ public class NotificationReceiver {
                 .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted + "\"."));
         ScenarioStep notify = MockNotifications.step(scenario);
         if (notify == null || notify.body() == null) {
-            throw ValidationException.of("scenarioId", "Scenario " + scenario.id() + " holds no notification. Choose one of: "
-                    + String.join(", ", all.stream().filter(s -> MockNotifications.step(s) != null).map(Scenario::id).toList()) + ".");
+            // Named as the drop-down names them, so the tester finds each one there; file ids are not on screen.
+            String choices = String.join(", ", all.stream().filter(s -> MockNotifications.step(s) != null).map(NotificationReceiver::shownName).toList());
+            throw ValidationException.of("scenarioId", (fromRun
+                    ? "The submission was answered by scenario " + shownName(scenario) + ", which sends no notification."
+                    : "Scenario " + shownName(scenario) + " sends no notification.") + " Choose one that does: " + choices + ".");
         }
         String claimId = null;
         String claimResponseId = null;
@@ -932,5 +941,10 @@ public class NotificationReceiver {
         if (Texts.present(value)) {
             correlation.put(key, value);
         }
+    }
+
+    /** A scenario as the sample's drop-down shows it: its number and its label. */
+    private static String shownName(Scenario scenario) {
+        return scenario.number() + ". " + scenario.label();
     }
 }

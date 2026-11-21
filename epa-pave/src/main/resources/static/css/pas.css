@@ -231,8 +231,8 @@
     color: var(--ink-strong);
 }
 
+/* The arrival line, in the call chooser, where it is seen whichever call is chosen. */
 .pas-notifications__status {
-    margin-left: var(--gap-3);
     font-size: var(--text-small);
     color: var(--ink);
 }
@@ -416,3 +416,12 @@
     color: var(--ink-strong);
 }
 
+
+/* A result marked by what came after it: a newer notification, or another call chosen. Ruled as a stale result is, no tint. */
+.result__newer,
+.result__other {
+    padding: 6px var(--gap-3);
+    border: 1px solid var(--ink-strong);
+    font-weight: 600;
+    color: var(--ink-strong);
+}

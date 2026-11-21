@@ -1262,19 +1262,33 @@ class NotificationReceiverTest {
         assertThat(live.receive(NotificationReceiver.Inbound.of("{}")).kind()).isEqualTo(NotificationKind.OTHER_JSON);
         lines++;
 
-        assertSampleInvalid(new NotificationSampleRequest(null, null, null), "scenarioId");
+        // With neither, the run is what is missing on the usual path, so the refusal lands on it.
+        assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest(null, null, null)))
+                .isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e.fieldErrors()).extracting(FieldError::field).containsExactly("runId");
+                    assertThat(e.fieldErrors().get(0).message()).isEqualTo("Name the submission this notification is about, or choose a scenario.");
+                });
         assertSampleInvalid(new NotificationSampleRequest("pas-99-nope", null, null), "scenarioId");
         assertSampleInvalid(new NotificationSampleRequest("pas-11-notification-known-run", null, null), "runId");
         assertSampleInvalid(new NotificationSampleRequest("pas-11-notification-known-run", "not a run id", null), "runId");
         assertSampleInvalid(new NotificationSampleRequest("pas-11-notification-known-run", created.runId(), null), "runId");
         assertSampleInvalid(new NotificationSampleRequest("pas-20-heartbeat", null, "the subscription of " + SURNAME), "subscriptionId");
-        assertSampleInvalid(null, "scenarioId");
-        // A scenario that holds no notification is refused by name, with the ones that do.
+        assertSampleInvalid(null, "runId");
+        // A scenario that holds no notification is refused by the name the drop-down gives it, with the ones that do,
+        // and no file id is quoted: the screen does not show them.
+        Scenario approved = scenarios.list(MockOnyxPasClient.SCENARIOS).stream().filter(s -> s.id().equals("pas-01-approved")).findFirst().orElseThrow();
+        Scenario known = scenarios.list(MockOnyxPasClient.SCENARIOS).stream().filter(s -> s.id().equals("pas-11-notification-known-run")).findFirst().orElseThrow();
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest("pas-01-approved", null, null)))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
-                        .contains("pas-01-approved holds no notification").contains("pas-06-submit-then-notified").contains("pas-20-heartbeat"));
-        // So is the scenario that answered the run, when that scenario holds none.
+                        .startsWith("Scenario " + approved.number() + ". " + approved.label() + " sends no notification. Choose one that does: ")
+                        .contains(known.number() + ". " + known.label())
+                        .doesNotContain("pas-01-approved").doesNotContain("pas-06-submit-then-notified").doesNotContain("pas-20-heartbeat"));
+        // So is the scenario that answered the run, when that scenario holds none, and the sentence says it came from the run.
         assertSampleInvalid(new NotificationSampleRequest(null, submitted.runId(), null), "scenarioId");
+        assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest(null, submitted.runId(), null)))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message())
+                        .startsWith("The submission was answered by scenario " + approved.number() + ". " + approved.label() + ", which sends no notification. Choose one that does: ")
+                        .contains("11. ").doesNotContain("pas-"));
         assertThatThrownBy(() -> receiver.deliverSample(new NotificationSampleRequest("pas-11-notification-known-run",
                 "run-00000000-0000-4000-8000-00000000dead", null))).isInstanceOf(NotFoundException.class)
                 // Edge E13: a 404 does not repeat the identifier from the request.

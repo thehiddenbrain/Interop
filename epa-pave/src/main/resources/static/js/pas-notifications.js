@@ -63,7 +63,9 @@ export function createNotifications(spec) {
     let limit = PAGE;
     let autoOpened = null;
 
-    const status = el('span', {class: 'pas-notifications__status', role: 'status', aria: {live: 'polite'}});
+    // What arrived is announced outside the panel, which is hidden while another call is chosen; the tab places it.
+    const status = el('p', {class: 'pas-notifications__status', role: 'status', aria: {live: 'polite'}});
+    const arrivedListeners = [];
     const heldCount = el('span', {class: 'section-heading__count'});
     const receiver = el('div', {class: 'pas-receiver'});
     const countsLine = el('p', {class: 'small quiet'});
@@ -82,8 +84,7 @@ export function createNotifications(spec) {
     // and the list is open while the Notifications call is chosen.
     const body = el('details', {class: 'pas-notifications__body'},
         el('summary', null,
-            el('span', {class: 'pas-notifications__title', id: 'pas-notifications-title'}, 'Notifications received ', heldCount),
-            status),
+            el('span', {class: 'pas-notifications__title', id: 'pas-notifications-title'}, 'Notifications received ', heldCount)),
         el('div', {class: 'pas-notifications__inside'},
             el('p', null, button('Ask the receiver now', () => poll(), {class: 'button--quiet button--small'})),
             receiver, countsLine, view.node, showing, list, moreRow));
@@ -196,6 +197,10 @@ export function createNotifications(spec) {
             const masked = arrived[0].verdict.maskedReading ? ' ' + MASKED_MARK : '';
             status.textContent = (arrived.length === 1 ? 'A notification arrived: ' + arrived[0].verdict.headline
                 : arrived.length + ' notifications arrived. The newest: ' + arrived[0].verdict.headline) + masked;
+            // The same comparison that announces an arrival: only what was not in the previous poll.
+            for (const listener of arrivedListeners) {
+                listener(arrived.slice());
+            }
         } else if (!loaded) {
             status.textContent = shownItems.length === 0 ? 'Nothing has arrived at the receiver since the tool started.'
                 : 'The receiver holds ' + shownItems.length + (shownItems.length === 1 ? ' notification.' : ' notifications.');
@@ -546,6 +551,12 @@ export function createNotifications(spec) {
 
     return {
         node,
+        /** The line that announces an arrival, placed by the tab where it is seen whichever call is chosen. */
+        statusNode: status,
+        /** Calls back, after a poll, with the notifications that were not there at the poll before it. */
+        onArrived(callback) {
+            arrivedListeners.push(callback);
+        },
         /** The sample form, which belongs with the controls on the left. */
         sampleNode: sampleSlot,
         start,

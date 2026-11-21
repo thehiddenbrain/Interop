@@ -15,6 +15,7 @@ import {el, fill, clear, button, code, heading, table} from './dom.js';
 import {clearFieldErrors, markFieldErrors, formProblem, showFormProblem, refusedSaying} from './forms.js';
 import {errorPanel} from './result.js';
 import {lineMap, ancestors} from './crd-json-lines.js';
+import {readSample} from './vendor-sample.js';
 
 /**
  * spec.app            the application object
@@ -226,32 +227,30 @@ export function createComparison(spec) {
     /**
      * The sample body of the request the active collection maps to the hook on the form, as the
      * collection holds it: {sample: {name, body, scripted}}, or {reason} in words when there is none.
+     * The words here are about comparing; reading the sample is shared with DTR and PAS.
      */
-    async function readSample() {
-        const operation = spec.operation();
-        const answer = await api.postJson('/api/config/resolve', {operation});
-        if (answer.kind !== 'ok') {
-            return {reason: [el('strong', null, 'The vendor\'s sample could not be read. '), answer.body.title, ' ', answer.body.action || '']};
+    async function sampleOrReason() {
+        const found = await readSample(spec.operation());
+        if (found.sample) {
+            return found;
         }
-        const resolved = answer.body;
-        const named = resolved.label || operation;
-        if (!resolved.requestName) {
-            return {reason: ['No collection request is mapped to ', named, ', so there is no vendor\'s sample to compare. ',
+        if (found.refused) {
+            return {reason: [el('strong', null, 'The vendor\'s sample could not be read. '), found.refused.title, ' ', found.refused.action || '']};
+        }
+        if (found.unmapped) {
+            return {reason: ['No collection request is mapped to ', found.unmapped.operation, ', so there is no vendor\'s sample to compare. ',
                 'A collection is uploaded and mapped on the Config tab. ', button('Open the Config tab', () => app.navigate('config'),
                     {class: 'button--text'})]};
         }
-        if (typeof resolved.bodyTemplate !== 'string' || resolved.bodyTemplate.trim() === '') {
-            return {reason: ['The collection request ', el('strong', null, resolved.requestName), ', mapped to ', named,
-                ', has no sample body to compare.']};
-        }
-        return {sample: {name: resolved.requestName, body: resolved.bodyTemplate, scripted: resolved.scripted, operation: named}};
+        return {reason: ['The collection request ', el('strong', null, found.noBody.name), ', mapped to ', found.noBody.operation,
+            ', has no sample body to compare.']};
     }
 
     /** Says whether there is a sample for the hook on the form, and offers it only when there is. */
     async function refreshSample() {
         sampleAsked += 1;
         const asked = sampleAsked;
-        const found = await readSample();
+        const found = await sampleOrReason();
         if (asked !== sampleAsked) {
             // The hook or the configuration changed while this was on its way: a later answer is drawn.
             return;
@@ -267,7 +266,7 @@ export function createComparison(spec) {
     /** The sample as it stands now, or null with the reason said. */
     async function vendorSample() {
         bench.say('Reading the vendor\'s sample from the collection.');
-        const found = await readSample();
+        const found = await sampleOrReason();
         if (!found.sample) {
             fill(said, found.reason);
             bench.say('There is no vendor\'s sample to use.');
