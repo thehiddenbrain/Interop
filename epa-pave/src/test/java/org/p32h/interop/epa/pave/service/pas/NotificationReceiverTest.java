@@ -255,7 +255,7 @@ class NotificationReceiverTest {
                 .contains(org.p32h.interop.epa.pave.model.Secrets.mask("access token"));
         assertThat(view.payloadNotes()).contains("4 places in this payload are masked because they repeat secrets this tool could have "
                 + "sent to the service: a secret variable, the access token, the client secret or a credential of the address to call "
-                + "back or of a lookup. What is shown is therefore not exactly what was received.");
+                + "back, of a lookup or of a request of a collection. What is shown is therefore not exactly what was received.");
         assertThat(JsonSafe.mapper().writeValueAsString(ledger.records())).doesNotContain("placeholder-literal-cb")
                 .doesNotContain("placeholder-receiver-token").doesNotContain("placeholder-client-secret")
                 .doesNotContain("placeholder-access-token");
