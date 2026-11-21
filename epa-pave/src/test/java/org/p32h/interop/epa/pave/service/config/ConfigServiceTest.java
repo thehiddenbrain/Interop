@@ -803,6 +803,26 @@ class ConfigServiceTest {
                 .doesNotContain(json(LookupProperties.defaults().member()));
     }
 
+    @Test
+    void aCredentialTypedIntoTheAddressToCallBackOrALookupUrlIsShownMaskedInTheSettings() {
+        ConfigFixture fixture = ConfigFixture.on(directory)
+                .onyx("subscription.callback-url", "https://pave-receiver.example.invalid/api/pas/notifications?access_token=placeholder-callback-token-8c8c&tenant=t1")
+                .lookup("member.url", "https://lookup.example.invalid/member/{id}?api_key=placeholder-lookup-url-key-2a2a")
+                .lookup("provider.url", "https://lookup.example.invalid/npi/{id}?key={{apiKey}}").build();
+        Map<String, SettingRow> settings = new java.util.LinkedHashMap<>();
+        fixture.service.effective(null).settings().forEach(setting -> settings.put(setting.property(), setting));
+
+        assertThat(settings.get("onyx.subscription.callback-url")).isEqualTo(new SettingRow("onyx.subscription.callback-url",
+                "https://pave-receiver.example.invalid/api/pas/notifications?access_token=[secret access_token as typed]&tenant=t1", true, true));
+        assertThat(settings.get("lookup.member.url")).isEqualTo(new SettingRow("lookup.member.url",
+                "https://lookup.example.invalid/member/{id}?api_key=[secret api_key as typed]", true, true));
+        // A reference to a variable is no credential typed in, so it is shown as written.
+        assertThat(settings.get("lookup.provider.url")).isEqualTo(new SettingRow("lookup.provider.url",
+                "https://lookup.example.invalid/npi/{id}?key={{apiKey}}", true, false));
+        assertThat(json(fixture.service.effective(null))).doesNotContain("placeholder-callback-token-8c8c")
+                .doesNotContain("placeholder-lookup-url-key-2a2a");
+    }
+
     // ------------------------------------------------------------------------------------------
     // Ready to send: the checklist at the top of In force now
     // ------------------------------------------------------------------------------------------

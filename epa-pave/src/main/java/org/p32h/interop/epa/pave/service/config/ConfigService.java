@@ -686,7 +686,7 @@ public class ConfigService {
         rows.add(plain("onyx.pas.url", onyx.pas().url()));
         rows.add(plain("onyx.pas.attachment-mode", onyx.pas().attachmentMode()));
         rows.add(plain("onyx.subscription.url", onyx.subscription().url()));
-        rows.add(plain("onyx.subscription.callback-url", onyx.subscription().callbackUrl()));
+        rows.add(url("onyx.subscription.callback-url", onyx.subscription().callbackUrl()));
         rows.add(plain("onyx.connect-timeout-ms", String.valueOf(onyx.connectTimeoutMs())));
         rows.add(plain("onyx.read-timeout-ms", String.valueOf(onyx.readTimeoutMs())));
         rows.add(plain("onyx.auth.enabled", String.valueOf(onyx.auth().enabled())));
@@ -702,7 +702,7 @@ public class ConfigService {
     }
 
     private static void endpoint(List<SettingRow> rows, String prefix, LookupProperties.Endpoint endpoint) {
-        rows.add(plain(prefix + ".url", endpoint.url()));
+        rows.add(url(prefix + ".url", endpoint.url()));
         rows.add(plain(prefix + ".enabled", String.valueOf(endpoint.enabled())));
         rows.add(plain(prefix + ".connect-timeout-ms", String.valueOf(endpoint.connectTimeoutMs())));
         rows.add(plain(prefix + ".read-timeout-ms", String.valueOf(endpoint.readTimeoutMs())));
@@ -718,6 +718,19 @@ public class ConfigService {
                 rows.add(plain(property, value));
             }
         });
+    }
+
+    /**
+     * A url as it may be shown: a credential typed into it, such as the access token of the
+     * address to call back or the api key of a lookup, masked by the name of the place it sits
+     * in, as the request side and every answer mask it. The row is then marked secret.
+     */
+    private static SettingRow url(String property, String value) {
+        if (Texts.blank(value)) {
+            return plain(property, value);
+        }
+        org.p32h.interop.epa.pave.postman.LiteralCredentials.Marked typed = org.p32h.interop.epa.pave.postman.LiteralCredentials.inUrl(value.strip());
+        return typed.none() ? plain(property, value) : new SettingRow(property, typed.shown(), true, true);
     }
 
     private static SettingRow plain(String property, String value) {
