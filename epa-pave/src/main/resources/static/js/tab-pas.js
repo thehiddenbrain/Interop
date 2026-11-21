@@ -12,9 +12,10 @@
 // fields such as claimId, and it must land on the field of the call that was sent.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code} from './dom.js';
+import {el, fill, clear, button, code, aboutStep} from './dom.js';
 import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
+    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -853,9 +854,7 @@ function drawEmptyState() {
     if (mode === 'submit') {
         parts.push(el('p', null, own
             ? 'Paste the request body in the form, then choose "Send PAS request". The member, provider and codes on the form are not sent with it.'
-            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code in the form, then choose "Send PAS request". '
-                + '"Show the request" shows the bundle first and lists what it leaves out. The answer appears here: what the payer decided for each item, '
-                + 'the authorization number, whether it matched what you expected, and what to do next.'));
+            : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Send PAS request".'));
     } else if (mode === 'inquire') {
         parts.push(el('p', null, 'An inquiry asks for the status of a submitted request. Send a submission first and the inquiry follows it, '
             + 'or type the claim identifier of the request to ask about. The member and the provider of the case in the form go with it.'));
@@ -875,11 +874,17 @@ function drawEmptyState() {
     }
     const list = vocabulary.byUse.get(useOf(mode));
     if (mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0) {
-        parts.push(el('p', null, own ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
-            : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+        parts.push(el('p', null, own ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'));
         parts.push(scenarioListNotes(list));
         parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
     }
+    const listed = mode !== 'subscriptions' && mode !== 'notifications' && app.isMock() && list && list.available && list.scenarios.length > 0;
+    parts.push(aboutStep(
+        mode === 'submit' && !own ? el('p', null, '"Show the request" shows the bundle first and lists what it leaves out. The answer appears here: '
+            + 'what the payer decided for each item, the authorization number, whether it matched what you expected, and what to do next.') : null,
+        mode === 'submit' || mode === 'inquire' ? el('p', null, CODE_PICKER_ABOUT) : null,
+        listed ? scenarioDefaultNotes(list) : null));
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 

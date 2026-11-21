@@ -7,7 +7,7 @@
 // the ledger does not keep them and how to get them again.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, copyButton, facts, millis} from './dom.js';
+import {el, fill, clear, button, code, copyButton, facts, millis, aboutStep} from './dom.js';
 import {textField, clearFieldErrors, markFieldErrors, formProblem, LEDGER_TEXT_HINT} from './forms.js';
 import {stamp, slowFlag} from './marks.js';
 import {errorPanel} from './result.js';
@@ -102,8 +102,8 @@ export function createRunView(app, context) {
                 answer('What next', run.nextAction
                     ? [vocabulary.nextAction(run.nextAction) ? [el('strong', null, vocabulary.nextAction(run.nextAction)), ' '] : null,
                         el('span', {class: 'small'}, '(', code(run.nextAction), ')'),
-                        el('p', {class: 'small quiet'}, 'The step this run named, in the server\'s words for it. The ledger keeps the name only, '
-                        + 'so the reason the result gave beside it is not kept.'),
+                        aboutStep(el('p', {class: 'small quiet'}, 'The step this run named, in the server\'s words for it. The ledger keeps the name only, '
+                        + 'so the reason the result gave beside it is not kept.')),
                         run.chainId ? el('p', {class: 'small'}, chainLink(run.chainId, 'Open its chain'), ' to see where the journey stands now.')
                             : el('p', {class: 'small'}, 'To read the reason, load this case into the form below and send it: the result states it.')]
                     : [none('not recorded'), el('p', {class: 'small quiet'}, 'This line names no next step.')])),

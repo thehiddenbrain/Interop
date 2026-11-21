@@ -2773,3 +2773,13 @@ details.fold > :not(summary) {
     padding-top: 0;
     padding-bottom: 6px;
 }
+
+/* Explanation one click away from the words needed to act: closed, under everything else. */
+details.about-step {
+    margin-top: var(--gap-4);
+}
+
+.readiness__plain {
+    font-size: var(--text-large);
+    color: var(--ink-strong);
+}

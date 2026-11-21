@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.p32h.interop.epa.pave.client.MockSelection;
 import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.Npi;
+import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import org.p32h.interop.epa.pave.model.ScenarioBehavior;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
@@ -287,6 +288,25 @@ class ScenarioRepositoryTest {
     }
 
     @Test
+    void theSummaryCarriesTheDefaultNoteApartFromTheNotesThatReportSomethingWrong(@TempDir Path dir) throws IOException {
+        // The bundled default: its one note only explains, so it is the summary's defaultNote and its notes are empty.
+        ScenarioSummary first = bundled.load("crd").scenarios().get(0).summary();
+        assertThat(first.defaultNote()).startsWith("crd-01-pa-required.json: it is the default, because its number (1)");
+        assertThat(first.notes()).isEmpty();
+        // A second file whose expect block claims 200 and answers 500 keeps that warning in its notes, and has no default note.
+        Files.createDirectories(dir.resolve("crd"));
+        Files.writeString(dir.resolve("crd/a.json"), scenario("a", 1, "\"sentinelMemberId\":\"P32H-A\","));
+        Files.writeString(dir.resolve("crd/b.json"), "{\"id\":\"b\",\"number\":2,\"label\":\"L\",\"sentinelMemberId\":\"P32H-B\","
+                + "\"httpStatus\":500,\"expect\":{\"outcome\":\"AUTH_REQUIRED\",\"httpStatus\":200},\"response\":{}}");
+        List<Scenario> own = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd").scenarios();
+        ScenarioSummary second = own.get(1).summary();
+        assertThat(second.defaultNote()).isNull();
+        assertThat(second.notes()).containsExactly("b.json: its expect block claims HTTP 200, and the file answers with HTTP 500, so the "
+                + "outcome it claims may not be the one it produces.");
+        assertThat(own.get(0).summary().defaultNote()).startsWith("a.json: it is the default");
+    }
+
+    @Test
     void aMisspeltTopLevelKeyIsRefusedByNameAndNotDropped() {
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberID\":\"P32H-X\",")))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -484,8 +504,10 @@ class ScenarioRepositoryTest {
                 "No CRD scenario carries \"answersDtrSentinels\": true, so a DTR sentinel member ID typed in CRD selects no CRD scenario "
                         + "and is answered by the CRD default, crd-00-zero.json, and a journey with it does not reach DTR as the DTR "
                         + "scenario's label says.");
-        // The scenario list carries the notes about each file on that file's own line.
-        assertThat(loaded.scenarios().get(0).summary().notes()).hasSize(2);
+        // The scenario list carries the notes about each file on that file's own line: the warning
+        // among its notes, and the note that it is the default apart, as the one that only explains.
+        assertThat(loaded.scenarios().get(0).summary().notes()).hasSize(1);
+        assertThat(loaded.scenarios().get(0).summary().defaultNote()).startsWith("crd-00-zero.json: it is the default");
         assertThat(loaded.scenarios().get(1).summary().notes()).isEmpty();
         assertThat(external.select("crd", MockSelection.of(null, "S123456789", null)).scenario().id()).isEqualTo("crd-00-zero");
         // A set with notes is still used whole, and the start is not refused.

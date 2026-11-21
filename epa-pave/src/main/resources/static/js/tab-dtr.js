@@ -11,9 +11,10 @@
 // There is no SMART launch behind this tab and no patient record: the tab says so where it is seen.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts} from './dom.js';
+import {el, fill, clear, button, code, facts, aboutStep} from './dom.js';
 import {textField, textArea, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, nextStepControl, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
+    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {sameCase} from './handover.js';
 import {dtrDetail} from './dtr-detail.js';
 import {createSession, hasQuestionnaires} from './dtr-questionnaire.js';
@@ -543,18 +544,22 @@ function drawEmptyState() {
             'There is no SMART launch here and no patient record: you type each answer yourself. Answers marked as pre-populated come from the payer\'s service.'),
         el('p', null, own
             ? 'Paste the package request body in the form, then choose "Fetch the questionnaire package". The member, provider and codes on the form are not sent with it.'
-            : 'With the member ID, the ordering provider\'s NPI and a procedure code in the form, choose "Fetch the questionnaire package". '
-                + 'What CRD handed on goes with it. The questions then appear here to be answered, one step at a time for an adaptive '
-                + 'questionnaire, and the completed response is handed to PAS.')
+            : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Fetch the questionnaire package".')
     ];
     const list = vocabulary.scenarios;
-    if (app.isMock() && list && list.available && list.scenarios.length > 0) {
+    const mockList = app.isMock() && list && list.available && list.scenarios.length > 0;
+    if (mockList) {
         parts.push(el('p', null, own
-            ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
-            : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+            ? 'On mock, a member ID from this table inside your body picks the answer. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'));
         parts.push(scenarioListNotes(list));
         parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
     }
+    parts.push(aboutStep(
+        own ? null : el('p', null, 'What CRD handed on goes with it. The questions then appear here to be answered, one step at a time for an adaptive '
+            + 'questionnaire, and the completed response is handed to PAS.'),
+        el('p', null, CODE_PICKER_ABOUT),
+        mockList ? scenarioDefaultNotes(list) : null));
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 

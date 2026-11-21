@@ -318,6 +318,16 @@ public class ScenarioRepository {
     }
 
     /**
+     * The note that a file is the default. It only explains, so the summary carries it apart from
+     * the notes that report something wrong with a file, and the screen can put it behind "About
+     * this step" without telling notes apart by their words.
+     */
+    static String defaultNote(Scenario scenario) {
+        return scenario.source() + ": it is the default, because its number (" + scenario.number() + ") is the lowest. A run that "
+                + "neither a chosen scenario nor a sentinel selects is answered from it.";
+    }
+
+    /**
      * What can be said of one file from what is already loaded, without running it: that it is
      * the default, and that its expect block claims another HTTP status than the file answers
      * with. Whether the outcome it claims is the one it produces takes the protocol's own reading
@@ -326,8 +336,7 @@ public class ScenarioRepository {
     static List<String> notesAbout(Scenario scenario, boolean first) {
         List<String> notes = new ArrayList<>();
         if (first) {
-            notes.add(scenario.source() + ": it is the default, because its number (" + scenario.number() + ") is the lowest. A run that "
-                    + "neither a chosen scenario nor a sentinel selects is answered from it.");
+            notes.add(defaultNote(scenario));
         }
         ScenarioExpect expect = scenario.expect();
         ScenarioStep main = scenario.main();

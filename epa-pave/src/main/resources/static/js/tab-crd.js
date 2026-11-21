@@ -7,10 +7,11 @@
 // discovery, and the words before the first run.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading} from './dom.js';
+import {el, fill, clear, button, code, facts, table, heading, aboutStep} from './dom.js';
 import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
-import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout, scenarioOverride, scenarioOverrideNote,
+    scenarioDefaultNotes, CODE_PICKER_ABOUT} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -60,8 +61,7 @@ function mount(panel, application) {
         el('div', {class: 'field-grid'}, controls.date.node, controls.testerRef.node, controls.scenarioSlot, controls.note.node),
         el('div', {class: 'field', dataset: {field: 'includePrefetch'}},
             el('label', {class: 'choice', htmlFor: 'crd-prefetch'}, controls.prefetch, 'Send prefetch'),
-            el('span', {class: 'field__hint'}, 'The Patient, the Coverage and the provider go in the request as prefetch. '
-                + 'Without them the service has to fetch them from a fhirServer, and the request notes say whether one is sent.')),
+            el('span', {class: 'field__hint'}, 'Sent unless unticked.')),
         el('p', null, controls.discover));
     // What the tester expects is the last thing set before sending, so it sits with the button
     // and is in view however far the case above it has been scrolled.
@@ -555,20 +555,25 @@ function drawEmptyState() {
     const parts = [
         el('p', {class: 'empty-state__lead'}, 'Nothing has been sent from this tab yet.'),
         el('p', null, own
-            ? 'Paste the request body in the form, then choose "Send CRD request". The member, provider and codes on the form are not sent with it. '
-                + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.'
-            : 'Enter a member ID, the ordering provider\'s NPI and at least one procedure code in the form, then choose "Send CRD request". '
-                + 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.')
+            ? 'Paste the request body in the form, then choose "Send CRD request". The member, provider and codes on the form are not sent with it.'
+            : 'Fill the member ID, the NPI and a procedure code in the form, then choose "Send CRD request".')
     ];
     const list = vocabulary.scenarios;
-    if (app.isMock() && list && list.available && list.scenarios.length > 0) {
+    const mockList = app.isMock() && list && list.available && list.scenarios.length > 0;
+    if (mockList) {
         parts.push(el('p', null, own
-            ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers, unless one is chosen in the Mock '
-                + 'scenario field. These are the member IDs that do:'
-            : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
+            ? 'On mock, a member ID from this table inside your body picks the answer, unless a scenario is chosen under More options. Copy one:'
+            : 'On mock, each member ID picks the answer. Pick a case:'));
         parts.push(scenarioListNotes(list));
         parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
     }
+    // What explains the step, kept word for word, one click away.
+    parts.push(aboutStep(
+        el('p', null, 'The answer appears here: what the service said, whether it matched what you expected, and what to do next.'),
+        el('p', null, 'Send prefetch: the Patient, the Coverage and the provider go in the request as prefetch. '
+            + 'Without them the service has to fetch them from a fhirServer, and the request notes say whether one is sent.'),
+        el('p', null, CODE_PICKER_ABOUT),
+        mockList ? scenarioDefaultNotes(list) : null));
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
 }
 

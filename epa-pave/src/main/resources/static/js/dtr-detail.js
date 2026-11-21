@@ -10,7 +10,7 @@
 // above this part. Here they appear only for a questionnaire that cannot be answered, so that
 // every item is still on screen.
 
-import {el, append, code, facts, table, heading} from './dom.js';
+import {el, append, code, facts, table, heading, aboutStep} from './dom.js';
 import {shown, shownList, presenceMark, noneMark, hasValue} from './shown.js';
 import {issuesTable} from './result.js';
 import {itemList, originMark} from './dtr-items.js';
@@ -200,9 +200,10 @@ export function notApplied(q) {
         return null;
     }
     return el('div', {class: 'dtr-notapplied'},
-        el('p', null, el('strong', null, list.length === 1 ? 'A rule this tool does not apply. ' : list.length + ' rules this tool does not apply. '),
-            'A blank where one of them would put a value is not an answer of "no value".'),
-        el('ul', {class: 'note-list'}, list.map(line => el('li', null, line))));
+        el('p', null, el('strong', null, list.length === 1 ? 'A rule this tool does not apply.' : list.length + ' rules this tool does not apply.')),
+        // The server's lines name each library and rule, so they stay in view; the sentence that explains them is one click away.
+        el('ul', {class: 'note-list'}, list.map(line => el('li', null, line))),
+        aboutStep(el('p', null, 'A blank where one of them would put a value is not an answer of "no value".')));
 }
 
 /**

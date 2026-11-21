@@ -89,6 +89,7 @@ class StaticServerWordsTest {
             new Read("config-environments.js", "answer.body.addressWarnings", ConfigViews.Activated.class, "addressWarnings"),
             new Read("config-inforce.js", "active.addressWarnings", ConfigViews.EnvironmentView.class, "addressWarnings"),
             new Read("workbench.js", "scenario.notes", ScenarioSummary.class, "notes"),
+            new Read("workbench.js", "scenario.defaultNote", ScenarioSummary.class, "defaultNote"),
             new Read("workbench.js", "list.notes", ScenarioList.class, "notes"),
             new Read("app.js", "answer.body.source", CodeListSelfCheck.class, "source"),
             new Read("app.js", "answer.body.placeholder", CodeListSelfCheck.class, "placeholder"),

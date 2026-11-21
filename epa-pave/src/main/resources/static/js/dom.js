@@ -251,3 +251,11 @@ export function when(timestamp) {
 export function token(value) {
     return String(value === undefined || value === null ? '' : value).replace(/[^A-Za-z0-9_-]/g, '');
 }
+
+/**
+ * What explains a step rather than says what to do in it, closed under "About this step", so the
+ * first screen keeps the words needed to act. Nothing is deleted: it is one click away.
+ */
+export function aboutStep(...content) {
+    return el('details', {class: 'fold about-step'}, el('summary', null, 'About this step'), content);
+}

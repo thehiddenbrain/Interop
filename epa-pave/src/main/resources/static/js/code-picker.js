@@ -68,9 +68,8 @@ export function createCodePicker(spec) {
         listNote,
         chips,
         el('div', {class: 'picker__entry'}, el('div', {class: 'code-entry'}, input, add), popup),
-        el('span', {class: 'field__hint', id: ids.hint},
-            'Arrows choose from the code list, Enter adds. A code not on the list is added as typed. Several can be pasted at once, '
-            + 'separated by commas or spaces.'),
+        // The rest of what the box does is said under About this step on each protocol tab.
+        el('span', {class: 'field__hint', id: ids.hint}, 'Type a code or words of its description; Enter adds.'),
         status,
         repeatNote,
         failNote);

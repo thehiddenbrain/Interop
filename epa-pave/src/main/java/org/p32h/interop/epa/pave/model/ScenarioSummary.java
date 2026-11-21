@@ -15,9 +15,10 @@ import java.util.List;
  * @param sentinelNpis     every NPI that selects this scenario on mock, in the same order
  * @param crdSentinelMemberIds the CRD sentinel member IDs a DTR scenario also answers for, so that
  *                         a journey started at CRD reaches it. Empty for every other scenario
- * @param notes            what a tester should know about the file that does not stop it being
- *                         used, such as that it is the default or that its expect block claims
- *                         another HTTP status than it answers with. Empty when there is nothing
+ * @param notes            what is wrong with the file that does not stop it being used, such as
+ *                         that its expect block claims another HTTP status than it answers with.
+ *                         The note that the file is the default is not among them: it is
+ *                         {@code defaultNote}. Empty when there is nothing
  * @param defaultNote      the one note that only explains, that the file is the default because its
  *                         number is the lowest, kept apart from {@code notes} so that the screen can
  *                         put it behind "About this step" without telling notes apart by their words.

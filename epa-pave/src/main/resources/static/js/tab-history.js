@@ -7,7 +7,7 @@
 // so the back button and a reload return to what was on screen.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, when} from './dom.js';
+import {el, fill, clear, button, code, when, aboutStep} from './dom.js';
 import {textField, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {chainView} from './chain.js';
 import {createSuites} from './suites.js';
@@ -164,7 +164,7 @@ function chainsView() {
                 el('h2', {class: 'case-legend'}, 'Chains'),
                 el('p', {class: 'quiet small'}, 'One row for each case followed through CRD, DTR and PAS, most recent first. Leave the dates empty for the latest.'),
                 el('div', {class: 'field-grid'}, from.node, to.node),
-                utcNote,
+                aboutStep(utcNote),
                 problem,
                 el('div', {class: 'button-row'}, el('button', {type: 'submit', class: 'button button--quiet'}, 'List chains'))),
             list));

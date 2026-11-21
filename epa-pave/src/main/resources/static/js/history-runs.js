@@ -6,7 +6,7 @@
 // dates and identifiers of runs, never member data.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, count, millis} from './dom.js';
+import {el, fill, clear, button, code, count, millis, aboutStep} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {stamp, slowFlag, resultWord} from './marks.js';
 import {errorPanel} from './result.js';
@@ -44,14 +44,14 @@ export function createRunsList(app, context) {
         limit: selectField({label: 'How many', field: 'limit', options: LIMITS})
     };
     const problem = el('div', {class: 'form-problem-slot'});
-    // The ledger's days are UTC days and the times on screen are the viewer's own: said beside the dates, every time the list is drawn.
+    // The ledger's days are UTC days and the times on screen are the viewer's own: said under About this step, beside the dates, every time the list is drawn.
     const utcNote = el('p', {class: 'small history-utc-note'});
     const form = el('form', {class: 'history-filters', noValidate: true, attrs: {'aria-label': 'Which runs to list'}},
         el('div', {class: 'history-filters__grid'}, Object.values(fields).map(field => field.node),
             el('div', {class: 'button-row history-filters__buttons'},
                 el('button', {type: 'submit', class: 'button button--primary'}, 'List runs'),
                 button('Clear the filters', () => { setFields(new URLSearchParams()); apply(); }))),
-        utcNote, problem);
+        aboutStep(utcNote), problem);
     // Not a live region: it holds the filter buttons and is redrawn with every list. The count is announced in a sentence.
     const status = el('div', {class: 'history-status'});
     const actions = el('div', {class: 'history-actions'});
@@ -68,10 +68,10 @@ export function createRunsList(app, context) {
     const node = el('div', {class: 'history-runs'},
         context.health.node,
         form, status, actions, replayBox, list,
-        el('p', {class: 'history-about small'},
+        aboutStep(el('p', {class: 'history-about small'},
             'A ledger line holds the codes, times and identifiers of a run: what ran, where, what came back as codes, what was expected and the test result. '
             + 'By design it holds no member name, no date of birth and no request or response. The member appears as the ledger keeps it: '
-            + 'the member ID when recording it is switched on, otherwise a token, which is not the ID. Open a run for everything its line holds.'));
+            + 'the member ID when recording it is switched on, otherwise a token, which is not the ID. Open a run for everything its line holds.')));
 
     /** The query the fields describe, with nothing for a field left at "any". */
     function queryFromFields() {

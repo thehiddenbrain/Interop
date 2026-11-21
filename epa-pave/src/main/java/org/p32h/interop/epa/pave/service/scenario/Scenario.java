@@ -89,10 +89,14 @@ public record Scenario(String id, int number, String label, String description, 
 
     public ScenarioSummary summary() {
         // Every sentinel is listed, so a tester can find each ID that reaches the scenario, the CRD
-        // ones a DTR or PAS file answers for the same case included.
+        // ones a DTR or PAS file answers for the same case included. The note that the file is the
+        // default is carried apart: it explains, where the other notes report something wrong.
+        String isDefault = ScenarioRepository.defaultNote(this);
+        boolean theDefault = notes.contains(isDefault);
         return new ScenarioSummary(id, number, label, description, sentinelMemberId, sentinelNpi,
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
-                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, notes, null,
+                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds,
+                theDefault ? notes.stream().filter(note -> !note.equals(isDefault)).toList() : notes, theDefault ? isDefault : null,
                 ScenarioRepository.sampleCase(raw));
     }
 

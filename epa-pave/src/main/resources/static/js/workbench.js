@@ -260,6 +260,11 @@ export function createWorkbench(app, panel, spec) {
         const label = first.label || first.operation;
         fill(readiness,
             el('h2', {class: 'readiness__title', id: readinessTitle}, 'This tab cannot send yet'),
+            // One plain sentence first, true whatever the reason; the reason itself stays the server's, below.
+            el('p', {class: 'readiness__plain'}, 'This step is missing something the tool needs before it can send. '
+                + 'Upload the vendor\'s Postman environment and collection on the Config tab if you have not.'),
+            el('p', {class: 'readiness__way'}, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
+            el('p', {class: 'sub-heading'}, 'What the tool says is missing'),
             el('p', {class: 'readiness__lead'}, 'The tool cannot send ', el('strong', null, label),
                 ' as it is configured now, so there is no form to fill in. This is what it says is missing:'),
             el('blockquote', {class: 'readiness__missing'}, first.unavailable),
@@ -267,7 +272,6 @@ export function createWorkbench(app, panel, spec) {
                 el('p', null, 'The later steps of this tab are missing something as well:'),
                 el('ul', {class: 'readiness__later'}, later.map(row => el('li', null, el('strong', null, row.label || row.operation), ': ', row.unavailable)))
             ] : null,
-            el('p', {class: 'readiness__way'}, button('Open the Config tab', () => app.navigate('config'), {class: 'button--primary'})),
             typeof spec.readinessWays === 'function' ? spec.readinessWays() : null,
             el('p', {class: 'quiet'}, 'Upload or choose what is missing there. The form comes back here on its own as soon as the configuration lets this tab send, '
                 + 'with no reload.'));
@@ -728,7 +732,8 @@ export function requestPreviewPanel(preview, close) {
 
 /**
  * The label of a mock scenario's row on an empty tab, with the server's notes about its file
- * beneath it: that it is the default, or that what it claims does not fit what it answers.
+ * beneath it: what is wrong with the file, such as a claim that does not fit what it answers.
+ * The note that a file is the default only explains, and goes in About this step.
  */
 export function scenarioLabel(scenario) {
     const notes = scenario.notes || [];
@@ -741,7 +746,7 @@ export function scenarioLabel(scenario) {
  * say, such as a file that was not read, set above the table of scenarios. Null when there is none.
  */
 export function scenarioListNotes(list) {
-    const said = new Set((list.scenarios || []).flatMap(scenario => scenario.notes || []));
+    const said = new Set((list.scenarios || []).flatMap(scenario => (scenario.notes || []).concat(scenario.defaultNote ? [scenario.defaultNote] : [])));
     const rest = (list.notes || []).filter(note => !said.has(note));
     return rest.length === 0 ? null : el('div', {class: 'scenario-list-notes'},
         el('p', {class: 'sub-heading'}, 'About the scenario files'),
@@ -752,8 +757,23 @@ export function scenarioListNotes(list) {
  * A scenario's description with its notes after it, for the hint beneath the Mock scenario field.
  */
 export function scenarioAbout(scenario) {
-    return [scenario.description, ...(scenario.notes || []).map(note => [' ', el('strong', null, note)])];
+    return [scenario.description, ...(scenario.notes || []).concat(scenario.defaultNote ? [scenario.defaultNote] : [])
+        .map(note => [' ', el('strong', null, note)])];
 }
+
+/**
+ * The notes of the scenario list that only explain, for About this step: which file is the
+ * default, in the server's words. Null when there is none.
+ */
+export function scenarioDefaultNotes(list) {
+    const notes = ((list && list.scenarios) || []).filter(scenario => scenario.defaultNote)
+        .map(scenario => el('li', null, 'Scenario ' + scenario.number + ': ' + scenario.defaultNote));
+    return notes.length === 0 ? null : el('ul', {class: 'note-list'}, notes);
+}
+
+/** The words of the code picker's hint that explain it, said in each protocol tab's About this step. */
+export const CODE_PICKER_ABOUT = 'In the procedure code box, the arrows choose from the code list. A code not on the list is added as typed. '
+    + 'Several can be pasted at once, separated by commas or spaces.';
 
 /**
  * The table of mock scenarios on an empty tab, the same on CRD, DTR and PAS. Drawn only on the

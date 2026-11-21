@@ -523,13 +523,20 @@ the cursor in it, so a refusal never sits unseen inside a closed fold.
 - `Show the request` (on PAS also `Show the inquiry` and the like) shows the request as it would
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
 
-On mock, before anything is uploaded, the right side of each protocol tab says what to do and lists
-the member IDs that select each scenario, each with `Use this case`, which fills the member ID, the
+On mock, before anything is uploaded, the right side of each protocol tab says in one line what to
+do ("Fill the member ID, the NPI and a procedure code in the form, then choose "Send CRD
+request"."), then "On mock, each member ID picks the answer. Pick a case:" and the table of
+scenarios, each with `Use this case`, which fills the member ID, the
 NPI and the procedure codes of that scenario's case and sets the Mock scenario field back to "The
 member ID decides". On live there is no such table and nothing is filled in. On live with nothing
-configured, each protocol tab holds back its form, says "This tab cannot send yet" with what is
-missing, and links to the Config tab; once an environment and a collection are active the form
-comes back, with no reload.
+configured, each protocol tab holds back its form and says "This tab cannot send yet", then "This
+step is missing something the tool needs before it can send. Upload the vendor's Postman
+environment and collection on the Config tab if you have not.", the `Open the Config tab` button,
+and under "What the tool says is missing" the server's own reason, which names the property (for
+example `onyx.crd.url`); once an environment and a collection are active the form comes back, with
+no reload. What only explains a step (where the answer appears, what prefetch is, how the code box
+takes codes, which scenario file is the default) is under a closed `About this step` at the foot
+of the right side.
 
 ### Reading a result: the right side, the same on every tab
 
@@ -674,6 +681,7 @@ frame. See [The production guardrail](#the-production-guardrail).
 - **Runs**: the ledger, newest first, filtered by day, protocol, operation, outcome, result and
   tester reference (as typed with the run).
   Above the list: whether tracking is on, how many runs were recorded today and where the file is.
+  Why the dates are UTC days, and what a ledger line holds, are under `About this step`.
   `Export runs as CSV` downloads the runs of the chosen days, protocol and result; the tab says
   which filters the export does not take. Open a run to read it from the ledger in four
   parts, "What was expected", "What happened", "Did it match" and "What next", then what the line
