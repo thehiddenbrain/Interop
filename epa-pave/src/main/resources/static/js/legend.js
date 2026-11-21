@@ -54,7 +54,10 @@ export async function openLegend(dialog) {
                             el('li', null, 'a DTR answer the payer pre-populated and a person then changed (an information-origin override);'),
                             el('li', null, 'as the square of an outcome or a verdict strip, the service does not know the member or the provider.'))]),
                     row(el('span', {class: 'swatch swatch--nothing'}),
-                        'A dashed outline: nothing is there. No answer, nothing declared, nothing returned. The words inside say which.'),
+                        'A dashed outline: nothing is there. No answer, nothing returned. The words inside say which.'),
+                    row(el('span', {class: 'note--none'}, 'not recorded'),
+                        'Grey italic words with no frame: something this tool did not record or was not given, such as an expectation nobody '
+                        + 'declared or a time nobody measured.'),
                     row(el('span', {class: 'swatch swatch--fault'}),
                         'A heavy black frame: stop and read this before the next run. A fault to report: the environment failed, the ledger is not '
                         + 'recording, or a run was not recorded. On the mock profile no environment fails: a fault of the service there is one a '

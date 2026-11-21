@@ -136,8 +136,11 @@ public class RunController {
                          @RequestParam(name = "limit", required = false) String limit,
                          @RequestParam(name = "testerRef", required = false) String testerRef,
                          @RequestParam(name = "zone", required = false) String zone,
-                         @RequestParam(name = "follows", required = false) String follows) {
+                         @RequestParam(name = "follows", required = false) String follows,
+                         @RequestParam(name = "replays", required = false) String replays) {
         List<FieldError> errors = new ArrayList<>();
+        // Absent means the replays are listed, so the export, the replay and every caller that does not ask are unchanged.
+        Boolean includeReplays = read(errors, () -> Params.optional("replays", replays, RunController::replays, "one of include or leave-out"));
         java.time.ZoneId clock = read(errors, () -> Params.zone("zone", zone));
         LocalDate first = read(errors, () -> Params.date("from", from));
         LocalDate last = read(errors, () -> Params.date("to", to));
@@ -162,6 +165,7 @@ public class RunController {
         RunQuery question = RunQuery.builder().from(first).to(last).protocol(onlyProtocol).operation(onlyOperation)
                 .result(onlyResult).outcome(Texts.trimToNull(outcome)).chainId(Texts.trimToNull(chainId))
                 .suiteRunId(Texts.trimToNull(suiteRunId)).testerRef(Texts.trimToNull(testerRef)).zone(clock).limit(toRead)
+                .includeReplays(includeReplays)
                 // The runs that name the given run as the one they follow, so a run view can lead on to them.
                 .correlation(Texts.present(follows) ? RunRecord.CORR_RUN_ID : null, Texts.trimToNull(follows)).build();
         List<RunRecord> runs = ledger.query(question);
@@ -170,6 +174,15 @@ public class RunController {
         // Only a list cut short is counted again in full, so the answer can say how many it left out.
         Integer matched = truncated ? ledger.query(question.withoutLimit()).size() : null;
         return new RunList(shown.size(), truncated, limited ? most : null, shown, matched);
+    }
+
+    /** The two words the replays filter takes. Any other is refused, by Params, as a value that is not valid. */
+    private static Boolean replays(String value) {
+        return switch (value.toLowerCase(java.util.Locale.ROOT)) {
+            case "include" -> Boolean.TRUE;
+            case "leave-out" -> Boolean.FALSE;
+            default -> throw new IllegalArgumentException("not a replays value");
+        };
     }
 
     /**

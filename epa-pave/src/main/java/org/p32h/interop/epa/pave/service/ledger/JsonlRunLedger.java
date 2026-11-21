@@ -661,6 +661,9 @@ public class JsonlRunLedger implements RunLedger {
         if (query.testerRef() != null && !query.testerRef().equals(run.testerRef())) {
             return false;
         }
+        if (Boolean.FALSE.equals(query.includeReplays()) && Texts.present(run.replayOfRunId())) {
+            return false;
+        }
         if (query.correlationKey() != null) {
             String stored = run.correlation().get(query.correlationKey());
             return stored != null && policy.matches(stored, query.correlationValue());

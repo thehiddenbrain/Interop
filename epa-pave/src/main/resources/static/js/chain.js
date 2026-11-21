@@ -198,13 +198,13 @@ export function chainView(chain) {
                 ['Journey', chain.ended ? 'Ended: the latest run said the journey is complete.' : 'Open: the latest run did not end the journey.'],
                 ['Chain', [code(chain.chainId), ' ', copyButton('Copy chain id', () => chain.chainId)]],
                 // As the ledger shows it: the member ID when recording it is on, otherwise a token, which is not the ID.
-                ['Member, as recorded', chain.member ? code(chain.member) : el('span', {class: 'presence presence--none'}, 'not stated')],
+                ['Member, as recorded', chain.member ? code(chain.member) : el('span', {class: 'note--none'}, 'not stated')],
                 ['Its runs', chainRunsLink(chain.chainId, 'List them in Runs')]
             ], 'facts--ruled'),
             facts([
                 ['Procedure codes', chain.procedureCodes && chain.procedureCodes.length > 0
                     ? chain.procedureCodes.map((value, index) => [index > 0 ? ', ' : null, code(value)])
-                    : el('span', {class: 'presence presence--none'}, 'none recorded')],
+                    : el('span', {class: 'note--none'}, 'none recorded')],
                 ['Ran against', [chain.environment ? chain.environment + (chain.environmentKind ? ' (' + chain.environmentKind + ')' : '') : 'no environment',
                     ', ', chain.profile, ' profile, target ', chain.target]],
                 ['Started', when(chain.startedAt)],
@@ -237,7 +237,7 @@ function stageSection(stage) {
  * column each would squeeze the others out of a pane this narrow.
  */
 function runTable(runs) {
-    const none = text => el('span', {class: 'presence presence--none'}, text);
+    const none = text => el('span', {class: 'note--none'}, text);
     const headings = [{text: 'When', class: 'col-17'}, {text: 'Ran', class: 'col-13'}, 'Outcome', {text: 'Expected', class: 'col-19'},
         {text: 'Test result', class: 'col-stamp'}, {text: 'Elapsed', class: 'num col-time'}];
     const body = el('tbody');

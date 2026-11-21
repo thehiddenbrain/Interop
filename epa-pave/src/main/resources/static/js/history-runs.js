@@ -1,16 +1,18 @@
-// The Runs view: every recorded run, newest first, with every filter GET /api/runs offers, the
-// export for sign-off, the replay of a date range, and whether the ledger is recording.
+// The Runs view: every recorded run, newest first, with every filter GET /api/runs offers, a run
+// opened by its id, the export for sign-off, the replay of the runs listed, and whether the ledger
+// is recording.
 //
 // The filters live in the address (#history/runs?protocol=crd&result=fail), so the back button,
 // a reload and a link from elsewhere in the tool all return to the same list. They hold codes,
-// dates and identifiers of runs, never member data.
+// dates and identifiers of runs, never member data. That is also why a run is opened by its id
+// and not looked up by a member ID: whatever is typed into a filter lands in the browser's history.
 
 import * as api from './api.js';
 import {el, fill, clear, button, code, count, millis, aboutStep} from './dom.js';
 import {textField, selectField, setOptions, clearFieldErrors, markFieldErrors, formProblem} from './forms.js';
 import {stamp, slowFlag, resultWord} from './marks.js';
 import {errorPanel} from './result.js';
-import {runLink, chainLink, suiteRunsLink, none, memberShort, outcomeOf, expectedOf, whatRan, whereRan, whenFiled, utcDayNote} from './history-common.js';
+import {runAddress, runLink, chainLink, suiteRunsLink, none, memberShort, outcomeOf, expectedOf, whatRan, whereRan, whenFiled, utcDayNote} from './history-common.js';
 import {replayReport, summaryText} from './history-replay.js';
 
 // The filters of the list that the export takes as well, by their query names. The export takes no others.
@@ -25,6 +27,18 @@ const FILTERS = [
 const LIMITS = [{value: '200', label: 'Newest 200'}, {value: '50', label: 'Newest 50'},
     {value: '1000', label: 'Newest 1,000'}, {value: '0', label: 'Every match'}];
 const DEFAULT_LIMIT = '200';
+
+// The most runs one replay sends again, as the server's RunReplay.MOST_RUNS says.
+const MOST_REPLAYED = 1000;
+
+/**
+ * The ids a replay of the runs listed sends: the originals only, a run a replay made being left
+ * out, and oldest first. The list is newest first, and the server sends runs in the order given,
+ * so without the reversal an inquiry would be sent before the submission it asks about.
+ */
+export function replayIds(listed) {
+    return listed.filter(run => !run.replayOfRunId).map(run => run.runId).slice().reverse();
+}
 
 export function createRunsList(app, context) {
     let lastQuery = new URLSearchParams();
@@ -43,11 +57,26 @@ export function createRunsList(app, context) {
         suiteRunId: textField({label: 'Suite run id', field: 'suiteRunId', literal: true}),
         limit: selectField({label: 'How many', field: 'limit', options: LIMITS})
     };
+    // Off by default: two replays of a day can bury the runs as first made under their copies.
+    const showReplays = el('input', {type: 'checkbox', id: 'history-show-replays'});
+    const replaysChoice = el('div', {class: 'field history-filters__replays'},
+        el('label', {class: 'choice', htmlFor: 'history-show-replays'}, showReplays, 'Show runs made by a replay'));
+    // A run is opened by the id on a ticket. Sent as typed, encoded: no pattern is applied to it.
+    const runIdSearch = textField({label: 'Open a run by its id', field: 'runIdSearch', literal: true, placeholder: 'run-...'});
+    const openProblem = el('div', {class: 'form-problem-slot'});
+    const openForm = el('form', {class: 'history-open', noValidate: true, attrs: {'aria-label': 'Open a run by its id'}},
+        runIdSearch.node,
+        el('div', {class: 'button-row'}, el('button', {type: 'submit', class: 'button button--quiet'}, 'Open the run')),
+        openProblem);
+    openForm.addEventListener('submit', event => {
+        event.preventDefault();
+        openById();
+    });
     const problem = el('div', {class: 'form-problem-slot'});
     // The ledger's days are UTC days and the times on screen are the viewer's own: said under About this step, beside the dates, every time the list is drawn.
     const utcNote = el('p', {class: 'small history-utc-note'});
     const form = el('form', {class: 'history-filters', noValidate: true, attrs: {'aria-label': 'Which runs to list'}},
-        el('div', {class: 'history-filters__grid'}, Object.values(fields).map(field => field.node),
+        el('div', {class: 'history-filters__grid'}, Object.values(fields).map(field => field.node), replaysChoice,
             el('div', {class: 'button-row history-filters__buttons'},
                 el('button', {type: 'submit', class: 'button button--primary'}, 'List runs'),
                 button('Clear the filters', () => { setFields(new URLSearchParams()); apply(); }))),
@@ -67,7 +96,7 @@ export function createRunsList(app, context) {
 
     const node = el('div', {class: 'history-runs'},
         context.health.node,
-        form, status, actions, replayBox, list,
+        openForm, form, status, actions, replayBox, list,
         aboutStep(el('p', {class: 'history-about small'},
             'A ledger line holds the codes, times and identifiers of a run: what ran, where, what came back as codes, what was expected and the test result. '
             + 'By design it holds no member name, no date of birth and no request or response. The member appears as the ledger keeps it: '
@@ -85,7 +114,28 @@ export function createRunsList(app, context) {
         if (fields.limit.value() !== DEFAULT_LIMIT) {
             query.set('limit', fields.limit.value());
         }
+        if (showReplays.checked) {
+            query.set('replays', 'include');
+        }
         return query;
+    }
+
+    /** Opens the run whose id was typed, in the view the list's own links open; a run the ledger does not hold gets the server's words. */
+    async function openById() {
+        clear(openProblem);
+        clearFieldErrors(openForm);
+        const typed = runIdSearch.value().trim();
+        if (typed === '') {
+            fill(openProblem, el('p', {class: 'field__error'}, 'Type the id of a run, as a result or a ticket gives it, then choose Open the run.'));
+            return;
+        }
+        const answer = await api.get('/api/runs/' + encodeURIComponent(typed));
+        if (answer.kind === 'ok') {
+            // The address a run link opens, so the run view, the back button and a reload behave as after a click on the list.
+            window.location.hash = runAddress(typed);
+            return;
+        }
+        fill(openProblem, errorPanel(answer.body));
     }
 
     function setFields(query) {
@@ -93,6 +143,7 @@ export function createRunsList(app, context) {
             fields[name].set(query.get(name) || '');
         }
         fields.limit.set(query.get('limit') || DEFAULT_LIMIT);
+        showReplays.checked = query.get('replays') === 'include';
     }
 
     /** The choices of the selects, from the server's own lists. A value in the address the server does not list is kept as a choice. */
@@ -142,6 +193,9 @@ export function createRunsList(app, context) {
         if (!sent.has('limit')) {
             sent.set('limit', DEFAULT_LIMIT);
         }
+        if (sent.get('replays') !== 'include') {
+            sent.set('replays', 'leave-out');
+        }
         asked += 1;
         const mine = asked;
         list.setAttribute('aria-busy', 'true');
@@ -177,7 +231,7 @@ export function createRunsList(app, context) {
             status.querySelector('.history-status__count').focus({preventScroll: true});
         }
         if (answer.body.count > 0) {
-            drawActions(query);
+            drawActions(query, answer.body);
         } else {
             clear(actions);
         }
@@ -194,8 +248,9 @@ export function createRunsList(app, context) {
                     + 'Choose "Every match" under How many, or narrow the filters, to see them.'])
             : [el('strong', null, count(body.count)), body.count === 1 ? ' run matches' : ' runs match',
                 active.length > 0 ? ' these filters, and every one is shown.' : ', and every one is shown.'];
+        const leftOut = query.get('replays') === 'include' ? null : ' Runs made by a replay are left out.';
         fill(status,
-            el('p', {class: 'history-status__count', tabIndex: -1}, matched),
+            el('p', {class: 'history-status__count', tabIndex: -1}, matched, leftOut),
             active.length === 0 ? el('p', {class: 'small quiet'}, 'No filter is on: this is the whole ledger, newest first.')
                 : el('div', {class: 'filters', role: 'group', aria: {label: 'Filters on'}},
                     el('span', {class: 'small quiet'}, 'Filters on:'),
@@ -222,10 +277,11 @@ export function createRunsList(app, context) {
     }
 
     /**
-     * The export and the replay of a date range. The export takes the dates, the protocol and the
-     * test result as the list does; a replay takes the dates only. Each says what it leaves out.
+     * The export and the replay of the runs listed. The export takes the dates, the protocol and
+     * the test result as the list does, and says what it leaves out. The replay sends exactly the
+     * runs on screen that a replay did not make, so what it sends is what the tester sees.
      */
-    function drawActions(query) {
+    function drawActions(query, body) {
         const dates = new URLSearchParams();
         for (const name of ['from', 'to']) {
             if (query.get(name)) {
@@ -238,12 +294,14 @@ export function createRunsList(app, context) {
                 exported.set(name, query.get(name));
             }
         }
-        const otherFilters = FILTERS.some(([name]) => name !== 'from' && name !== 'to' && query.get(name));
         const notExported = FILTERS.some(([name]) => name !== 'from' && name !== 'to' && !EXPORT_FILTERS.includes(name) && query.get(name));
         const range = dates.get('from') || dates.get('to')
             ? [dates.get('from') ? ['from ', dates.get('from')] : 'from the first run', ' ', dates.get('to') ? ['to ', dates.get('to')] : 'to the latest',
                 ', counted in UTC days']
             : 'of every day in the ledger';
+        const listed = body.runs || [];
+        const originals = replayIds(listed).length;
+        const madeByReplay = listed.length - originals;
         fill(actions,
             el('div', {class: 'history-actions__item'},
                 el('a', {class: 'button button--quiet', href: '/api/runs/export.csv' + (exported.toString() ? '?' + exported.toString() : ''), download: ''},
@@ -253,41 +311,38 @@ export function createRunsList(app, context) {
                     EXPORT_FILTERS.some(name => query.get(name)) ? ' It keeps the protocol and the test result chosen above.' : null,
                     notExported ? el('strong', null, ' It does not take the other filters above: it holds every run that matches the dates, '
                         + 'the protocol and the test result.') : null)),
-            el('div', {class: 'history-actions__item'},
-                dates.toString() ? replayOpener(dates) : null,
-                el('p', {class: 'small'}, dates.toString()
-                    ? ['Sends every run ', range, ', again against the configuration in force now, and says which answers are the same and what changed.',
-                        otherFilters ? el('strong', null, ' A replay takes the dates only, like the export.') : null]
-                    : 'Give a From or a To date above to replay the runs of those days and see what changed since.')));
+            originals === 0 ? el('div', {class: 'history-actions__item'},
+                el('p', {class: 'small'}, 'Every run listed was made by a replay, so there is nothing here to replay. '
+                    + 'Untick "Show runs made by a replay", or widen the filters.'))
+                : el('div', {class: 'history-actions__item'},
+                    replayOpener(listed),
+                    el('p', {class: 'small'},
+                        'Sends the ' + count(originals) + (originals === 1 ? ' run' : ' runs') + ' listed'
+                            + (madeByReplay > 0 ? ' that a replay did not make' : '')
+                            + ' again, against the configuration in force now, and says which answers are the same and what changed.',
+                        body.truncated ? ' Only the runs listed are sent, not the others that match.' : null)));
     }
 
     // The confirmation of a replay on screen, if one is: it says whether writes would be sent, so it is drawn again when that changes.
     let confirming = null;
 
-    function replayOpener(dates) {
-        const opener = button('Replay the runs in these dates', () => confirmReplay(dates, opener), {class: 'button--quiet'});
+    function replayOpener(listed) {
+        const opener = button('Replay the runs listed', () => confirmReplay(listed, opener), {class: 'button--quiet'});
         return opener;
     }
 
     /**
-     * Says what a replay of these dates would send before anything is sent: how many runs the
-     * ledger holds in those days whatever the other filters, how many of them are writes, and
-     * where they go. The counts are read from the ledger with the dates alone, because the replay
-     * takes the dates alone. Which operations write is the server's own flag on each operation.
+     * Says what a replay of the runs listed would send before anything is sent: how many are
+     * listed, how many of them a replay made and are not sent, how many of the rest are writes,
+     * and where they go. Counted from the runs on screen, which are exactly what is sent. Which
+     * operations write is the server's own flag on each operation.
      */
-    async function confirmReplay(dates, opener, redraw) {
-        confirming = {dates, opener};
-        fill(replayBox, el('p', {class: 'readout__status'}, 'Counting the runs in these dates.'));
-        const counted = new URLSearchParams(dates);
-        counted.set('limit', '0');
-        const answer = await api.get('/api/runs?' + counted.toString());
-        if (answer.kind !== 'ok') {
-            fill(replayBox, errorPanel(answer.body));
-            return;
-        }
-        const inDates = answer.body.runs || [];
-        const replays = inDates.filter(run => run.replayOfRunId).length;
-        const originals = inDates.filter(run => !run.replayOfRunId);
+    function confirmReplay(listed, opener, redraw) {
+        confirming = {listed, opener};
+        const ids = replayIds(listed);
+        const sentAgain = new Set(ids);
+        const originals = listed.filter(run => sentAgain.has(run.runId));
+        const made = listed.length - originals.length;
         const vocabulary = context.vocabulary();
         const writesByOperation = new Map();
         for (const run of originals) {
@@ -302,15 +357,16 @@ export function createRunsList(app, context) {
         const access = mode.writeAccess || {};
         const mock = mode.mode === 'mock';
         const plural = (number, one, many) => count(number) + ' ' + (number === 1 ? one : many);
-        const send = button('Replay these runs', () => runReplay(dates, send), {class: 'button--primary'});
+        const tooMany = ids.length > MOST_REPLAYED;
+        const send = tooMany ? null : button('Replay these runs', () => runReplay(ids, send), {class: 'button--primary'});
         const cancel = button('Do not replay them', () => { confirming = null; clear(replayBox); opener.focus(); });
-        fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay these dates'}},
-            el('p', null, el('strong', null, 'The ledger holds ' + plural(inDates.length, 'run', 'runs') + ' in these UTC days'),
-                FILTERS.some(([name]) => name !== 'from' && name !== 'to' && lastQuery.get(name))
-                    ? ', whatever the other filters above, which a replay does not take' : null, '. ',
-                replays > 0 ? plural(replays, 'is a replay', 'are replays') + ' of an earlier run and ' + (replays === 1 ? 'is' : 'are') + ' left out. ' : null,
-                el('strong', null, 'Up to ' + plural(originals.length, 'run is', 'runs are') + ' sent again'),
-                ', one after another; a run that cannot be sent again is reported with the reason and not sent.'),
+        fill(replayBox, el('div', {class: 'history-confirm', role: 'group', aria: {label: 'Replay the runs listed'}},
+            el('p', null, plural(listed.length, 'run is listed. ', 'runs are listed. '),
+                made > 0 ? plural(made, 'of them was made by a replay and is not sent again. ', 'of them were made by a replay and are not sent again. ') : null,
+                el('strong', null, plural(ids.length, 'run is sent again', 'runs are sent again')),
+                ', one after another; a run that cannot be sent again is reported with the reason and not sent. '
+                    + 'They are sent oldest first, as they were first made.'),
+            tooMany ? el('p', null, el('strong', null, 'More than 1,000 runs are listed. One replay sends at most 1,000: narrow the list first.')) : null,
             el('p', null, writes === 0 ? 'None of them is a write.'
                 : [el('strong', null, plural(writes, 'of them is a write', 'of them are writes')), ' (',
                     Array.from(writesByOperation.entries()).map(([label, number], index) => [index > 0 ? ', ' : null, count(number) + ' x ' + label]), '). ',
@@ -325,22 +381,21 @@ export function createRunsList(app, context) {
                     ', against the configuration in force now. Each run sent again is recorded as a new run.']),
             el('div', {class: 'button-row'}, send, cancel)));
         if (!redraw) {
-            send.focus();
+            (send || cancel).focus();
         }
     }
 
-    async function runReplay(dates, control) {
+    async function runReplay(ids, control) {
         confirming = null;
         control.disabled = true;
         control.setAttribute('aria-busy', 'true');
         const status = el('p', {class: 'readout__status'}, 'Sending the runs again. This takes as long as the runs themselves took.');
         fill(replayBox, status);
         context.announce('Sending the runs again.');
-        const body = {};
-        dates.forEach((value, name) => { body[name] = value; });
-        const answer = await api.postJson('/api/runs/replay', body);
+        // The runs listed and nothing else: their ids, oldest first, and no range of days.
+        const answer = await api.postJson('/api/runs/replay', {runIds: ids});
         if (answer.kind === 'ok') {
-            const report = replayReport(answer.body, context.vocabulary(), {title: 'What the replay of these dates found'});
+            const report = replayReport(answer.body, context.vocabulary(), {title: 'What the replay of the runs listed found'});
             fill(replayBox, report);
             // The button that had the focus is gone with the confirmation, so the focus goes to the report it led to.
             report.querySelector('h3').focus();
@@ -418,7 +473,7 @@ export function createRunsList(app, context) {
         /** Writes were unlocked or locked again: a confirmation on screen says whether they would be sent, so it is drawn again. */
         writeAccessChanged() {
             if (confirming && replayBox.isConnected && replayBox.firstChild) {
-                confirmReplay(confirming.dates, confirming.opener, true);
+                confirmReplay(confirming.listed, confirming.opener, true);
             }
         }
     };

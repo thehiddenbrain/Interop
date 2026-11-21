@@ -262,7 +262,7 @@ function expected(expectation) {
     const typed = expectation.expected;
     const label = expectation.expectedLabel;
     if (!typed && !label) {
-        return el('span', {class: 'presence presence--none', title: 'No expectation was sent with this run.'}, 'nothing declared');
+        return el('span', {class: 'note--none', title: 'No expectation was sent with this run.'}, 'nothing declared');
     }
     if (typed && label && label !== typed) {
         return [label, el('div', {class: 'small'}, code(typed))];
@@ -352,7 +352,7 @@ function ledgerLine(ledger, runId) {
  * where they are kept, so a run it did not keep has none to show, and that is said.
  */
 function typedWithRun(ledger) {
-    const none = text => el('span', {class: 'presence presence--none'}, text);
+    const none = text => el('span', {class: 'note--none'}, text);
     if (!ledger || !ledger.recorded || !ledger.record) {
         return [['Tester reference and note', none('not kept: the ledger did not record this run')]];
     }
@@ -365,7 +365,7 @@ function typedWithRun(ledger) {
 
 function responseTime(timing) {
     if (!timing) {
-        return el('span', {class: 'presence presence--none', title: 'The result carries no timing.'}, 'not measured');
+        return el('span', {class: 'note--none', title: 'The result carries no timing.'}, 'not measured');
     }
     return el('span', {class: 'run-line__time'}, el('strong', null, millis(timing.elapsedMillis)), timing.slow ? [' ', slowFlag()] : null,
         el('span', {class: 'quiet'}, timing.slow ? ' Longer than the threshold of ' : ' The threshold for slow is ',

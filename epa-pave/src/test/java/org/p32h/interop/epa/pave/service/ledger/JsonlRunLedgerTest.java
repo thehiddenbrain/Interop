@@ -100,6 +100,17 @@ class JsonlRunLedgerTest {
     }
 
     @Test
+    void aQuestionThatLeavesReplaysOutKeepsTheOriginalAndOnlyIt() {
+        JsonlRunLedger ledger = recordingIds(home, clock);
+        ledger.record(draft("run-1", clock).build());
+        ledger.record(draft("run-2", clock).replayOfRunId("run-1").build());
+
+        assertThat(ledger.query(RunQuery.builder().includeReplays(false).build())).extracting(RunRecord::runId).containsExactly("run-1");
+        assertThat(ledger.query(RunQuery.builder().includeReplays(true).build())).extracting(RunRecord::runId).containsExactly("run-2", "run-1");
+        assertThat(ledger.query(RunQuery.all())).extracting(RunRecord::runId).containsExactly("run-2", "run-1");
+    }
+
+    @Test
     void theReceiptHoldsTheRecordAsWrittenAndFindReturnsTheSame() {
         JsonlRunLedger ledger = ledger(home, clock);
         LedgerReceipt receipt = ledger.record(draft("run-1", clock).build());

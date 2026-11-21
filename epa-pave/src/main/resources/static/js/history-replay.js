@@ -12,9 +12,14 @@ import {stamp} from './marks.js';
 import {runLink, outcomeOf, whatRan, none, whereRan} from './history-common.js';
 import {maskedReading} from './result.js';
 
-// The order in which the summary lists the statuses the server counts. A status this page does not
-// list is still shown, after these, under the name the server gave it.
-const ORDER = ['same', 'changed', 'not-comparable', 'not-replayable', 'blocked', 'not-configured', 'invalid', 'error'];
+// The order in which the summary lists the statuses the server counts, and the report groups its
+// entries: what changed first, what was the same last. A status this page does not list is still
+// shown, after these, under the name the server gave it.
+const ORDER = ['changed', 'not-comparable', 'blocked', 'not-configured', 'invalid', 'error', 'not-replayable', 'same'];
+
+// The groups drawn closed under their count. A replay of a day is mostly the same as before, and
+// dozens of open rows of "Same" would push the few that changed off the screen.
+const FOLDED = new Set(['same', 'not-replayable']);
 
 // Which statuses report an answer from the service. The rest report that nothing was compared.
 const COMPARED = new Set(['same', 'changed', 'not-comparable']);
@@ -58,15 +63,23 @@ export function replayReport(report, vocabulary, options) {
         node.append(entryDetail(results[0], vocabulary));
         return node;
     }
-    if (results.length > 0) {
-        node.append(el('div', {class: 'table-scroll', role: 'region', tabIndex: 0, aria: {label: 'Each run of the replay'}},
+    // One group per status, in ORDER, each entry in the order the server sent it. Every entry is drawn.
+    const present = Array.from(new Set(results.map(entry => entry.status)));
+    const groups = ORDER.filter(name => present.includes(name)).concat(present.filter(name => !ORDER.includes(name)));
+    for (const status of groups) {
+        const entries = results.filter(entry => entry.status === status);
+        const label = statusWords(status) + ' (' + entries.length + ')';
+        const body = el('div', {class: 'table-scroll', role: 'region', tabIndex: 0, aria: {label: label}},
             table([{text: 'Run sent again', class: 'col-22'}, {text: 'What came of it', class: 'col-17'}, 'Then and now', {text: 'Why, or what changed', class: 'col-30'}],
-                results.map(entry => [
+                entries.map(entry => [
                     [runLink(entry.runId), el('div', {class: 'small'}, entry.original ? whatRan(vocabulary, entry.original) : null)],
                     statusCell(entry),
                     thenAndNow(entry, vocabulary),
                     whyCell(entry, vocabulary)
-                ]), {class: 'history-replay__table'})));
+                ]), {class: 'history-replay__table'}));
+        node.append(FOLDED.has(status)
+            ? el('details', {class: 'fold history-replay__group'}, el('summary', null, label), body)
+            : el('div', {class: 'history-replay__group'}, el('h4', {class: 'sub-heading'}, label), body));
     }
     return node;
 }

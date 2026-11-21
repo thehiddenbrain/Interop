@@ -706,6 +706,17 @@ legend, .case-legend {
     font-style: italic;
 }
 
+/*
+ * A note of this tool's own, such as an expectation nobody declared or a time nobody measured: grey
+ * words with no frame. It is set apart from the presence marks on purpose: those say what a response
+ * left out, and this says what the tool did not record or was not given.
+ */
+.note--none {
+    color: var(--ink-soft);
+    font-style: italic;
+    font-size: var(--text-small);
+}
+
 /* Null: filled, and set as the literal it is. */
 .presence--null {
     background: var(--wash);

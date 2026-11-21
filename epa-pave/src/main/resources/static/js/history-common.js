@@ -107,7 +107,7 @@ export function suiteRunsLink(suiteRunId, label) {
 }
 
 export function none(text) {
-    return el('span', {class: 'presence presence--none'}, text);
+    return el('span', {class: 'note--none'}, text);
 }
 
 /**
