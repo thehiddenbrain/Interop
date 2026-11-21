@@ -56,6 +56,12 @@ public final class CarriedMasks {
      * @param masks the masks the value holds, as {@link #in(String)} gives them
      */
     public record Found(String key, String masks) {
+
+        /** The key alone: the masks name secrets, and a log line has no use for which. */
+        @Override
+        public String toString() {
+            return "Found[" + key + "]";
+        }
     }
 
     /**
