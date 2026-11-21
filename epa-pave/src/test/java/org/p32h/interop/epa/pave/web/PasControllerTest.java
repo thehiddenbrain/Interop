@@ -683,8 +683,9 @@ class PasControllerTest {
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.kind").value("VALIDATION"))
                 .andExpect(jsonPath("$.fieldErrors[0].message").value(org.hamcrest.Matchers.containsString("mock profile only")));
         MockMvc mvc = mvc("mock");
+        // With neither a run nor a scenario, the run is what is missing on the usual path, so the refusal lands on it.
         mvc.perform(json(post("/api/pas/notifications/sample"), "{}")).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("scenarioId"));
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("runId"));
         mvc.perform(json(post("/api/pas/notifications/sample"), "{\"scenarioID\":\"pas-20-heartbeat\"}")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("scenarioID"));
         mvc.perform(json(post("/api/pas/notifications/sample"), "{\"scenarioId\":\"pas-11-notification-known-run\"}"))
