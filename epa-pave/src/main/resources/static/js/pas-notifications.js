@@ -70,7 +70,9 @@ export function createNotifications(spec) {
     const receiver = el('div', {class: 'pas-receiver'});
     const countsLine = el('p', {class: 'small quiet'});
     const list = el('ol', {class: 'pas-notifications__list'});
-    const view = selectField({label: 'Show', field: 'notifications.view', options: VIEWS.map(item => ({value: item.value, label: item.label}))});
+    // Samples are delivered on mock only, so on live the choice that lists them is not built.
+    const view = selectField({label: 'Show', field: 'notifications.view', options: VIEWS
+        .filter(item => item.value !== 'samples' || spec.app.isMock()).map(item => ({value: item.value, label: item.label}))});
     view.node.classList.add('pas-notifications__view');
     view.select.addEventListener('change', () => { limit = PAGE; applyView(); });
     const showing = el('p', {class: 'small quiet', aria: {live: 'polite'}});

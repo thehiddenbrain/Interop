@@ -160,4 +160,11 @@ class HistoryFrontendTest {
         assertThat(dtr.split("\\.dtr-changed:empty", -1)).hasSize(2);
         assertThat(read("css/pave.css").split("\\.chain-bar__paused \\{", -1)).hasSize(2);
     }
+
+    @Test
+    void aRunSentAsWrittenIsLabelledWithTheSharedWordsAndLiveOffersNoChoiceOfSamples() throws IOException {
+        String vocabulary = CaseCodesFrontendTest.body(read("js/history-vocabulary.js"), "outcome(protocol, code) {");
+        assertThat(vocabulary).contains("=== 'RAW'").contains("for (const shared of ['CRD', 'DTR', 'PAS']) {");
+        assertThat(read("js/pas-notifications.js")).contains(".filter(item => item.value !== 'samples' || spec.app.isMock())");
+    }
 }

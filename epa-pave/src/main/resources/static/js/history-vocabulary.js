@@ -54,7 +54,20 @@ export async function loadVocabulary() {
         /** The outcome of a protocol as the server words it, or null when it has given no words for that code. */
         outcome(protocol, code) {
             const outcomes = byProtocol.get(String(protocol || '').toUpperCase());
-            return outcomes ? outcomes.get(code) || null : null;
+            if (outcomes) {
+                return outcomes.get(code) || null;
+            }
+            // A run sent as written (RAW) has no list of its own; its outcomes are the shared ones every protocol words alike
+            // (not signed in, refused, blocked), so the first protocol that words the code gives its words.
+            if (String(protocol || '').toUpperCase() === 'RAW') {
+                for (const shared of ['CRD', 'DTR', 'PAS']) {
+                    const option = byProtocol.has(shared) ? byProtocol.get(shared).get(code) : null;
+                    if (option) {
+                        return option;
+                    }
+                }
+            }
+            return null;
         },
 
         /** A next action's words as the server serves them, or null when it has given none for that name. */
