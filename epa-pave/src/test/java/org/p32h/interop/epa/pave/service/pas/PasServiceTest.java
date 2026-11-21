@@ -1381,6 +1381,9 @@ class PasServiceTest {
         // The next step agrees with the error panel that the scenario played this: a rehearsal, not an environment to fix.
         assertThat(down.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then send again.");
         assertThat(down.nextStep().reason()).endsWith("Pick another case to go on.");
+        // Nothing was submitted, so no claim identifier is handed on to an inquiry; the timeout, which may have arrived, hands it on.
+        assertThat(down.nextStep().carry()).doesNotContainKey(NextStepView.CARRY_CLAIM_ID);
+        assertThat(timeout.nextStep().carry().get(NextStepView.CARRY_CLAIM_ID)).singleElement().asString().startsWith("claim-");
         // Either way the mock says first that it is a mock, and the wire view that nothing left this machine.
         for (RunEnvelope<PasDetail> result : List.of(timeout, down)) {
             assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario ");

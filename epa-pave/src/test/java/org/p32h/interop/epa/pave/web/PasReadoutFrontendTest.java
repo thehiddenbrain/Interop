@@ -69,7 +69,9 @@ class PasReadoutFrontendTest {
      * submitted, and the server's step hands on no claim identifier for it. One whose connection broke
      * after it opened is UNREACHABLE too, may have arrived, and keeps the way to the inquiry. Run with
      * Node, so a condition that drops the way for every UNREACHABLE, or only for a played one, turns
-     * this red.
+     * this red. The browser decides from whether a claim is handed on (hasClaim), so the condition
+     * itself now lives in the server's carry: PasVerdictsTest and PasServiceTest hold it for a live
+     * submit, and PlayedFaultNextStepTest for the played P32H-PAS-DOWN.
      */
     @Test
     void aSubmissionThatDidNotReachTheServiceOffersNoInquiryPlayedOrLiveWhenNodeRunsIt() throws IOException, InterruptedException {

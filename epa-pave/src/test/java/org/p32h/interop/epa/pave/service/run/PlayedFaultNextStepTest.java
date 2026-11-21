@@ -111,6 +111,23 @@ class PlayedFaultNextStepTest {
                 .endsWith("Pick another case to go on.");
     }
 
+    /**
+     * A played submit that did not reach the service hands on no claim identifier, so the PAS tab
+     * fills no inquiry from it and offers no way to one; a played fault a real service could have
+     * received hands the claim on. The browser decides from the carry alone (offersInquiryWay), so
+     * this is where the rule is held.
+     */
+    @Test
+    void aPlayedSubmitThatDidNotReachTheServiceHandsOnNoClaimIdentifier() throws Exception {
+        JsonNode down = post("/api/pas/submit", "P32H-PAS-DOWN");
+        assertThat(down.at("/verdict/outcomeCode").asString()).isEqualTo("UNREACHABLE");
+        assertThat(down.at("/nextStep/carry").has("claimId")).as(down.at("/nextStep/carry").toString()).isFalse();
+        for (String reached : List.of("P32H-PAS-ERR500", "P32H-PAS-TIMEOUT")) {
+            JsonNode carry = post("/api/pas/submit", reached).at("/nextStep/carry");
+            assertThat(carry.at("/claimId/0").asString()).as(reached).startsWith("claim-");
+        }
+    }
+
     @Test
     void aPlayedTimeoutKeepsItsOwnRehearsedReason() throws Exception {
         JsonNode answer = post("/api/crd", "P32H-TIMEOUT");
