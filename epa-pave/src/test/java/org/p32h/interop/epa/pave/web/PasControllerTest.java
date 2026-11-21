@@ -741,6 +741,9 @@ class PasControllerTest {
         assertThat(inquire.get("scenarios")).anySatisfy(scenario -> {
             assertThat(scenario.get("id").asString()).isEqualTo("pas-05-submit-then-inquire");
             assertThat(scenario.get("expectedOutcome").asString()).isEqualTo("APPROVED");
+            // An inquiry carries the case's member and provider, so one click fills them as it does for a submission.
+            assertThat(scenario.at("/sampleCase/npi").asString()).isEqualTo("1234567893");
+            assertThat(scenario.at("/sampleCase/procedureCodes/0").asString()).isEqualTo("E0470");
         });
 
         JsonNode subscription = send(mvc, get("/api/pas/scenarios").param("for", "subscription"), 200);
@@ -754,6 +757,9 @@ class PasControllerTest {
         assertThat(notification.get("scenarios")).extracting(s -> s.get("id").asString()).containsExactly("pas-06-submit-then-notified",
                 "pas-10-subscription-lifecycle", "pas-11-notification-known-run", "pas-12-notification-unmatched", "pas-20-heartbeat");
         assertThat(notification.at("/scenarios/3/expectedOutcome").asString()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(notification.at("/scenarios/0/sampleCase/npi").asString()).isEqualTo("1234567893");
+        // The subscription calls carry no case, so their rows have nothing to fill.
+        assertThat(subscription.at("/scenarios/0").has("sampleCase")).isFalse();
         assertThat(notification.get("outcomes")).hasSize(10);
         assertThat(notification.get("elements")).isEmpty();
 

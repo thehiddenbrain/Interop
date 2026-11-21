@@ -365,7 +365,10 @@ payer (see [Limitations](#limitations)).
 **Every scenario is synthetic.** Sentinel member IDs select the mock scenario: `P32H-PA-REQ`
 answers "prior authorization required", `P32H-NO-AUTH` answers "not required", `P32H-EMPTY`
 answers with no determination, and so on; a sentinel means the same case in every protocol
-(D-154). The CRD, DTR and PAS tabs list them, each with a "Use this member ID" link, and
+(D-154). The CRD, DTR and PAS tabs list them, each with a "Use this case" link that fills the
+member ID, an NPI and the procedure codes the scenario file names for its case (its `sampleCase`),
+each looked up as if typed, so the first send needs nothing else (a file of your own without a
+`sampleCase` fills the member ID only, and one whose `sampleCase` NPI fails the check is refused), and
 `GET /api/crd/scenarios`, `GET /api/dtr/scenarios` and `GET /api/pas/scenarios` serve them with
 the outcome each is meant to produce (14 CRD, 15 DTR and 21 PAS scenario files). A run can also
 name a scenario (the Mock scenario field, or `scenarioId`). Mock member fixtures use `P32H-...`
@@ -511,7 +514,9 @@ on the other two.
   be sent, the url it resolves to and what it leaves out, and sends and records nothing.
 
 On mock, before anything is uploaded, the right side of each protocol tab says what to do and lists
-the member IDs that select each scenario, each with `Use this member ID`. On live with nothing
+the member IDs that select each scenario, each with `Use this case`, which fills the member ID, the
+NPI and the procedure codes of that scenario's case and sets the Mock scenario field back to "The
+member ID decides". On live there is no such table and nothing is filled in. On live with nothing
 configured, each protocol tab holds back its form, says "This tab cannot send yet" with what is
 missing, and links to the Config tab; once an environment and a collection are active the form
 comes back, with no reload.

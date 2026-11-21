@@ -8,6 +8,7 @@
     "P32H-NOPROV"
   ],
   "sentinelNpi": "9999999995",
+  "sampleCase": {"npi": "9999999995", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 200,

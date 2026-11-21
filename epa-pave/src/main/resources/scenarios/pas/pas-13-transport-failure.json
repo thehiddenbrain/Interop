@@ -4,6 +4,7 @@
   "label": "Transport failure",
   "description": "The service cannot be reached, for a submission and for an inquiry alike. This is a finding about the environment, not about the member or the code. It has no body, so it is in no version's shape.",
   "sentinelMemberId": "P32H-PAS-DOWN",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "unavailable",
   "delayMillis": 100,
   "expect": {

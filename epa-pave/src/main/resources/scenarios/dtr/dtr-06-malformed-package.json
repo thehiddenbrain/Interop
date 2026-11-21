@@ -4,6 +4,7 @@
   "label": "Package returns but is malformed",
   "description": "The service answers successfully with a package whose questionnaire cannot be used: one question has no linkId and two questions share one, so an answer could not be tied to its question. The body is valid JSON and is shown in full. It departs from DTR 2.0.1 on purpose: besides the linkIds, the package carries no draft response, because a questionnaire that cannot be used has nothing for a response to be tied to.",
   "sentinelMemberId": "P32H-DTR-MALFORMED",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

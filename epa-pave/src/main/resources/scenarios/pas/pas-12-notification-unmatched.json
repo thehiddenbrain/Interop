@@ -3,6 +3,7 @@
   "number": 12,
   "label": "A notification matching nothing",
   "description": "An event notification for a subscription and a ClaimResponse that no run of this tool created. It is recorded and shown as unmatched, never dropped. The topic is the one PAS 2.0.1 defines.",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
   "steps": {
     "notify": {

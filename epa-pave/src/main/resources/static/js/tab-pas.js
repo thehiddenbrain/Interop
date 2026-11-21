@@ -12,9 +12,9 @@
 // fields such as claimId, and it must land on the field of the call that was sent.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, table, copyButton} from './dom.js';
+import {el, fill, clear, button, code} from './dom.js';
 import {textField, selectField, formProblem, markFieldErrors, LEDGER_TEXT_HINT} from './forms.js';
-import {createWorkbench, requestPreviewPanel, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {detailFor} from './pas-detail.js';
 import {createExpectation} from './pas-expectation.js';
 import {createAttachments} from './pas-attachments.js';
@@ -851,18 +851,17 @@ function drawEmptyState() {
         parts.push(el('p', null, own ? 'On the mock profile a sentinel member ID inside your body selects the scenario that answers. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
         parts.push(scenarioListNotes(list));
-        parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'}, {text: '', class: 'col-25'}],
-            list.scenarios.map(item => [
-                {class: 'num', node: String(item.number)},
-                scenarioLabel(item),
-                sentinelCell(item),
-                !item.sentinelMemberId ? null
-                    : own ? copyButton('Copy this member ID', () => item.sentinelMemberId)
-                        : button('Use this member ID', () => app.caseContext.setMemberId(item.sentinelMemberId),
-                            {class: 'button--text', aria: {label: 'Use the member ID ' + item.sentinelMemberId}})
-            ]), {class: 'sentinels'}));
+        parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
     }
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
+}
+
+/** Sets the mock scenario selector back to "The member ID decides", as a tester choosing a case from the table means. */
+function letTheMemberIdDecide() {
+    if (controls.scenario && controls.scenario.value() !== '') {
+        controls.scenario.select.value = '';
+        controls.scenario.select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
 }
 
 /* ---------- when the configuration changes ---------- */

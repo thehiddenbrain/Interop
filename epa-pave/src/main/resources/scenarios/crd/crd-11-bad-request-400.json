@@ -4,6 +4,7 @@
   "label": "Request rejected with HTTP 400",
   "description": "The service rejects the request as invalid and says why in an OperationOutcome.",
   "sentinelMemberId": "P32H-BAD400",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
   "behavior": "respond",
   "httpStatus": 400,
   "delayMillis": 150,

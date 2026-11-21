@@ -4,6 +4,7 @@
   "label": "Empty response, no determination",
   "description": "The service answers successfully and returns no cards and no coverage information. It has said nothing: this is not the same as answering that prior authorization is not required. CRD 2.0.1 does not require a response to carry coverage information.",
   "sentinelMemberId": "P32H-EMPTY",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

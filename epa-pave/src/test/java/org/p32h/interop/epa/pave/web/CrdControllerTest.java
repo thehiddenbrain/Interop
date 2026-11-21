@@ -235,6 +235,10 @@ class CrdControllerTest {
                 .andExpect(jsonPath("$.available").value(true))
                 .andExpect(jsonPath("$.scenarios.length()").value(14))
                 .andExpect(jsonPath("$.scenarios[1].sentinelMemberId").value("P32H-NO-AUTH"))
+                // The case one click fills in: written in the file, served on mock only.
+                .andExpect(jsonPath("$.scenarios[0].sampleCase.npi").value("1234567893"))
+                .andExpect(jsonPath("$.scenarios[0].sampleCase.procedureCodes[0]").value("E0470"))
+                .andExpect(jsonPath("$.scenarios[8].sampleCase.npi").value("9999999995"))
                 .andReturn().getResponse().getContentAsString();
         JsonNode list = JsonSafe.parse(mock).node();
         // The outcomes and element names a tester can declare, so the browser keeps no copy of them.
@@ -247,7 +251,7 @@ class CrdControllerTest {
         assertThat(list.get("notes")).extracting(JsonNode::asString).containsExactly("crd-01-pa-required.json: it is the default, because its number (1) is the lowest. A run that neither a chosen scenario nor a "
                 + "sentinel selects is answered from it.");
 
-        mvc("live").perform(get("/api/crd/scenarios")).andExpect(status().isOk())
+        String live = mvc("live").perform(get("/api/crd/scenarios")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").isNotEmpty())
                 .andExpect(jsonPath("$.scenarios.length()").value(0))
@@ -256,7 +260,10 @@ class CrdControllerTest {
                 // The words for every next action, so the History tab can say what a run's next step was.
                 .andExpect(jsonPath("$.nextActions.length()").value(org.p32h.interop.epa.pave.model.NextAction.values().length))
                 .andExpect(jsonPath("$.nextActions[0].code").value("START_DTR"))
-                .andExpect(jsonPath("$.nextActions[0].label").value("Answer the payer's questionnaire (DTR)."));
+                .andExpect(jsonPath("$.nextActions[0].label").value("Answer the payer's questionnaire (DTR)."))
+                .andReturn().getResponse().getContentAsString();
+        // Nothing is offered on live to fill in for the tester.
+        assertThat(live).doesNotContain("sampleCase").doesNotContain("1234567893");
         // And a scenario cannot be forced on live.
         mvc("live").perform(post("/api/crd").contentType(MediaType.APPLICATION_JSON)
                         .content(body("S123456789", ",\"scenarioId\":\"crd-02-no-auth\"")))

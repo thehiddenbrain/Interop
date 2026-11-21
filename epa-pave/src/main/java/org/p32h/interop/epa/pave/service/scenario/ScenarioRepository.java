@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.Npi;
+import org.p32h.interop.epa.pave.model.SampleCase;
 import org.p32h.interop.epa.pave.model.ScenarioBehavior;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
@@ -76,13 +77,15 @@ public class ScenarioRepository {
      * {@code responses} are the DTR claims the scenario tests drive. {@code crdSentinelMemberIds}
      * names the CRD sentinels a DTR or PAS scenario answers for the same case, kept apart from the
      * scenario's own sentinels so that the result can say which of the two selected it, and
-     * {@code answersDtrSentinels} marks the CRD scenario that answers every DTR sentinel. A key outside this
+     * {@code answersDtrSentinels} marks the CRD scenario that answers every DTR sentinel, and
+     * {@code sampleCase} names the NPI and procedure codes the mock scenario table fills in with the
+     * member ID. A key outside this
      * list is refused, because a misspelt one would otherwise be dropped and its scenario would
      * quietly lose what the key held.
      */
     static final Set<String> KNOWN_KEYS = Set.of("id", "number", "label", "description", "basis", "assumption", "sentinelMemberId",
             "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "answersDtrSentinels", "behavior", "httpStatus", "delayMillis",
-            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses");
+            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses", "sampleCase");
 
     /**
      * The scenarios found for a protocol, the files that could not be used, and what a tester
@@ -660,6 +663,7 @@ public class ScenarioRepository {
                         + "Use ten digits whose last digit is the NPI check digit of the first nine, such as 9999999995.");
             }
         }
+        sampleCase(root);
         String id = JsonSafe.presentText(root, "id");
         if (id == null) {
             throw new IllegalArgumentException("the file has no id.");
@@ -714,6 +718,39 @@ public class ScenarioRepository {
         }
         return "it has " + (named.size() == 1 ? "a key" : "keys") + " this tool does not know: " + String.join(", ", named) + ", and "
                 + others + ". Check the file's top-level keys.";
+    }
+
+    /**
+     * The file's sample case, or null when it names none. A sample whose NPI fails the check, or
+     * that holds a blank code, is refused: one click would fill a case the tool itself refuses to
+     * send. Like a sentinel NPI, the value is not quoted.
+     */
+    static SampleCase sampleCase(JsonNode root) {
+        JsonNode sample = JsonSafe.child(root, "sampleCase");
+        if (JsonSafe.nullOrMissing(sample)) {
+            return null;
+        }
+        if (!sample.isObject()) {
+            throw new IllegalArgumentException("its sampleCase is not an object with an npi and procedureCodes.");
+        }
+        JsonNode npi = JsonSafe.child(sample, "npi");
+        if (npi == null || !npi.isString() || !Npi.isValid(npi.stringValue().strip())) {
+            throw new IllegalArgumentException("the NPI of its sampleCase does not pass the NPI check, so the case it fills could not be sent. "
+                    + "Use ten digits whose last digit is the NPI check digit of the first nine, such as 1234567893.");
+        }
+        JsonNode codes = JsonSafe.child(sample, "procedureCodes");
+        if (codes == null || !codes.isArray() || codes.isEmpty()) {
+            throw new IllegalArgumentException("its sampleCase has no list of procedureCodes.");
+        }
+        List<String> out = new ArrayList<>();
+        for (JsonNode code : JsonSafe.elements(codes)) {
+            String value = code.isString() ? JsonSafe.presentText(code) : null;
+            if (value == null) {
+                throw new IllegalArgumentException("the procedureCodes of its sampleCase hold a blank entry or one that is not text.");
+            }
+            out.add(value);
+        }
+        return new SampleCase(npi.stringValue().strip(), out);
     }
 
     /** What a key name of this tool looks like: letters only, as every key in {@link #KNOWN_KEYS} is. */

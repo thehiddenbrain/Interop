@@ -7,6 +7,7 @@
   "crdSentinelMemberIds": [
     "P32H-TIMEOUT"
   ],
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "timeout",
   "delayMillis": 400,
   "expect": {

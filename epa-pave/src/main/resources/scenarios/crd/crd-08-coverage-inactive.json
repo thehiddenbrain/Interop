@@ -4,6 +4,7 @@
   "label": "Coverage inactive on date of service",
   "description": "The member is known but has no active coverage on the date of service. CRD 2.0.1 has no code for this; the CRD 2.2.0 ballot's no-active-coverage reason is also recognised when a service sends it.",
   "sentinelMemberId": "P32H-INACTIVE",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["T1030"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

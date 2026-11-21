@@ -4,6 +4,7 @@
   "label": "Prior authorization already satisfied",
   "description": "The payer answers that the conditions prior authorization would check are already met, so prior authorization can be bypassed, and gives an identifier for that. Models CRD 2.0.1, with the answer in a system action that updates the order.",
   "sentinelMemberId": "P32H-PA-SAT",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["T1030"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

@@ -18,12 +18,19 @@ import java.util.List;
  * @param notes            what a tester should know about the file that does not stop it being
  *                         used, such as that it is the default or that its expect block claims
  *                         another HTTP status than it answers with. Empty when there is nothing
+ * @param defaultNote      the one note that only explains, that the file is the default because its
+ *                         number is the lowest, kept apart from {@code notes} so that the screen can
+ *                         put it behind "About this step" without telling notes apart by their words.
+ *                         Null for every file but the default
+ * @param sampleCase       the NPI and procedure codes the file names for its own case, filled in
+ *                         with the member ID by one click on the mock scenario table. Null when the
+ *                         file names none
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId,
                               String sentinelNpi, ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome,
                               List<String> sentinelMemberIds, List<String> sentinelNpis, List<String> crdSentinelMemberIds,
-                              List<String> notes) {
+                              List<String> notes, String defaultNote, SampleCase sampleCase) {
 
     public ScenarioSummary {
         sentinelMemberIds = sentinelMemberIds == null || sentinelMemberIds.isEmpty()
@@ -34,15 +41,23 @@ public record ScenarioSummary(String id, int number, String label, String descri
         notes = notes == null ? List.of() : List.copyOf(notes);
     }
 
+    // The shorter forms stay, so the callers written before a summary carried a sample keep compiling.
+    public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
+                           ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
+                           List<String> sentinelNpis, List<String> crdSentinelMemberIds, List<String> notes) {
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
+                sentinelNpis, crdSentinelMemberIds, notes, null, null);
+    }
+
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
                            List<String> sentinelNpis, List<String> crdSentinelMemberIds) {
         this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
-                sentinelNpis, crdSentinelMemberIds, null);
+                sentinelNpis, crdSentinelMemberIds, null, null, null);
     }
 
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome) {
-        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null, null);
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null, null, null, null);
     }
 }

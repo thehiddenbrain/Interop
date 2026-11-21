@@ -128,6 +128,18 @@ export function createCaseContext() {
         },
 
         /**
+         * Puts the case a mock scenario file names in place of the one on screen: its member ID and
+         * NPI, each looked up as if typed, and its procedure codes, each asked of the code list as a
+         * code added by hand is. Reached only from the mock scenario table, which live never draws.
+         */
+        useSample(sample) {
+            member.replace(sample && sample.memberId ? String(sample.memberId) : '');
+            provider.replace(sample && sample.npi ? String(sample.npi) : '');
+            codes.replace(((sample && sample.procedureCodes) || []).map(value => ({code: String(value)})));
+            changed();
+        },
+
+        /**
          * Puts a member in the case in place of the one there, as when a run is loaded from the
          * ledger: every detail of the member before goes, typed by hand or not, because it belonged
          * to that member, and the member ID given is looked up. record.memberId absent or blank

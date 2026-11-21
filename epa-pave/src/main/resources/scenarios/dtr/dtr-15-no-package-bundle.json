@@ -4,6 +4,7 @@
   "label": "Package returns with no bundle in it",
   "description": "The service answers successfully with a Parameters resource that holds no package bundle. From STU 2.1.0 the DTR guide has a service answer this way when no questionnaire needs to be completed. DTR 2.0.1 does not: it requires at least one package bundle. This tool reports it as an empty package and does not turn it into an answer that no documentation is needed. It is kept in the later shape on purpose, because nobody has confirmed which version the service follows, and this tool names the shape as a later version's rather than calling it wrong.",
   "sentinelMemberId": "P32H-DTR-NOBUNDLE",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

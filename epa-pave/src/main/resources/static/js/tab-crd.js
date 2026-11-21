@@ -7,10 +7,10 @@
 // discovery, and the words before the first run.
 
 import * as api from './api.js';
-import {el, fill, clear, button, code, facts, table, heading, copyButton} from './dom.js';
+import {el, fill, clear, button, code, facts, table, heading} from './dom.js';
 import {textField, selectField, setOptions, LEDGER_TEXT_HINT} from './forms.js';
 import {errorPanel, wireView, additionalFieldsSection} from './result.js';
-import {createWorkbench, requestPreviewPanel, sentinelCell, scenarioLabel, scenarioListNotes, scenarioAbout} from './workbench.js';
+import {createWorkbench, requestPreviewPanel, scenarioTable, scenarioListNotes, scenarioAbout} from './workbench.js';
 import {crdDetail} from './crd-detail.js';
 import {createComparison} from './crd-compare.js';
 import {shown, presenceMark} from './shown.js';
@@ -544,19 +544,17 @@ function drawEmptyState() {
                 + 'scenario field. These are the member IDs that do:'
             : 'On the mock profile the member ID selects the scenario that answers. These are the member IDs that do:'));
         parts.push(scenarioListNotes(list));
-        parts.push(table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Member ID', class: 'col-25'},
-            {text: '', class: 'col-25'}], list.scenarios.map(scenario => [
-            {class: 'num', node: String(scenario.number)},
-            scenarioLabel(scenario),
-            sentinelCell(scenario),
-            // The form's member is not sent with a body of the tester's own: the ID is copied, to be put into the body.
-            !scenario.sentinelMemberId ? null
-                : own ? copyButton('Copy this member ID', () => scenario.sentinelMemberId)
-                    : button('Use this member ID', () => app.caseContext.setMemberId(scenario.sentinelMemberId),
-                        {class: 'button--text', aria: {label: 'Use the member ID ' + scenario.sentinelMemberId}})
-        ]), {class: 'sentinels'}));
+        parts.push(scenarioTable(app, list, {own, onUse: letTheMemberIdDecide}));
     }
     bench.showEmpty(el('div', {class: 'empty-state'}, parts));
+}
+
+/** Sets the mock scenario selector back to "The member ID decides", as a tester choosing a case from the table means. */
+function letTheMemberIdDecide() {
+    if (controls.scenario && controls.scenario.value() !== '') {
+        controls.scenario.select.value = '';
+        controls.scenario.select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
 }
 
 /* ---------- when the configuration changes ---------- */

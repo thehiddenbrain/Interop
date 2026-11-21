@@ -358,8 +358,9 @@ public class PasController {
         if (step == null) {
             return null;
         }
+        // The sample goes with the step, because an inquiry and a notification carry the case's member and provider too.
         return new ScenarioSummary(scenario.id(), scenario.number(), scenario.label(), scenario.description(), scenario.sentinelMemberId(),
                 scenario.sentinelNpi(), call ? step.behavior() : null, call ? step.httpStatus() : null,
-                step.expect() == null ? null : step.expect().outcome());
+                step.expect() == null ? null : step.expect().outcome(), null, null, null, null, null, scenario.summary().sampleCase());
     }
 }

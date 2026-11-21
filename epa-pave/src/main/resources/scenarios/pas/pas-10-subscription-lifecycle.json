@@ -3,6 +3,7 @@
   "number": 10,
   "label": "A subscription created and deleted",
   "description": "The five subscription calls on one subscription: create, read, list, update and delete. Its notify step is the handshake a service sends when a subscription is activated. The topic is the one PAS 2.0.1 defines.",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
   "assumption": "What a subscription must be subscribed to, and how much a notification carries, are not known for the live service. This file uses a placeholder topic, a placeholder filter and ids only.",
   "steps": {

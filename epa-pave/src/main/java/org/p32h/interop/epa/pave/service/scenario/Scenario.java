@@ -92,7 +92,8 @@ public record Scenario(String id, int number, String label, String description, 
         // ones a DTR or PAS file answers for the same case included.
         return new ScenarioSummary(id, number, label, description, sentinelMemberId, sentinelNpi,
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
-                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, notes);
+                expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds, notes, null,
+                ScenarioRepository.sampleCase(raw));
     }
 
     /**

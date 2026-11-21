@@ -4,6 +4,7 @@
   "label": "Additional information needed",
   "description": "The payer cannot answer until it knows who will perform the service and where, and says coverage and prior authorization are conditional on that. The coverage information sits on the order inside a card suggestion: a resource CRD 2.0.1 allows it on, though whether 2.0.1 expects it there or in a system action is in pages its package does not ship. Models CRD 2.0.1.",
   "sentinelMemberId": "P32H-INFO",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

@@ -4,6 +4,7 @@
   "label": "Not a covered benefit",
   "description": "The payer answers that the service is not a covered benefit under the member's plan. Models CRD 2.0.1.",
   "sentinelMemberId": "P32H-NOCOV",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

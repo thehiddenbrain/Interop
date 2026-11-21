@@ -4,6 +4,7 @@
   "label": "Package with two questionnaires, as a Bundle",
   "description": "The package arrives as a Bundle, not as Parameters, and holds two conventional questionnaires. Both are listed and each is answered by itself. The second has a question that is enabled only when two conditions both hold. It models DTR 2.0.1 in each questionnaire and its draft response, and departs from it in the shape of the package, as the assumption says.",
   "sentinelMemberId": "P32H-DTR-TWO",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

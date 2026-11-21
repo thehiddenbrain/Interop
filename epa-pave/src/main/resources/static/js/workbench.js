@@ -683,6 +683,51 @@ export function scenarioAbout(scenario) {
 }
 
 /**
+ * The table of mock scenarios on an empty tab, the same on CRD, DTR and PAS. Drawn only on the
+ * mock profile, by a tab that has a scenario list to show; on live there is none to draw.
+ *
+ * options.own: true while a request of the tester's own is chosen. The form's case is not sent
+ * with such a body, so the member ID is copied, to be put into the body, and nothing is filled.
+ * options.onUse(scenario), optional: called before the case is filled, so the tab can let the
+ * member ID decide again in place of a scenario chosen by hand.
+ *
+ * "Use this case" fills the member ID, the NPI and the codes the scenario file names for its case,
+ * each looked up as if typed, so the first send needs no other input. A file that names no sample
+ * case fills the member ID only.
+ */
+export function scenarioTable(app, list, options) {
+    const settings = options || {};
+    const own = settings.own === true;
+    return table([{text: '', class: 'col-5'}, {text: 'Scenario', class: 'col-45'}, {text: 'Case', class: 'col-25'},
+        {text: '', class: 'col-25'}], list.scenarios.map(scenario => {
+        const sample = scenario.sampleCase && scenario.sampleCase.npi ? scenario.sampleCase : null;
+        const codes = sample ? sample.procedureCodes || [] : [];
+        const memberId = scenario.sentinelMemberId || null;
+        const said = sample ? 'member ID ' + memberId + ', NPI ' + sample.npi + ', ' + (codes.length === 1 ? 'code ' : 'codes ') + codes.join(', ') : '';
+        return [
+            {class: 'num', node: String(scenario.number)},
+            scenarioLabel(scenario),
+            [sentinelCell(scenario), sample && !own && memberId
+                ? el('div', {class: 'small scenario-sample'}, 'NPI ', code(sample.npi), ', ', codes.length === 1 ? 'code ' : 'codes ',
+                    codes.map((value, index) => [index > 0 ? ', ' : null, code(value)]))
+                : null],
+            !memberId ? null
+                : own ? copyButton('Copy this member ID', () => memberId)
+                    : button('Use this case', () => {
+                        if (typeof settings.onUse === 'function') {
+                            settings.onUse(scenario);
+                        }
+                        if (sample) {
+                            app.caseContext.useSample({memberId, npi: sample.npi, procedureCodes: codes});
+                        } else {
+                            app.caseContext.setMemberId(memberId);
+                        }
+                    }, {class: 'button--text', aria: {label: sample ? 'Use the case: ' + said : 'Use the case: member ID ' + memberId}})
+        ];
+    }), {class: 'sentinels'});
+}
+
+/**
  * The member ID cell of a mock scenario's row on an empty tab: the first member ID that selects
  * it, then every other identifier the server lists for it (sentinelMemberIds, sentinelNpis and,
  * on DTR and PAS, the CRD member IDs it also answers for), so a tester can reach it every way it

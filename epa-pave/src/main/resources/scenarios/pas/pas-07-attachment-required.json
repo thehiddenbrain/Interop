@@ -4,6 +4,7 @@
   "label": "Attachment required",
   "description": "The payer pends the request and asks for supporting documentation before it will decide, in an active PAS CommunicationRequest with a PWK category whose code is a placeholder. PAS 2.0.1 then has the provider send it by a claim update or by CDex $submit-attachment, which this tool does not build. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-ATTACH-REQ",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 200,

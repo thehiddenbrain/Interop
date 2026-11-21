@@ -4,6 +4,7 @@
   "label": "Linear questionnaire that completes",
   "description": "The package holds one conventional questionnaire with four questions and no branching, a CQL library and a value set. It is the questionnaire CRD scenario 4 names, so the sentinel member carries straight on from CRD. Answering the three required questions completes the response. It models DTR 2.0.1: the package carries the draft response to start from, which names the coverage and the order in qr-context and states its intended use.",
   "sentinelMemberId": "P32H-DOC-DTR",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 150,

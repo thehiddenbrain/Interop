@@ -4,6 +4,7 @@
   "label": "Partial approval",
   "description": "The payer certifies the first item and does not certify the second. Send two procedure codes to see each decision tied to its code. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-PARTIAL",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470", "E0601"]},
   "behavior": "respond",
   "httpStatus": 200,
   "delayMillis": 200,

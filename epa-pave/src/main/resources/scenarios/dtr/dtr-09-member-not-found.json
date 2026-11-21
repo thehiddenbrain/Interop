@@ -7,6 +7,7 @@
   "crdSentinelMemberIds": [
     "P32H-NOMEM"
   ],
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "behavior": "respond",
   "httpStatus": 404,
   "delayMillis": 150,

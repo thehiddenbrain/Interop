@@ -270,6 +270,23 @@ class ScenarioRepositoryTest {
     }
 
     @Test
+    void aSampleCaseWhoseNpiFailsTheCheckOrWhoseCodeIsBlankIsRefusedNamingTheFile(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir.resolve("crd"));
+        Files.writeString(dir.resolve("crd/a.json"), scenario("a", 1,
+                "\"sentinelMemberId\":\"P32H-A\",\"sampleCase\":{\"npi\":\"1234567893\",\"procedureCodes\":[\"E0470\"]},"));
+        Files.writeString(dir.resolve("crd/b.json"), scenario("b", 2,
+                "\"sentinelMemberId\":\"P32H-B\",\"sampleCase\":{\"npi\":\"1234567890\",\"procedureCodes\":[\"E0470\"]},"));
+        Files.writeString(dir.resolve("crd/c.json"), scenario("c", 3,
+                "\"sentinelMemberId\":\"P32H-C\",\"sampleCase\":{\"npi\":\"1234567893\",\"procedureCodes\":[\" \"]},"));
+        ScenarioRepository.Loaded loaded = new ScenarioRepository(AppProperties.of(Map.of("scenario-dir", dir.toString()))).load("crd");
+        assertThat(loaded.problems()).containsExactly(
+                "b.json: the NPI of its sampleCase does not pass the NPI check, so the case it fills could not be sent. Use ten digits whose "
+                        + "last digit is the NPI check digit of the first nine, such as 1234567893.",
+                "c.json: the procedureCodes of its sampleCase hold a blank entry or one that is not text.");
+        assertThat(loaded.problems()).noneMatch(problem -> problem.contains("1234567890"));
+    }
+
+    @Test
     void aMisspeltTopLevelKeyIsRefusedByNameAndNotDropped() {
         assertThatThrownBy(() -> ScenarioRepository.parse("x.json", scenario("a", 1, "\"sentinelMemberID\":\"P32H-X\",")))
                 .isInstanceOf(IllegalArgumentException.class)
