@@ -286,7 +286,7 @@ export function when(timestamp) {
  * A name an uploaded file gives, as a sentence of this page quotes it: whole when it has at most 60
  * characters, otherwise its first 60 and its length, in the words the server's own sentences use. A
  * file can give a name of any length, and a sentence that quoted a long one whole ran off the side
- * of the screen. A name shown as the tester's own label, in a list or the strip, is shown whole.
+ * of the screen. A name shown as the tester's own label, in a list, the strip or the banner, is shown whole.
  */
 export function named(name) {
     const text = name === undefined || name === null ? '' : String(name);

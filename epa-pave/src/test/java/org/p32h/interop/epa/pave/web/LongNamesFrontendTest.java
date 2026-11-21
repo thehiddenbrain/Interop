@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  * A sentence the page writes itself quotes a long name of an uploaded file by its start and its
  * length, as the server's sentences do: "Stored the collection" with a name of 100,000 characters
  * ran off the side of the screen, and the words after the name could not be read. A name shown as
- * a label, in a list or the strip, stays whole: it wraps there and the page works. The build has
+ * a label, in a list, the strip or the banner, stays whole: it wraps there and the page works. The build has
  * no browser, so these read the scripts.
  */
 class LongNamesFrontendTest {
@@ -46,9 +46,32 @@ class LongNamesFrontendTest {
                 .contains("el('strong', null, environment.name)");
         assertThat(read("config-parts.js")).contains("'The tool warns about an address of \"' + named(name) + '\"'");
         String app = read("app.js");
-        assertThat(app).contains("'The active environment is ' + named(environment.name) + ' ('")
-                // A long name in the strip pushed every other fact of it off the screen.
-                .contains("el('span', {title: environment.name}, named(environment.name))")
-                .contains("banner('prod', 'Production', named(environment.name), access.reason,");
+        assertThat(app).contains("'The active environment is ' + named(environment.name) + ' ('");
+    }
+
+    /**
+     * The unlock of production refuses a name "not typed exactly as the environment strip shows it",
+     * so the strip shows it whole, at any length: given by its start and its length, a name of 75
+     * characters typed as the strip showed it was refused, and two production names that differ only
+     * after the 60th character looked alike. A long one wraps and scrolls in a box of its own
+     * instead, so it cannot push the page wide.
+     */
+    @Test
+    void theStripAndTheBannerGiveTheEnvironmentNameWholeAsTheUnlockAsksForIt() throws IOException {
+        String app = read("app.js");
+        assertThat(app).contains("el('span', {class: 'environment-name'}, environment.name)")
+                .contains("'none active', 'strip-item--environment')")
+                .contains("banner('prod', 'Production', environment.name, access.reason,")
+                .contains("banner('uat', 'UAT', environment.name, access.reason)")
+                .contains("el('span', {class: 'banner__name environment-name'}, name)")
+                .doesNotContain("named(environment.name))")
+                .doesNotContain("'Production', named(")
+                .doesNotContain("'UAT', named(");
+        String css = Files.readString(Path.of("src/main/resources/static/css/pave.css"), StandardCharsets.UTF_8);
+        String box = css.substring(css.indexOf(".environment-name {"), css.indexOf("}", css.indexOf(".environment-name {")));
+        assertThat(box).contains("overflow-wrap: anywhere;").contains("max-height: 4.5em;").contains("overflow-y: auto;")
+                .contains("max-width: 100%;");
+        String item = css.substring(css.indexOf(".strip-item--environment {"), css.indexOf("}", css.indexOf(".strip-item--environment {")));
+        assertThat(item).contains("white-space: normal;");
     }
 }

@@ -382,11 +382,12 @@ function drawStrip() {
     items.push(stripItem('Profile', [mode.mode === 'mock' ? el('span', {class: 'hatch', aria: {hidden: 'true'}}) : null, mode.mode]));
     items.push(stripItem('Target', mode.target));
     items.push(stripItem('Environment', environment.active
-        // The strip holds a line of facts: a name a file made long is given by its start and its
-        // length there, as in a sentence, or it pushed every other fact off the screen. The whole
-        // name is on the Environments view and in the tooltip.
-        ? [el('span', {title: environment.name}, named(environment.name)), el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
-        : 'none active'));
+        // The name is given whole: the unlock of production asks for it exactly as the strip shows
+        // it, and two production environments may differ only at the end of their names. One a file
+        // made long wraps and then scrolls in a box of its own (environment-name in pave.css), so it
+        // pushes neither the other facts nor the page aside.
+        ? [el('span', {class: 'environment-name'}, environment.name), el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
+        : 'none active', 'strip-item--environment'));
     items.push(ledger.node);
     fill(strip, items);
 }
@@ -490,11 +491,11 @@ function drawBanners() {
         // words before the server's sentence, from the server's own flag. Unlocked is framed, so it
         // reads differently from across the room as well.
         const unlocked = access.production === true && access.writesAllowed === true;
-        host.append(banner('prod', 'Production', named(environment.name), access.reason,
+        host.append(banner('prod', 'Production', environment.name, access.reason,
             el('span', {class: 'banner__writes' + (unlocked ? ' banner__writes--unlocked' : '')},
                 unlocked ? 'Writes UNLOCKED for this browser session' : 'Writes locked')));
     } else if (environment.active && environment.kind === 'uat') {
-        host.append(banner('uat', 'UAT', named(environment.name), access.reason));
+        host.append(banner('uat', 'UAT', environment.name, access.reason));
     }
     if (mode.mode === 'mock') {
         host.append(el('div', {class: 'banner banner--mock'}, el('div', {class: 'banner__inner'},
@@ -507,7 +508,7 @@ function drawBanners() {
 function banner(kind, label, name, reason, writes) {
     return el('div', {class: 'banner banner--' + kind}, el('div', {class: 'banner__inner'},
         el('span', {class: 'banner__kind'}, label),
-        el('span', {class: 'banner__name'}, name),
+        el('span', {class: 'banner__name environment-name'}, name),
         writes || null,
         reason ? el('span', {class: 'banner__reason'}, reason) : null));
 }
