@@ -58,8 +58,15 @@ configuration is needed.
   With the JDK 21 hidden (a simulation), STS alone imported and started the tool on that Java 25 on
   `6201644`, and again on `6eddce8`, whose code is that of the head: there both a project imported
   before the change, after Team, Pull and Gradle, Refresh Gradle Project, and a fresh import by the
-  operator's own path, both on clones of a local copy, so no fetch from GitHub was seen. Windows and other releases were not tried by the writers; one Windows workstation has reported a failed import, at the end of that
-  section. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
+  operator's own path, both on clones of a local copy, so no fetch from GitHub was seen. Other
+  releases were not tried. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
+- **Windows: one workstation has run it, and an upload fails there.** Reported, not seen: the
+  operator started the tool from STS on their Windows workstation, and uploading an environment or a
+  collection answered with an internal error whose cause is not known yet (D-275). Seen by an agent:
+  the tool on a Windows Java under Wine, which is not Windows, started, took about 60 uploads and
+  held both proofs without that error. `run.cmd` has not been run by anyone. See "When the running
+  tool answers "This tool hit an internal error"" under
+  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **PAVE is not fit to be run as a shared or production service as delivered.** The operator has
   said the tool will be productionized one day, which is read here as running it that way (D-270);
   what must exist first, none of it built, is listed under
@@ -2022,7 +2029,7 @@ adds the launch configuration and the test changes named below (D-272), on `d089
 STS itself from GitHub (D-273), and on `6201644` and `6eddce8`, after the build stopped needing a
 JDK 21 (D-274; with no JDK 21 only as a simulation, the machine's JDK 21 hidden). Nobody who writes
 this README has seen it on Windows or with another
-release; what one Windows workstation reported is at the end of this section. The steps, in order:
+release; what one Windows workstation reported, the operator's, is at the end of this section. The steps, in order:
 
 **1. Which Spring Tools.** Use Spring Tools 5 for Eclipse. PAVE is a Spring Boot 4 application, and the
 Spring Tools changelog gives 5.0.0 (2025-12-10, built on Eclipse 2025-12) as the first release that
@@ -2316,7 +2323,11 @@ this view.
 and press "Start or restart", its first button. Or right click
 `src/main/java/org/p32h/interop/epa/pave/PaveApplication.java` and choose Run As, Spring Boot App.
 The project carries the launch configuration `PaveApplication.launch`, written by STS 5.4.0 itself,
-so both start `PaveApplication` with no dialog. On an older checkout without that file the first
+so both start `PaveApplication` with no dialog. Since `8463174` it holds no virtual machine argument
+(its "VM arguments:" field is empty): the one STS had written on Linux,
+`-Djava.security.egd=file:/dev/./urandom`, names no file on Windows and made every start about 8
+seconds slower on a Windows Java under Wine, so it was removed (D-275). STS adds its own arguments
+when it starts the tool; on Linux, from the changed file, the start still asked nothing. On an older checkout without that file the first
 start asks "Choose Main Type" with `HouseStyle` selected: choose `PaveApplication` (`HouseStyle` is
 the build's style gate). The Console shows `No active profile set, falling back to 1 default profile:
 "mock"`, the two warnings of step 4 of the checklist, `Tomcat started on port 8057` and `Started
@@ -2325,6 +2336,17 @@ PaveApplication`, but not the two lines `run.sh` prints; the Boot Dashboard show
 the project folder, the launch's working directory, and are in `.gitignore`. Stop it with the stop
 button of the Boot Dashboard or of the Console. A plain Eclipse without Spring Tools ignores the
 launch file without a word: there, use Run As, Java Application on `PaveApplication`.
+
+**When the running tool answers "This tool hit an internal error".** The screen shows that sentence
+with a reference. In the Console, find the log entry `Unhandled exception, reference` with the same
+reference, and copy all of it: after the first exception and its frames it names each cause, after
+" <- caused by ". Then open the Problems view (Window, Show View, Problems) and look for red errors
+in `epa-pave`. Eclipse starts a program whose code did not compile, and the broken part then fails
+when it is first used. If there are errors, choose Project, Clean..., clean `epa-pave`, wait until
+the status bar is empty, and start the tool again. This advice comes from reading, not from a fix
+that was seen to work: on the one Windows workstation that met this error, on uploading an
+environment or a collection, the cause has not been found (D-275), and the Problems view there has
+not been seen.
 
 **6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
 `live` typed in the Profile field of the Spring Boot tab, Apply, then Run, started the tool on live
@@ -2407,22 +2429,34 @@ Gradle Project, as under step 8; and the operator's own path, the Git import wiz
 clone (the top folder as a Maven project) then the Git Repositories import of `epa-pave` and Delete of
 the Maven project, gave `epa-pave [boot]`; each started from the Boot Dashboard with both proofs
 holding. Both clones of that run had a local folder as their origin, its commits already fetched: the
-pull fetched nothing, and neither a fetch from GitHub nor a clone made by STS was part of it.
+pull fetched nothing, and neither a fetch from GitHub nor a clone made by STS was part of it. On
+`8463174`, after the launch file lost its argument (D-275), one more run on a new workspace: Run
+Configurations showed `PaveApplication` with "Shared file: /epa-pave" and an empty "VM arguments:"
+field (this configuration type has no "Show Command Line" button in STS 5.4.0, so the command line
+was read from the running process: no `-Djava.security.egd`); the Boot Dashboard started the tool
+with no dialog and both proofs held; the sample environment and collection uploaded with `curl`
+twice and once each through the Config tab in a browser, every time 200, the first uploads the writers saw
+against a tool started by STS; and `git status` stayed empty throughout.
 **Reported, not seen by the writers of this
 README:** one operator, on a Windows workstation, let STS make the clone, as for another project. The
 clone showed under Git Repositories with no project in the Package Explorer; a Gradle import then
 failed with the error naming `gradle-8.9-bin.zip`, its cause cut off; their Git Repositories view held
 two clones, one on `epa-pave` and one on another branch and 39 commits behind; the Git wizard's last
 page offered only the top folder, already imported; and the top folder was then a Maven project with
-`epa-pave` a plain folder inside it. Whether the tool has since run there is not known. **Not seen by
-anyone:** Windows beyond that report, `run.cmd`, the fetch part of a pull that brings new commits
+`epa-pave` a plain folder inside it. Later the operator had the tool running there, started from
+STS, and reported that uploading an environment or a collection fails with an internal error; the
+log entry they pasted ended before its cause (D-275). **Seen by an agent, and not Windows:** the tool
+on the Java 25 for Windows that Spring Tools 5.4.0 carries, run under Wine on Linux, from the jar
+and from classes STS compiled on Linux: about 60 uploads gave 200 or a 422 that said why, both
+proofs held, and no internal error appeared. **Not seen by
+anyone:** Windows beyond those reports, `run.cmd`, the fetch part of a pull that brings new commits
 from GitHub (on `6eddce8` the clone's origin was a local copy with them already fetched; only the
 fast-forward was seen), a credential prompt, a real tester at a real
 workstation with a corporate proxy or mirror, a machine with a Java 17 and no Java 21 in an IDE
 (from a terminal, Gradle on a Java 17 with the JDK 21 hidden stopped with the build's message,
 simulated), a machine with no JDK 21 other than as a simulation, "Clone a Git repository" in the Git
 Repositories view, a branch switched from that view, the screens in a browser after a start from
-STS, the live profile against a service, the
+STS (other than the two uploads on the Config tab on `8463174`), the live profile against a service, the
 whole test suite from the IDE, and STS on a release other than 5.4.0.
 
 ## Open items
@@ -2491,7 +2525,13 @@ repeat every finding id; it leaves out nothing a tester has to know.
   left. If a ledger test fails once and passes when run again, report it.
 - **No business tester has used the tool.** The walkthrough was made by an automated agent on mock,
   not by a person, and is not a sign-off.
-- **`run.cmd` has not been run.** No Windows machine was available. It was written to do what
+- **On the one Windows workstation that has run the tool, an upload fails.** Reported by the
+  operator, not seen: started from STS, uploading an environment or a collection answers "This tool
+  hit an internal error"; the cause is not known, and until it is found the live profile cannot be
+  configured there. A Windows Java under Wine ran the tool, the uploads and the proofs without that
+  error, but it is not Windows. What to do if you meet it is under step 5 of
+  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275).
+- **`run.cmd` has not been run** by anyone. No Windows machine was available. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
   (`run.cmd mock "--server.port=8091"`). If it fails, use the two commands under step 4 of the
@@ -2503,8 +2543,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   import without a JDK 21, simulated, which left a project that could not start (D-273). Since D-274
   STS alone imported and started the tool on its own Java 25 with the JDK 21 hidden (simulated): on
   `6201644`, and on `6eddce8`, whose code is that of the head, after a pull and a refresh of a project
-  imported before the change and by the operator's own path. No other release, no minimum version and no Windows
-  machine was tried, and the whole suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
+  imported before the change and by the operator's own path; on `8463174` the start from the launch
+  file without its argument, and uploads through `curl` and the Config tab, each 200 (D-275). No
+  other release and no minimum version was tried, no Windows machine by the writers (the operator's
+  is above), and the whole suite has been run with Gradle only. Typing a profile in the launch dialog writes it into the
   tracked file `PaveApplication.launch`; do not commit that. See
   [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **A mirror that needs credentials and a token server** were not tried.
@@ -2756,8 +2798,15 @@ repeat every finding id; it leaves out nothing a tester has to know.
   no test. The whole build of `6201644` through the same wrapper: 2,872 tests, 0 failures, 0 errors,
   2 skipped; with the JDK 21 hidden and Gradle on a Java 25 (simulated), the same counts. The whole
   build of `647b102` with the JDK 21 present: the same counts; with it hidden, only `classes` (its
-  compiles came from the build cache in the first, and ran in the second). Apart from these three,
-  the commits after `902e0d9` change this README, `PROGRESS.md` and `DECISIONS.md` only.
+  compiles came from the build cache in the first, and ran in the second).
+- **Since then also `8463174`** (D-275): one line removed from `PaveApplication.launch`, the virtual
+  machine argument `-Djava.security.egd=file:/dev/./urandom`; no code and no test, and no build was
+  run on it. Apart from these four, the commits after `902e0d9` change this README, `PROGRESS.md`
+  and `DECISIONS.md` only.
+- **Windows.** What this README says of Windows is the operator's report (one workstation, STS, an
+  upload that fails, D-275) or what an agent saw on a Windows Java under Wine 9.0 on Linux, on
+  `f82e32e` and on `8463174`: the tool started, about 60 uploads, both proofs, the start with and
+  without the removed argument. Wine is not Windows; `run.cmd` was run by nobody.
 - **Run for the STS section**, on Linux, by agents that wrote neither this README nor the tool nor
   the changes: Spring Tools 5.4.0.RELEASE (Eclipse 4.41.0, Buildship 3.1.11), driven through a
   virtual display with keyboard and mouse with a screenshot after every step, on `e70a873` and, on a

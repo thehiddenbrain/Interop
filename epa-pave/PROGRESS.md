@@ -48,7 +48,11 @@ followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gra
 seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code is that of
 the head) and what a review found. The integrator first wrote that entry and its lines in the README
 alone (`6eddce8`); two independent checks of them followed, and their findings, checked against the
-outputs and screenshots, and the last run of STS are in them now.
+outputs and screenshots, and the last run of STS are in them now. D-275 records the first session on
+a Windows workstation, the operator's, on the code of `f82e32e`: an upload that fails there with an
+internal error whose cause is not known, the operator's verdict on the tool, what was tried on the
+build machine (on Linux, and on a Windows Java under Wine), and the removal of a Linux-only argument
+from the shared launch file (`8463174`), with two runs on that commit.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
 D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and three code changes:
@@ -64,9 +68,23 @@ errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUC
 build of `647b102` the same way, with the machine's JDK 21 present: the same counts, BUILD
 SUCCESSFUL; and the whole build of `6201644` with the JDK 21 present and again with it hidden, on a
 Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b102` was built with
-`classes` only. The code of `647b102` is the code at the head, so its build is now the last whole
-build this file can record; the integrator's
-gates run after this file, and their result is in the pull request description.
+`classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
+`-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
+whole build was run on it. The head is `8463174` with the commit that adds these records. The code
+of `647b102` is the code at the head, so its build is still the last whole build this file can
+record; the integrator's gates run after this file, and their result is in the pull request
+description.
+
+**What was seen on a Windows Java** (D-275). Nothing ran on Windows itself on the build machine. An
+agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows carries, under Wine
+9.0 on Linux, on `f82e32e` and again on `8463174`: it started from the jar and from classes STS had
+compiled on Linux, about 60 uploads gave 200 or a 422 that said why, the two handover proofs held,
+and no Error appeared. A Windows Java under Wine is not Windows: file permissions, antivirus and the
+real network stack were not exercised, and Wine itself needed two workarounds. That run found the
+launch file's argument, which made every start about 8 to 9 s slower there (13.25 to 14.85 s with it
+against 4.73 to 5.89 s without it, three starts each on `8463174`). The real STS 5.4.0 on Linux then
+started the tool from the changed file with no dialog, and uploads against that STS-started tool
+answered 200.
 
 ### Open at the revision handed over, the worst first
 
@@ -74,25 +92,36 @@ Each line can be read alone. The detail of each is further down and in the entry
 its author only" means one agent made the change, saw its own test fail without it, and nobody else
 has looked.
 
-1. **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). Four
+1. **On the one real workstation that has run the tool, uploading an environment or a collection
+   fails with an internal error** (D-275). The operator's Windows workstation, started from STS on the
+   code of `f82e32e`: the log line shows a `java.lang.Error` thrown while the upload ran, and the part
+   of the entry that names its cause was not in what they pasted. The cause is not known. It was not
+   reproduced on Linux, nor on a Windows Java under Wine (which is not Windows). The operator has
+   been asked for the rest of the log entry, the Problems view of the project and whether the sample
+   file fails too; no answer yet. Until it is found, nothing can be configured for the live profile
+   on that workstation: the vendor's environment and collection reach the tool only by these uploads.
+2. **The operator's verdict after that first session**, the only judgement of the tool by the person
+   it was built for: "the whole UI and app sucks", and not what the effort spent on it should have
+   produced (D-275). No particulars yet; the integrator asked for the three worst things.
+3. **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). Four
    fixes (ledger, completeness on screen, walkthrough, guardrail) changed what keeps member data out of
    the ledger, what keeps writes from reaching production, and what the screens say. Each of the three
    rounds of checking before them found something real, and in each the round before had broken
    something. One merge (`60876fa`, `RunRecord.codeEntry`) was joined by hand and checked only by the
    build. After the merges nobody opened a browser: the two proofs were run by the integrator through
    the API on mock, and the screens were last looked at by the four fixers, each on its own branch.
-2. **Nothing has been observed against the vendor's service.** Every live check used a stand-in on a
+4. **Nothing has been observed against the vendor's service.** Every live check used a stand-in on a
    loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the tool is held
    to; that has not been observed. Of the four questions put to the operator (D-227), two are answered
    and two stand as they were (D-269). The lookups have never met the
    real member API or provider directory, and the token request's HTTP Basic is an assumption (D-233).
-3. **Not fit to be run as a shared or production service as delivered.** The operator has said the tool
+5. **Not fit to be run as a shared or production service as delivered.** The operator has said the tool
    will be productionized one day, which is read here as running it that way (D-270). The tool has no
    sign-in, serves plain http, keeps secrets in plain text on disk, records no user, sends a request
    wherever an upload says, and is one copy on one machine; it keeps listening on this machine only, and
    is not to be opened to the network before a sign-in exists. The README, "Before PAVE is run as a
    shared or production service", lists what must exist first; none of it is built.
-4. **The guardrail, what it still lets through or cannot see.** A production environment refused at
+6. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
    production environment's. On production's server a sandbox whose base path holds `%00`, `%20` or
@@ -100,7 +129,7 @@ has looked.
    server that decodes such bytes. Not proven: IPv6, explicit default ports on the wire, hosts other than
    loopback, a real front server, proxies and redirects, another DNS name for a production host, a
    collection variable supplying a production address on the jar (D-145, D-225, D-265).
-5. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
+7. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
    identifiers only, not names or dates, and is read as typed when one of its placeholders has no value
    or is filled from a collection variable (D-262). A suite expectation that holds a date of birth or a
@@ -110,7 +139,7 @@ has looked.
    recorded" under a ClaimResponse or subscription id cannot be matched. The configuration store keeps
    uploads as uploaded (D-213), secrets and the installation salt sit in plain text in `config-store/`
    (D-234), and the wire view carries member data.
-6. **What a tester meets on screen that is wrong or gives nothing to do** (D-257, D-266):
+8. **What a tester meets on screen that is wrong or gives nothing to do** (D-257, D-266):
    - discovering the CDS services on the CRD tab is refused when text is left in the procedure code
      box, although discovery sends nothing of the case; the sentence says which box to clear;
    - the next step still says only that the tool cannot say what should happen next for CRD
@@ -136,17 +165,17 @@ has looked.
      own; "read the response detail below" is shown in the replay panel and the chain view, where nothing
      is below; the repeated-key detail says "the value shown above" for a key not drawn; the action of a
      "not configured" error does not fit a url that is not valid as filled.
-7. **Who answered, and what History can tell apart.** A notification posted to the receiver by hand
+9. **Who answered, and what History can tell apart.** A notification posted to the receiver by hand
    while the tool runs on mock is recorded as answered by a mock scenario; lines written between
    `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two responses
    were completed from one package, nothing says which the PAS submission carried (D-181).
-8. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
+10. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
    presences is held by tests that read the script's text (NEW-6), and the test of the code box refusal
    runs through Node and is skipped where no `node` is on the path. A test that searched a line holding
    random tokens failed by chance once in about a hundred builds and was corrected (`6b7abba`); a build
    green twice does not prove no other such test is left. No test holds that a replay on mock uses the
    rewritten scenario sentence.
-9. **The fixtures and the style gate, given no fix after the last check.** Fixtures: a CRD note for
+11. **The fixtures and the style gate, given no fix after the last check.** Fixtures: a CRD note for
    `crd-04` chosen by hand does not say the DTR sentinel came from the body; the DTR sentinel note says
    CRD answers documentation required whatever the file says; two descriptions slip past the
    old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the CRD
@@ -157,12 +186,13 @@ has looked.
    or an early NUL byte is skipped unread; a second, weaker copy of the tracking rule; invented surnames
    and 16 files of empty banners remain. The gate does not read commit messages or the pull request
    description.
-10. **Never run or never tried.** `run.cmd` (no Windows machine); STS beyond what was seen. The real
+12. **Never run or never tried.** `run.cmd` (nobody has run it, on Windows or anywhere); STS beyond what was seen. The real
    Spring Tools 5.4.0 on Linux imported the project with its defaults and started it on mock from the
    Boot Dashboard and with Run As, on `e70a873` and on `ace5914`; on `e70a873` it also started it on
    live through the launch dialog and ran five test classes, three of them again on `ace5914` (D-272).
    Not seen: Windows, a real tester at a real workstation with a corporate proxy or mirror, the
-   screens in a browser after a start from STS, the live profile against a service, the whole test
+   screens in a browser after a start from STS (apart from the Config tab's two uploads on `8463174`,
+   D-275), the live profile against a service, the whole test
    suite from the IDE, and STS on a release other than 5.4.0 (the README, "STS (Spring Tools for
    Eclipse)"). On `d089e65` (D-273) the real STS 5.4.0 on Linux also cloned the repository from
    GitHub with its Git import wizard, whose own choices are the wrong branch and the other
@@ -183,12 +213,13 @@ has looked.
    `sts-after-nojdk/`, `sts-after-jdk21/` and `sts-final/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
    Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of
    the Git wizard offering only the top folder, and that folder imported as a Maven project with
-   `epa-pave` a plain folder inside it; whether the tool has run there is not known. Not seen: Windows
-   beyond that report, the fetch of new commits from GitHub in STS, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
+   `epa-pave` a plain folder inside it. It has since run there, started from STS, and an upload fails
+   (line 1, D-275). A Windows Java under Wine ran the tool, the uploads and the proofs without that
+   error (D-275). Not seen: Windows beyond the operator's reports, the fetch of new commits from GitHub in STS, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
    the IDE, `run.sh` and `run.cmd` since D-274.
    Also never tried: a mirror with credentials and a token server; a screen reader,
    contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
-11. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
+13. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
@@ -232,6 +263,7 @@ has looked.
   `GET /api/mode`, and the changed paths. Their result is in the pull request description, part 2; a
   file cannot hold the result of a build of the commit it is part of (D-267).
 - **`run.cmd` has never been run**: there is no Windows machine here, and no agent ran on Windows.
+  An agent ran the tool on a Windows Java under Wine (D-275), not through `run.cmd`.
 - **Nothing has been observed against the vendor's service.** Every live check any agent reported used
   a stand-in on a loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the
   tool is held to (D-136, D-269); that has not been observed. Of the four questions put to the operator
@@ -544,7 +576,8 @@ Java older than 21, and an `{{env:PAVE_...}}` reference at send time on the jar.
   rule; invented surnames that do not start with `Placeholder` remain in a few tests; empty section
   banners remain in 16 main source files.
 - Documentation: STS was seen on Linux with Spring Tools 5.4.0 only, not on Windows or another
-  release (D-272, D-273, D-274; one Windows workstation has reported, D-273); without a JDK 21 only as
+  release (D-272, D-273, D-274; one Windows workstation has reported, D-273, and has run the tool
+  from STS with an upload that fails, D-275); without a JDK 21 only as
   a simulation (D-274); a mirror that needs credentials and a token server were not tested. A plain `./gradlew build` can skip the sample tests after a sample is edited; `clean
   build` runs them.
 
@@ -1477,6 +1510,7 @@ nothing stubbed. The frontend is on the line with all five tabs joined into one 
 stub, and a business tester's walkthrough on mock found every case it ran readable from the screen,
 with gaps since fixed in part. Level 1 is not claimed by these records: the last fixes, in the guardrail
 and the ledger among them, are checked by nobody but their authors and no check follows them (D-268);
-what they left is open (the list at the top); nobody opened a browser on this revision; the integrator's
+what they left is open (the list at the top); on the one real workstation that has run it, an
+upload of the configuration fails with a cause not yet known (D-275); nobody opened a browser on this revision; the integrator's
 last gates run after these records; and nothing has been observed against the vendor's service. The
 level delivered is stated in the pull request description, part 3, after those gates.

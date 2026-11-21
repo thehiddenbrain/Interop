@@ -30,6 +30,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-272 | The real STS 5.4.0 has run the project on Linux, twice, with one fix between the runs | On Linux with Spring Tools 5.4.0 the import with every default worked; the shared launch configuration started `PaveApplication` from the Boot Dashboard without asking; three tests that need the Gradle test task were skipped outside it with a sentence that says why. A profile typed in the launch dialog was written into that tracked file. **Not seen: Windows, `run.cmd`, a real tester's workstation, the screens in a browser after an STS start, live against a service, the whole suite from the IDE, any other STS release** |
 | D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; on Linux it read like a network fault and was not one (the operator's cause was not seen). STS alone, with no JDK 21, imports a project that cannot start (simulated; since D-274 this holds only for a checkout from before `6201644`). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
 | D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0, a fetch of new commits from GitHub in STS** |
+| D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -5051,7 +5052,9 @@ After D-271 the operator asked the integrator to run STS itself.
   1. **A shared launch configuration, not a renamed class.** `epa-pave/PaveApplication.launch` is the
      launch configuration STS 5.4.0 itself wrote in the first run, saved in the project, without the
      timestamp of one run and with the profile empty. With it, STS 5.4.0 on Linux had a configuration for the
-     project before the first start and did not ask for a main type (the second run, on `ace5914`). `HouseStyle` keeps its name and its
+     project before the first start and did not ask for a main type (the second run, on `ace5914`). (Later, D-275: the file
+     also carried the virtual machine argument `-Djava.security.egd=file:/dev/./urandom` that STS had
+     written on Linux; it slows every start on a Windows Java and was removed in `8463174`.) `HouseStyle` keeps its name and its
      `main`, because the Gradle task `houseStyleCheck` runs that class and `HouseStyleTest` checks
      the task's main class by name; renaming or moving it would change the build's gate to spare a
      dialog.
@@ -5143,7 +5146,8 @@ workstation. What follows from it is reported, not seen by the writers of these 
   with their Package Explorer: one project, the top folder of the clone, a Maven and Boot project on
   `epa-pave` with "JRE System Library [JavaSE-17]", "Maven Dependencies", `pom.xml` and `epa-pave` as
   a plain folder inside it, and the question "I just used the git way of importing, why I need to re
-  import". Whether the tool has since run on that workstation is not known.
+  import". Whether the tool has since run on that workstation is not known. (Later, D-275: it has,
+  started from STS, and an upload fails there with an internal error.)
 - **What the integrator told them, and how each held up.**
   1. To tick `epa-pave` on the last page of the Git wizard. **That was wrong**, given from memory: the
      wizard never offers it (below).
@@ -5407,3 +5411,112 @@ bullets "The check of the first record" and "The second check" say.
   README wrote `gradlew --stop` where Linux and macOS need `./gradlew --stop`. Each was checked
   against the outputs and taken.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
+
+**D-275. The first session on a Windows workstation: an upload that fails with an internal error,
+not yet explained, the operator's verdict, and a launch file without its Linux-only argument.**
+After D-274 the operator got the tool running on their own Windows workstation, started from STS, on
+the code of `f82e32e`. It is the first time anybody has run the tool on Windows. What follows from
+the operator is reported, not seen by the writers of these documents.
+- **What the operator reported, in this order.** One more screenshot of the Git wizard's last page: a
+  new clone, one row, the top folder, "Import as" `Maven`. They were told to add `\epa-pave` to
+  "Import source:" and press Tab (README, STS section, step 2 (b), 6). Their next message came from
+  the running tool, so the import worked; by which of the ways is not known. Then: "when I tried to
+  upload env or postman collection I see this", with the start of one log entry of the tool,
+  `ERROR ... o.p.i.epa.pave.web.ApiExceptionHandler : Unhandled exception, reference <a reference>: jakarta.servlet.ServletException`,
+  then `at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:978)`
+  and four more frames of Spring. The paste ended there, before the part of the entry that names the
+  cause: the tool logs the chain of exception types joined by " <- caused by ", with the first frames
+  of each and no message (`service/error/Faults.java`). Then their verdict on the tool after this
+  first session: in their words "the whole UI and app sucks", and it is not what the effort spent on
+  it should have produced. They named no particular. The integrator asked for the three worst
+  things, in a few words each; no answer when this is written. It is the only judgement of the tool
+  by the person it was built for.
+- **What the log line means.** Line 978 of `DispatcherServlet.doDispatch` in spring-webmvc 7.0.8 is
+  where Spring wraps a `java.lang.Error`, not an exception, that was thrown while the handler ran,
+  in a `ServletException`. The integrator checked that in the class file of that version (the line
+  is in its line number table at that place). So on that workstation some Error is thrown inside
+  the upload of an environment and of a collection. The tool's own failures to write its store are
+  exceptions with a handler of their own (`ConfigStoreException`, answered 500 with its own
+  sentence), so it is not one of those.
+- **What was tried on the build machine. None of it reproduced the failure.**
+  - On Linux, by the integrator: both uploads with the sample files answered 200 with the tool
+    started from the classes STS compiled, on the Java 25 that STS brings; with heaps down to 96 MB;
+    with environment values up to 600,000 characters.
+  - On a Windows Java under Wine, by an agent, on `f82e32e`: the Java 25 for Windows (25.0.4.1)
+    that the Spring Tools 5.4.0 download for Windows carries, the checksum of the download matched,
+    run under Wine 9.0 on the Linux build machine. It is the first time the tool ran on a Windows
+    Java at all. Wine got in the way twice, and neither is the tool's doing: a packaging fault of
+    Ubuntu's Wine 9.0 that aborted every Wine command, worked around by running Wine in a private
+    mount namespace; and a function missing from Wine's `IPHLPAPI.DLL` that a real Windows has,
+    which made the Java abort while it gathered its random seed. For the second, part of the runs
+    put the Windows key store provider first, and the rest used a copy of the Java whose `net.dll`
+    names a function Wine has instead, so that the default random source is the same as on Windows.
+    The tool then started from the jar, and from the classes an STS on Linux had compiled with the
+    virtual machine arguments a Boot Dashboard start adds, from a folder on the C: drive shaped like
+    the operator's, and from one whose name holds a space and brackets. About 60 uploads, through
+    `curl` and through the Config tab in a headless Chromium, answered 200, or 422 with a sentence
+    that said why; 15 variations of the files (a byte order mark, CRLF line ends, a name with
+    brackets, umlauts, a file of 6 MB, a file not in UTF-8, another format) gave 200 or such a 422;
+    the two handover proofs held; the suite preview answered 200. No Error appeared in any log.
+  - **What a Windows Java under Wine cannot show.** It is not Windows. File permissions (Wine does
+    not emulate the access lists of NTFS), an antivirus holding a file while the store moves it into
+    place, and the real network stack were not exercised. The classes were compiled by STS on
+    Linux, not by an STS on Windows, so a compile problem on Windows could not appear. The
+    operator's command line was assumed, not seen, in particular the file encoding the IDE gives the
+    Java there (UTF-8 was used). The operator's files and workspace were not available.
+- **Possible causes that are left, none of them seen.** The project not compiling cleanly in the
+  operator's STS: Eclipse starts a program whose code has errors, and the broken method then throws
+  a `java.lang.Error` ("Unresolved compilation problem") when it is first used, which would give
+  exactly this log line; the Problems view would show the errors. Class files that are stale or
+  incomplete (a `NoClassDefFoundError` or an `ExceptionInInitializerError`). Something about the
+  operator's own files (an `OutOfMemoryError` or a `StackOverflowError` on them, for instance). The
+  tool's code throws no Error of its own on the upload path (read, not tested: no `new Error(`, no
+  `assert` in the main code).
+- **What the operator was asked**: the rest of that log entry, the Problems view of the project, and
+  whether the sample file fails too. No answer when this is written. **Until the cause is found,
+  nothing can be configured for the live profile on that workstation**, because the vendor's
+  environment and collection reach the tool only by these two uploads.
+- **The launch file's argument, found by the Windows Java run, and removed** (`8463174`). The shared
+  launch configuration `epa-pave/PaveApplication.launch` (D-272) was the file STS 5.4.0 wrote on
+  Linux, and it carried the virtual machine argument `-Djava.security.egd=file:/dev/./urandom`. On a
+  Windows Java with its working folder on the C: drive that address names `C:\dev\.\urandom`, which
+  does not exist, and the Java then gathers its seed with its slow fallback, the thread timing
+  generator, where without the argument it asks Windows. A small program run on the Windows Java
+  under Wine printed exactly that: `NativeSeedGenerator` without the argument, and
+  `SeedGenerator$ThreadedSeedGenerator` with it, `C:\dev\.\urandom exists=false`. In the first run the
+  tool took 12.556 s to start with the argument ("process running for") against 4.359 s without it.
+  It is a slower start and nothing more: it threw no Error, and an upload draws from a source seeded
+  at start. The line was simply removed rather than replaced: STS wrote it on Linux, where a Java of
+  version 9 or later needs no such setting either, and the Java needs none on Windows. Removing it
+  changed one line of that file and no code.
+- **Two runs on `8463174`**, by agents that wrote neither the tool nor the change.
+  - The Windows Java under Wine again, three starts each way, alternating, each from a fresh clone
+    with a new store and a cold Wine: with the argument 13.25, 14.85 and 13.76 s from the command to
+    the first answer of `GET /api/mode`; without it 5.24, 5.89 and 4.73 s. Spring's own start
+    ("Started PaveApplication in") stayed about 3 to 4.7 s each time; the wait comes before it, when
+    the remote management agent those runs started gathers the seed. Those runs passed the
+    `-Dcom.sun.management.jmxremote` arguments, which the command line of the real STS start below
+    does not hold; one start with the argument and without them took 12.84 s, the same wait moved
+    into Spring's own start (11.427 s), so the cost is about 8 s either way. On a start without
+    the argument both uploads answered 200 and both proofs held, with no ERROR in the log. How many
+    seconds a real Windows loses may differ: the thread timing generator measures how threads are
+    scheduled, and Wine maps them onto Linux threads. Which generator the Java picks does not
+    depend on Wine.
+  - The real STS 5.4.0 on Linux, on a new workspace and a fresh import with the defaults (0 errors,
+    25 warnings, 59 others): Run Configurations lists `PaveApplication` under Spring Boot App with
+    "Shared file: /epa-pave" and an empty "VM arguments:" field; this configuration type has no
+    "Show Command Line" button in STS 5.4.0, so the command line was read from the running process,
+    and it holds no `-Djava.security.egd`. The Boot Dashboard started the tool with no dialog
+    ("Started PaveApplication in 1.913 seconds") and both proofs held. **For the first time on the build
+    machine, uploads were made against a tool started by STS**: the sample environment and collection each answered
+    200 twice through `curl` and once through the Config tab in Chromium, with only INFO lines in the
+    Console. The tracked file was not touched: `git status --short` was empty after the dialog was
+    closed without Apply, after the start and stop, and after File, Exit. The uploads landed in
+    `epa-pave/config-store/`, the launch's working folder, which is in `.gitignore`.
+- **Installed on the build machine for this**: Wine 9.0 and the 19 packages it pulled in (none of
+  them 32-bit), through `apt-get`. They are still installed.
+- **Not seen by anyone:** a real Windows machine, other than through the operator's report; the
+  operator's files, their workspace and their Problems view; the cause of their failure; how many
+  seconds the removed argument cost on a real Windows; `run.cmd`.
+- The commits that record this change this file, `PROGRESS.md` and the README only; the launch file
+  changed in `8463174`.
