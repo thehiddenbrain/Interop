@@ -53,4 +53,13 @@ class CrdReturnedSecretsTest {
                 .doesNotContain("masked").startsWith("The body is not valid JSON");
         assertThat(JsonSafe.mapper().writeValueAsString(reading.additionalFields())).doesNotContain(TOKEN);
     }
+
+    @Test
+    void anAnswerNestedPastTheParsersLimitSaysSoOnTheScreenAndIsNotCalledInvalidJson() {
+        String deep = "{\"cards\":" + "[".repeat(501) + "]".repeat(501) + "}";
+        CrdReading reading = new CrdResponseMapper().read(Exchanges.fromResponse(new WireRequest("POST", URL, URL, List.of(), "{}", true, null,
+                SentSecrets.builder().accessToken(TOKEN).build()), 200, List.of(), deep, 5L, true), List.of());
+        assertThat(reading.detail().responseNote()).startsWith("The body nests its objects and lists deeper than the 500 levels this "
+                + "tool reads: the level past that limit opens at line 1, column 509. It was not read.").doesNotContain("not valid JSON");
+    }
 }

@@ -126,7 +126,7 @@ public class SubscriptionService {
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
             if (body.resolved() && !parsed.ok()) {
                 // The tester's body is sent as written, valid or not. They are told, so it cannot happen unnoticed.
-                requestNotes.add("The body you supplied is not valid JSON once its placeholders are filled in. It was sent exactly as "
+                requestNotes.add("The body you supplied cannot be read as JSON once its placeholders are filled in. It was sent exactly as "
                         + "written. " + parsed.error());
             } else if (body.resolved()) {
                 // As it may be shown: the receiver's address can carry a secret, and this goes on the result.

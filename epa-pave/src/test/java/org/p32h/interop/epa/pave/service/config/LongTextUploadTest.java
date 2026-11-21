@@ -114,7 +114,7 @@ class LongTextUploadTest {
     @Test
     void aCollectionNestedDeeperThanTheParserReadsIsRefusedWithThatReason() throws IOException {
         ConfigFixture fixture = ConfigFixture.mock(directory);
-        assertThat(org.p32h.interop.epa.pave.service.compare.Nesting.limit()).isEqualTo(500);
+        assertThat(org.p32h.interop.epa.pave.model.Nesting.limit()).isEqualTo(500);
         StringBuilder folders = new StringBuilder();
         int depth = 300;
         folders.append("{\"name\": \"leaf\", \"request\": {\"method\": \"GET\", \"url\": \"https://{{base}}/metadata\"}}");

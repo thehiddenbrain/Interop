@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.Secrets;
 import org.p32h.interop.epa.pave.model.Texts;
-import org.p32h.interop.epa.pave.service.compare.Nesting;
+import org.p32h.interop.epa.pave.model.Nesting;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.exc.StreamConstraintsException;

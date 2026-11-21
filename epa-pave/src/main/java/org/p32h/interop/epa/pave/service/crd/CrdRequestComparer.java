@@ -29,7 +29,7 @@ import org.p32h.interop.epa.pave.model.compare.GroupCount;
 import org.p32h.interop.epa.pave.model.compare.NotFound;
 import org.p32h.interop.epa.pave.model.compare.RequestComparison;
 import org.p32h.interop.epa.pave.service.compare.JsonComparer;
-import org.p32h.interop.epa.pave.service.compare.Nesting;
+import org.p32h.interop.epa.pave.model.Nesting;
 import org.p32h.interop.epa.pave.service.compare.ReferenceText;
 import org.p32h.interop.epa.pave.service.compare.ResourceIndex;
 import org.p32h.interop.epa.pave.service.crd.CrdRequestReader.CaseField;
