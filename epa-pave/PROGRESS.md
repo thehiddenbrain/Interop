@@ -4,6 +4,19 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**The head** is `6a6fe2f` on the branch `ui-round1`, with the commit that adds these records. It holds
+`e70af34` (the records of D-275 and their check, on the code of `8463174`) and, since then, the first
+round of screen changes and the internal error that names its cause (D-276, D-277): `2590656` to
+`99a939c` built the letters A to K of the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and
+`87dee6f` corrected what the walk, the audit and the checks found, and `56c3e64`, `4fb199f`,
+`e0f3333`, `425e16a` and `6a6fe2f` made the cause of an internal error named on the screen and on the
+first line of the log entry. **The last whole build** is that of `6a6fe2f`, through the shared wrapper
+(`clean build`): 2937 tests in 267 result files, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL.
+At `e70af34` there were 2872 tests; on the way, 2896 after the first batch, 2908 after the second,
+2909, 2916 and 2930 after the corrections and the error cause, each with 0 failures, 0 errors and 2
+skipped. The integrator's gates on the head run after these records. The rest of this section
+describes the line up to `e70af34`, from `902e0d9` on.
+
 This describes revision `902e0d9` on branch `epa-pave`, which is on the remote, before the commit that
 adds these records. The integrator built the line at this content through the shared build wrapper
 (`gw clean build`): 2870 tests, 0 failures, 0 errors, 2 skipped, "No house style violations.", BUILD
@@ -52,10 +65,16 @@ outputs and screenshots, and the last run of STS are in them now. D-275 records 
 a Windows workstation, the operator's, on the code of `f82e32e`: an upload that fails there with an
 internal error whose cause is not known, the operator's verdict on the tool, what was tried on the
 build machine (on Linux, and on a Windows Java under Wine), and the removal of a Linux-only argument
-from the shared launch file (`8463174`), with two runs on that commit.
+from the shared launch file (`8463174`), with two runs on that commit. D-276 records the first round
+of screen changes made after the operator's verdict without waiting for their answer: how it was
+looked for, planned, attacked, built, walked, audited, corrected and checked, what a tester now sees,
+where the builders left the plan, what the checks saw of the hard rules and what is left. D-277
+records that an internal error now names its cause on the screen and on the first line of the log
+entry, a narrow change to D-036, with what the tests and a damaged copy of the jar showed.
 
 **The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
-D-269 and D-270, which change this file, `DECISIONS.md` and the README only, and three code changes:
+D-269 and D-270, which change this file, `DECISIONS.md` and the README only, the code changes of
+D-276 and D-277 (above), and before them three code changes:
 `05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
 `HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
 tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
@@ -70,10 +89,9 @@ SUCCESSFUL; and the whole build of `6201644` with the JDK 21 present and again w
 Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b102` was built with
 `classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
 `-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
-whole build was run on it. The head is `8463174` with the commit that adds these records. The code
-of `647b102` is the code at the head, so its build is still the last whole build this file can
-record; the integrator's gates run after this file, and their result is in the pull request
-description.
+whole build was run on it. At `e70af34` the code was that of `647b102` with that launch file; since then the code has changed
+with D-276 and D-277 (the head, above), whose last whole build is that of `6a6fe2f`; the
+integrator's gates run after this file, and their result is in the pull request description.
 
 **What was seen on a Windows Java under Wine** (D-275). Nothing ran on Windows itself on the build
 machine. An agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows
@@ -101,16 +119,35 @@ has looked.
    been asked for the rest of the log entry, the Problems view of the project and whether the sample
    file fails too; no answer yet. Until it is found, nothing can be configured for the live profile
    on that workstation: the vendor's environment and collection reach the tool only by these uploads.
+   **What the tool does about it since D-277:** the first line of the log entry and the screen name
+   the chain of exception types, with the text of a missing class, a compile problem or the like, and
+   `Copy reference and cause` copies both. Seen only in a copy of the jar damaged by hand on Linux.
+   For the operator to get it: pull, start again, upload once more and send what the button copies.
+   **The cause is still not known.** A suite that stops and the notification receiver's verdict still
+   give the reference without the cause.
 2. **The operator's verdict after that first session**, the only judgement of the tool by the person
    it was built for: "the whole UI and app sucks", and not what the effort spent on it should have
-   produced (D-275). No particulars yet; the integrator asked for the three worst things.
+   produced (D-275). No particulars yet; the integrator asked for the three worst things. **Built in
+   answer, without waiting** (D-276): an independent look at the screens by agents, then a first
+   round of changes, walked, audited, corrected and checked by agents in a browser: one click gives a
+   case that can be sent on mock, a good run no longer looks wrong, the form opens with what a send
+   needs and a refusal lists and leads to each field, DTR questions come first, a result is ordered
+   and folded, Config opens with "Ready to send?", a failed call names its address and cause. **The
+   operator has not seen it, nor the page of the ten worst; no person has used it.** Left of the
+   look: a result still about three window heights; the DTR rule paragraph above the questions;
+   History not tying a journey together and cut off at 1024 pixels; a form lost on reload, by rule;
+   the readiness list not naming the values the vendor's file lacks; no sign-in built from the
+   vendor's token request.
 3. **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). Four
    fixes (ledger, completeness on screen, walkthrough, guardrail) changed what keeps member data out of
    the ledger, what keeps writes from reaching production, and what the screens say. Each of the three
    rounds of checking before them found something real, and in each the round before had broken
    something. One merge (`60876fa`, `RunRecord.codeEntry`) was joined by hand and checked only by the
-   build. After the merges nobody opened a browser: the two proofs were run by the integrator through
-   the API on mock, and the screens were last looked at by the four fixers, each on its own branch.
+   build. After the merges nobody opened a browser on `902e0d9`: the two proofs were run by the
+   integrator through the API on mock, and the screens were last looked at by the four fixers, each on
+   its own branch. The screen changes of D-276 were later walked in a browser by agents, who also saw
+   the hard rules hold (secrets masked, storage, the production block and its words); that was no
+   check of the last fixes themselves.
 4. **Nothing has been observed against the vendor's service.** Every live check used a stand-in on a
    loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the tool is held
    to; that has not been observed. Of the four questions put to the operator (D-227), two are answered
@@ -220,6 +257,11 @@ has looked.
    the IDE, `run.sh` and `run.cmd` since D-274.
    Also never tried: a mirror with credentials and a token server; a screen reader,
    contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
+   Of D-276 and D-277, not seen by anyone: the operator looking at them, a person using them,
+   Windows, a real service on live, the per-session unlock (the installation's floor forbids it),
+   the Postman sign-in helper sentence on screen, G and H at 1024 by 768, the History replay view of
+   a cause and an internal error answered by the outermost filter in a browser, and a suite row's
+   cause other than with an answer rewritten by the browser script.
 13. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
@@ -1500,7 +1542,7 @@ tests.
 
 ### Degradation level
 
-Target: level 1 of section 0. At revision `902e0d9` the server holds what level 1 asks of it, the
+Target: level 1 of section 0. At revision `902e0d9`, and still at the head, the server holds what level 1 asks of it, the
 optional capabilities of section 28 included: CRD, DTR and PAS, the chain, suites, conformance checking
 and response times, **with the limits D-235 names beside it**: in the X12 275 attachment mode the tool
 names the document and sends nothing; there is no `$submit-attachment` and no claim update, so the
@@ -1512,6 +1554,9 @@ stub, and a business tester's walkthrough on mock found every case it ran readab
 with gaps since fixed in part. Level 1 is not claimed by these records: the last fixes, in the guardrail
 and the ledger among them, are checked by nobody but their authors and no check follows them (D-268);
 what they left is open (the list at the top); on the one real workstation that has run it, an
-upload of the configuration fails with a cause not yet known (D-275); nobody opened a browser on this revision; the integrator's
+upload of the configuration fails with a cause not yet known (D-275), which the screen now names
+(D-277), though nobody has seen it named on that workstation; nobody opened a browser on `902e0d9`, and the
+screen changes since (D-276) were seen in a browser by agents only, never by the operator or another
+person; the integrator's
 last gates run after these records; and nothing has been observed against the vendor's service. The
 level delivered is stated in the pull request description, part 3, after those gates.

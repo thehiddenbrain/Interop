@@ -22,8 +22,9 @@ example `openjdk version "21.0.13.0.3" 2026-10-24`. If it is older, install a JD
 `JAVA_HOME` to it; [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) says what each
 Java does.
 
-**2. Get the code.** `git clone --branch epa-pave https://github.com/thehiddenbrain/Interop.git`,
-then `cd Interop/epa-pave` and `ls run.sh`. Correct output: `run.sh`. Every command below is run from
+**2. Get the code.** `git clone --branch epa-pave <repository address>`, where the address is
+copied from the repository's page on GitHub (Code, HTTPS; it ends in `/Interop.git`), then
+`cd Interop/epa-pave` and `ls run.sh`. Correct output: `run.sh`. Every command below is run from
 `epa-pave/`; the application at the root of the repository is a different project. Cloning from STS
 instead? Follow (b) of step 2 of [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 
@@ -96,6 +97,10 @@ Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
   fixes (the ledger, completeness on screen, the walkthrough, the guardrail) was merged without a
   check after it. What is open at this revision is under [Limitations](#limitations), as what a
   tester meets and what to do about it; `PROGRESS.md` lists every item, the worst first.
+- **The screens were changed after the operator's verdict, and nobody but agents has used them.**
+  The first round of screen changes (D-276) was walked and checked in a browser by agents that did
+  not build it, on mock and on live against no real service. No person has used the new screens, the
+  operator has not seen them, and they were not looked at on Windows.
 - **DTR here is not a SMART launch**, and **the notification receiver very likely cannot be reached
   by the vendor** from a corporate workstation. See [What PAVE is not](#what-pave-is-not).
 - **PAVE has no sign-in** and listens on this machine only. See
@@ -113,7 +118,9 @@ Ctrl+C in its terminal. Go on with [Using the screens](#using-the-screens).
   releases were not tried. A profile typed in the launch dialog is written into a tracked file. See [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 - **Windows: one workstation has run it, and an upload fails there.** Reported, not seen: the
   operator started the tool from STS on their Windows workstation, and uploading an environment or a
-  collection answered with an internal error whose cause is not known yet (D-275). Seen by an agent:
+  collection answered with an internal error whose cause is not known yet (D-275). Since D-277 the
+  screen and the first line of the log entry name the cause, and one button copies it; that was seen
+  only in a copy of the jar damaged by hand on Linux, not on that workstation. Seen by an agent:
   the tool on a Windows Java under Wine, which is not Windows, started, took about 60 uploads and
   held both proofs without that error. `run.cmd` has not been run by anyone. See "When the running
   tool answers "This tool hit an internal error"" under
@@ -507,7 +514,10 @@ send again.", and that of the malformed DTR package "Next: read the problems lis
 result and report them as a defect in the service.", neither of which fits a played answer; a
 played timeout's next step is already worded as played. On mock, believe the heading and the
 action, not that next step. A refused form is headed "A problem with what was submitted", and its
-action says "Correct the marked fields and send again."
+action says "Correct the marked fields and send again." A failure of this tool itself is headed "A
+failure of this tool, not of the service" and shows `Reference <id>`, "Cause, as the server log names
+it:" and `Copy reference and cause`; what to do is under "When the running tool answers "This tool
+hit an internal error"" in [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse).
 
 ### The CRD tab
 
@@ -2065,8 +2075,8 @@ Terms of Service" dialog at its first start; Cancel was pressed, with no effect 
 
 **2. Get the code.** Two ways. Either way, what STS must import in the end is the folder `epa-pave`
 inside your clone, with the clone on the branch `epa-pave`. The top folder of the repository is
-another application, with a Maven build and no Gradle wrapper, and the repository's default branch,
-`claude/cms1500-form-filler-pdf-1wploq`, has no `epa-pave` folder at all.
+another application, with a Maven build and no Gradle wrapper, and the repository's default branch has
+no `epa-pave` folder at all.
 
 (a) **From a terminal**, as steps 2 and 3 of the [First run checklist](#first-run-checklist) say
 (`git clone --branch epa-pave ...`, then `./gradlew clean build` in `epa-pave/`), so that you know the
@@ -2080,12 +2090,13 @@ this project, at 4 and 6 below.
 1. File, Import..., type `Git` in "Select an import wizard:", select "Projects from Git (with smart
    import)" and click Next >.
 2. "Select Repository Source": select "Clone URI", Next >.
-3. "Source Git Repository": paste `https://github.com/thehiddenbrain/Interop.git` into "URI:". "Host:"
+3. "Source Git Repository": paste the repository address into "URI:" (copy it from the repository's
+   page on GitHub: Code, HTTPS; it ends in `/Interop.git`). "Host:"
    and "Repository path:" fill in by themselves. Leave "User:" and "Password:" empty. Next >.
 4. "Branch Selection" lists nine branches, all ticked. Click "Deselect All", tick only `epa-pave`,
    Next >.
 5. "Local Destination": "Initial branch:" must read `epa-pave`. With only `epa-pave` ticked it changes
-   to that by itself. With every branch left ticked it reads `claude/cms1500-form-filler-pdf-1wploq`,
+   to that by itself. With every branch left ticked it reads the repository's default branch,
    which has no `epa-pave` folder; choosing `epa-pave` in that drop-down also works. "Directory:"
    defaults to `git/Interop` in your user folder; change it if you want the clone elsewhere. Next >
    clones, in a few seconds on the machine seen.
@@ -2305,16 +2316,22 @@ the project folder, the launch's working directory, and are in `.gitignore`. Sto
 button of the Boot Dashboard or of the Console. A plain Eclipse without Spring Tools ignores the
 launch file without a word: there, use Run As, Java Application on `PaveApplication`.
 
-**When the running tool answers "This tool hit an internal error".** The screen shows that sentence
-with a reference. In the Console, find the log entry `Unhandled exception, reference` with the same
-reference, and copy all of it: after the first exception and its frames it names each cause, after
-" <- caused by ". Then open the Problems view (Window, Show View, Problems) and look for red errors
-in `epa-pave`. Eclipse starts a program whose code did not compile, and the broken part then fails
-when it is first used. If there are errors, choose Project, Clean..., clean `epa-pave`, wait until
-the status bar is empty, and start the tool again. This advice comes from reading, not from a fix
-that was seen to work: on the one Windows workstation that met this error, on uploading an
-environment or a collection, the cause has not been found (D-275), and the Problems view there has
-not been seen.
+**When the running tool answers "This tool hit an internal error".** Under that sentence the
+screen shows `Reference <id>` and "Cause, as the server log names it:" with a line such as
+`jakarta.servlet.ServletException <- java.lang.NoClassDefFoundError <- ...; java.lang.NoClassDefFoundError says: <a class name>`.
+Press `Copy reference and cause` and send what it copies with what you were doing. The same line is
+the first line of the log entry `Unhandled exception, reference` in the Console. Seen in a copy of
+the jar with one class removed by hand, on Linux; the cause on the one Windows workstation that met
+this error is not known (D-275, D-277). What the cause means, from reading, not from a fix seen to
+work:
+- **"Unresolved compilation problem"**: STS started the tool although the project has errors. Open
+  the Problems view (Window, Show View, Problems), look for red errors in `epa-pave`, then Project,
+  Clean..., clean `epa-pave`, wait until the status bar is empty, and start the tool again.
+- **A class not found** (`NoClassDefFoundError`, `ClassNotFoundException`): the compiled classes are
+  stale or incomplete. Project, Clean... as above, then right click `epa-pave`, Gradle, Refresh Gradle
+  Project, and start again.
+- **A stack overflow or a memory error** (`StackOverflowError`, `OutOfMemoryError`): report it with
+  the size of the file you uploaded.
 
 **6. The live profile, or another port.** Run, Run Configurations, Spring Boot App, `PaveApplication`.
 `live` typed in the Profile field of the Spring Boot tab, Apply, then Run, started the tool on live
@@ -2465,10 +2482,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   the plain `./gradlew clean build` twice, a build from a fresh clone with the build cache off, the
   start with `GET /api/mode`, and the changed paths. A file cannot hold the result of a build of
   the commit it is part of, so their results are in the pull request description (part 2). The last
-  whole build this README can name is that of `ace5914` (D-272), whose code is the code handed over,
-  through the shared wrapper: 2,872 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL. Before
-  it, `05acbf7` (D-271) gave the same counts, and `902e0d9` 2,870 tests, 0 failures, 0 errors, 2
-  skipped, "No house style violations.".
+  whole build this README can name is that of `6a6fe2f`, whose code is the code handed over, through
+  the shared wrapper: 2,937 tests, 0 failures, 0 errors, 2 skipped, BUILD SUCCESSFUL (D-276, D-277).
+  Before the screen changes, `647b102`, `ace5914` and `05acbf7` gave 2,872 tests, and `902e0d9` 2,870,
+  each with 0 failures, 0 errors and 2 skipped.
   Every build on the machine this README was checked on went through a wrapper that adds
   `--offline`, under a cap on Gradle's memory, with every Java process run with an option that
   turns off two base64 intrinsics (see the last section).
@@ -2497,8 +2514,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   operator, not seen: started from STS, uploading an environment or a collection answers "This tool
   hit an internal error"; the cause is not known, and until it is found the live profile cannot be
   configured there. A Windows Java under Wine ran the tool, the uploads and the proofs without that
-  error, but it is not Windows. What to do if you meet it is under step 5 of
-  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275).
+  error, but it is not Windows. Since D-277 the screen names the cause and `Copy reference and cause`
+  copies it with the reference: pull, start again, upload once more and send what it copies. What
+  the kinds of cause mean is under step 5 of
+  [STS (Spring Tools for Eclipse)](#sts-spring-tools-for-eclipse) (D-275, D-277).
 - **`run.cmd` has not been run** by anyone. No Windows machine was available to the writers. It was written to do what
   `run.sh` does, and corrected once after a reader found, by reading, that its Java version check
   would have failed on every machine. Quote an argument with an equals sign
@@ -2606,6 +2625,21 @@ repeat every finding id; it leaves out nothing a tester has to know.
   under the temporary directory; a normal stop removes it.
 
 **Open at this revision: the screens and the next steps**
+
+- **The first round of screen changes (D-276) left these**, worst first: a result is still about
+  three window heights, with dashed "not returned" boxes in the cards; on DTR the service's paragraph
+  about a rule this tool does not apply stays above the questions; History shows every run of one
+  journey as "a single run" and is cut off on the right at 1024 pixels wide; a half-filled form is
+  empty again after a reload, by rule, because keeping it would keep member data in the browser;
+  "Ready to send?" does not name the values the vendor's file lacks (`memberIdSystem`,
+  `payerIdentifier` and the like), which a result names after a send; and there is no sign-in built
+  from the vendor's own token request (switch it on with the start-up arguments the Config tab
+  gives). Outside the CRD, DTR and PAS forms (History, Config, suites, the sample notification) a
+  refused form still puts the cursor on the first marked field rather than on the summary.
+- **Two failures of this tool still show their reference without the cause** (D-277): a suite that
+  stops ("This tool failed while running the suite. Reference <id>."), and the receiver's verdict on
+  a notification ("Report the reference <id>."). The server log's first line for each names the
+  cause; find it there by the reference.
 
 - **On the CRD tab, discovery is refused when text is left in the procedure code box** ("Nothing
   was sent: "MRI" was typed in the procedure code box and not added to the case."), although
@@ -2785,8 +2819,17 @@ repeat every finding id; it leaves out nothing a tester has to know.
   compiles came from the build cache in the first, and ran in the second).
 - **Since then also `8463174`** (D-275): one line removed from `PaveApplication.launch`, the virtual
   machine argument `-Djava.security.egd=file:/dev/./urandom`; no code and no test, and no build was
-  run on it. Apart from these four, the commits after `902e0d9` change this README, `PROGRESS.md`
-  and `DECISIONS.md` only.
+  run on it.
+- **Since then also the first round of screen changes and the internal error that names its cause**
+  (D-276, D-277; `2590656` to `6a6fe2f`): the screens, some of the server's sentences, the scenario
+  files' sample cases, the error shape and its log line, and this README's first run checklist. The
+  whole build of `6a6fe2f` through the same wrapper: 2,937 tests, 0 failures, 0 errors, 2 skipped.
+  What this README says of those screens was checked against the sources of `6a6fe2f`: every quoted
+  button, heading and sentence was looked for in `src/main`. The screens themselves were walked in
+  Chromium by agents that did not build them, at 1440 by 900 and in part at 1024 by 768, on mock and
+  on live with the sample environment and collection and no real service; the internal error's cause
+  was seen in a copy of the jar with a class removed by hand. Apart from these, the commits after
+  `902e0d9` change this README, `PROGRESS.md` and `DECISIONS.md` only.
 - **Windows.** What this README says of Windows is the operator's report (one workstation, STS, an
   upload that fails, D-275) or what an agent saw on a Windows Java under Wine 9.0 on Linux, on
   `f82e32e` and on `8463174`: the tool started, about 60 uploads, both proofs, the start with and
@@ -2836,9 +2879,9 @@ repeat every finding id; it leaves out nothing a tester has to know.
 - **Not run again on `902e0d9`:** `run.sh` (on this machine it would build the jar with `./gradlew`,
   which only the shared wrapper may run; it was last run on `e1d37dc`; since then only the two lines
   of the note it prints for a Java newer than 21 changed (D-274), and it has not been run since that
-  change), the screens in a browser (the journey under [Using the screens](#using-the-screens) was
-  last walked by an automated browser on `e1d37dc`, and what the last fixes changed on screen was
-  looked at by their authors only), `run.cmd`, STS (other than as the STS section says), a mirror
+  change), the screens in a browser on `902e0d9` (the journey under [Using the screens](#using-the-screens)
+  was walked by agents in a browser on the screen changes of D-276, and the two proofs held there by
+  script; what the last fixes before them changed on screen was looked at by their authors only), `run.cmd`, STS (other than as the STS section says), a mirror
   (with or without credentials), a token server, Onyx, any behaviour on live against a stand-in, a screen reader, a phone-width
   screen, 1920 by 1080.
 - **Where:** Linux, OpenJDK 21.0.13, Gradle 9.5.0. On the machine this README was checked on every
@@ -2846,9 +2889,10 @@ repeat every finding id; it leaves out nothing a tester has to know.
   time, a file in the home directory caps the memory Gradle may use, and every Java process ran with
   `_JAVA_OPTIONS` set to `-XX:+UnlockDiagnosticVMOptions
   -XX:DisableIntrinsic=_base64_encodeBlock,_base64_decodeBlock`. `./gradlew` itself was not run for
-  this revision. The last whole build this README names is that of `647b102`, the code at the head,
-  through that wrapper (`clean build`) with the JDK 21 present: 2,872 tests, 0 failures, 0 errors, 2
-  skipped, BUILD SUCCESSFUL (D-274); `6201644` gave the same counts with the JDK 21 hidden and Gradle
+  this revision. The last whole build this README names is that of `6a6fe2f`, the code at the head,
+  through that wrapper (`clean build`): 2,937 tests, 0 failures, 0 errors, 2 skipped, BUILD
+  SUCCESSFUL (D-276, D-277). Before the screen changes, `647b102` with the JDK 21 present gave 2,872
+  tests, 0 failures, 0 errors, 2 skipped (D-274); `6201644` gave the same counts with the JDK 21 hidden and Gradle
   on a Java 25 (simulated), and with it present; `ace5914` and `05acbf7` gave the same counts, and
   `902e0d9` 2,870 tests, 0 failures, 0 errors, 2 skipped, "No house style
   violations.". No fresh clone was built for this revision by the writer of this README; the integrator's last gates, a

@@ -31,6 +31,8 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-273 | The operator let STS clone the repository on Windows and got stuck; the path, the error, their state and a machine without a JDK 21 were then run in the real STS on Linux | The Git import wizard's own choices are wrong for this project: the default branch has no `epa-pave` folder, and its last page offers only the other application. The error naming `gradle-8.9-bin.zip` means the wrong folder; on Linux it read like a network fault and was not one (the operator's cause was not seen). STS alone, with no JDK 21, imports a project that cannot start (simulated; since D-274 this holds only for a checkout from before `6201644`). Close Project or Delete (both boxes unticked) ends the double `PaveApplication`. Nothing in the repository root was changed. **Not seen: Windows beyond the operator's report, a credential prompt, a corporate proxy, an STS other than 5.4.0, a machine with a Java 17 and no 21** |
 | D-274 | STS alone, with no JDK 21, imported a project that could not start (D-273), and nobody knows whether the operator's workstation has a JDK 21 | Where Gradle finds a JDK 21 nothing changes. Where it finds none, the build compiles for Java 21 with the Java that runs Gradle, if that is a JDK 21 or newer, and says so in one line; otherwise it stops with one plain message. No toolchain download is configured. Decided without asking the operator first, because where a JDK 21 exists nothing changes and elsewhere a silent failure becomes a working import or a plain stop. With the JDK 21 hidden on Linux (a simulation), STS 5.4.0 alone imported and started the tool on its own Java 25, both proofs holding: on `6201644`, and on `6eddce8` (the code of the head), where a project imported before the change was put right by Team, Pull and one Gradle, Refresh Gradle Project, and the operator's own path also worked. First recorded by the integrator alone, then checked. **Not seen: a real workstation without a JDK 21, Windows, `run.sh` and `run.cmd` after the change, the whole build with no JDK 21 on `647b102`, an STS other than 5.4.0, a fetch of new commits from GitHub in STS** |
 | D-275 | The operator ran the tool on their Windows workstation from STS; uploading an environment or a collection fails there with an internal error, and their verdict is "the whole UI and app sucks" | The log line shows a `java.lang.Error` thrown during the upload; its cause was cut off. Not reproduced on Linux, nor on a Windows Java under Wine (about 60 uploads, no Error), which is not Windows. The operator was asked for the rest of the log entry, the Problems view and whether the sample file fails too; no answer yet. **Until it is found, nothing can be configured for the live profile on that workstation.** The Windows Java run found one thing: the shared launch file carried a Linux-only argument that cost about 8 s at every start on a Windows Java under Wine; it is removed (`8463174`), and the real STS on Linux still starts the tool with no dialog. **Not seen: a real Windows machine other than through the operator's report, their files, their workspace, the cause** |
+| D-276 | The operator's verdict was answered with a first round of screen changes, without waiting for the three worst things they were asked for | A look, a doubt, a plan, an attack, two batches, a walk, an audit and three rounds of correction and check, all by agents. On mock one click gives a case that can be sent; a good run no longer looks wrong; the form opens with what a send needs; DTR questions come first; a result is ordered and folded; Config opens with "Ready to send?" and says that signing in is off; a failed call names its address and cause. **The operator has not seen it, no person has used it, nothing of it ran on Windows.** Left: long results, History, reload, the values the vendor's file lacks, a sign-in |
+| D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still give the reference without the cause |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -277,6 +279,9 @@ text and convert them with `web/Params`, which gives every bad value the same 42
 HTTP client and JSON parser messages quote urls and bodies, which hold member data. Failure
 details are fixed phrases chosen by exception type, and an unexpected error is logged as exception
 types and stack frames under a reference the browser also receives.
+Later: narrowed on purpose by D-277. The first line of that log entry and the answer to the browser
+name the chain of exception types, and a few throwables whose message the Java runtime or the IDE's
+compiler writes about the program itself give that message; every other message stays out.
 
 **D-037. Records that hold member data or wire JSON redact their `toString`.**
 A record's default `toString` prints every component, so logging such an object once would put
@@ -5426,7 +5431,8 @@ the operator is reported, not seen by the writers of these documents.
   then `at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:978)`
   and four more frames of Spring. The paste ended there, before the part of the entry that names the
   cause: the tool logs the chain of exception types joined by " <- caused by ", with the first frames
-  of each and no message (`service/error/Faults.java`). Then their verdict on the tool after this
+  of each and no message (`service/error/Faults.java`). (Later, D-277: the first line of the entry
+  now names that chain, and the screen shows it.) Then their verdict on the tool after this
   first session: in their words "the whole UI and app sucks", and it is not what the effort spent on
   it should have produced. They named no particular. The integrator asked for the three worst
   things, in a few words each; no answer when this is written. It is the only judgement of the tool
@@ -5528,3 +5534,285 @@ the operator is reported, not seen by the writers of these documents.
   seconds the removed argument cost on a real Windows; `run.cmd`.
 - The commits that record this change this file, `PROGRESS.md` and the README only; the launch file
   changed in `8463174`.
+
+**D-276. The first round of screen changes: why it was made without waiting, how it was made and
+checked, what a tester now sees, where the builders left the plan, and what is left.**
+After the first session on their workstation the operator judged the tool, in their words, "the
+whole UI and app sucks" (D-275), and named nothing in particular. They were asked for the three
+worst things and have not answered. **The integrator did not wait for that answer.** A verdict on
+the whole tool from the only person it was built for could not be left standing while the screens
+stayed as they were, and a look by people who had built none of the screens could find the worst
+of it without the operator. What follows was decided and built that way; the operator has seen none
+of it. The reports, outputs and screenshots are in the integrator's scratch directory under
+`cont18/`, `cont19/`, `cont20/`, `ui-look/`, `ui-round1/` and `ui-round1b/`.
+- **How.** (1) *Look*: four agents that built none of the screens each walked the running tool in a
+  real browser as a tester on the first day (the first minutes; the live set-up; the words and the
+  errors; the look and the layout). (2) *Doubt*: another agent tried to refute every finding and
+  kept fifteen, ranked. In one line: the screens are written for the people who built the tool and
+  not for the person testing with it; sample data disagrees with itself; nothing is folded or
+  ordered by importance; status does not match what is the case. The ten worst went to the operator
+  as one page; the operator has not reacted to it. (3) *Plan*: letters A to K (there is no J), written
+  from the code and the specification. (4) *Attack*: a second agent found one blocker and seven
+  majors in the plan (among them: the plan folded the response detail, which section 20 keeps open;
+  it moved the error panel out of the order section 20 sets; it folded the PAS claim identifier an
+  inquiry needs; it named the scenario an override displaces by half of the server's rule). (5)
+  *Settle*: every finding of the attack was taken, each with its reason in the plan. (6) *Build*, in
+  two batches on the branch `ui-round1` from `e70af34`: `2590656` to `ad31d98` (A, B, C, D, E, F, I)
+  and `62af56c` to `99a939c` (G, H, K). (7) *Walk*: an agent that built none of it walked the same
+  first day again on `99a939c`, finding by finding, with counts before and after. (8) *Audit*: another
+  ran every browser check of the plan again and tested the hard rules of the specification. (9)
+  *Correct*: `734ec23` to `8b05c4b`. (10) *Check*: a third agent checked the corrections and left three
+  small side effects open. (11) *Correct*: `5a3ca4b`, `c5d7dbc`, `a6aadc6`. (12) *Check*: a fourth
+  agent checked those and found one major, corrected in `87dee6f` and seen corrected by a fifth.
+- **What the walk measured, before (the look, on `e70af34`) and after (`99a939c`, before the
+  corrections)**, at 1440 by 900 on mock unless said: seconds until it was clear what to click, about
+  20 and about 5; from opening the page to the first case sent, about 6 clicks, 2 typed fields, a
+  guessed NPI and one refused send, then 2 clicks and 0 typed fields; visible words on the first
+  screen, CRD 494 and 372, DTR 515 and 413, PAS 664 and 460 (the screen after Continue in PAS),
+  History 302 and 398 (with 11 runs listed), Config on mock 407 and 389; words of a result outside
+  closed folds, about 705 and 524; length of a CRD result, about 4.2 window heights and 2.66 (PAS
+  after: 3.2); the first DTR question, 1582 px down and about 885 px, inside the first window. The
+  whole journey CRD to DTR to PAS on the documentation sample took 9 clicks and 1 typed field. Of the
+  fifteen findings the walk found five gone (2, 3, 11 on the path the tool suggests, 13 for the NPI,
+  15), and 4 gone mostly; eight better (1, 5, 6, 7, 8, 9, 14); two the same (10, 12), as planned.
+- **What each letter changed, as a tester now sees it.**
+  - *A.* On mock each row of the scenario table names a member ID, an NPI and a code, and `Use this
+    case` fills all three, each looked up as if typed, and sets the Mock scenario field back to "The
+    member ID decides"; the first Send needs nothing else. Each scenario file carries a `sampleCase`,
+    checked when the tool starts (the NPI must pass its check digit). The NPI is the placeholder
+    `1234567893`, or `9999999995` in the three files that play a provider not found. On live there
+    is no table and nothing is filled in. The button was `Use this member ID`.
+  - *B.* A run with no expectation declared has no box: one quiet line, "No expectation was
+    declared, so this run is unverified." The small Unverified chips of History are a thin line. On
+    mock with no environment active, the finding that the request left out what nobody supplied sits
+    in a closed fold "Expected on the mock profile (N)" inside Findings, whose count includes it.
+  - *C.* The form opens with "Needed to send" (Member ID, NPI, Procedure codes), then "Member
+    details" and "Ordering provider details", then the fields of the call itself (on PAS such as the
+    claim identifier, on DTR what CRD handed on), never folded, then a closed `More options` whose
+    summary names what in it is set. A refused send lists each field by its label as a link that
+    opens its fold and puts the cursor there. After the corrections, that summary sits at the top of
+    the form, scrolled into view with the keyboard focus on it, after every refused send; it lists
+    exactly the fields marked now, in the order of the form, with each field's own message, and goes
+    when none is left; the status line reads "The send was refused for 3 problems in the form.
+    Nothing was sent." ("1 problem" for one), which stays true while the tester corrects the form.
+    No screen sentence says "on the left" or "on the right" any more.
+  - *D.* On DTR the questions come directly under the verdict; once a package is loaded the fetch
+    button steps back to a plain one, and "Complete the response" is the only main button. "The whole
+    result is above." is gone.
+  - *E.* A result reads: the verdict, the quiet line or the test result, the next step, one run line
+    (run id, response time, "Recorded."), Findings, the determination with the elements not returned
+    at all under a closed "Not returned (N)", the response detail open, "Returned but not
+    interpreted (N)" with its heading, count and notes open and its fields behind "Show the N
+    fields", then a closed "Details: the wire view and what was typed with the run", and the error
+    panel last, never folded.
+  - *F.* Each tab's empty side says in one line what to do, then on mock "On mock, each member ID
+    picks the answer. Pick a case:" and the table; what only explains a step is under a closed `About
+    this step`. On live with nothing configured a tab leads with "This step is missing something the
+    tool needs before it can send. Upload the vendor's Postman environment and collection on the
+    Config tab if you have not." and keeps the server's reason, which names the property, under
+    "What the tool says is missing". After the corrections no screen sentence says "sentinel": the
+    server's words say "test member ID" and "test NPI", and on mock the PAS block "Where these calls
+    go" is under `About this step`.
+  - *I.* One NPI mistake gets one sentence, the same from the lookup and from Send: "Enter the
+    ordering provider's NPI.", "An NPI is 10 digits. Check the number for a typing mistake." or "The
+    last digit of this NPI does not match the other nine. Check the number for a typing mistake." A
+    mock scenario chosen under More options is said under the Member ID, with `Let the member ID
+    decide`.
+  - *G.* Config, In force now, opens with "Ready to send?": the Production line in the same words as
+    the Production row below it, the environment, and on live the collection, "N of M can be sent"
+    with `Show which`, "Signing in to the service: off." naming the environment's sign-in variables
+    that nothing uses and the start-up arguments that would switch signing in on, and the secrets
+    with no value (names only). An operation that can be sent reads "Yes, without signing in." with
+    the server's reason, not a plain "Yes.".
+  - *H.* When a live call could not reach the service or got no answer in time, the verdict says
+    "Address called:" with the scheme, host, port and path of the masked url (the query is left in
+    the wire view) and the cause in plain words, among them a new one: "The proxy between this machine
+    and the service refused the connection (it answered 403)."
+  - *K.* The README's first run checklist is six steps, each a command and its correct output, at
+    the top of the README; the history it held moved to the sections it is about.
+- **Where the builders left the plan, and why.** Batch 1: B, D and E went into one commit because
+  all three rebuild one function; `More options` is switched on for the three protocol tabs only,
+  because the Config tab's request sent as written uses the same form and needs its fields in view;
+  "on the right" was reworded as well as "on the left"; the fold's summary is read by one generic
+  reader; the PAS subscription id and the CRD comparison pass their refused fields to the summary
+  too; the override note is redrawn when the selector changes, not on every change of the case;
+  `LookupOverTheServerTest`, `EveryScenarioDirectoryTest`, `DtrScenarioDeterminationTest`,
+  `RedactionTest` and one assertion of `ScenarioRepositoryTest` changed although the plan did not
+  name them, each because the change itself is what they stated (the two directory tests allow the
+  placeholder NPI only at the exact text of a `sampleCase`); a sample case's line of business is read
+  from the fixture's expect block; only the explaining sentence of the DTR rules not applied moved
+  into `About this step`, because the rules themselves decide whether a question is unanswered.
+  Batch 2: a variable that a request or a setting uses is not named as an unused sign-in setting,
+  because "Nothing uses them" would be false for it; a helper is counted on every outbound operation,
+  not only the sendable ones; "Environment: none is active." and "Collection: none is uploaded."
+  rather than repeating the word; on mock "no environment active" is not marked as something to do;
+  a proxy that closes without a word reaches the JDK as a connect timeout, so the test asserts it is
+  never called a refused tunnel rather than the fallback the plan expected; the sample mapping counts
+  13 requests, not the plan's example 10. The first corrector did not take the walk's "count only the
+  other findings" (Findings (0) above a finding would be false, as the plan decided), left the DTR
+  rule paragraph and the item paths in view (section 20 keeps them, and the paragraph is one server
+  sentence the page may not cut), and left the variables the vendor's file lacks out of the checklist
+  (it needs a dry run of every operation). The second corrector chose the past tense for the status
+  line, the simpler of the two allowed; the scenario folder notes still name the file keys
+  `crdSentinelMemberIds`, `answersDtrSentinels` and `sentinelMemberId`, which a tester must type as
+  they are; and the other summaries (History, Config, suites, the PAS sample notification) still put
+  the focus on the first marked field, because the task named only the protocol forms. The plan's
+  rule of a clean build twice per batch was kept by the first corrector and not by the builders.
+- **The four findings of the audit, and what was done.** (1) F's check "fewer than 200 words" on the
+  first screen cannot be met while the table of letter A stays (288 words without the options of the
+  selectors, the table alone 189): the integrator restated the limit as the empty state outside that
+  table and outside the form, and the table stays. By the audit's count that part is under 30 words;
+  nobody has measured it in a browser since. (2) The notes about a body ("About the body: ...") and
+  the line that a body could not be read as JSON had gone behind "Show the N fields": corrected in
+  `8b05c4b`, they stay open. (3) No entry here and in `PROGRESS.md`: this entry. (4) The plan's
+  command for the checklist's length counted one line (the section is 51); and the README's clone
+  address named a GitHub account: see the decision below.
+- **Decided by the integrator for the operator, the cautious way each time, and told to them with
+  no answer so far.** Signing in is not switched on by itself, because how the vendor wants the
+  client to sign in is not known (an open item); the Config tab says that it is off and how to turn
+  it on. A half-filled form is still lost on reload, because keeping it would keep member data in the
+  browser; the only storage key stays `pave.tab`. The button on a mock case reads "Use this case",
+  because it now fills the member ID, a provider number and a procedure code.
+- **Decided by the integrator on what the audit raised.** The word limit of F is restated as above.
+  **The README no longer carries the address of the repository.** It named a GitHub account in two
+  places (step 2 of the first run checklist, and the STS section where the Git wizard asks for
+  "URI:"). The house style forbids naming people, and an account name in a document goes stale when
+  the repository moves; whoever reads the README has the address already. Both places now say
+  `<repository address>` and where to copy it from. D-053 quotes the specification and stays as it
+  is.
+- **What the checks saw of the hard rules.** On live, with nothing loaded and with the sample
+  environment and collection active, every fold open: no `Use this case`, no scenario selector, no
+  scenario table, no "Pick a case", no input filled in (the audit, the checks after each
+  correction). Secrets: with placeholder secrets uploaded, the page, the checklist, the operations
+  table and the result with every fold open showed only masks, and the values were in neither the
+  ledger nor the log, only in the uploaded file the upload warning names. Browser storage after every
+  walk, on mock and on live: `pave.tab` only, sessionStorage empty. Production: with an environment
+  of kind `prod` active, the banner, the page title and the writes panel read word for word as on the
+  jar of `e70af34`, and a PAS submit was blocked on both with the same verdict and next step; the
+  round touches no file of the guardrail. Section 20: the masthead and banners are unchanged, every
+  part of a result is still there in its order with the error panel last and open, and a comparison
+  of the old and the new screens with every fold open found nothing missing altogether. The smoke
+  script of the two handover proofs ended "ALL PROOFS HELD" after each check. **Not tested: the
+  per-session unlock**, because this installation's floor (`config-store.allow-prod-writes` false)
+  forbids it on both jars; nothing in the round touches it.
+- **What is left, the worst first.** A result is still long: about 2.7 window heights on CRD and 3.2
+  on PAS, with dashed "not returned" boxes in the cards, "Links (0)" and the like. On DTR the
+  service's paragraph about a rule this tool does not apply stays above the questions, and each
+  question keeps its item path and type. History does not tie the runs of one journey together
+  (every row reads "a single run") and is cut off on the right at 1024 pixels. A half-filled form is
+  lost on reload, by rule. The readiness list does not name the values the vendor's file lacks
+  (`memberIdSystem`, `payerIdentifier` and the like); they are named only after a send. There is no
+  sign-in built from the vendor's own token request. The next step of a failed call is still the
+  general one and names no variable. A code typed by hand, 70553 for one, still gets the sleep study
+  questionnaire on mock. `Target onyx` and Ledger are not explained. The summaries outside the
+  protocol forms behave as before. The last check of the round left nothing open on the screens of
+  this entry; what it left of D-277 is there.
+- **What nobody has seen.** The operator has not seen this round, nor the page of the ten worst.
+  No person has used the new screens: every walk and check was an agent driving a browser by
+  script. Nothing of it ran on Windows. The Postman sign-in helper sentence of G was seen only in a
+  test (the sample collection has none), G and H only at 1440 by 900, the refused proxy sentence on
+  live by the builder and the walk only (the audit's loopback address did not pass through the
+  proxy).
+- **Tests.** 2,872 at `e70af34`; 2,896 after batch 1, 2,908 after batch 2, 2,909 after the first
+  correction, 2,916 after the second, each with 0 failures, 0 errors and 2 skipped. New test classes
+  hold the layout by reading the scripts as text, some running a function under Node
+  (`ResultLayoutFrontendTest`, `FormLayoutFrontendTest`, `ScenarioOverrideFrontendTest`,
+  `AboutThisStepFrontendTest`, `ConfigReadinessFrontendTest`, `SampleCaseTest`,
+  `NoSentinelOnScreenTest`); no test drives a browser.
+- The commits that record this change this file, `PROGRESS.md` and the README only.
+
+**D-277. An internal error of the tool names its cause, in the first line of the log entry and on
+the screen: a deliberate, narrow change to D-036.**
+- **What happened.** On the operator's workstation every upload of an environment or a collection
+  answers "This tool hit an internal error" (D-275). The operator pasted the first lines of the log
+  entry; the paste ended at Spring's frames. The tool wrote the cause further down the same entry,
+  after the frames of the outermost exception and " <- caused by ". So the one fact that would find
+  the fault was written where the person who had it did not look. That is a defect of the tool's own
+  reporting, and it is what was changed. The operator's fault itself was not hunted.
+- **Decided.** (1) The first line of the log entry carries the reference and the whole chain of
+  exception types, outermost first, then a detail where (3) allows one; the frames follow as before.
+  Someone who pastes only the first line has pasted the cause. (2) The answer to the browser carries
+  the same line in a new field of the shared error shape, `cause`, set for an internal error only.
+  No stack frame reaches the browser (section 18). Every place on the screens that shows the
+  reference of an internal error shows the cause beside it, "Cause, as the server log names it",
+  with one button that copies both, so that reporting it is one paste. (3) **Messages stay out, with
+  one narrow exception.** D-036 stands for every throwable not named here. A message is given only
+  for throwables whose message the Java runtime or the IDE's compiler writes about the program
+  itself, never from request data: a `LinkageError` or a subclass (`NoClassDefFoundError`,
+  `NoSuchMethodError`, `UnsatisfiedLinkError`, `VerifyError` and the like), whose text is a class,
+  method or library name or a class file version written by the class loader or the verifier,
+  **except** `ExceptionInInitializerError`, whose text can quote whatever a static initializer
+  threw; a `ClassNotFoundException`, whose message is the class name, and this tool never loads a
+  class by a name taken from a request; a `VirtualMachineError` (`StackOverflowError`,
+  `OutOfMemoryError`), whose text is the state of the machine, **only when it has no cause**,
+  narrower than first decided, because an `InternalError` or `UnknownError` built from a cause takes
+  that cause's text; and a throwable whose class is exactly `java.lang.Error` with a message
+  beginning "Unresolved compilation problem", which the Eclipse compiler writes into a class it could
+  not compile and which the IDE starts all the same. Only the first throwable of the chain that may
+  give a detail gives it, written "; <type> says: <detail>"; the detail is made one line (every line
+  break, the Unicode ones included) and cut at 300 characters, never inside a character. The reason
+  for each member is written beside its rule in `Faults`. (4) Nothing else about error handling
+  changes: the kinds, the status codes, the texts of other errors. The ledger never gets the cause.
+- **Accepted, not a defect.** By the rule, a `LinkageError` or a compiler's problem text that held a
+  member ID would be given; the check of the change recorded that as an accepted risk. Nothing in
+  the tool builds such a text from request data.
+- **What was built.** `Faults.cause` gives the line and `Faults.describe` begins with it (`56c3e64`).
+  `ErrorView` has `cause`, set by `ApiExceptionHandler`, by the outermost filter
+  (`ResponseHeadersFilter`) and for a run that failed in this tool after the call (`RunSupport`).
+  The action under an internal error now reads "Copy the reference and the cause below with the
+  button and report them with what you were doing. The server log holds the rest under the same
+  reference." (after a run's call it adds "The request was sent: do not assume it had no effect.").
+  The error panel and the procedure code picker show "Reference <id>", "Cause, as the server log
+  names it: <cause>" and `Copy reference and cause` (`4fb199f`; `Copy reference` when there is no
+  cause), and the copied text is those two lines. `e0f3333` corrected the code picker's test. After
+  the checks: the cause stays one line whatever line break its text uses and is never cut inside a
+  character, and an `ExceptionInInitializerError` built from text is guarded by tests (`425e16a`);
+  a case, a chain step, a suite row and a History replay entry that met a failure of this tool carry
+  the cause beside the reference, and the suite results and both replay views show it with the same
+  words and button (`6a6fe2f`). The suite runs and replay entries are held in memory; the results
+  CSV has fixed columns without it; a test holds that the ledger lines carry neither the cause nor
+  the reference.
+- **What the tests show.** `InternalErrorCauseTest` (10 tests): a controller that exists only in the
+  tests throws a missing class, a compile problem, a stack overflow, a plain `Error` and an
+  `IllegalStateException` holding the placeholder `S123456789`, an `ExceptionInInitializerError` around
+  such an exception and one built from such text, an `Error` wrapped as Spring wraps it, and a detail
+  with Unicode line breaks; for each it asserts the status, the body, the exact cause, the exact first
+  log line from a captured log, frames in the log and none in the body, and `S123456789` in neither.
+  `FaultsTest` (8 tests) and `FaultReportFrontendTest` (2) hold the rest. An agent that wrote none of
+  it changed the rule in a copy: allowing every message turned 15 tests red, allowing none 5, and
+  allowing the `ExceptionInInitializerError` 0, which the correction then closed; a later check saw
+  the new tests go red when each correction was undone.
+- **What the real run showed, in a damaged copy of the jar.** The nearest thing to the operator's
+  case that could be made: a class that only the upload needs was removed by hand from a copy of the
+  built jar (`PostmanParser$Document`; a second check removed `MemberDataNames`), on Linux. The copy
+  started; the upload of the sample environment answered HTTP 500 through `curl` and in the Config tab
+  of a real browser, on mock and on live. The first line of the log entry read "Unhandled exception,
+  reference <id>: jakarta.servlet.ServletException <- java.lang.NoClassDefFoundError <-
+  java.lang.ClassNotFoundException; java.lang.NoClassDefFoundError says:
+  org/p32h/interop/epa/pave/postman/PostmanParser$Document", and the first frame was
+  `DispatcherServlet.doDispatch(DispatcherServlet.java:978)`, the line of the operator's paste. The
+  panel showed the reference, the cause and the button; the copied text was the two lines; no frame
+  was on screen or in the body; the only browser storage key was `pave.tab`. The untouched jar
+  answered the same upload 200. On live with an environment holding a placeholder secret, uploaded as
+  production through the browser and through `curl`, the secret was in neither the log, the body,
+  the panel nor the copied text, and the banner and guardrail words were unchanged. The code picker's
+  two places were seen with a 500 played by the browser script, and the suite row with an answer
+  rewritten by the script, because no way was found to make one case fail in the real jar.
+- **Limits, said plainly.** A class removed by hand on Linux is the nearest thing to the operator's
+  case that could be made; it is not their case. **The cause of their failure is still not known.**
+  Nothing of this ran on Windows. Not seen in a browser: an internal error answered by the outermost
+  filter, and the History replay view of the cause (both held by tests). **Two places still give the
+  reference of an internal error inside a sentence only, with no cause:** the stop of a whole suite
+  ("This tool failed while running the suite. Reference <id>."), and the verdict of the notification
+  receiver ("Report the reference <id>."). The first is where a missing class during a suite shows:
+  an `Error` ends the whole suite, as the last check saw in a damaged copy, with the class named in
+  the log and not on the screen. Their log lines begin with the cause all the same. A suite row of a
+  failure shows the reference twice, in its sentence and above the cause, because the results CSV and
+  existing tests rely on the sentence.
+- **What the operator has to do to get it.** Pull the branch (in STS: Team, Pull, then Gradle,
+  Refresh Gradle Project), start the tool again, upload the file once more, press `Copy reference and
+  cause` under the error and send what it copied. If the cause names "Unresolved compilation
+  problem" or a class not found, the README's STS section says what to try first.
+- **Tests.** 2,916 before this change, 2,930 after it, 2,937 after its corrections at `6a6fe2f`, each
+  whole build with 0 failures, 0 errors and 2 skipped.
+- The commits that record this change this file, `PROGRESS.md` and the README only.
