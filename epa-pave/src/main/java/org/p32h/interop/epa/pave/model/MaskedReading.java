@@ -231,7 +231,7 @@ public record MaskedReading(List<String> readings) {
      */
     public String line() {
         return "Read from a mask, not from what the service sent: " + String.join("; ", readings) + ". The variable or setting the mask "
-                + "names holds a value that the answers of this service use as an ordinary word, so the reading above may be wrong. "
+                + "names holds a value that the answers of this service use as an ordinary word, so what is read from it may be wrong. "
                 + "Look at that value in the Config tab.";
     }
 
