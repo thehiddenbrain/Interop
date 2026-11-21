@@ -1,6 +1,6 @@
 package org.p32h.interop.epa.pave.service.crd;
 
-import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
+import org.p32h.interop.epa.pave.service.run.PlayedFaults;
 import org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.JsonSafe;
@@ -146,8 +146,9 @@ public final class CrdVerdicts {
             case UNREACHABLE -> "The service could not be reached.";
             case MALFORMED_RESPONSE -> malformedHeadline(reading, exchange);
         };
-        // A played timeout is described once, by the error panel beside the verdict.
-        if (outcome.fault() && Texts.present(exchange.failureDetail()) && !exchange.playedTimeout()) {
+        // A played fault is described once, by the error panel beside the verdict: the failure detail a
+        // scenario writes reads as a real connection failure under a verdict that nothing was sent.
+        if (outcome.fault() && Texts.present(exchange.failureDetail()) && !PlayedFaults.played(exchange, outcome)) {
             supporting.add(exchange.failureDetail());
         }
         if (!outcome.fault()) {
@@ -310,6 +311,13 @@ public final class CrdVerdicts {
      * record or report that run. Null when there is no run, as for a preview.
      */
     public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId) {
+        // A fault a scenario played is a rehearsal on every branch, the readable answer of the wrong kind included.
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId),
+                PlayedFaults.aboutTheEnvironment("the member or the code"));
+    }
+
+    /** The next step as it would be after a real service gave this answer. */
+    private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
@@ -427,10 +435,9 @@ public final class CrdVerdicts {
             case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
                     "The service does not recognise the provider. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> PlayedTimeouts.rehearsed(exchange,
-                    new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
-                            "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry),
-                    PlayedTimeouts.aboutTheEnvironment("the member or the code"));
+            case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
+                    "Next: check the environment, then send again.",
+                    "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
             case NO_DETERMINATION -> noDetermination(runId, carry);
             case AUTH_NOT_STATED, UNRECOGNISED_CODE, MIXED -> new NextStepView(NextAction.REVIEW,
                     "Next: read the response detail below. This tool cannot say what should happen next.",

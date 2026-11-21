@@ -1,6 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
-import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
+import org.p32h.interop.epa.pave.service.run.PlayedFaults;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -144,13 +144,15 @@ public final class PasVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        // A played timeout is described once, by the error panel beside the verdict, and what a real
-        // one would mean for the submission is said by the next step, as what it would mean.
-        if (outcome.fault() && !exchange.playedTimeout()) {
-            if (Texts.present(exchange.failureDetail())) {
+        // A played fault is described once, by the error panel beside the verdict: the failure detail a
+        // scenario writes reads as a real connection failure under a verdict that nothing was sent. What
+        // a played timeout would mean for the submission is said by the next step, as what it would mean;
+        // a played refused connection keeps its line, which is as true on mock as it would be on live.
+        if (outcome.fault()) {
+            if (Texts.present(exchange.failureDetail()) && !PlayedFaults.played(exchange, outcome)) {
                 supporting.add(exchange.failureDetail());
             }
-            if (operation.write() && noUsableAnswer(outcome)) {
+            if (operation.write() && noUsableAnswer(outcome) && !exchange.playedTimeout()) {
                 supporting.add(exchange.reached() == Reached.NO ? "Nothing was submitted: the request did not reach the payer."
                         : "The payer may have received the submission and acted on it.");
             }
@@ -288,6 +290,16 @@ public final class PasVerdicts {
      */
     public static NextStepView nextStep(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
                                         String runId) {
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, operation, followsRunId, runId),
+                operation.write()
+                        ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
+                        + "sending it again. Sending it again without checking could create a second request."
+                        : PlayedFaults.aboutTheEnvironment("the member or the code"));
+    }
+
+    /** The next step as it would be after a real service gave this answer. */
+    private static NextStepView asIfReal(PasReading reading, VendorExchange exchange, EpaOperation operation, String followsRunId,
+                                         String runId) {
         PasOutcome outcome = reading.outcome();
         // What a status check or a resubmission starts from. Carried whatever the outcome, so a
         // tester can ask for the status of any submission that has a claim id.
@@ -340,11 +352,7 @@ public final class PasVerdicts {
                     "Next: check the claim identifier and the items of the inquiry against the submission it asks about.",
                     "The payer holds no prior authorization matching what the inquiry asked about. The environment answered normally.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
-                    afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
-                            ? "Had this been a real service, the payer might have received the submission: choose Send inquiry before "
-                            + "sending it again. Sending it again without checking could create a second request."
-                            : PlayedTimeouts.aboutTheEnvironment("the member or the code"));
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
     }
 

@@ -1346,7 +1346,9 @@ class PasServiceTest {
         RunEnvelope<PasDetail> down = submit("P32H-PAS-DOWN");
         assertThat(down.verdict().outcomeCode()).isEqualTo("UNREACHABLE");
         assertThat(down.verdict().supporting()).contains("Nothing was submitted: the request did not reach the payer.");
-        assertThat(down.nextStep().headline()).isEqualTo("Next: check the environment, then send again.");
+        // The next step agrees with the error panel that the scenario played this: a rehearsal, not an environment to fix.
+        assertThat(down.nextStep().headline()).isEqualTo("Next, had this been a real service: check the environment, then send again.");
+        assertThat(down.nextStep().reason()).endsWith("Pick another case to go on.");
         // Either way the mock says first that it is a mock, and the wire view that nothing left this machine.
         for (RunEnvelope<PasDetail> result : List.of(timeout, down)) {
             assertThat(result.verdict().supporting().get(0)).startsWith("Mock scenario ");

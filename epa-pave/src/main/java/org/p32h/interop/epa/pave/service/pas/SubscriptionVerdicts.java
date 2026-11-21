@@ -1,6 +1,6 @@
 package org.p32h.interop.epa.pave.service.pas;
 
-import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
+import org.p32h.interop.epa.pave.service.run.PlayedFaults;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.NextAction;
@@ -93,13 +93,14 @@ public final class SubscriptionVerdicts {
                     ? "The service answered with no body" + status(exchange) + "."
                     : "The service answered with a body that could not be read" + status(exchange) + ".";
         };
-        // A played timeout is described once, by the error panel beside the verdict, and what a real
-        // one would mean for a write is said by the next step, as what it would mean.
-        if (outcome.fault() && !exchange.playedTimeout()) {
-            if (Texts.present(exchange.failureDetail())) {
+        // A played fault is described once, by the error panel beside the verdict: the failure detail a
+        // scenario writes reads as a real connection failure under a verdict that nothing was sent. What
+        // a played timeout would mean for a write is said by the next step, as what it would mean.
+        if (outcome.fault()) {
+            if (Texts.present(exchange.failureDetail()) && !PlayedFaults.played(exchange, outcome)) {
                 supporting.add(exchange.failureDetail());
             }
-            if (operation.write() && noUsableAnswer(outcome)) {
+            if (operation.write() && noUsableAnswer(outcome) && !exchange.playedTimeout()) {
                 supporting.add(exchange.reached() == Reached.NO ? "Nothing was changed: the request did not reach the service."
                         : "The service may have received the request and applied it.");
             }
@@ -162,6 +163,16 @@ public final class SubscriptionVerdicts {
      */
     public static NextStepView nextStep(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
                                         String followsRunId, String callbackProblem, boolean ownBody, String runId) {
+        return PlayedFaults.rehearsed(exchange, reading.outcome(),
+                asIfReal(reading, exchange, operation, subscriptionId, followsRunId, callbackProblem, ownBody, runId), operation.write()
+                        ? "Had this been a real service, the service might have received the request and applied it: list the "
+                        + "subscriptions before sending it again."
+                        : PlayedFaults.aboutTheEnvironment("the subscription"));
+    }
+
+    /** The next step as it would be after a real service gave this answer. */
+    private static NextStepView asIfReal(SubscriptionReading reading, VendorExchange exchange, EpaOperation operation, String subscriptionId,
+                                         String followsRunId, String callbackProblem, boolean ownBody, String runId) {
         SubscriptionOutcome outcome = reading.outcome();
         Map<String, List<String>> carry = new LinkedHashMap<>();
         carry.put(NextStepView.CARRY_SUBSCRIPTION_ID, Texts.present(subscriptionId) ? List.of(subscriptionId) : List.of());
@@ -189,11 +200,7 @@ public final class SubscriptionVerdicts {
                     + "this tool can read as the answer to this call, and this tool does not guess what it means. What came back is in "
                     + "the response detail below.", carry);
             case REJECTED -> notAccepted(exchange, carry);
-            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> PlayedTimeouts.rehearsed(exchange,
-                    afterNoUsableAnswer(outcome, exchange, operation, carry), operation.write()
-                            ? "Had this been a real service, the service might have received the request and applied it: list the "
-                            + "subscriptions before sending it again."
-                            : PlayedTimeouts.aboutTheEnvironment("the subscription"));
+            case SERVICE_ERROR, TIMEOUT, MALFORMED_RESPONSE, UNREACHABLE -> afterNoUsableAnswer(outcome, exchange, operation, carry);
         };
     }
 

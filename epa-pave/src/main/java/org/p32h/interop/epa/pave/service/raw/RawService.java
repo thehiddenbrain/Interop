@@ -1,6 +1,6 @@
 package org.p32h.interop.epa.pave.service.raw;
 
-import org.p32h.interop.epa.pave.service.run.PlayedTimeouts;
+import org.p32h.interop.epa.pave.service.run.PlayedFaults;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -325,14 +325,14 @@ public class RawService {
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, null,
                 List.of(Expectations.Answer.of(null, facts)), RawOutcome.values(), EXPECTATION_ELEMENTS);
 
-        NextStepView nextStep = outcome == RawOutcome.TIMEOUT || outcome == RawOutcome.UNREACHABLE || outcome == RawOutcome.SERVICE_ERROR
-                || outcome == RawOutcome.MALFORMED_RESPONSE
-                ? rehearsed(call, exchange)
+        NextStepView nextStep = rehearsed(call, exchange, outcome, outcome == RawOutcome.TIMEOUT || outcome == RawOutcome.UNREACHABLE
+                || outcome == RawOutcome.SERVICE_ERROR || outcome == RawOutcome.MALFORMED_RESPONSE
+                ? noUsableAnswer(call, exchange)
                 : outcome == RawOutcome.REJECTED
                 ? NextStepView.of(NextAction.FIX_REQUEST, "Next: read the response below and correct the request, its url or its credentials.",
                 "The service did not accept the request as it was sent.")
                 : NextStepView.of(NextAction.REVIEW, "Next: read the response below.",
-                "The tool does not know what this request is for, so it cannot say what should happen next.");
+                "The tool does not know what this request is for, so it cannot say what should happen next."));
 
         ErrorView error = outcome.fault() ? support.faultView(exchange, issues) : null;
         RawDetail detail = new RawDetail(call.requestName(), kind, issues, List.of(bodySentence(bodySource)), bodySource);
@@ -351,11 +351,11 @@ public class RawService {
 
     private static final String THE_SERVICE = "The service";
 
-    /** The next step after no usable answer, worded as what a real timeout would mean when a scenario played one. */
-    private static NextStepView rehearsed(PreparedCall call, VendorExchange exchange) {
+    /** The next step after a fault, worded as a rehearsal when a scenario played it. */
+    private static NextStepView rehearsed(PreparedCall call, VendorExchange exchange, RawOutcome outcome, NextStepView step) {
         String method = Exchanges.method(call);
         boolean read = method.equals("GET") || method.equals("HEAD") || method.equals("OPTIONS");
-        return PlayedTimeouts.rehearsed(exchange, noUsableAnswer(call, exchange), read
+        return PlayedFaults.rehearsed(exchange, outcome, step, read
                 ? "Had this been a real service, a timeout would be a finding about the environment."
                 : "Had this been a real service, it might have received the " + method + " and acted on it: find out whether the request "
                 + "took effect before sending it again.");
