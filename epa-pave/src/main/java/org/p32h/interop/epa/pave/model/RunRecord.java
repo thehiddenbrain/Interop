@@ -257,13 +257,13 @@ public record RunRecord(
     private static final java.util.regex.Pattern SHORT_LABEL = java.util.regex.Pattern.compile("[A-Za-z0-9 &/.,()'+\\-]{1,60}");
     private static final java.util.regex.Pattern MEMBER_TOKEN = java.util.regex.Pattern.compile("[0-9a-f]{64}");
     private static final java.util.regex.Pattern LAST_FOUR = java.util.regex.Pattern.compile("\\S{1,4}");
+    /** The longest identifier this record keeps: a claim id, an authorization number, a part of a questionnaire address. */
+    private static final int LONGEST_IDENTIFIER = 128;
     /**
      * An identifier under a correlation key: a claim id, a ClaimResponse id, a subscription id, an
      * authorization number or a run id. One token, so neither a sentence nor an address with a
      * query can be one.
      */
-    /** The longest identifier this record keeps: a claim id, an authorization number, a part of a questionnaire address. */
-    private static final int LONGEST_IDENTIFIER = 128;
     private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z0-9\\-._:/|]{1," + LONGEST_IDENTIFIER + "}");
     private static final java.util.regex.Pattern SPACED_IDENTIFIER =
             java.util.regex.Pattern.compile(" *[A-Za-z0-9\\-._:/|]+(?: +[A-Za-z0-9\\-._:/|]+){0,3} *");
@@ -446,7 +446,8 @@ public record RunRecord(
                 // record takes to be at most LONGEST_IDENTIFIER characters. A longer part is
                 // neither, and it is not handed to the pattern. It is not a code either, and it
                 // could hold anything, so the address is not recorded, as an address that holds an
-                // identifier is not.
+                // identifier is not. History therefore shows "(not recorded, N characters)" for an
+                // address with a part of 129 characters or more, even an ordinary one it once kept.
                 if (part.length() > LONGEST_IDENTIFIER) {
                     return true;
                 }
