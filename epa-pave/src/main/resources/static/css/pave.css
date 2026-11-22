@@ -178,6 +178,22 @@ a:hover {
     font-size: max(0.92em, var(--text-xs));
 }
 
+/* Every control is drawn in the tool's colour, the checkbox of an option too. */
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--purple);
+}
+
+/* The line under a refusal while PAVE's files changed on disk: a cause the panel above cannot name. */
+.files-changed-note {
+    margin-top: var(--s-2);
+}
+
+/* A member ID sent with the spaced rule holds runs of spaces the tester must be able to count. */
+.sent-as .mono, .chip--mono .chip__text {
+    white-space: pre;
+}
+
 .muted {
     color: var(--ink-soft);
 }
@@ -265,8 +281,18 @@ a:hover {
     white-space: nowrap;
 }
 
+/* The sign-in chip may be cut to its first words (its title holds them all), so the badges beside
+   it never lie over the chooser at 1024 px (look-1). */
 .topbar__signin {
     display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 220px;
+}
+
+.topbar__end > .badge,
+.topbar__env > .badge,
+.topbar__stamp {
     flex: none;
 }
 
@@ -2088,17 +2114,17 @@ a:hover {
         font-size: var(--text);
     }
 
+    /* One line at every width, so the titles of the four steps stay level; a chip cut short keeps
+       its whole words in its title. */
     .stepper .chip {
-        height: auto;
-        min-height: 22px;
-        padding: 2px 8px;
-        border-radius: var(--r-box);
-        white-space: normal;
-        line-height: 1.25;
+        max-width: 100%;
+        white-space: nowrap;
     }
 
     .stepper .chip__text {
-        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .call {
@@ -2136,6 +2162,10 @@ a:hover {
 
     .topbar__stamp .stamp-word {
         display: none;
+    }
+
+    .topbar__signin {
+        max-width: 96px;
     }
 }
 

@@ -58,6 +58,26 @@ export function answerCount(json) {
 }
 
 /** What a gap chip says: the start of the server's line, up to its first colon or full stop. */
+/**
+ * What a case lacks before a preview of it is worth asking for: no member ID, no NPI, no procedure
+ * code. Each as a gap {field, line} the step draws as it draws the server's.
+ */
+export function caseGaps(request) {
+    const given = value => typeof value === 'string' && value.trim() !== '';
+    const gaps = [];
+    if (!given(request && request.member ? request.member.memberId : null)) {
+        gaps.push({field: 'member.memberId', line: 'Member ID: type one in the Member card.'});
+    }
+    if (!given(request && request.provider ? request.provider.npi : null)) {
+        gaps.push({field: 'provider.npi', line: 'NPI: type one in the Provider card.'});
+    }
+    const codes = request && Array.isArray(request.procedureCodes) ? request.procedureCodes : [];
+    if (!codes.some(code => code && given(code.code))) {
+        gaps.push({field: 'procedureCodes', line: 'Procedure code: add one in the Service card.'});
+    }
+    return gaps;
+}
+
 export function gapWords(line) {
     const text = String(line || '');
     let end = text.length;
@@ -292,6 +312,14 @@ export function mount(root, ctx) {
     /** Asks the server what the request lacks; nothing is sent and nothing is recorded. Files are not read for it. */
     async function askGaps() {
         const mine = ++asked;
+        const missing = caseGaps(ctx.request());
+        if (missing.length > 0) {
+            // The server would only refuse a case with no member, provider or code: say it here, ask nothing.
+            latestPreview = {toComplete: missing};
+            drawGoes();
+            drawGaps();
+            return;
+        }
         const answer = await call('POST', '/api/pas/submit/preview', {body: submitBody(ctx.request(), own(), ctx.carry(3), [])});
         if (mine !== asked) {
             return;
@@ -333,7 +361,7 @@ export function mount(root, ctx) {
             onRefused: (error, placed) => {
                 ctx.refused(3, error);
                 const all = (error.fieldErrors || []).length > 0 && (error.fieldErrors || []).every(each => placed.includes(each.field));
-                fill(refusal, all ? null : failurePanel(error, placed));
+                fill(refusal, all ? null : failurePanel(error, placed, ctx.labelOf));
             },
             onFailed: error => fill(refusal, failurePanel(error))
         });
@@ -346,7 +374,7 @@ export function mount(root, ctx) {
         }
         clear(refusal);
         await showPreview('/api/pas/submit/preview', submitBody(ctx.request(), own(), ctx.carry(3), attachments),
-            error => ctx.placeErrors((error && error.fieldErrors) || []));
+            error => ctx.placeErrors((error && error.fieldErrors) || []), ctx.labelOf);
     }
 
     include.addEventListener('change', () => askSoon());

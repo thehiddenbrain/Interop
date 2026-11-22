@@ -235,7 +235,7 @@ export function createMemberCard(env) {
             values.dateOfBirth || values.lineOfBusiness || found ? el('div', {class: 'summary__line'},
                 el('span', null, 'DOB ', values.dateOfBirth ? el('span', {class: 'mono'}, values.dateOfBirth) : notReturned('dateOfBirth')),
                 values.lineOfBusiness ? el('span', null, values.lineOfBusiness) : notReturned('lineOfBusiness')) : null);
-        fill(sent, ...(answer && answer.memberId ? [sentAs(answer.memberId),
+        fill(sent, ...(sentForms(answer) ? [sentAs(answer.memberId),
             answer.memberId.note ? el('span', null, ' ' + answer.memberId.note) : null] : []));
         fill(line, lookupLine(answer) || '');
         fill(returned, returnedFold(answer) || '');
@@ -299,4 +299,9 @@ export function createMemberCard(env) {
             return source;
         }
     };
+}
+
+/** The member ID forms a lookup answer says were sent, or null: a lookup not set up sent nothing (B7). */
+export function sentForms(answer) {
+    return answer && answer.memberId && answer.status !== 'DISABLED' ? answer.memberId : null;
 }
