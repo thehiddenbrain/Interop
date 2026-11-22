@@ -30,15 +30,25 @@ import org.p32h.interop.epa.pave.service.config.WriteAccess;
  * @param signIn      how PAVE signs in to the active environment's service now, for the chip beside
  *                    the mode (plan 7.5). Absent on mock, where nothing signs in, so the top bar
  *                    shows no chip there
+ * @param startedAt   the instant this PAVE process started, as ISO-8601 UTC, the same on every
+ *                    answer for the life of the process and never moved by a change of the
+ *                    configuration. The epoch moves at every start, so a page tells a restart
+ *                    (both moved) from a change made in another window (the epoch alone) by it (I-13)
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
-                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn) {
+                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn, String startedAt) {
+
+    /** Without the instant of the start. */
+    public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
+                    WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn) {
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, signIn, null);
+    }
 
     /** Without a sign-in state, as on mock. */
     public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
                     WriteAccess writeAccess, String bindAddress, String bindNote, Build build) {
-        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, null);
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, null, null);
     }
 
     /**
