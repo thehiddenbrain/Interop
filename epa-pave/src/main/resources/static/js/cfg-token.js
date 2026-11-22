@@ -68,8 +68,8 @@ export function mount(root, route) {
         }
         const data = answer.data || {};
         fill(tested, el('p', {role: 'status'}, data.line || '',
-            typeof data.httpStatus === 'number' ? el('span', {class: 'muted'}, ' HTTP ' + data.httpStatus) : null,
-            typeof data.elapsedMillis === 'number' ? el('span', {class: 'muted'}, ', ' + data.elapsedMillis + ' ms') : null));
+            // The line is a whole sentence of the server's, so the time follows as a sentence of its own.
+            typeof data.elapsedMillis === 'number' ? el('span', {class: 'muted'}, ' Took ' + data.elapsedMillis + ' ms.') : null));
     }
 
     function drawFacts() {
