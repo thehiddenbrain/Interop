@@ -137,6 +137,10 @@ export function createServiceCard(env) {
                 note: text(note)
             };
         },
+        /** The case's line of business changed: the code lines show what the list says for it. */
+        redrawCodes() {
+            picker.redraw();
+        },
         /** Text typed in the code box and not added. */
         typedCode() {
             return picker.typed();

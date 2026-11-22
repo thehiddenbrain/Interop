@@ -256,7 +256,7 @@ export function createCodePicker(spec) {
                 description ? el('span', {class: 'code-line__text', title: description}, cutDescription(description)) : null,
                 entry.check === 'not-listed' ? chip('not on the list', {dashed: true}) : null,
                 entry.check === 'failed' ? chip('not checked', {dashed: true, title: 'The code list did not answer.'}) : null,
-                entry.rows ? tags(entry.rows) : null,
+                entry.rows ? tags(forTheCase(entry.rows, spec.lineOfBusiness())) : null,
                 button('Remove', () => {
                     entries = entries.filter(other => other !== entry);
                     draw();
@@ -281,6 +281,10 @@ export function createCodePicker(spec) {
          */
         values() {
             return entries.map(entry => ({...entry.input}));
+        },
+        /** Draws the code lines again, as the case's line of business now chooses their rows. */
+        redraw() {
+            draw(true);
         },
         /** Text typed in the box and not added, trimmed. */
         typed() {
@@ -310,6 +314,12 @@ function byCode(rows) {
         found.get(row.code).push(row);
     }
     return Array.from(found, ([code, group]) => ({code, rows: group}));
+}
+
+/** The rows of the case's line of business when the list has any for it; every row otherwise. */
+function forTheCase(rows, line) {
+    const mine = line ? rows.filter(row => row.lineOfBusiness === line) : [];
+    return mine.length > 0 ? mine : rows;
 }
 
 /** What the list says of a code: whether it needs prior authorization and the vendor it names, per row. */

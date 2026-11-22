@@ -422,8 +422,11 @@ function build() {
         }
     }
 
-    onCaseChange(() => {
+    onCaseChange(reason => {
         drawBanner();
+        if (reason === 'lookup' || reason === 'picked' || reason === 'typed') {
+            service.redrawCodes();
+        }
         for (const module of Object.values(modules)) {
             if (module && typeof module.caseChanged === 'function') {
                 guarded(() => module.caseChanged());

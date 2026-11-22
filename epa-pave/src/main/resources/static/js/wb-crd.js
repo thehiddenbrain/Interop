@@ -55,11 +55,13 @@ export function mount(root, ctx) {
     const runButton = el('button', {type: 'button', class: 'btn btn--primary', on: {click: () => run()}}, 'Run check');
     const busy = busyLine();
     const readiness = el('div', {class: 'readiness'});
+    // A refusal stands above the result, which stays: a refused send changes nothing of the journey.
+    const refusal = el('div', {class: 'step-refusal'});
     const result = el('div', {class: 'step-result'});
     root.append(
         panelHead({title: 'Coverage check', tag: 'CRD', lede: 'Is prior authorization required, and what is needed?', id: 'step-title-1',
             controls: [el('label', {class: 'control-label', for: 'crd-expect'}, 'Expect'), expect, hook, toggle, previewButton, runButton]}),
-        optionsRow, readiness, busy.node, result);
+        optionsRow, readiness, busy.node, refusal, result);
 
     function drawWords(words) {
         const before = expect.value;
@@ -107,17 +109,24 @@ export function mount(root, ctx) {
             path: '/api/crd', body: crdBody(request, own()), busy, busyWords: 'Running the check...',
             buttons: [runButton, previewButton], typed: ctx.typedCode(), ctx,
             onResult: envelope => {
+                clear(refusal);
                 ctx.resulted(envelope);
                 draw();
             },
             onRefused: (error, placed) => {
                 ctx.refused(1, error);
-                fill(result, failurePanel(error, placed));
+                fill(refusal, refusedPanel(error, placed));
             },
             onFailed: error => {
-                fill(result, failurePanel(error));
+                fill(refusal, failurePanel(error));
             }
         });
+    }
+
+    /** The panel of a refusal, unless every reason of it is already shown at its field. */
+    function refusedPanel(error, placed) {
+        const all = (error.fieldErrors || []).every(each => placed.includes(each.field));
+        return all && !error.title ? null : failurePanel(error, placed);
     }
 
     async function preview() {
@@ -142,6 +151,11 @@ export function mount(root, ctx) {
         },
         hide() {},
         caseChanged() {},
+        /** Start a new case: the refusal and the result of the case before are taken away. */
+        reset() {
+            clear(refusal);
+            clear(result);
+        },
         unmount() {
             busy.stop();
         },
