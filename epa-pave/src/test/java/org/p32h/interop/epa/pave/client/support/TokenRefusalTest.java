@@ -47,7 +47,7 @@ class TokenRefusalTest {
         assertThat(said).endsWith("y".repeat(300) + " ... (cut at 300 characters)").hasSize(
                 "No access token: the token endpoint answered HTTP 401 (invalid_client). It said: ".length() + 300
                         + " ... (cut at 300 characters)".length());
-        assertThat(TokenRefusal.plain("a\r\nb\u0085c​d⁦e\ud800f \t g")).isEqualTo("a bcdef g");
+        assertThat(TokenRefusal.plain("a\r\nb\u0085c\u200bd\u2066e\ud800f \t g")).isEqualTo("a bcdef g");
     }
 
     @Test
