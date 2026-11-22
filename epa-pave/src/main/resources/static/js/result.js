@@ -283,26 +283,27 @@ function ledgerLine(envelope) {
 
 /**
  * The next step: a primary button named by the vocabulary when its action has one and the caller
- * can act on it; otherwise the server's headline, whole when short, else its first sentence.
+ * can act on it; otherwise the server's headline, whole when short, else its first sentence. After
+ * a failure the headline is also the line above the button (look-3): it says what to change there,
+ * which the button's name alone does not.
  */
 function nextStep(envelope, settings, words) {
     const step = envelope.nextStep;
     if (!step || !step.action) {
         return [];
     }
+    const headline = typeof step.headline === 'string' ? step.headline : '';
+    const line = headline === '' ? null
+        : el('p', {class: 'verdict__next'}, headline.length <= LONGEST_NEXT_STEP ? headline : firstSentence(headline)[0]);
     const action = words && Array.isArray(words.nextActions) ? words.nextActions.find(each => each.code === step.action) : null;
     const wordsOnly = typeof settings.wordsOnly === 'function' && settings.wordsOnly(step.action);
     if (action && action.button && typeof settings.onNext === 'function' && !wordsOnly) {
         const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
-        return [button(action.button, () => settings.onNext(step.action, envelope),
-            {primary: true, disabled: Boolean(blocked), title: blocked || null})];
+        const go = button(action.button, () => settings.onNext(step.action, envelope),
+            {primary: true, disabled: Boolean(blocked), title: blocked || null});
+        return envelope.error && line ? [line, go] : [go];
     }
-    const headline = typeof step.headline === 'string' ? step.headline : '';
-    if (headline === '') {
-        return [];
-    }
-    const shown = headline.length <= LONGEST_NEXT_STEP ? headline : firstSentence(headline)[0];
-    return [el('p', {class: 'verdict__next'}, shown)];
+    return line ? [line] : [];
 }
 
 /** One visible line when the code list and the service disagree, above the folds that explain it. */

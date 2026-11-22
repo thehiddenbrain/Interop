@@ -89,4 +89,30 @@ class WorkbenchRecheckFrontendTest {
         String css = StaticSources.withoutComments(StaticSources.read("css/workbench.css"));
         assertThat(StaticSources.body(css, ".detail .table td {")).contains("white-space: normal;", "overflow-wrap: anywhere;");
     }
+
+    @Test
+    void aFailureSaysWhatToChangeAboveItsButton(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the next step of a failure", PRELUDE + """
+                const vocabulary = {nextActions: [{code: 'OPEN_CONFIG', button: 'Open Configuration'}, {code: 'START_DTR', button: 'Continue to the questionnaire'}]};
+                globalThis.fetch = async () => ({ok: true, status: 200, text: async () => JSON.stringify(vocabulary)});
+                const {resultCard} = await import('./js/result.js');
+                const headline = 'Set draftOrders type to Left out for Sample Sandbox in Configuration > Environments, then run the check again.';
+                const refused = {runId: 'run-7', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'VENDOR',
+                  verdict: {headline: 'The service did not accept the request as sent (HTTP 400).', tone: 'FAULT'}, expectation: {result: 'unverified'},
+                  error: {kind: 'VENDOR_REJECTED', httpStatus: 400, title: 'The service did not accept the request as sent.', issues: []},
+                  nextStep: {action: 'OPEN_CONFIG', headline}, ledger: {recorded: true}, timing: {elapsedMillis: 5}};
+                const settings = {context: 'workbench', onNext() {}};
+                const card = resultCard(refused, settings);
+                const passed = resultCard({...refused, error: undefined, verdict: {headline: 'Documentation is required.'},
+                  nextStep: {action: 'START_DTR', headline: 'Fetch the questionnaire the answer names.'}}, settings);
+                await new Promise(done => setTimeout(done, 30));
+                const foot = node => Array.from(node.querySelectorAll('.verdict__next, button')).map(each => each.textContent).filter(text => text !== '');
+                say(foot(card).filter(text => text === headline || text === 'Open Configuration'));
+                say(foot(passed).filter(text => text.startsWith('Fetch') || text.startsWith('Continue')));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"Set draftOrders type to Left out for Sample Sandbox in Configuration > Environments, then run the check again.\",\"Open Configuration\"]",
+                "[\"Continue to the questionnaire\"]");
+    }
 }
