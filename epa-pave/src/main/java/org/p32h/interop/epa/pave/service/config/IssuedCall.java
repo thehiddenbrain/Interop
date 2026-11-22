@@ -25,6 +25,7 @@ final class IssuedCall implements PreparedCall {
     private final String savedBody;
     private final java.util.function.Supplier<SentSecrets> held;
     private volatile SentSecrets heldOnce;
+    private final Timeouts timeouts;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -56,6 +57,13 @@ final class IssuedCall implements PreparedCall {
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody,
                java.util.function.Supplier<SentSecrets> held) {
+        this(operation, method, url, headers, environment, requestName, scripted, epoch, resolver, savedBody, held, Timeouts.APPLICATION);
+    }
+
+    /** @param timeouts the connect and read timeouts in force for this call, both present */
+    IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
+               String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody,
+               java.util.function.Supplier<SentSecrets> held, Timeouts timeouts) {
         this.operation = operation;
         this.method = method;
         this.url = url;
@@ -67,6 +75,9 @@ final class IssuedCall implements PreparedCall {
         this.resolver = resolver;
         this.savedBody = savedBody;
         this.held = held == null ? SentSecrets::none : held;
+        // A value left out here would fail in the client that builds its connection from it, far
+        // from where the call was prepared, so each missing one is filled where it is known.
+        this.timeouts = timeouts == null ? Timeouts.APPLICATION : timeouts.over(Timeouts.APPLICATION);
     }
 
     @Override
@@ -128,6 +139,11 @@ final class IssuedCall implements PreparedCall {
             heldOnce = known;
         }
         return known;
+    }
+
+    @Override
+    public Timeouts timeouts() {
+        return timeouts;
     }
 
     /**
