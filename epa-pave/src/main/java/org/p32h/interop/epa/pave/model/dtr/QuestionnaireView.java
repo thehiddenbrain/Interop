@@ -32,6 +32,9 @@ import java.util.List;
  * @param json          the resource exactly as returned, as compact JSON. The next step posts it back,
  *                      because the tool keeps no session between steps
  * @param kindLabel     the words for {@code kind}, taken from the kind. Null only when the kind is null
+ * @param kindShort     the kind in two words for the questionnaire's chip, "static form" or "adaptive
+ *                      form", taken from the kind. Null when the kind is undetermined or null: the
+ *                      chip then shows nothing rather than a kind this tool could not tell
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record QuestionnaireView(
@@ -65,7 +68,8 @@ public record QuestionnaireView(
         String answersBasis,
         String arrivedWith,
         String json,
-        String kindLabel) {
+        String kindLabel,
+        String kindShort) {
 
     /** A questionnaire with the words for its kind taken from the kind. */
     public QuestionnaireView(int position, String foundAt, String subject, Shown id, Shown url, Shown version, String canonical, Shown name,
@@ -76,11 +80,24 @@ public record QuestionnaireView(
                              List<String> notApplied, String answersBasis, String arrivedWith, String json) {
         this(position, foundAt, subject, id, url, version, canonical, name, title, status, date, publisher, description, narrative,
                 narrativeStatus, subjectType, profiles, derivedFrom, kind, kindBasis, questionCount, requiredCount, items, extensions,
-                contained, problems, notApplied, answersBasis, arrivedWith, json, null);
+                contained, problems, notApplied, answersBasis, arrivedWith, json, null, null);
+    }
+
+    /** A questionnaire as built before the kind had short words, which are taken from the kind all the same. */
+    public QuestionnaireView(int position, String foundAt, String subject, Shown id, Shown url, Shown version, String canonical, Shown name,
+                             Shown title, DtrCode status, Shown date, Shown publisher, Shown description, Shown narrative,
+                             Shown narrativeStatus, List<Shown> subjectType, List<Shown> profiles, List<Shown> derivedFrom,
+                             QuestionnaireKind kind, String kindBasis, int questionCount, int requiredCount, List<ItemView> items,
+                             List<ExtensionView> extensions, List<PackageResourceView> contained, List<String> problems,
+                             List<String> notApplied, String answersBasis, String arrivedWith, String json, String kindLabel) {
+        this(position, foundAt, subject, id, url, version, canonical, name, title, status, date, publisher, description, narrative,
+                narrativeStatus, subjectType, profiles, derivedFrom, kind, kindBasis, questionCount, requiredCount, items, extensions,
+                contained, problems, notApplied, answersBasis, arrivedWith, json, kindLabel, null);
     }
 
     public QuestionnaireView {
         kindLabel = kind == null ? null : kind.label();
+        kindShort = kind == QuestionnaireKind.STATIC ? "static form" : kind == QuestionnaireKind.ADAPTIVE ? "adaptive form" : null;
         subjectType = subjectType == null ? List.of() : List.copyOf(subjectType);
         profiles = profiles == null ? List.of() : List.copyOf(profiles);
         derivedFrom = derivedFrom == null ? List.of() : List.copyOf(derivedFrom);

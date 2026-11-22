@@ -2,6 +2,7 @@
   "id": "pas-18-unrecognised-code",
   "number": 18,
   "label": "A review action code this tool does not know",
+  "short": "unknown review code",
   "description": "The payer returns a review action whose code is outside the codes this tool knows. The code is shown as it came and is not mapped to the nearest known one. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-UNKNOWN-CODE",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

@@ -524,13 +524,17 @@ class ReturnedSecretsTest {
         FakeGateway gateway = new FakeGateway().url(CREATE, URL);
         OnyxProperties onyx = OnyxProperties.of(Map.of("auth.enabled", "true", "auth.token-url", "https://auth.example.invalid/oauth/token",
                 "auth.client-id", "placeholder-client", "auth.client-secret", "placeholder-client-secret"));
-        server.expect(requestTo("https://auth.example.invalid/oauth/token"))
-                .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("{\"access_token\":\"" + ACCESS + "\",\"expires_in\":3600}"));
-        server.expect(requestTo(URL)).andExpect(header("Authorization", "Bearer " + ACCESS))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"login\",\"diagnostics\":\"The token "
-                                + ACCESS + " has expired.\"}]}")
-                        .header("WWW-Authenticate", "Bearer error=\"invalid_token\", token=\"" + ACCESS + "\""));
+        // A 401 to a call signed in by client credentials drops the token, signs in again and sends
+        // once more (R-03); the second 401 is the answer, and the masking must hold on it.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            server.expect(requestTo("https://auth.example.invalid/oauth/token"))
+                    .andRespond(withStatus(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("{\"access_token\":\"" + ACCESS + "\",\"expires_in\":3600}"));
+            server.expect(requestTo(URL)).andExpect(header("Authorization", "Bearer " + ACCESS))
+                    .andRespond(withStatus(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_JSON)
+                            .body("{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"login\",\"diagnostics\":\"The token "
+                                    + ACCESS + " has expired.\"}]}")
+                            .header("WWW-Authenticate", "Bearer error=\"invalid_token\", token=\"" + ACCESS + "\""));
+        }
 
         VendorExchange exchange = OnyxAccessTestFactory.create(new ExchangeExecutor(), onyx, gateway, builder.build(), Clock.systemUTC())
                 .send(gateway.prepare(CallIntent.of(CREATE)), ResolvedText.plain("{}"), FHIR);
@@ -542,6 +546,7 @@ class ReturnedSecretsTest {
         assertThat(shown.headers()).contains(new WireHeader("WWW-Authenticate", "Bearer error=\"invalid_token\", token=\"[secret access token]\""));
         assertThat(shown.maskedPlaces()).isEqualTo(2);
         assertThat(exchange.request().headers()).contains(new WireHeader("Authorization", "Bearer [redacted]"));
+        assertThat(exchange.request().note()).isEqualTo("The first attempt was refused with HTTP 401; PAVE signed in again and sent it once more.");
     }
 
     // ---- the real gateway and the real resolver ----

@@ -24,19 +24,50 @@ import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
  *                            environment only when this is true
  * @param productionSigns     what about the upload looked like production, in words. Empty when
  *                            nothing did
+ * @param settings            what the environment states for itself on screen (plan 5.1), never
+ *                            null; {@link EnvironmentSettings#none()} when it states nothing or
+ *                            when its stored settings could not be read
+ * @param settingsProblem     why the stored settings could not be read, in words, or null when
+ *                            they were read or there were none
+ * @param unreadSettings      the settings entry exactly as store.json held it when it could not be
+ *                            read, written back unchanged on every commit so nothing the tester
+ *                            stated is lost; null otherwise
  */
 record StoredEnvironment(String id, String name, EnvironmentKind kind, PostmanEnvironment content, String file,
-                         String originalFileName, String uploadedAt, boolean acknowledgedNotProd, List<String> productionSigns) {
+                         String originalFileName, String uploadedAt, boolean acknowledgedNotProd, List<String> productionSigns,
+                         EnvironmentSettings settings, String settingsProblem, tools.jackson.databind.JsonNode unreadSettings) {
 
     StoredEnvironment {
         productionSigns = productionSigns == null ? List.of() : List.copyOf(productionSigns);
+        settings = settings == null ? EnvironmentSettings.none() : settings;
+    }
+
+    /** An environment that states no settings, as every environment of a version 1 store reads. */
+    StoredEnvironment(String id, String name, EnvironmentKind kind, PostmanEnvironment content, String file, String originalFileName,
+                      String uploadedAt, boolean acknowledgedNotProd, List<String> productionSigns) {
+        this(id, name, kind, content, file, originalFileName, uploadedAt, acknowledgedNotProd, productionSigns, null, null, null);
+    }
+
+    /** The same environment with settings that were read or saved: any unreadable entry it held is replaced. */
+    StoredEnvironment withSettings(EnvironmentSettings newSettings) {
+        return new StoredEnvironment(id, name, kind, content, file, originalFileName, uploadedAt, acknowledgedNotProd, productionSigns,
+                newSettings, null, null);
+    }
+
+    /** The same settings, readable or not, carried onto an environment uploaded again under the same name. */
+    StoredEnvironment withSettingsOf(StoredEnvironment previous) {
+        if (previous == null) {
+            return this;
+        }
+        return new StoredEnvironment(id, name, kind, content, file, originalFileName, uploadedAt, acknowledgedNotProd, productionSigns,
+                previous.settings, previous.settingsProblem, previous.unreadSettings);
     }
 
     EnvironmentRef ref() {
         return new EnvironmentRef(name, kind);
     }
 
-    /** Prints the name and the kind. The content holds variable values, which can be credentials. */
+    /** Prints the name and the kind. The content holds variable values and the settings secrets, which can be credentials. */
     @Override
     public String toString() {
         return "StoredEnvironment[" + name + ", " + kind + "]";

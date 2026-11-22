@@ -2,6 +2,7 @@
   "id": "crd-10-delegated-vendor",
   "number": 10,
   "label": "Delegated vendor routing",
+  "short": "delegated vendor",
   "description": "Prior authorization is needed and the request routes to a delegated utilization management vendor, Evolent, named in the detail list. Send 70553 or 27447, which the bundled placeholder code list also routes to Evolent, to see the two agree. A code the list routes to another vendor, such as 95810 (eviCore), raises a vendor disagreement that only the two synthetic data sets create. Models CRD 2.0.1, which has no detail code for a vendor: see the assumption.",
   "sentinelMemberId": "P32H-DELEG",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["70553"]},

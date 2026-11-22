@@ -18,23 +18,30 @@ import org.p32h.interop.epa.pave.model.Tone;
  */
 public enum NotificationOutcome implements OutcomeCode {
 
-    NOTIFICATION_RECEIVED("An event notification arrived for a subscription this tool created", Tone.NEUTRAL, false),
-    HANDSHAKE_RECEIVED("A handshake arrived for a subscription this tool created", Tone.NEUTRAL, false),
-    HEARTBEAT_RECEIVED("A heartbeat arrived for a subscription this tool created", Tone.NEUTRAL, false),
-    STATUS_RECEIVED("A status report arrived for a subscription this tool created", Tone.NEUTRAL, false),
-    UNRECOGNISED_TYPE("A notification arrived whose type this tool does not recognise", Tone.NO_ANSWER, false),
-    UNMATCHED_NOTIFICATION("A notification arrived that matches no subscription this tool created", Tone.NEUTRAL, false),
-    UNCHECKED_NOTIFICATION("A notification arrived and the ledger could not be asked which subscription it belongs to", Tone.FAULT, true),
-    UNREADABLE_NOTIFICATION("Something arrived at the receiver that is not a subscription notification", Tone.FAULT, true);
+    NOTIFICATION_RECEIVED("Notification", "An event notification arrived for a subscription this tool created", Tone.NEUTRAL, false),
+    HANDSHAKE_RECEIVED("Handshake", "A handshake arrived for a subscription this tool created", Tone.NEUTRAL, false),
+    HEARTBEAT_RECEIVED("Heartbeat", "A heartbeat arrived for a subscription this tool created", Tone.NEUTRAL, false),
+    STATUS_RECEIVED("Status report", "A status report arrived for a subscription this tool created", Tone.NEUTRAL, false),
+    UNRECOGNISED_TYPE("Unknown type", "A notification arrived whose type this tool does not recognise", Tone.NO_ANSWER, false),
+    UNMATCHED_NOTIFICATION("Unmatched", "A notification arrived that matches no subscription this tool created", Tone.NEUTRAL, false),
+    UNCHECKED_NOTIFICATION("Not checked", "A notification arrived and the ledger could not be asked which subscription it belongs to", Tone.FAULT, true),
+    UNREADABLE_NOTIFICATION("Unreadable", "Something arrived at the receiver that is not a subscription notification", Tone.FAULT, true);
 
+    private final String shortLabel;
     private final String label;
     private final Tone tone;
     private final boolean fault;
 
-    NotificationOutcome(String label, Tone tone, boolean fault) {
+    NotificationOutcome(String shortLabel, String label, Tone tone, boolean fault) {
+        this.shortLabel = shortLabel;
         this.label = label;
         this.tone = tone;
         this.fault = fault;
+    }
+
+    @Override
+    public String shortLabel() {
+        return shortLabel;
     }
 
     @Override

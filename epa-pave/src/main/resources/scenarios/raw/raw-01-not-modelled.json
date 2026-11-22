@@ -2,6 +2,7 @@
   "id": "raw-01-not-modelled",
   "number": 1,
   "label": "An unmapped request, answered by the mock",
+  "short": "unmapped request",
   "description": "The mock profile does not model requests the tool could not map to an operation. It answers every one of them with this fixed body, so a tester can see what sending one looks like without a network.",
   "behavior": "respond",
   "httpStatus": 200,

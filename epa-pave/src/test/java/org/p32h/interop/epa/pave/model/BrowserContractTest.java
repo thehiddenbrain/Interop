@@ -47,11 +47,11 @@ class BrowserContractTest {
     void anOutcomeCarriesItsLabelAndToneSoTheBrowserKeepsNoCopyOfTheEnums() {
         List<OutcomeOption> options = OutcomeOption.listOf(CrdOutcome.values(), RunOutcome.values());
         assertThat(options).hasSize(CrdOutcome.values().length + RunOutcome.values().length);
-        assertThat(options).contains(new OutcomeOption("NO_AUTH_REQUIRED", "Prior authorization is not required", Tone.CLEAR, false),
-                new OutcomeOption("BLOCKED", "Blocked: nothing was sent", Tone.BLOCKED, false),
-                new OutcomeOption("TOOL_ERROR", "This tool failed after the call was made", Tone.FAULT, true));
+        assertThat(options).contains(new OutcomeOption("NO_AUTH_REQUIRED", "Prior authorization is not required", "PA not required", Tone.CLEAR, false),
+                new OutcomeOption("BLOCKED", "Blocked: nothing was sent", "Blocked", Tone.BLOCKED, false),
+                new OutcomeOption("TOOL_ERROR", "This tool failed after the call was made", "Tool error", Tone.FAULT, true));
         JsonNode option = json(OutcomeOption.of(CrdOutcome.NO_DETERMINATION));
-        assertThat(option.propertyNames()).containsExactly("code", "label", "tone", "fault");
+        assertThat(option.propertyNames()).containsExactly("code", "label", "short", "tone", "fault");
     }
 
     @Test
