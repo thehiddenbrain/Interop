@@ -14,8 +14,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
 import org.p32h.interop.epa.pave.web.StaticSources.Source;
 
 /**
- * The pages of Configuration batch I builds first (plan 10.9, I1): Collections, Production writes,
- * In force now and Access token, and the one-line pages that later slices replace. Each page is
+ * The pages of Configuration batch I builds (plan 10.9, I1 and I4): Collections, Production writes
+ * with Forget, In force now with the stored files PAVE could not read, Access token and Trail. Each page is
  * run with Node against answers of the shapes the server documents, with a stand-in for the frame
  * (app.js) written in place of the real one, because the frame starts polling as soon as it is
  * loaded. What each test holds:
@@ -29,6 +29,9 @@ import org.p32h.interop.epa.pave.web.StaticSources.Source;
  *   <li>a secret input is a password field never given a value from the server, and a stored
  *       secret is said as "Stored", never by its reference</li>
  *   <li>a part is drawn only when the server's answer carries its field</li>
+ *   <li>Trail and Forget ask before they act and send once; Forget sends the name as typed and is
+ *       offered only where the server says so (R-21, R-35); a stored file PAVE could not read is
+ *       listed with the server's line and removed alone (R-32)</li>
  *   <li>every field the pages read is a property of the record the server answers with</li>
  * </ul>
  */
@@ -298,22 +301,158 @@ class ConfigPagesFrontendTest {
                 "[\"mock\",true,0,false]");
     }
 
+    /** The Trail page: the server's count, size, folder and number kept; Empty asks first and is sent once; switched off names the setting and offers nothing. */
     @Test
-    void everyLaterPageOfThisBatchIsAOneLinePageThatKeepsThePageContract(@TempDir Path folder) throws Exception {
-        List<String> stubs = List.of("cfg-trail.js");
-        StringBuilder script = new StringBuilder("import './browser.js';\n");
-        for (String stub : stubs) {
-            script.append("{ const {mount} = await import('./js/").append(stub).append("');\n")
-                    .append("  const root = document.createElement('div');\n")
-                    .append("  const page = mount(root, ['advanced']);\n")
-                    .append("  const shown = root.textContent;\n")
-                    .append("  page.update(['advanced']);\n")
-                    .append("  page.unmount();\n")
-                    .append("  console.log(JSON.stringify([shown, root.childNodes.length])); }\n");
-        }
-        NodeRun run = StaticSources.runModule(folder, "the later pages", script.toString());
+    void theTrailPageSaysWhatIsKeptAndEmptiesItOnlyAfterAsking(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "cfg-trail.js", PRELUDE + """
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, count: 3, maxEntries: 500, bytes: 2048, folder: './run-history/trail'}};
+            const {mount} = await import('./js/cfg-trail.js');
+            const root = document.createElement('div');
+            document.body.append(root);
+            const page = mount(root, ['advanced', 'trail']);
+            await settle();
+            let all = text(root);
+            say(['kept', all.includes('The last 500 runs\\' requests and responses, secrets masked, member data inside. Kept in ./run-history/trail, never in the ledger or the log.'),
+                all.includes('3 runs kept, 2 KB'), root.querySelectorAll('button').map(text)]);
+            await root.querySelectorAll('button').find(each => text(each) === 'Empty the trail').click();
+            let dialog = document.querySelector('dialog');
+            say(['asked', text(dialog.querySelector('.modal__title')), text(dialog.querySelector('.modal__body')), dialog.querySelectorAll('button').map(text),
+                fake.sent.filter(each => each.key === 'DELETE /api/trail').length]);
+            await dialog.querySelectorAll('button').find(each => text(each) === 'Keep them').click();
+            say(['kept again', document.querySelector('dialog') === null, fake.sent.filter(each => each.key === 'DELETE /api/trail').length]);
+            fake.answers['DELETE /api/trail'] = {status: 200, body: {removed: 3}};
+            await root.querySelectorAll('button').find(each => text(each) === 'Empty the trail').click();
+            dialog = document.querySelector('dialog');
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, count: 0, maxEntries: 500, bytes: 0, folder: './run-history/trail'}};
+            await dialog.querySelectorAll('button').find(each => text(each) === 'Empty the trail').click();
+            await settle();
+            all = text(root);
+            say(['emptied', fake.sent.filter(each => each.key === 'DELETE /api/trail').length, all.includes('The trail is emptied: 3 runs\\' requests and responses removed.'),
+                all.includes('0 runs kept, 0 bytes'), root.querySelectorAll('button').length, document.querySelector('dialog') === null]);
+            page.unmount();
+            // Switched off: the server's setting is named and nothing is offered.
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: false, count: 0, maxEntries: 500, bytes: 0, folder: './run-history/trail'}};
+            const off = document.createElement('div');
+            mount(off, ['advanced', 'trail']);
+            await settle();
+            say(['off', text(off), off.querySelectorAll('button').length]);
+            // Another number kept is said as the server's; a count it does not give is not said as 0.
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, maxEntries: 40, folder: 'D:/pave/trail'}};
+            const other = document.createElement('div');
+            mount(other, ['advanced', 'trail']);
+            await settle();
+            say(['other', text(other).includes('The last 40 runs\\''), text(other).includes('runs kept'), other.querySelectorAll('button').length]);
+            // A failure is the error panel, with its reference and cause.
+            fake.answers['GET /api/trail'] = {status: 500, body: {kind: 'INTERNAL', title: 'A failure of this tool.', reference: 'R-0001', cause: 'IOException'}};
+            const failed = document.createElement('div');
+            mount(failed, ['advanced', 'trail']);
+            await settle();
+            say(['failed', text(failed).includes('A failure of this tool.'), text(failed).includes('R-0001'), failed.querySelectorAll('button').map(text).includes('Empty the trail')]);
+            """);
         assertThat(run.exit()).as(run.output()).isZero();
-        assertThat(run.lines()).hasSize(stubs.size()).allMatch("[\"This page comes in the next release.\",0]"::equals);
+        assertThat(run.lines()).containsExactly(
+                "[\"kept\",true,true,[\"Empty the trail\"]]",
+                "[\"asked\",\"Empty the trail?\",\"3 runs' requests and responses are removed. The ledger keeps its lines.\",[\"Keep them\",\"Empty the trail\"],0]",
+                "[\"kept again\",true,0]",
+                "[\"emptied\",1,true,true,0,true]",
+                "[\"off\",\"TrailThe trail is switched off on this installation (trail.enabled).\",0]",
+                "[\"other\",true,false,0]",
+                "[\"failed\",true,true,false]");
+    }
+
+    /** Forget this production address: offered only where the server marks the address forgettable; the name goes as typed; a refusal at the name is shown at its field. */
+    @Test
+    void forgetIsOfferedOnlyWhereTheServerSaysAndTheNameGoesAsTyped(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "cfg-writes.js", PRELUDE + """
+            fake.mode = {mode: 'live', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true},
+                writeAccess: {production: false, writesAllowed: true, floorAllows: true, reason: 'The active environment is not production.'}};
+            fake.answers['GET /api/config/effective'] = {status: 200, body: {operations: []}};
+            const environments = {environments: [], productionDestinations: [
+                {environment: 'PAVE Sample Prod', destination: 'https://pas.example.invalid', stored: true, forgettable: false},
+                {environment: 'Old Prod', destination: 'https://old.example.invalid', stored: false, forgettable: true}]};
+            fake.answers['GET /api/config/environments'] = {status: 200, body: environments};
+            const {mount} = await import('./js/cfg-writes.js');
+            const root = document.createElement('div');
+            document.body.append(root);
+            mount(root, ['production-writes']);
+            await settle();
+            const forgets = () => root.querySelectorAll('button').filter(each => text(each) === 'Forget this production address');
+            // Offered only where the server says the address may be forgotten.
+            say(['offered', forgets().length, root.querySelectorAll('tr').map(row => row.querySelectorAll('button').length)]);
+            await forgets()[0].click();
+            let dialog = document.querySelector('dialog');
+            say(['asked', text(dialog.querySelector('.modal__title')), text(dialog.querySelector('.modal__body')).includes('https://old.example.invalid'),
+                text(dialog.querySelector('.modal__body')).includes('Old Prod'), dialog.querySelector('input').value || '', dialog.querySelectorAll('button').map(text)]);
+            fake.answers['POST /api/config/production-destinations/forget'] = {status: 422, body: {kind: 'VALIDATION', title: 'The name does not match.',
+                fieldErrors: [{field: 'environment', message: 'Type the name exactly as it was.'}]}};
+            dialog.querySelector('input').value = 'old prod ';
+            await dialog.querySelectorAll('button').find(each => text(each) === 'Forget this production address').click();
+            await settle();
+            say(['refused', fake.sent.filter(each => each.key === 'POST /api/config/production-destinations/forget').map(each => each.body),
+                text(dialog.querySelector('.field__error')), document.querySelector('dialog') !== null]);
+            fake.answers['POST /api/config/production-destinations/forget'] = {status: 200, body: {forgotten: 'https://old.example.invalid', epoch: 7}};
+            environments.productionDestinations = environments.productionDestinations.slice(0, 1);
+            dialog.querySelector('input').value = 'Old Prod';
+            await dialog.querySelectorAll('button').find(each => text(each) === 'Forget this production address').click();
+            await settle();
+            say(['forgotten', fake.sent.filter(each => each.key === 'POST /api/config/production-destinations/forget').length, document.querySelector('dialog') === null,
+                text(root).includes('https://old.example.invalid is no longer remembered as production.'), forgets().length,
+                root.querySelectorAll('th').map(text)]);
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"offered\",1,[0,0,1]]",
+                "[\"asked\",\"Forget this production address?\",true,true,\"\",[\"Keep it\",\"Forget this production address\"]]",
+                "[\"refused\",[{\"destination\":\"https://old.example.invalid\",\"environment\":\"old prod \"}],\"Type the name exactly as it was.\",true]",
+                "[\"forgotten\",2,true,true,0,[\"Address\",\"Environment\",\"Environment still stored\"]]");
+    }
+
+    /** In force now lists the stored files PAVE could not read with the server's line, and "Remove it from the store" sends that file alone. */
+    @Test
+    void unreadableStoredFilesAreListedWithTheServersLineAndRemovedOneAtATime(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "cfg-inforce.js", PRELUDE + """
+            fake.mode = {mode: 'live', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true},
+                writeAccess: {production: false, writesAllowed: true, floorAllows: true, reason: 'The active environment is not production.'}};
+            const effective = {mode: 'live', storeDirectory: './config-store', problems: [], operations: [], settings: [],
+                unreadable: [{file: 'environments/pave-sample-uat.json', line: 'Not read: it is not valid JSON. It was left out when PAVE started.'},
+                    {file: 'store.json#productionDestinations[2]', line: 'Kept as text: it is not an address PAVE can read.'}]};
+            fake.answers['GET /api/config/effective'] = {status: 200, body: effective};
+            fake.answers['GET /api/config/environments'] = {status: 200, body: {environments: []}};
+            const {mount} = await import('./js/cfg-inforce.js');
+            const root = document.createElement('div');
+            document.body.append(root);
+            mount(root, ['advanced', 'in-force']);
+            await settle();
+            let all = text(root);
+            const removes = () => root.querySelectorAll('button').filter(each => text(each) === 'Remove it from the store');
+            say(['listed', all.includes('2 stored files were left out, as PAVE could not read them.'), all.includes('environments/pave-sample-uat.json'),
+                all.includes('Not read: it is not valid JSON. It was left out when PAVE started.'), removes().length,
+                all.indexOf('Stored files PAVE could not read') < all.indexOf('Where PAVE is pointed')]);
+            fake.answers['POST /api/config/unreadable/remove'] = {status: 500, body: {kind: 'INTERNAL', title: 'A failure of this tool.', reference: 'R-0003', cause: 'AccessDeniedException'}};
+            await removes()[0].click();
+            await settle();
+            all = text(root);
+            say(['failed', all.includes('A failure of this tool.'), all.includes('R-0003'), removes().length]);
+            fake.answers['POST /api/config/unreadable/remove'] = {status: 200, body: {removed: 'environments/pave-sample-uat.json', epoch: 9}};
+            effective.unreadable = effective.unreadable.slice(1);
+            await removes()[0].click();
+            await settle();
+            all = text(root);
+            say(['removed', fake.sent.filter(each => each.key === 'POST /api/config/unreadable/remove').map(each => each.body),
+                all.includes('Removed environments/pave-sample-uat.json from the configuration store.'), all.includes('A failure of this tool.'),
+                all.includes('One stored file was left out, as PAVE could not read it.'), removes().length]);
+            // None served: no part.
+            delete effective.unreadable;
+            await root.querySelectorAll('button').find(each => text(each) === 'Read again').click();
+            await settle();
+            say(['none', text(root).includes('Stored files PAVE could not read'), removes().length]);
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"listed\",true,true,true,2,true]",
+                "[\"failed\",true,true,2]",
+                "[\"removed\",[{\"file\":\"environments/pave-sample-uat.json\"},{\"file\":\"environments/pave-sample-uat.json\"}],true,false,true,1]",
+                "[\"none\",false,0]");
     }
 
     @Test
@@ -331,7 +470,7 @@ class ConfigPagesFrontendTest {
 
     @Test
     void noPageOfThisBatchGivesAnInputAValueFromTheServer() throws IOException {
-        for (String name : List.of("cfg-collections.js", "cfg-writes.js", "cfg-inforce.js", "cfg-token.js")) {
+        for (String name : List.of("cfg-collections.js", "cfg-writes.js", "cfg-inforce.js", "cfg-token.js", "cfg-trail.js")) {
             String code = StaticSources.withoutComments(StaticSources.script(name));
             // An input is only ever emptied here: a value typed by the tester goes out, nothing comes back into one.
             for (String line : code.split("\n")) {

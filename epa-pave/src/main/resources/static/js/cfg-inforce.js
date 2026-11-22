@@ -24,7 +24,9 @@ export function mount(root, route) {
     const busy = el('span', {class: 'muted small', role: 'status'});
     const again = button('Read again', () => during(again, busy, 'Reading', load), {small: true});
     const body = el('div');
-    const page = section(pageHead('In force now', 'What a run would use now, as PAVE reads its configuration.', busy, again), body);
+    // What an action of this page did, kept above the parts so a redraw after it does not take it away.
+    const said = el('div', {'aria-live': 'polite'});
+    const page = section(pageHead('In force now', 'What a run would use now, as PAVE reads its configuration.', busy, again), said, body);
     root.append(page);
 
     async function load() {
@@ -41,6 +43,7 @@ export function mount(root, route) {
         const mode = app.mode() || {};
         fill(body,
             checklist(data, mode),
+            unreadablePart(data),
             pointed(data, mode, environments.ok ? environments.data : null),
             operationsPart(data),
             settingsPart(data),
@@ -102,6 +105,46 @@ export function mount(root, route) {
             helpers.length > 0 ? el('p', {class: 'small'}, count === 1
                 ? 'A Postman sign-in helper is set on the request used for 1 operation (' + listed(helpers) + '). PAVE does not apply it, so that call goes without signing in.'
                 : 'Postman sign-in helpers are set on the requests used for ' + count + ' operations (' + listed(helpers) + '). PAVE does not apply them, so those calls go without signing in.') : null);
+    }
+
+    /* ---------- stored files PAVE could not read ---------- */
+
+    /**
+     * A stored file that could not be read is left out at start and listed here, with the server's
+     * line about it (plan R-32). Removing it moves it aside in the store; the server says what it did.
+     */
+    function unreadablePart(data) {
+        const files = Array.isArray(data.unreadable) ? data.unreadable.filter(each => each && each.file) : [];
+        if (files.length === 0) {
+            return null;
+        }
+        return part('Stored files PAVE could not read', el('div', {class: 'verdict verdict--action'},
+            el('p', {class: 'verdict__headline'}, files.length === 1 ? 'One stored file was left out, as PAVE could not read it.'
+                : files.length + ' stored files were left out, as PAVE could not read them.'),
+            kv(files.map(each => {
+                const busyLine = el('span', {class: 'muted small', role: 'status'});
+                const remove = button('Remove it from the store',
+                    () => during(remove, busyLine, 'Removing', () => removeUnreadable(each.file)), {small: true});
+                return {key: el('span', {class: 'mono'}, each.file),
+                    value: el('div', {class: 'form-section'}, each.line ? el('div', null, each.line) : null, el('div', null, remove, ' ', busyLine))};
+            }))));
+    }
+
+    async function removeUnreadable(file) {
+        clear(said);
+        const answer = await call('POST', '/api/config/unreadable/remove', {body: {file}});
+        if (gone) {
+            return;
+        }
+        if (!answer.ok) {
+            fill(said, errorPanel(answer.error));
+            return;
+        }
+        // removed names the file the server moved; until its shape is known, a value that is not a name is not shown.
+        const removed = answer.data && typeof answer.data.removed === 'string' && answer.data.removed !== '' ? answer.data.removed : file;
+        fill(said, el('p', {role: 'status'}, 'Removed ', el('span', {class: 'mono'}, removed),
+            ' from the configuration store.'));
+        await load();
     }
 
     /* ---------- where PAVE is pointed ---------- */
