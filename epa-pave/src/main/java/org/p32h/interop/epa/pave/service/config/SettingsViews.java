@@ -133,7 +133,7 @@ public final class SettingsViews {
      *
      * @param display     the value, a secret masked; absent when not set
      * @param source      THIS_ENVIRONMENT, EXPORT, APPLICATION_YML or NOT_SET
-     * @param sourceLabel the source in words: "typed here", "from the export", "application.yml", "not set"
+     * @param sourceLabel the source in words: "typed here", "from the export's variable <name>", "from application.yml", "not set"
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record InForce(String display, String source, String sourceLabel) {

@@ -541,6 +541,9 @@ export function createEditor(options) {
         const wrapper = field({label, input, hint: lines.join(' ')});
         if (stored && stored.set === true) {
             wrapper.append(el('label', {class: 'config-check small'}, removeBox, el('span', null, removeWords)));
+            if (!reference) {
+                storedSecretClosed(wrapper, input);
+            }
         }
         return wrapper;
     }
@@ -608,8 +611,7 @@ export function createEditor(options) {
                 placeholder: 'Type a value to use instead'});
             input.value = value.typed === null || value.typed === undefined ? '' : String(value.typed);
             valueInputs.set(value.name, input);
-            const inForce = value.inForce || {};
-            const wrapper = fieldWith(value.label || value.name, input, inForceLine(inForce), value.why || null);
+            const wrapper = overField(value.label || value.name, input, value.inForce || {}, value.why || null);
             const exported = exportVariable(value.name);
             if (exported) {
                 wrapper.append(el('p', {class: 'field__hint'}, 'from the export: ', el('span', {class: 'mono'}, exported)));
@@ -657,8 +659,7 @@ export function createEditor(options) {
                 placeholder: 'Type an address to use instead'});
             input.value = address.typed === null || address.typed === undefined ? '' : String(address.typed);
             addressInputs.set(address.operation, input);
-            const inForce = address.inForce || {};
-            const wrapper = fieldWith(address.label || address.operation, input, inForceLine(inForce), null);
+            const wrapper = overField(address.label || address.operation, input, address.inForce || {}, null);
             rows.push(register('addresses.' + address.operation, wrapper, 'addresses'));
         }
         const block = el('div', {class: 'form-section', 'data-section': 'addresses'},
@@ -1027,6 +1028,9 @@ export function createEditor(options) {
                 continue;
             }
             setFieldError(part.wrapper, each.message);
+            if (typeof part.wrapper.openBox === 'function') {
+                part.wrapper.openBox();
+            }
             openFold(part.fold);
             placed.push(each.field);
         }
@@ -1151,6 +1155,86 @@ function inForceLine(inForce) {
         inForce.display ? el('span', {class: 'mono'}, inForce.display) : null,
         inForce.display ? ' ' : null,
         el('span', {class: 'muted'}, inForce.sourceLabel || 'not set'));
+}
+
+/**
+ * A row of Values or Addresses (D-307). What is in force and where it comes from is the row's own
+ * content, and the box to type over it is shown only when something is typed or nothing is in
+ * force: on the first real run an empty box beside a value the files gave was read as a field left
+ * unfilled, and a typed address replaced the collection's request with its headers and body.
+ * "Change" opens the box; the button under it takes what was typed away again.
+ */
+function overField(label, input, inForce, why) {
+    const source = inForce.source || 'NOT_SET';
+    const nothing = source === 'NOT_SET' || source === 'NONE';
+    const typed = source === 'THIS_ENVIRONMENT' || input.value !== '';
+    const wrapper = fieldWith(label, input, inForceLine(inForce), why);
+    const gone = el('p', {class: 'field__hint config-over__gone', hidden: true},
+        'What was typed here is taken away when the environment is saved.');
+    const change = button('Change', () => openBox(true), {small: true, quiet: true});
+    const back = button(typed ? "Use the file's again" : againWords(source), () => {
+        if (typed) {
+            gone.hidden = false;
+        }
+        input.value = '';
+        input.hidden = true;
+        back.hidden = true;
+        change.hidden = false;
+        change.focus();
+    }, {small: true, quiet: true});
+    function openBox(focus) {
+        input.hidden = false;
+        change.hidden = true;
+        back.hidden = nothing && !typed;
+        gone.hidden = true;
+        if (focus) {
+            input.focus();
+        }
+    }
+    wrapper.classList.add('config-over');
+    wrapper.append(el('div', {class: 'config-over__actions'}, change, back), gone);
+    wrapper.openBox = () => openBox(false);
+    if (typed || nothing) {
+        openBox(false);
+    } else {
+        input.hidden = true;
+        back.hidden = true;
+    }
+    return wrapper;
+}
+
+/**
+ * A stored secret is said as stored, with its reference, and its password box opens on "Change"
+ * (D-307): an empty box under a stored secret read as one still to fill. A box that was opened and
+ * left empty still keeps what is stored.
+ */
+function storedSecretClosed(wrapper, input) {
+    const change = button('Change', () => {
+        input.hidden = false;
+        change.hidden = true;
+        input.focus();
+    }, {small: true, quiet: true});
+    input.hidden = true;
+    wrapper.classList.add('config-over');
+    wrapper.openBox = () => {
+        input.hidden = false;
+        change.hidden = true;
+    };
+    wrapper.append(el('div', {class: 'config-over__actions'}, change));
+}
+
+/** The words of the button that goes back to what lies under a box nothing was typed in yet. */
+function againWords(source) {
+    if (source === 'COLLECTION') {
+        return "Use the collection's request again";
+    }
+    if (source === 'APPLICATION_YML') {
+        return "Use application.yml's again";
+    }
+    if (source === 'EXPORT') {
+        return "Use the export's again";
+    }
+    return "Use the file's again";
 }
 
 function variableCount(variables) {

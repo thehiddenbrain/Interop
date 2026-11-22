@@ -73,9 +73,9 @@ class ConfigFrontendTest {
                     options: [{value: 'SENT', words: 'Sent (FHIR requires it)'}, {value: 'LEFT_OUT', words: 'Left out (this vendor refuses it)'}],
                     why: 'Why it exists.'}],
                 values: [{name: 'fhirServer', label: 'FHIR server', why: 'Sent in CRD.', typed: null,
-                    inForce: {display: 'https://fhir.vendor.example.invalid', source: 'EXPORT', sourceLabel: 'from the export'}}],
+                    inForce: {display: 'https://fhir.vendor.example.invalid', source: 'EXPORT', sourceLabel: "from the export's variable fhirServer"}}],
                 addresses: [{operation: 'PAS_SUBMIT', label: 'PAS submit', short: 'PAS submit', typed: null,
-                    inForce: {display: 'https://vendor.example.invalid/fhir/Claim/$submit', source: 'COLLECTION', sourceLabel: 'collection request',
+                    inForce: {display: 'https://vendor.example.invalid/fhir/Claim/$submit', source: 'COLLECTION', sourceLabel: `from the collection's request "PAS submit"`,
                         resolved: true, unresolved: []}}]
             });
             const inputsOf = dialog => dialog.querySelectorAll('input');
@@ -110,6 +110,65 @@ class ConfigFrontendTest {
                 // I-3 (live-config-8): the panel names each field by its label with its sentence, also when it is placed at the field.
                 "true",
                 "[\"Wait for a response up to (ms) Between 100 and 600000.\",\"FHIR server Type an absolute address.\",\"Said above the form.\"]");
+    }
+
+    /**
+     * D-307: on the first real run a box that stood empty beside a value the files gave was read as
+     * a field left unfilled. A row in force shows that value and where it comes from as its own
+     * content, its box closed; "Change" opens the box and the button under it closes it and takes
+     * what was typed away; a typed row and a row with nothing in force show their box; a stored
+     * secret is said as stored and its box opens on Change.
+     */
+    @Test
+    void aRowInForceIsNotAnEmptyBoxAndChangeOpensItAndTakesItBack(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the rows in force", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                const settings = Object.assign({}, full, {
+                    values: [full.values[0],
+                        {name: 'payerName', label: 'Payer name', why: 'PAS requires it.', typed: 'Placeholder Payer',
+                            inForce: {display: 'Placeholder Payer', source: 'THIS_ENVIRONMENT', sourceLabel: 'typed here'}},
+                        {name: 'memberIdSystem', label: 'Member ID system', why: 'On the Coverage.', typed: null,
+                            inForce: {source: 'NOT_SET', sourceLabel: 'not set'}}]});
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings});
+                const dialog = editor.dialog;
+                const row = label => dialog.querySelectorAll('.field').find(each => each.querySelector('.field__label')
+                    && each.querySelector('.field__label').textContent === label);
+                const state = label => {
+                    const wrapper = row(label);
+                    const input = wrapper.querySelector('input');
+                    const shown = wrapper.querySelectorAll('button').filter(each => !each.hidden).map(each => each.textContent);
+                    return [wrapper.querySelector('.config-in-force').textContent, input.hidden, input.value, shown];
+                };
+                for (const label of ['FHIR server', 'Payer name', 'Member ID system', 'PAS submit']) {
+                    say(state(label));
+                }
+                const press = (label, words) => row(label).querySelectorAll('button').find(each => each.textContent === words).click();
+                press('PAS submit', 'Change');
+                say(state('PAS submit'));
+                row('PAS submit').querySelector('input').value = 'https://typed.example.invalid/Claim/$submit';
+                say(editor.input().addresses.PAS_SUBMIT);
+                press('PAS submit', "Use the collection's request again");
+                say([state('PAS submit'), editor.input().addresses.PAS_SUBMIT]);
+                press('Payer name', "Use the file's again");
+                say([state('Payer name'), editor.input().values.payerName, row('Payer name').textContent.includes('taken away when the environment is saved')]);
+                const secret = row('Client secret');
+                say([secret.querySelector('input').hidden, secret.textContent.includes('Stored: {{env:PAVE_ONYX_CLIENT_SECRET}}')]);
+                secret.querySelectorAll('button').find(each => each.textContent === 'Change').click();
+                say([secret.querySelector('input').hidden, secret.querySelector('input').type, editor.input().signIn.clientSecret]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"https://fhir.vendor.example.invalid from the export's variable fhirServer\",true,\"\",[\"Change\"]]",
+                "[\"Placeholder Payer typed here\",false,\"Placeholder Payer\",[\"Use the file's again\"]]",
+                "[\"not set\",false,\"\",[]]",
+                "[\"https://vendor.example.invalid/fhir/Claim/$submit from the collection's request \\\"PAS submit\\\"\",true,\"\",[\"Change\"]]",
+                "[\"https://vendor.example.invalid/fhir/Claim/$submit from the collection's request \\\"PAS submit\\\"\",false,\"\","
+                        + "[\"Use the collection's request again\"]]",
+                "\"https://typed.example.invalid/Claim/$submit\"",
+                "[[\"https://vendor.example.invalid/fhir/Claim/$submit from the collection's request \\\"PAS submit\\\"\",true,\"\",[\"Change\"]],\"\"]",
+                "[[\"Placeholder Payer typed here\",true,\"\",[\"Change\"]],\"\",true]",
+                "[true,true]",
+                "[false,\"password\",\"\"]");
     }
 
     @Test
@@ -315,7 +374,8 @@ class ConfigFrontendTest {
                         + "set the initial value in Postman and export again.\","
                         + "\"Sign-in filled from the environment's variable names: Token url.\"]",
                 // Buttons only under the fields the draft could not fill, one per variable, in the order of the export.
-                "[[],[\"{{uat_client_id}}\",\"{{prod_client_id}}\"],[\"{{uat_client_secret}}\",\"{{prod_client_secret}}\"],[]]",
+                // D-307: the stored secret is said as stored and its box opens on Change, so the field carries that button too.
+                "[[],[\"{{uat_client_id}}\",\"{{prod_client_id}}\"],[\"Change\",\"{{uat_client_secret}}\",\"{{prod_client_secret}}\"],[]]",
                 // No candidate is filled until a button is pressed: the field keeps what the stored environment holds.
                 "[\"{{tokenEndpoint}}\",\"{{clientId}}\"]",
                 // The last press wins; a secret is held as the reference and its password field stays empty.

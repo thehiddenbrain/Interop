@@ -211,3 +211,10 @@
 .config-chooser .btn {
     flex: none;
 }
+
+/* A row whose content is what is in force (D-307): its box opens on Change, under the line. */
+.config-over__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+}

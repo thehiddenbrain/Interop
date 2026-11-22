@@ -620,8 +620,10 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         return switch (target.source()) {
             case REQUEST -> shownAddress(snapshot, environment, target.collection(), target.template(), "COLLECTION",
-                    "collection request \"" + target.request().request().quotedName() + "\"", target.savedBody(), target.requestName());
-            case FALLBACK -> shownAddress(snapshot, environment, null, target.template(), "APPLICATION_YML", "application.yml", null, null);
+                    "from the collection's request \"" + target.request().request().quotedName() + "\"", target.savedBody(),
+                    target.requestName());
+            case FALLBACK -> shownAddress(snapshot, environment, null, target.template(), "APPLICATION_YML", "from application.yml", null,
+                    null);
             default -> shownAddress(snapshot, environment, null, target.template(), "DERIVED", target.described(), null, null);
         };
     }
