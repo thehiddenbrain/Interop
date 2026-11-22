@@ -144,8 +144,7 @@ public final class DtrVerdicts {
                     supporting.add("The response carries the status " + OnyxDtrConventions.STATUS_COMPLETED + " all the same. This tool "
                             + "does not report it as complete.");
                 }
-                yield form != null && form.requiredUnanswered().size() > 1
-                        ? form.requiredUnanswered().size() + " required questions have no answer." : "A required question has no answer.";
+                yield unansweredHeadline(form);
             }
             case MEMBER_NOT_FOUND -> {
                 supporting.add("This is a finding about the test data, not about the environment.");
@@ -507,6 +506,36 @@ public final class DtrVerdicts {
         }
         return new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
                 "The service did not accept the request as it was sent.", carry);
+    }
+
+    /**
+     * Names the questions in the headline, so a tester sees which answers are missing without
+     * opening the form. The texts are the payer's and can run long, hence the cut.
+     */
+    static String unansweredHeadline(FormStateView form) {
+        List<QuestionRef> missing = form == null ? List.of() : form.requiredUnanswered();
+        if (missing.isEmpty()) {
+            return "A required question has no answer.";
+        }
+        if (missing.size() == 1) {
+            return "A required question has no answer: " + quotedShort(missing.get(0)) + ".";
+        }
+        List<String> shown = missing.stream().limit(HEADLINE_QUESTIONS).map(DtrVerdicts::quotedShort).toList();
+        String more = missing.size() > HEADLINE_QUESTIONS ? " and " + (missing.size() - HEADLINE_QUESTIONS) + " more" : "";
+        return missing.size() + " required questions have no answer: " + String.join(", ", shown) + more + ".";
+    }
+
+    private static final int HEADLINE_QUESTIONS = 3;
+    private static final int HEADLINE_TEXT_LIMIT = 80;
+
+    /** The question's text in quotes, or its linkId when the payer gave no text. */
+    private static String quotedShort(QuestionRef question) {
+        String text = Texts.present(question.text()) ? question.text() : question.linkId();
+        String flat = text == null ? "" : text.strip().replaceAll("\\s+", " ");
+        if (flat.codePointCount(0, flat.length()) > HEADLINE_TEXT_LIMIT) {
+            flat = flat.substring(0, flat.offsetByCodePoints(0, HEADLINE_TEXT_LIMIT)).stripTrailing() + "...";
+        }
+        return "\"" + flat + "\"";
     }
 
     private static String named(List<QuestionRef> questions) {
