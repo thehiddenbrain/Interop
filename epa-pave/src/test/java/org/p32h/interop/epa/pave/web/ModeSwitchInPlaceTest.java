@@ -36,7 +36,7 @@ class ModeSwitchInPlaceTest {
     private int port;
 
     @AfterEach
-    void closeWhatRuns() throws InterruptedException {
+    void closeWhatRuns() throws InterruptedException, IOException {
         try {
             // A switch still under way ends first, so that what it started is the context closed here.
             Instant until = Instant.now().plus(COME_BACK);
@@ -53,6 +53,37 @@ class ModeSwitchInPlaceTest {
         if (port > 0) {
             assertThat(portFree(port)).as("the port is let go").isTrue();
         }
+        Path lock = home.resolve("store").resolve(".lock");
+        if (Files.exists(lock)) {
+            assertThat(lockedByThisJvm(lock)).as("the store's lock is let go").isNotEqualTo(Boolean.TRUE);
+        }
+    }
+
+    /**
+     * Whether this JVM holds a system lock on the file, read from /proc/locks, or null where the
+     * system keeps no such list (Windows, macOS): the store's lock is then not checked. A lock is
+     * not probed by taking it: on Linux, closing a probe's channel on the file would let go of the
+     * lock the store holds.
+     */
+    private static Boolean lockedByThisJvm(Path file) throws IOException {
+        Path locks = Path.of("/proc/locks");
+        if (!Files.isReadable(locks)) {
+            return null;
+        }
+        if (!Files.exists(file)) {
+            return Boolean.FALSE;
+        }
+        String inode = ":" + Files.getAttribute(file, "unix:ino");
+        String pid = String.valueOf(ProcessHandle.current().pid());
+        for (String line : Files.readAllLines(locks, StandardCharsets.US_ASCII)) {
+            String[] fields = line.trim().split("\\s+");
+            for (int i = 1; i < fields.length; i++) {
+                if (fields[i].endsWith(inode) && fields[i - 1].equals(pid)) {
+                    return Boolean.TRUE;
+                }
+            }
+        }
+        return Boolean.FALSE;
     }
 
     @Test
@@ -121,7 +152,9 @@ class ModeSwitchInPlaceTest {
         Answer saved = post("/api/config/environments", "{\"fileName\":\"onyx-sandbox.postman_environment.json\",\"kind\":\"sandbox\",\"text\":"
                 + JsonSafe.mapper().writeValueAsString(new String(export, StandardCharsets.UTF_8)) + "}");
         assertThat(saved.status()).as(saved.body()).isEqualTo(200);
-        assertThat(Files.exists(home.resolve("store").resolve(".lock"))).isTrue();
+        // The file stays on disk after its holder lets it go, so its being there proves nothing: the
+        // system's list of locks says whether this JVM holds it now.
+        assertThat(lockedByThisJvm(home.resolve("store").resolve(".lock"))).as("the store's lock is held on live").isNotEqualTo(Boolean.FALSE);
         assertThat(get("/api/config/environments").json().get("environments").size()).isEqualTo(1);
 
         // And back to mock, where the same store still holds what was saved on live.
@@ -162,8 +195,10 @@ class ModeSwitchInPlaceTest {
         while (Instant.now().isBefore(until)) {
             try {
                 Answer answer = get("/api/mode");
+                // The new start serves before the switch has given its claim back, and says so with
+                // switchingTo: until an answer comes without it, the switch is still under way.
                 if (answer.status() == 200 && !startedBefore.equals(answer.json().get("startedAt").stringValue())
-                        && PaveStart.switchingTo() == null) {
+                        && !answer.json().has("switchingTo") && PaveStart.switchingTo() == null) {
                     return answer.json();
                 }
             } catch (IOException | AssertionError notYet) {
