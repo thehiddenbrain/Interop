@@ -16,12 +16,13 @@ import org.p32h.interop.epa.pave.config.AppProperties;
 import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import org.p32h.interop.epa.pave.service.scenario.Scenario;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
+import org.p32h.interop.epa.pave.web.StaticSources.Source;
 
 /**
  * "sentinel" is the code's word for a test member ID or a test NPI. A tester reads "test member
  * ID" and "test NPI", so no sentence that can reach a screen says "sentinel": not the scenario
- * files' own texts, not the server's notes and refusals, not the static files. The keys of a
- * scenario file (sentinelMemberId, crdSentinelMemberIds, answersDtrSentinels) are names in the
+ * files' own texts, not the server's notes and refusals, not the page and its scripts. The keys of
+ * a scenario file (sentinelMemberId, crdSentinelMemberIds, answersDtrSentinels) are names in the
  * record, not words, and stay; so do class names, comments and the code's identifiers.
  */
 class NoSentinelOnScreenTest {
@@ -29,7 +30,7 @@ class NoSentinelOnScreenTest {
     /** The word on its own, not inside a camelCase key such as sentinelMemberId or answersDtrSentinels. */
     private static final Pattern WORD = Pattern.compile("(?i)(?<![A-Za-z])sentinels?(?![A-Za-z])");
     private static final Pattern JAVA_TEXT = Pattern.compile("\"(?:[^\"\\\\\\n]|\\\\.)*\"");
-    private static final Pattern SCRIPT_TEXT = Pattern.compile("'(?:[^'\\\\\\n]|\\\\.)*'|\"(?:[^\"\\\\\\n]|\\\\.)*\"");
+    private static final Pattern SCRIPT_TEXT = Pattern.compile("'(?:[^'\\\\\\n]|\\\\.)*'|\"(?:[^\"\\\\\\n]|\\\\.)*\"|`(?:[^`\\\\\\n]|\\\\.)*`");
 
     @Test
     void noBundledScenarioSaysSentinelInAnythingTheScreenShows() {
@@ -92,25 +93,8 @@ class NoSentinelOnScreenTest {
     @Test
     void noScriptOrPageSaysSentinel() throws IOException {
         List<String> found = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(Path.of("src/main/resources/static"))) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".js") || path.toString().endsWith(".html")).toList()) {
-                for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-                    String code = line.strip();
-                    if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
-                        continue;
-                    }
-                    Matcher text = SCRIPT_TEXT.matcher(line);
-                    while (text.find()) {
-                        // A class name is one token and never read; a sentence has a space in it.
-                        if (text.group().contains(" ") && WORD.matcher(text.group()).find()) {
-                            found.add(file.getFileName() + ": " + code);
-                        }
-                    }
-                    if (file.toString().endsWith(".html") && WORD.matcher(line.replaceAll("<[^>]*>", "")).find()) {
-                        found.add(file.getFileName() + ": " + code);
-                    }
-                }
-            }
+        for (Source source : StaticSources.sources(".js", ".html")) {
+            found.addAll(sentinelsIn(source));
         }
         assertThat(found).isEmpty();
     }
@@ -121,5 +105,32 @@ class NoSentinelOnScreenTest {
         assertThat(WORD.matcher("Sentinels for DTR").find()).isTrue();
         assertThat(WORD.matcher("its crdSentinelMemberIds is").find()).isFalse();
         assertThat(WORD.matcher("\"answersDtrSentinels\": true").find()).isFalse();
+        // In a script: a sentence in any of the three quotes, and the text of a page; never a comment or a one-word key.
+        assertThat(sentinelsIn(new Source("js/x.js", "const line = `Pick a sentinel member`;"))).hasSize(1);
+        assertThat(sentinelsIn(new Source("js/x.js", "say('The sentinel answers.');"))).hasSize(1);
+        assertThat(sentinelsIn(new Source("index.html", "<p>A sentinel member</p>"))).hasSize(1);
+        assertThat(sentinelsIn(new Source("js/x.js", "// the sentinel ids of the scenario files\nconst key = 'sentinelMemberIds';"))).isEmpty();
+    }
+
+    /** Each line of a script or a page whose screen text says the word: a sentence in quotes, or the text of a page between its tags. */
+    private static List<String> sentinelsIn(Source source) {
+        List<String> found = new ArrayList<>();
+        for (String line : source.text().split("\n", -1)) {
+            String code = line.strip();
+            if (code.startsWith("//") || code.startsWith("*") || code.startsWith("/*")) {
+                continue;
+            }
+            Matcher text = SCRIPT_TEXT.matcher(line);
+            while (text.find()) {
+                // A class name is one token and never read; a sentence has a space in it.
+                if (text.group().contains(" ") && WORD.matcher(text.group()).find()) {
+                    found.add(source.name() + ": " + code);
+                }
+            }
+            if (source.name().endsWith(".html") && WORD.matcher(line.replaceAll("<[^>]*>", "")).find()) {
+                found.add(source.name() + ": " + code);
+            }
+        }
+        return found;
     }
 }

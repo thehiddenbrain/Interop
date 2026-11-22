@@ -1,79 +1,99 @@
-// Small helpers that build elements.
+// Small helpers that build elements, shared by every view.
 //
-// Everything a service returns is untrusted text. Nothing in this file accepts markup: every
-// string becomes a text node, so a card summary that looks like a tag is shown as the characters
-// it is. The build fails (StaticFrontendTest) if any script writes markup from a string.
+// Everything a service returns is untrusted text. Nothing here accepts markup: every string
+// becomes a text node, so a value that looks like a tag is shown as the characters it is. The
+// build fails (StaticFrontendTest) if any script builds markup or code from a string.
 
-// Only these properties can be set through el(). A name outside the list is a mistake in the
-// calling code and is refused at once, so a property that parses text as markup can never be
-// reached through this helper by accident.
+// The properties el() sets directly. Any other name is a mistake in the calling code and is
+// refused at once, so a property that would parse text as markup can never be reached through
+// this helper by accident.
 const PROPERTIES = new Set([
     'id', 'title', 'hidden', 'disabled', 'type', 'value', 'name', 'htmlFor', 'href', 'tabIndex', 'checked',
-    'placeholder', 'colSpan', 'rowSpan', 'scope', 'open', 'download', 'rel', 'target', 'min', 'max', 'low',
-    'high', 'optimum', 'autocomplete', 'inputMode', 'spellcheck', 'rows', 'readOnly', 'required', 'multiple',
-    'accept', 'selected', 'label', 'lang', 'method', 'noValidate', 'maxLength', 'wrap'
+    'placeholder', 'colSpan', 'rowSpan', 'scope', 'open', 'download', 'rel', 'target', 'min', 'max', 'step',
+    'autocomplete', 'inputMode', 'spellcheck', 'rows', 'readOnly', 'required', 'multiple', 'accept', 'selected',
+    'label', 'lang', 'maxLength', 'wrap', 'autofocus'
 ]);
 
-// Attributes that would run script or carry inline style, both of which the content security
-// policy refuses anyway. Refusing them here makes the mistake visible while writing the code.
-const REFUSED_ATTRIBUTES = /^(on|style$|srcdoc$)/i;
+// An inline handler or inline style is refused by the content security policy at run time, with
+// nothing on screen to show for it. Refusing them here makes the mistake show while it is written.
+const REFUSED = /^(on.+|style|srcdoc)$/i;
 
 /**
  * Builds one element.
  *
- * props: class (string), text (string, set as text), dataset, aria, attrs, on (event listeners),
- * and the plain properties listed above. children: nodes, strings (as text), arrays, or null.
+ * attrs: class (a string, or a list with empty entries left out), text (set as text), title,
+ * aria-* and data-* (as attributes), role, for, on ({event: listener}), the plain properties
+ * above, and, for code ported from the earlier screens, aria, dataset and attrs as objects.
+ * A null or undefined value is left out. children: nodes, strings and numbers (as text), lists,
+ * or null.
  */
-export function el(tag, props, ...children) {
+export function el(tag, attrs, ...children) {
     const node = document.createElement(tag);
-    if (props) {
-        for (const [key, value] of Object.entries(props)) {
-            if (value === undefined || value === null) {
-                continue;
-            }
-            if (key === 'class') {
-                node.className = value;
-            } else if (key === 'text') {
-                node.textContent = String(value);
-            } else if (key === 'dataset') {
-                for (const [name, entry] of Object.entries(value)) {
-                    if (entry !== undefined && entry !== null) {
-                        node.dataset[name] = String(entry);
-                    }
-                }
-            } else if (key === 'aria') {
-                for (const [name, entry] of Object.entries(value)) {
-                    if (entry !== undefined && entry !== null) {
-                        node.setAttribute('aria-' + name, String(entry));
-                    }
-                }
-            } else if (key === 'role') {
-                node.setAttribute('role', value);
-            } else if (key === 'attrs') {
-                for (const [name, entry] of Object.entries(value)) {
-                    if (REFUSED_ATTRIBUTES.test(name)) {
-                        throw new Error('el(): the attribute "' + name + '" is not set from script in this tool.');
-                    }
-                    if (entry !== undefined && entry !== null && entry !== false) {
-                        node.setAttribute(name, entry === true ? '' : String(entry));
-                    }
-                }
-            } else if (key === 'on') {
-                for (const [name, listener] of Object.entries(value)) {
-                    node.addEventListener(name, listener);
-                }
-            } else if (PROPERTIES.has(key)) {
-                node[key] = value;
-            } else {
-                throw new Error('el(): "' + key + '" is not a property this helper sets.');
-            }
+    if (attrs) {
+        for (const [key, value] of Object.entries(attrs)) {
+            set(node, key, value);
         }
     }
     append(node, children);
     return node;
 }
 
-/** Appends children: nodes as they are, strings and numbers as text, arrays flattened, nothing for null or false. */
+function set(node, key, value) {
+    if (value === undefined || value === null) {
+        return;
+    }
+    if (key === 'class') {
+        node.className = Array.isArray(value) ? value.filter(Boolean).join(' ') : String(value);
+    } else if (key === 'text') {
+        node.textContent = String(value);
+    } else if (key === 'on') {
+        for (const [type, listener] of Object.entries(value)) {
+            if (typeof listener === 'function') {
+                node.addEventListener(type, listener);
+            }
+        }
+    } else if (key.startsWith('aria-') || key === 'role') {
+        node.setAttribute(key, String(value));
+    } else if (key.startsWith('data-')) {
+        if (value !== false) {
+            node.setAttribute(key, value === true ? '' : String(value));
+        }
+    } else if (key === 'aria' || key === 'dataset') {
+        for (const [name, entry] of Object.entries(value)) {
+            set(node, key === 'aria' ? 'aria-' + name : 'data-' + dashed(name), entry);
+        }
+    } else if (key === 'attrs') {
+        for (const [name, entry] of Object.entries(value)) {
+            if (REFUSED.test(name)) {
+                throw new Error('el(): the attribute "' + name + '" is not set from script in this tool.');
+            }
+            if (entry !== undefined && entry !== null && entry !== false) {
+                node.setAttribute(name, entry === true ? '' : String(entry));
+            }
+        }
+    } else if (key === 'for') {
+        node.htmlFor = String(value);
+    } else if (key === 'tabindex') {
+        node.tabIndex = value;
+    } else if (PROPERTIES.has(key)) {
+        node[key] = value;
+    } else if (REFUSED.test(key)) {
+        throw new Error('el(): "' + key + '" is refused by the content security policy; use on: {...} or a class.');
+    } else {
+        throw new Error('el(): "' + key + '" is not a property this helper sets.');
+    }
+}
+
+/** A dataset name as its attribute is written: maxRows becomes max-rows. */
+function dashed(name) {
+    let out = '';
+    for (const character of String(name)) {
+        out += character >= 'A' && character <= 'Z' ? '-' + character.toLowerCase() : character;
+    }
+    return out;
+}
+
+/** Appends children: nodes as they are, strings and numbers as text, lists flattened, nothing for null or false. */
 export function append(parent, ...children) {
     for (const child of children.flat(Infinity)) {
         if (child === null || child === undefined || child === false) {
@@ -96,190 +116,246 @@ export function fill(node, ...children) {
     return append(node, children);
 }
 
-/** A button that never submits a form by accident. */
-export function button(label, onClick, props) {
-    const extra = props || {};
-    return el('button', {type: 'button', ...extra, class: 'button ' + (extra.class || 'button--quiet'), on: {click: onClick}}, label);
-}
+// The tones a chip can carry. The server's tones (model/Tone) and the three test results; any
+// other value draws a plain chip, so a colour never appears without a meaning a tester can name.
+const TONES = new Set(['clear', 'action', 'pending', 'stop', 'data', 'none', 'fault', 'blocked', 'neutral', 'pass', 'fail',
+    'unverified']);
 
-/** A term and description list laid out as a two-column table of facts. Rows with no value node are left out. */
-export function facts(rows, extraClass) {
-    const list = el('dl', {class: 'facts' + (extraClass ? ' ' + extraClass : '')});
-    for (const row of rows) {
-        if (!row || row[1] === null || row[1] === undefined || row[1] === false) {
-            continue;
-        }
-        list.append(el('dt', null, row[0]), el('dd', null, row[1]));
+/** The class name of a tone: the server's code (NO_ANSWER) or the name itself; null for one this page does not draw. */
+export function toneName(tone) {
+    if (!tone) {
+        return null;
     }
-    return list;
-}
-
-/** A table from column headings and rows of cells. A cell is a node, a string, or {node, class, colSpan}. */
-export function table(headings, rows, props) {
-    const head = el('tr', null, headings.map(heading => {
-        const cell = typeof heading === 'string' ? {text: heading} : heading;
-        return el('th', {scope: 'col', class: cell.class}, cell.text);
-    }));
-    const body = el('tbody', null, rows.map(row => tableRow(row)));
-    const extra = props || {};
-    return el('table', {...extra, class: 'grid ' + (extra.class || '')}, el('thead', null, head), body);
-}
-
-export function tableRow(row) {
-    const cells = Array.isArray(row) ? row : row.cells;
-    const tr = el('tr', Array.isArray(row) ? null : {class: row.class, dataset: row.dataset});
-    for (const cell of cells) {
-        if (cell && typeof cell === 'object' && !(cell instanceof Node) && !Array.isArray(cell)) {
-            tr.append(el('td', {class: cell.class, colSpan: cell.colSpan}, cell.node));
-        } else {
-            tr.append(el('td', null, cell));
-        }
-    }
-    return tr;
-}
-
-// Where a long literal may be broken across lines: after an underscore, a dot, a slash and the
-// like. A path or an enum name then wraps at a joint instead of in the middle of a word. Only
-// break opportunities are added; the text itself, and what is copied from it, is unchanged.
-const BREAK_AFTER = /([_./&=|\]?:,])/;
-
-/** Literal data: a code, an identifier, a path. The one place the monospace face is asked for. */
-export function code(text, extraClass) {
-    const node = el('code', {class: 'literal' + (extraClass ? ' ' + extraClass : '')});
-    const value = String(text);
-    if (value.length <= 10) {
-        node.textContent = value;
-        return node;
-    }
-    for (const part of value.split(BREAK_AFTER)) {
-        if (part === '') {
-            continue;
-        }
-        node.append(part);
-        if (part.length === 1 && BREAK_AFTER.test(part)) {
-            node.append(document.createElement('wbr'));
-        }
-    }
-    return node;
-}
-
-/** A heading for a section of a result or a page, with an optional count after it. */
-export function heading(level, text, count) {
-    const node = el('h' + level, {class: 'section-heading'}, text);
-    if (count !== undefined && count !== null) {
-        node.append(' ', el('span', {class: 'section-heading__count'}, '(' + count + ')'));
-    }
-    return node;
+    const lower = String(tone).toLowerCase();
+    const name = lower === 'no_answer' ? 'none' : lower;
+    return TONES.has(name) ? name : null;
 }
 
 /**
- * A button that copies text to the clipboard and says that it did.
- *
- * The text is read when the button is pressed, and nothing is kept afterwards. When the browser
- * refuses the clipboard, the fallback selects the text on screen so it can be copied by hand.
+ * A small pill: a status, a code, a count. options: tone (a server tone or a test result),
+ * mono (literal data), dashed (nothing came back for this), hatched (a mock answered), title.
+ * A long text is cut on screen by the stylesheet and kept whole in the title.
  */
-export function copyButton(label, getText, fallbackNode) {
-    const status = el('span', {class: 'copy__status', role: 'status'});
-    const control = button(label, async () => {
-        const text = getText();
-        try {
-            await navigator.clipboard.writeText(text);
-            status.textContent = 'Copied.';
-        } catch (refused) {
-            if (fallbackNode) {
-                const range = document.createRange();
-                range.selectNodeContents(fallbackNode);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                status.textContent = 'The browser did not allow copying. The text is selected: press Ctrl+C.';
-            } else {
-                status.textContent = 'The browser did not allow copying.';
+export function chip(text, options) {
+    const {tone, mono, dashed: isDashed, hatched, title} = options || {};
+    const shown = text === undefined || text === null ? '' : String(text);
+    const name = toneName(tone);
+    return el('span', {
+        class: ['chip', name ? 'chip--' + name : null, isDashed ? 'chip--none' : null, hatched ? 'chip--mock' : null,
+            mono ? 'chip--mono' : null],
+        title: title || (shown.length > 20 ? shown : null)
+    }, el('span', {class: 'chip__text'}, shown));
+}
+
+/** A badge: the kind of an environment (sandbox, uat, prod) or the profile (mock, live). */
+export function badge(text, kind) {
+    return el('span', {class: ['badge', kind ? 'badge--' + token(kind) : null]}, text);
+}
+
+/**
+ * A fold, closed unless open is given: summary, a quiet hint after it, and the body. A body given
+ * as a function is drawn the first time the fold opens, so a large answer costs nothing until it
+ * is asked for. inline: the small fold of a card ("Edit fields").
+ */
+export function fold(options) {
+    const {summary, hint, open, body, inline} = options || {};
+    const content = el('div', {class: 'fold__body'});
+    const details = el('details', {class: inline ? 'fold fold--inline' : 'fold'},
+        el('summary', null, summary, hint ? el('span', {class: 'fold__hint'}, hint) : null), content);
+    if (typeof body === 'function') {
+        let drawn = false;
+        const draw = () => {
+            if (!drawn && details.open) {
+                drawn = true;
+                append(content, body());
             }
+        };
+        details.addEventListener('toggle', draw);
+        if (open) {
+            details.open = true;
+            draw();
         }
-    }, {class: 'button--quiet button--small'});
+    } else {
+        append(content, body);
+        details.open = Boolean(open);
+    }
+    return details;
+}
+
+/** Facts as a two-column table: rows of {key, value}, value a node or a string, drawn as given. */
+export function kv(rows) {
+    const body = el('tbody');
+    for (const row of rows || []) {
+        if (row) {
+            body.append(el('tr', null, el('th', {scope: 'row'}, row.key), el('td', null, row.value)));
+        }
+    }
+    return el('table', {class: 'kv'}, body);
+}
+
+/**
+ * A button that never submits a form by accident. Its label names what it does ("Close preview",
+ * never "Close"): ButtonNamesAndMarksTest reads every script for a bare one. options: primary,
+ * small, quiet, remove (a removal, set apart by place and words), title, disabled.
+ */
+export function button(label, onClick, options) {
+    const {primary, small, quiet, remove, title, disabled} = options || {};
+    return el('button', {
+        type: 'button',
+        class: ['btn', primary ? 'btn--primary' : null, quiet ? 'btn--quiet' : null, remove ? 'btn--remove' : null,
+            small ? 'btn--small' : null],
+        title,
+        disabled: disabled ? true : null,
+        on: typeof onClick === 'function' ? {click: onClick} : null
+    }, label);
+}
+
+let fields = 0;
+
+/**
+ * A labelled field: label, the input (given an id when it has none, so the label names it), a
+ * hint, and an error line that setFieldError fills. The hint and the error are tied to the input,
+ * so a screen reader reads them with it.
+ */
+export function field(options) {
+    const {label, input, hint, error} = options || {};
+    let id = input && input.id ? input.id : null;
+    if (input && !id) {
+        fields += 1;
+        id = 'field-' + fields;
+        input.id = id;
+    }
+    const wrapper = el('div', {class: 'field'},
+        el('label', {class: 'field__label', for: id}, label),
+        input || null,
+        hint ? el('p', {class: 'field__hint', id: id ? id + '-hint' : null}, hint) : null,
+        el('p', {class: 'field__error', id: id ? id + '-error' : null, hidden: true}));
+    describe(wrapper);
+    setFieldError(wrapper, error);
+    return wrapper;
+}
+
+/** Shows a problem at a field made by field(), or clears it when message is empty. */
+export function setFieldError(wrapper, message) {
+    if (!wrapper) {
+        return;
+    }
+    const line = wrapper.querySelector('.field__error');
+    const input = wrapper.querySelector('input, select, textarea');
+    const has = message !== undefined && message !== null && String(message) !== '';
+    if (line) {
+        line.textContent = has ? String(message) : '';
+        line.hidden = !has;
+    }
+    wrapper.classList.toggle('field--error', has);
+    if (input) {
+        if (has) {
+            input.setAttribute('aria-invalid', 'true');
+        } else {
+            input.removeAttribute('aria-invalid');
+        }
+    }
+    describe(wrapper);
+}
+
+function describe(wrapper) {
+    const input = wrapper.querySelector('input, select, textarea');
+    if (!input) {
+        return;
+    }
+    const ids = [];
+    for (const line of wrapper.querySelectorAll('.field__hint, .field__error')) {
+        if (line.id && !line.hidden) {
+            ids.push(line.id);
+        }
+    }
+    if (ids.length > 0) {
+        input.setAttribute('aria-describedby', ids.join(' '));
+    } else {
+        input.removeAttribute('aria-describedby');
+    }
+}
+
+let dialogs = 0;
+
+/**
+ * A modal: a native dialog, so focus is held inside it and Escape closes it. footer: nodes, or a
+ * function given the dialog that returns them, so a footer button can close it
+ * ("Close preview": dialog.close()). Focus goes to an element marked autofocus, else to the first
+ * field, else to the first button, and back to where it was when the dialog closes. onClose is
+ * called once, after the dialog has left the page. Returns the dialog.
+ */
+export function modal(options) {
+    const {title, body, footer, onClose} = options || {};
+    dialogs += 1;
+    const titleId = 'modal-title-' + dialogs;
+    const opener = document.activeElement;
+    const dialog = el('dialog', {class: 'modal', 'aria-labelledby': titleId});
+    dialog.append(el('div', {class: 'modal__head'}, el('h2', {class: 'modal__title', id: titleId}, title)),
+        el('div', {class: 'modal__body'}, body));
+    const foot = typeof footer === 'function' ? footer(dialog) : footer;
+    if (foot) {
+        dialog.append(el('div', {class: 'modal__foot'}, foot));
+    }
+    dialog.addEventListener('close', () => {
+        dialog.remove();
+        if (opener && typeof opener.focus === 'function' && opener.isConnected) {
+            opener.focus();
+        }
+        if (typeof onClose === 'function') {
+            onClose();
+        }
+    });
+    document.body.append(dialog);
+    dialog.showModal();
+    const first = dialog.querySelector('[autofocus]') || dialog.querySelector('.modal__body input, .modal__body select, .modal__body textarea')
+        || dialog.querySelector('button');
+    if (first) {
+        first.focus();
+    }
+    return dialog;
+}
+
+/**
+ * A button that copies text and says in a line beside it whether it did. The text is read when
+ * the button is pressed, and nothing is kept afterwards.
+ */
+export function copyButton(label, textOf, options) {
+    const status = el('span', {class: 'copy-status', role: 'status'});
+    const control = button(label, async () => {
+        let done = false;
+        try {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(String(textOf()));
+                done = true;
+            }
+        } catch (refused) {
+            // The browser can refuse the clipboard. The line below says so, and the text stays on screen to select.
+            done = false;
+        }
+        status.textContent = done ? 'Copied.' : 'Not copied: select the text and copy it.';
+    }, options);
     return el('span', {class: 'copy'}, control, status);
 }
 
 /**
- * The reference of a failure of this tool with its cause, as the server log names them, and one
- * button that copies both. The log can be on a machine the tester never looks at, so the cause is
- * shown here, and reporting it is one paste. Nothing when the error carries no reference.
+ * The first sentence of a server sentence and the rest, for a screen that shows one sentence and
+ * keeps the rest in a fold. A sentence ends at a full stop, question mark or exclamation mark
+ * followed by a space and a capital letter or a digit, so "1.5 s" or "e.g. a" does not end one.
+ * Returns [first, rest]; rest is '' when there is one sentence.
  */
-export function faultReport(error) {
-    if (!error || !error.reference) {
-        return null;
+export function firstSentence(text) {
+    const whole = text === undefined || text === null ? '' : String(text).trim();
+    for (let i = 0; i + 2 < whole.length; i++) {
+        const mark = whole[i];
+        if ((mark === '.' || mark === '?' || mark === '!') && whole[i + 1] === ' ') {
+            const next = whole[i + 2];
+            if ((next >= 'A' && next <= 'Z') || (next >= '0' && next <= '9') || next === '"') {
+                return [whole.slice(0, i + 1), whole.slice(i + 2).trim()];
+            }
+        }
     }
-    const lines = el('div', {class: 'fault-report__lines'},
-        el('p', {class: 'fault-report__reference'}, 'Reference ', code(error.reference)),
-        error.cause ? el('p', {class: 'fault-report__cause'}, 'Cause, as the server log names it: ', code(error.cause)) : null);
-    const copied = () => 'Reference ' + error.reference + (error.cause ? '\nCause, as the server log names it: ' + error.cause : '');
-    return el('div', {class: 'fault-report'}, lines,
-        copyButton(error.cause ? 'Copy reference and cause' : 'Copy reference', copied, lines));
-}
-
-/**
- * A server sentence about a failure of this tool, for a screen that shows faultReport under it.
- * The server writes the reference into the sentence so that the sentence stands alone in the
- * results CSV, which has no column for the cause. On the screen the reference stands in the report
- * below, beside its cause, so it is not given a second time in the sentence, and a sentence that
- * sends the reader to the reason for it is sent to the report instead.
- */
-export function withoutReference(sentence, fault) {
-    if (!sentence || !fault || !fault.reference) {
-        return sentence;
-    }
-    return sentence.split(' Reference ' + fault.reference + '.').join('')
-        .split('Report the reference ' + fault.reference + '.')
-        .join(fault.cause ? 'Report the reference and the cause below.' : 'Report the reference below.')
-        .split('The reason gives the reference.')
-        .join(fault.cause ? 'The reference and the cause are below the reason.' : 'The reference is below the reason.');
-}
-
-/**
- * A link taken from a response. It becomes an anchor only when its address starts with http:// or
- * https://, opens in a new tab without handing this page to it, and always shows the address
- * itself so a tester sees where it goes. Anything else is shown as the text it is.
- */
-export function externalLink(address, labelText) {
-    const text = String(address);
-    const isWeb = /^https?:\/\//i.test(text);
-    const shownAddress = code(text, 'literal--address');
-    if (!isWeb) {
-        // Not a web address, so there is nothing to open. No label is put beside it that would suggest otherwise.
-        return el('span', null, shownAddress, ' ', el('span', {class: 'quiet small'}, 'not a web address, shown as text'));
-    }
-    const anchor = el('a', {href: text, rel: 'noopener noreferrer', target: '_blank'}, labelText || 'Open in a new tab');
-    return el('span', {class: 'external'}, anchor, ' ', shownAddress);
-}
-
-/** A whole number with thousands separators, in the tester's own locale. */
-export function count(value) {
-    return typeof value === 'number' ? value.toLocaleString() : String(value);
-}
-
-/** Milliseconds as written by the server, with a unit. */
-export function millis(value) {
-    return typeof value === 'number' ? value.toLocaleString() + ' ms' : null;
-}
-
-/**
- * A timestamp from the server as text, in the tester's local time. Every time on the page is
- * written through here, so a time reads the same in a table, a list and the text of an option.
- * A value that is not a time is shown as it came.
- */
-export function whenText(timestamp) {
-    const date = new Date(timestamp);
-    return Number.isNaN(date.getTime()) ? String(timestamp)
-        : date.toLocaleString(undefined, {year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'});
-}
-
-/** A timestamp from the server, shown in the tester's local time with the original kept as a tooltip. */
-export function when(timestamp) {
-    if (!timestamp) {
-        return null;
-    }
-    return el('time', {title: String(timestamp), attrs: {datetime: String(timestamp)}}, whenText(timestamp));
+    return [whole, ''];
 }
 
 /**
@@ -288,8 +364,8 @@ export function when(timestamp) {
  * otherwise the name whole, so a name of up to 89 characters keeps its end. A file can give a name
  * of any length, and a sentence that quoted a long one whole ran off the side of the screen.
  * Characters are counted as a reader counts them: a pair of UTF-16 units that makes one character
- * counts once and is never cut. A name shown as the tester's own label, in a list, the strip or the
- * banner, is shown whole.
+ * counts once and is never cut. A name shown as a label, in the top bar chooser, a line under the
+ * top bar or a list, is shown whole.
  */
 export function named(name) {
     const text = name === undefined || name === null ? '' : String(name);
@@ -316,12 +392,4 @@ export function named(name) {
 /** Turns a server value into something safe to use as part of a class name. */
 export function token(value) {
     return String(value === undefined || value === null ? '' : value).replace(/[^A-Za-z0-9_-]/g, '');
-}
-
-/**
- * What explains a step rather than says what to do in it, closed under "About this step", so the
- * first screen keeps the words needed to act. Nothing is deleted: it is one click away.
- */
-export function aboutStep(...content) {
-    return el('details', {class: 'fold about-step'}, el('summary', null, 'About this step'), content);
 }
