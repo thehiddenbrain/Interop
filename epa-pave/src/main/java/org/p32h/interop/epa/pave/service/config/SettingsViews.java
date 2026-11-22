@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
@@ -143,10 +144,12 @@ public final class SettingsViews {
      *
      * @param operation the key an address is typed under: an operation's name, or SUBSCRIPTION for
      *                  the base every subscription call appends to
+     * @param shortLabel the operation in a word or two, served as "short" as plan 5.4 names it
      * @param typed     the address typed here, a credential in it masked; absent when none is
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record AddressView(String operation, String label, String shortLabel, String typed, AddressInForce inForce) {
+    public record AddressView(String operation, String label, @JsonProperty("short") String shortLabel, String typed,
+                              AddressInForce inForce) {
     }
 
     /**

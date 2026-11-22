@@ -146,7 +146,7 @@ class EnvironmentSettingsTest {
 
         JsonNode submit = address(view, "PAS_SUBMIT");
         assertThat(submit.get("typed").stringValue()).isEqualTo("https://vendor.example.invalid/fhir/Claim/$submit");
-        assertThat(submit.get("shortLabel").stringValue()).isEqualTo("PAS submit");
+        assertThat(submit.get("short").stringValue()).isEqualTo("PAS submit");
         assertThat(submit.get("inForce").get("source").stringValue()).isEqualTo("THIS_ENVIRONMENT");
         JsonNode subscription = address(view, "SUBSCRIPTION");
         // The subscription base, with what create appends, resolved against this environment as if it were active.
