@@ -187,7 +187,7 @@ class ListsFrontendTest {
         assertThat(run.lines()).containsExactly(
                 "[\"members\",\"Test members\",[\"Add member\",\"Import CSV\",\"Edit\",\"Edit\"],[\"Approved kneeS123456789Test Member1980-01-31CommercialEdit\",\"PendedS123456788not givennot givennot givenEdit\"],\"/api/lists/members/template.csv\"]",
                 "[\"add\",\"Add member\",\"||||||||||||\",[\"Close without saving\",\"Save member\"]]",
-                "[\"refused\",[{\"memberId\":\"S123456700\",\"dateOfBirth\":\"31/01/1980\"}],[\"Date of birthWrite the date of birth as yyyy-MM-dd, for example 1980-01-31.\"],1,true,\"dateOfBirth\"]",
+                "[\"refused\",[{\"memberId\":\"S123456700\",\"dateOfBirth\":\"31/01/1980\"}],[\"Date of birthWrite the date of birth as yyyy-MM-dd, for example 1980-01-31.\"],2,true,\"dateOfBirth\"]",
                 "[\"added\",true,true,2]",
                 "[\"edit\",\"Edit member\",\"S123456789\",\"female\",\"\"]",
                 "[\"put\",[{\"label\":\"Approved knee\",\"memberId\":\"S123456789\",\"firstName\":\"Test\",\"lastName\":\"Member\",\"dateOfBirth\":\"1980-01-31\",\"gender\":\"female\",\"lineOfBusiness\":\"Commercial\",\"plan\":\"Gold\"}]]",
