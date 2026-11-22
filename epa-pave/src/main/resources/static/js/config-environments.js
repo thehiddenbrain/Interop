@@ -320,8 +320,14 @@ export function createEditor(options) {
     }
 
     const files = {
-        environmentExport: el('input', {type: 'file', class: 'config-file', accept: '.json,application/json'}),
-        collectionExport: el('input', {type: 'file', class: 'config-file', accept: '.json,application/json'})
+        environmentExport: el('input', {type: 'file', class: 'visually-hidden', tabindex: '-1', accept: '.json,application/json',
+            'aria-label': 'Environment export'}),
+        collectionExport: el('input', {type: 'file', class: 'visually-hidden', tabindex: '-1', accept: '.json,application/json',
+            'aria-label': 'Collection export'})
+    };
+    const fileNames = {
+        environmentExport: el('span', {class: 'file__name'}, 'No file chosen'),
+        collectionExport: el('span', {class: 'file__name'}, 'No file chosen')
     };
     const fileLines = el('div', {class: 'config-file-lines'});
     const fillButton = button('Fill the form from these files', () => runDraft());
@@ -366,8 +372,34 @@ export function createEditor(options) {
         files[slot].addEventListener('change', () => {
             // A new choice makes the last draft stale: what was read is read again at the next press.
             delete exportsRead[slot];
+            showFileName(slot);
             fixName();
         });
+    }
+
+    /**
+     * The browser's own file control reads "Choose File No file chosen" in its own font and size;
+     * the prototype's picker is a small button and the chosen name, so the input stays hidden behind them.
+     */
+    function filePicker(label, slot) {
+        const pick = button('Choose file', () => files[slot].click(), {small: true});
+        pick.setAttribute('aria-label', 'Choose the ' + label.toLowerCase());
+        const wrapper = field({label, input: pick});
+        const [labelNode, , ...rest] = Array.from(wrapper.childNodes);
+        wrapper.replaceChildren(labelNode, el('span', {class: 'file'}, files[slot], pick, fileNames[slot]), ...rest);
+        return wrapper;
+    }
+
+    function showFileName(slot) {
+        const input = files[slot];
+        const chosen = input.files && input.files.length > 0 && input.value ? input.files[0].name : null;
+        fileNames[slot].textContent = chosen || 'No file chosen';
+        fileNames[slot].title = chosen || '';
+    }
+
+    function letGoOfFile(slot) {
+        files[slot].value = '';
+        showFileName(slot);
     }
 
     function secretInput() {
@@ -410,8 +442,8 @@ export function createEditor(options) {
         sections.push(el('div', {class: 'importer'},
             el('p', {class: 'form-section__title'}, 'Start from Postman exports (optional)'),
             el('div', {class: 'importer__row'},
-                field({label: 'Environment export', input: files.environmentExport}),
-                field({label: 'Collection export', input: files.collectionExport}),
+                filePicker('Environment export', 'environmentExport'),
+                filePicker('Collection export', 'collectionExport'),
                 fillButton),
             el('p', {class: 'field__hint'}, 'The fields below are filled for review. Nothing is saved until Save environment.'),
             fileLines));
@@ -682,6 +714,8 @@ export function createEditor(options) {
         }
         const read = await readText(input);
         if (!read.ok) {
+            // files.js lets go of a file it could not read, so the name beside the button goes too.
+            showFileName(slot);
             fixName();
             return {ok: false, line: read.line};
         }
@@ -957,8 +991,8 @@ export function createEditor(options) {
             draft = null;
             exportsRead = {};
             secretReferences = {};
-            files.environmentExport.value = '';
-            files.collectionExport.value = '';
+            letGoOfFile('environmentExport');
+            letGoOfFile('collectionExport');
             clear(fileLines);
             resetParts();
             drawAll();
@@ -993,7 +1027,7 @@ export function createEditor(options) {
                 continue;
             }
             if (each.field === 'environmentExport' || each.field === 'collectionExport') {
-                files[each.field].value = '';
+                letGoOfFile(each.field);
                 delete exportsRead[each.field];
                 fixName();
             }

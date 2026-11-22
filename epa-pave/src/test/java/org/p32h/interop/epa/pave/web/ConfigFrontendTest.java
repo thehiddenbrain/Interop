@@ -206,6 +206,38 @@ class ConfigFrontendTest {
     }
 
     @Test
+    void eachExportIsChosenWithASmallButtonAndItsNameShownBesideIt(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the file pickers of the environment form", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION', title: 'Not stored.',
+                    fieldErrors: [{field: 'environmentExport', message: 'This is not a Postman environment export.'}]}};
+                const editor = createEditor({environment: null, settings: null});
+                const dialog = editor.dialog;
+                const pickers = dialog.querySelectorAll('.file');
+                const shown = () => pickers.map(each => each.querySelector('.file__name').textContent);
+                say(pickers.map(each => [each.querySelector('button').textContent, each.querySelector('button').getAttribute('aria-label'),
+                    each.querySelector('input').type, each.querySelector('input').className]));
+                say(shown());
+                const box = pickers[0].querySelector('input');
+                box.files = [new File(['{"name": "PAVE Sample Sandbox", "values": []}'], 'pave-sample-sandbox.json')];
+                box.value = 'C:/fakepath/pave-sample-sandbox.json';
+                await box.dispatchEvent({type: 'change'});
+                say(shown());
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                // A file the server refused is let go, and the name beside its button says so.
+                say(shown());
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"Choose file\",\"Choose the environment export\",\"file\",\"visually-hidden\"],"
+                        + "[\"Choose file\",\"Choose the collection export\",\"file\",\"visually-hidden\"]]",
+                "[\"No file chosen\",\"No file chosen\"]",
+                "[\"pave-sample-sandbox.json\",\"No file chosen\"]",
+                "[\"No file chosen\",\"No file chosen\"]");
+    }
+
+    @Test
     void aPartOfTheFormIsDrawnOnlyWhenTheServersViewCarriesItsField(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the parts of the environment form", PRELUDE + """
                 const {createEditor} = await import('./js/config-environments.js');

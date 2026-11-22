@@ -70,12 +70,6 @@
     display: none;
 }
 
-.config-file {
-    width: 100%;
-    min-width: 0;
-    font-size: var(--text-sm);
-}
-
 .config-file-lines:empty {
     display: none;
 }
@@ -180,4 +174,9 @@
     width: 100%;
     min-height: 220px;
     resize: vertical;
+}
+
+/* A line in place of the cards (none stored, still reading, a fault) takes the whole row, not one card's column. */
+.env-grid > :not(.env-card) {
+    grid-column: 1 / -1;
 }
