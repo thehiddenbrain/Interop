@@ -412,10 +412,12 @@ class ApiExceptionHandlerTest {
     void eachUploadLimitIsNamedWithWhatWouldHelp() throws Exception {
         edge.perform(get("/upload/file")).andExpect(status().is(413))
                 .andExpect(jsonPath("$.title").value("The uploaded file is larger than this tool accepts, which is 25MB for one file."))
-                .andExpect(jsonPath("$.action").value("Upload a smaller export, or raise spring.servlet.multipart.max-file-size in application.yml."));
+                .andExpect(jsonPath("$.action").value("Upload a smaller export, or raise spring.servlet.multipart.max-file-size and "
+                        + "spring.servlet.multipart.max-request-size together in application.yml."));
         edge.perform(get("/upload/request")).andExpect(status().is(413))
                 .andExpect(jsonPath("$.title").value("The request is larger than this tool accepts, which is 30MB in all. Nothing was done."))
-                .andExpect(jsonPath("$.action").value("Upload one file at a time, or raise spring.servlet.multipart.max-request-size in application.yml."));
+                .andExpect(jsonPath("$.action").value("Upload one file at a time, or raise spring.servlet.multipart.max-request-size and "
+                        + "spring.servlet.multipart.max-file-size together in application.yml."));
         edge.perform(get("/upload/parts")).andExpect(status().is(413))
                 .andExpect(jsonPath("$.title").value("The upload has more parts than this tool accepts."))
                 .andExpect(jsonPath("$.action").value("Send the file with only the fields this upload takes. The limit is server.tomcat.max-part-count."));

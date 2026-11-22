@@ -272,10 +272,13 @@ public class ApiExceptionHandler {
         if (size instanceof FileSizeLimitExceededException) {
             body = ErrorView.of(ErrorKind.VALIDATION, "The uploaded file is larger than this tool accepts, which is "
                     + property(request, "spring.servlet.multipart.max-file-size", "25MB") + " for one file.",
-                    "Upload a smaller export, or raise spring.servlet.multipart.max-file-size in application.yml.");
+                    // R-36: both settings named together, the one that refused first, since raising one alone leaves the other in the way.
+                    "Upload a smaller export, or raise " + RequestShapeFilter.MAX_FILE_SIZE + " and " + RequestShapeFilter.MAX_REQUEST_SIZE
+                            + " together in application.yml.");
         } else if (size instanceof SizeLimitExceededException && size.getPermittedSize() == DataSize.parse(requestLimit).toBytes()) {
             body = ErrorView.of(ErrorKind.VALIDATION, RequestShapeFilter.tooLargeTitle(requestLimit),
-                    "Upload one file at a time, or raise " + RequestShapeFilter.MAX_REQUEST_SIZE + " in application.yml.");
+                    "Upload one file at a time, or raise " + RequestShapeFilter.MAX_REQUEST_SIZE + " and " + RequestShapeFilter.MAX_FILE_SIZE
+                            + " together in application.yml.");
         } else if (size != null) {
             // The server holds the header of each part to a limit of its own and reports it as a size of the request.
             body = ErrorView.of(ErrorKind.VALIDATION, "A part of the upload has a header larger than this tool accepts, which is "
