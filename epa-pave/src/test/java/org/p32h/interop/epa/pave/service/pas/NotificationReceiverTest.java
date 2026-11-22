@@ -125,12 +125,18 @@ class NotificationReceiverTest {
     }
 
     @Test
-    void aSampleThatMatchesNoSubscriptionSaysToCreateOneAndDeliverTheSampleAgain() {
+    void aSampleForThisSubmissionThatMatchesNoSubscriptionLeadsWithTheSubmissionAndNamesTheStatusStepButtons() {
+        // I-16: the tester is in the middle of a case, so that it is about their submission comes first.
         RunEnvelope<PasDetail> submitted = submit("P32H-PAS-NOTIFY");
         NotificationView sample = receiver.deliverSample(new NotificationSampleRequest(null, submitted.runId(), null));
+        assertThat(sample.correlatedRunId()).isEqualTo(submitted.runId());
+        // The outcome code a ledger line holds is not changed.
         assertThat(sample.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
-        assertThat(sample.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then choose "
-                + "Deliver a sample notification again.");
+        assertThat(ledger.last().outcome()).isEqualTo("UNMATCHED_NOTIFICATION");
+        assertThat(sample.verdict().headline()).isEqualTo("A notification arrived for this submission.");
+        assertThat(sample.verdict().supporting().get(0)).isEqualTo("No subscription was created here, so it matches none.");
+        assertThat(sample.nextStep().headline()).isEqualTo("Next: in the Status step, press Send subscription call, then Deliver a sample.");
+        assertThat(sample.nextStep().headline() + sample.verdict().headline()).doesNotContain("PAS tab");
     }
 
     @Test
@@ -138,8 +144,8 @@ class NotificationReceiverTest {
         // F-UNMATCHED-LOOP: before any subscription, the remedy is to create one. After, creating another changes nothing.
         NotificationView before = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
         assertThat(before.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
-        assertThat(before.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then choose "
-                + "Deliver a sample notification again.");
+        assertThat(before.nextStep().headline()).isEqualTo("Next: create a subscription with Send subscription call in step 4 Status of the "
+                + "Workbench, then choose Deliver a sample again.");
         createSubscription();
         NotificationView after = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
         assertThat(after.verdict().outcomeCode()).isEqualTo("UNMATCHED_NOTIFICATION");
@@ -162,8 +168,8 @@ class NotificationReceiverTest {
         assertThat(ledger.last().outcome()).isEqualTo("DELETED");
 
         NotificationView unmatched = receiver.deliverSample(new NotificationSampleRequest("pas-12-notification-unmatched", null, null));
-        assertThat(unmatched.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, then "
-                + "choose Deliver a sample notification again.");
+        assertThat(unmatched.nextStep().headline()).isEqualTo("Next: create a subscription with Send subscription call in step 4 Status of the "
+                + "Workbench, then choose Deliver a sample again.");
 
         NotificationView onDeleted = receiver.receive(NotificationReceiver.Inbound.of(NotificationJson.bundle(
                 NotificationJson.status("subscription-placeholder-0001", "heartbeat"))));
@@ -193,7 +199,7 @@ class NotificationReceiverTest {
         assertThat(refused.fieldErrors()).singleElement().satisfies(error -> {
             assertThat(error.field()).isEqualTo("runId");
             assertThat(error.message()).isEqualTo("This is not a run id. Copy the run id of a PAS submission, which starts with run-, from its "
-                    + "result on the PAS tab or from the Runs list in History, and paste it into About the submission (run id).");
+                    + "result in step 3 Submit of the Workbench or from the Runs list in Audit, and paste it into About the submission (run id).");
         });
     }
 
@@ -452,8 +458,8 @@ class NotificationReceiverTest {
         assertThat(view.verdict().headline()).isEqualTo("A notification arrived that matches no subscription this tool created.");
         assertThat(view.verdict().tone()).isEqualTo(Tone.NEUTRAL);
         // The remedy first, the other cause second, and the reason does not repeat what the correlation line says.
-        assertThat(view.nextStep().headline()).isEqualTo("Next: create a subscription with Create subscription on the PAS tab, so that the next "
-                + "notification can be matched to it.");
+        assertThat(view.nextStep().headline()).isEqualTo("Next: create a subscription with Send subscription call in step 4 Status of the "
+                + "Workbench, so that the next notification can be matched to it.");
         assertThat(view.nextStep().reason()).isEqualTo("If a subscription was made another way (by another client, before this ledger began, "
                 + "or by another installation of this tool), the list of subscriptions shows what the service holds.");
         assertThat(view.nextStep().reason()).doesNotContain("No run in the ledger");

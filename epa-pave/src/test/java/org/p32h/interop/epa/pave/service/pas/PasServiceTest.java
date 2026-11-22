@@ -226,7 +226,7 @@ class PasServiceTest {
             // The rules are unchanged and decide from what they read; the verdict now says what they read.
             assertThat(result.verdict().outcomeCode()).isNotEqualTo("APPROVED");
             assertThat(result.verdict().maskedReading()).startsWith("Read from a mask, not from what the service sent: resourceType was read "
-                    + "as [secret crWord].").endsWith("Look at that value in the Config tab.");
+                    + "as [secret crWord].").endsWith("Look at that value in Configuration.");
             assertThat(result.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
             assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
             assertThat(result.ledger().record().findings()).contains("MASKED_READING");
@@ -244,7 +244,7 @@ class PasServiceTest {
                     assertThat(error.field()).isEqualTo("carry.claimId");
                     assertThat(error.message()).isEqualTo("Claim identifier, handed on from the step before, was given masked, as "
                             + "[secret claimWord], because the answer it came from repeats a secret this tool holds. A mask is never sent, "
-                            + "so this step was not sent. Type the value on the form, or settle the secret in the Config tab.");
+                            + "so this step was not sent. Type the value on the form, or settle the secret in Configuration.");
                 }));
         // A completed questionnaire response handed on from DTR with a mask inside it.
         assertThatThrownBy(() -> service.runSubmit(submission("S123456789").carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE,
@@ -257,8 +257,8 @@ class PasServiceTest {
         assertThatThrownBy(() -> service.runInquire(inquiry("S123456789").claimId("[secret claimWord]").build(), RunOrigin.manual(), null))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
                         .containsExactly("This is not a claim id but a mask, [secret claimWord]: an answer gave the value masked because it "
-                                + "repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the secret in the "
-                                + "Config tab."));
+                                + "repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the secret in "
+                                + "Configuration."));
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).isEmpty();
     }
@@ -307,7 +307,7 @@ class PasServiceTest {
         assertThat(result.expectation().result()).isEqualTo(TestResult.PASS);
         // What do I do next.
         assertThat(result.nextStep().action()).isEqualTo(NextAction.FLOW_ENDS);
-        assertThat(result.nextStep().headline()).isEqualTo("The flow ends here. Record this result.");
+        assertThat(result.nextStep().headline()).isEqualTo("The flow ends here: nothing further to send.");
         // And it is recorded, under the same run id the screen shows.
         assertThat(result.ledger().recorded()).isTrue();
         assertThat(ledger.only().runId()).isEqualTo(result.runId());
@@ -748,10 +748,11 @@ class PasServiceTest {
         RunEnvelope<PasDetail> required = submit("P32H-PAS-ATTACH-REQ");
         assertThat(required.verdict().outcomeCode()).isEqualTo("ATTACHMENT_REQUIRED");
         assertThat(required.verdict().headline()).isEqualTo("The payer needs more documentation before it will decide.");
-        assertThat(required.nextStep().action()).isEqualTo(NextAction.START_PAS);
+        assertThat(required.nextStep().action()).isEqualTo(NextAction.SUPPLY_INFORMATION);
+        assertThat(required.nextStep().headline()).isEqualTo("Add the documents asked for and send again.");
         assertThat(required.nextStep().carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of(required.detail().claimId()))
                 .containsEntry(NextStepView.CARRY_RUN_ID, List.of(required.runId()));
-        assertThat(ledger.only().nextAction()).isEqualTo("START_PAS");
+        assertThat(ledger.only().nextAction()).isEqualTo("SUPPLY_INFORMATION");
 
         // The next submission starts from what the first handed on, with the document added.
         RunEnvelope<PasDetail> again = service().runSubmit(withAttachment("P32H-PAS-ATTACH-OK").carry(required.nextStep().carry()).build(),
@@ -1441,7 +1442,7 @@ class PasServiceTest {
         Finding incomplete = result.findings().get(0);
         assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
         // The finding's words are PasFindings', which names the version on its own (a change asked of the integrator).
-        assertThat(incomplete.title()).startsWith("The request left out 11 elements PAS");
+        assertThat(incomplete.title()).isEqualTo("The request left out 11 elements PAS 2.2.1 requires");
         assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
                 .contains("PASBeneficiary identifier.system").contains("PASCoverage status").contains("PASClaim item.extension[requestType]")
                 .contains("PASClaim item.location[x]").contains("PASPractitionerRole telecom (rule pd-1)");

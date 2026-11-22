@@ -154,7 +154,9 @@ export function questionField(spec) {
     const item = spec.item;
     const linkId = linkIdOf(item);
     const type = (item.type && item.type.code) || '';
-    const required = value(item.required) === 'true';
+    // A question its conditions turn off is not asked: never drawn as required, its field not open (B6).
+    const off = item.enabled === 'DISABLED';
+    const required = value(item.required) === 'true' && !off;
     const repeats = value(item.repeats) === 'true';
     const readOnly = value(item.readOnly) === 'true';
     const start = heldValues(item, spec.held);
@@ -167,7 +169,7 @@ export function questionField(spec) {
         required ? [el('span', {class: 'required', 'aria-hidden': 'true'}, '*'), el('span', {class: 'visually-hidden'}, 'required')] : null,
         markSlot);
     const error = el('p', {class: 'field__error', hidden: true});
-    const node = el('div', {class: ['field', 'question', item.enabled === 'DISABLED' ? 'question--off' : null,
+    const node = el('div', {class: ['field', 'question', off ? 'question--off' : null,
         spec.depth > 0 ? 'detail__depth-' + Math.min(spec.depth, DEEPEST) : null], 'data-link-id': linkId});
 
     let control;
@@ -198,7 +200,7 @@ export function questionField(spec) {
     if (prefilled) {
         control.prefilled(true);
     }
-    if (readOnly) {
+    if (readOnly || off) {
         control.disable();
     }
     node.append(label, control.node);
@@ -206,7 +208,7 @@ export function questionField(spec) {
         node.append(el('span', {class: 'field__hint'}, 'In the response: ' + start.unshown.join(', ')));
     }
     if (typeof item.enabledReason === 'string' && item.enabledReason !== '') {
-        node.append(el('span', {class: 'field__hint'}, item.enabledReason));
+        node.append(el('span', {class: 'field__hint muted enabled-reason'}, item.enabledReason));
     }
     if (!linkId) {
         node.append(el('span', {class: 'field__hint'}, 'It has no linkId, so an answer to it cannot be sent.'));

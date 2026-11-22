@@ -10,7 +10,7 @@
 
 import {el, append, chip, fold, kv, button, copyButton, firstSentence, toneName, fill, clear} from './dom.js';
 import {responseDetail} from './detail.js';
-import {errorPanel} from './fault.js';
+import {errorPanel, failureInCard, serviceFailure} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
@@ -29,6 +29,8 @@ const LONGEST_NEXT_STEP = 90;
  * options.nextBlocked(action): the server's sentence when the step the button leads to cannot be
  *   sent as things stand (readiness), or null.
  * options.stale: true when the configuration changed since this run was sent.
+ * options.wordsOnly(action): true when the place around the card already offers that action's
+ *   button, so the card says the next step in words instead of repeating the button.
  * options.fieldsPlaced: names of fields whose errors the caller shows at the field itself.
  */
 export function resultCard(envelope, options) {
@@ -54,6 +56,7 @@ export function resultCard(envelope, options) {
     if (serviceSaid) {
         card.append(serviceSaid);
     }
+    card.append(...failureInCard(envelope.error));
     const facts = factRows(envelope);
     const shownFacts = facts.present.slice(0, MOST_FACTS);
     const moreFacts = facts.present.slice(MOST_FACTS);
@@ -90,7 +93,7 @@ export function resultCard(envelope, options) {
         }, () => null);
     }
 
-    if (envelope.error) {
+    if (envelope.error && !serviceFailure(envelope.error)) {
         const panel = errorPanel(envelope.error, {fieldsPlaced: settings.fieldsPlaced});
         if (panel) {
             root.append(panel);
@@ -238,11 +241,23 @@ function determinationValue(row) {
         return chip(presenceWords(row.presence), {dashed: true});
     }
     const code = row.code === undefined || row.code === null ? '' : String(row.code);
-    // The display is shown only when it adds words to the code.
-    const adds = typeof row.display === 'string' && row.display !== '' && row.display.toLowerCase() !== code.toLowerCase();
+    const adds = displayAddsWords(code, row.display);
     return el('span', null, chip(code, {mono: true, tone: row.tone || null}),
         adds ? el('span', {class: 'kv__display'}, ' ' + row.display) : null,
         row.recognised === false ? chip('not a code this tool knows', {dashed: true}) : null);
+}
+
+/**
+ * True when a display says more than its code (I-14): "in-progress" beside "In progress" is the
+ * code again in other letters and is not shown; "withpa" beside "Send with the prior
+ * authorization request" explains it and is.
+ */
+export function displayAddsWords(code, display) {
+    if (typeof display !== 'string' || display === '') {
+        return false;
+    }
+    const bare = text => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return bare(display) !== bare(code);
 }
 
 /** An outcome code as its short label from the vocabulary, in its tone; the code itself until the words come. */
@@ -276,7 +291,8 @@ function nextStep(envelope, settings, words) {
         return [];
     }
     const action = words && Array.isArray(words.nextActions) ? words.nextActions.find(each => each.code === step.action) : null;
-    if (action && action.button && typeof settings.onNext === 'function') {
+    const wordsOnly = typeof settings.wordsOnly === 'function' && settings.wordsOnly(step.action);
+    if (action && action.button && typeof settings.onNext === 'function' && !wordsOnly) {
         const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
         return [button(action.button, () => settings.onNext(step.action, envelope),
             {primary: true, disabled: Boolean(blocked), title: blocked || null})];

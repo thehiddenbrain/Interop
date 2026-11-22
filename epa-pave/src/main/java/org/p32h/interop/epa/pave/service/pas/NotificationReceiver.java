@@ -612,7 +612,9 @@ public class NotificationReceiver {
         put(correlation, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId());
         put(correlation, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef());
 
-        VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut, links.unmatched());
+        // A sample unmatched by design while a subscription of this tool exists is not said to be one "no subscription was created here" for.
+        VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut, links.unmatched(),
+                toSeeAMatch == null ? links.submissionRunId() : null);
         NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
                 links.unmatched(), sampleScenarioId != null, toSeeAMatch);
         // As on a call: the verdict, the next step and the findings say that a value they rest on was read as a mask.
@@ -746,7 +748,7 @@ public class NotificationReceiver {
 
     /** What to do when the run named for a sample notification is not a run id. */
     static final String RUN_ID_TO_COPY = "This is not a run id. Copy the run id of a PAS submission, which starts with run-, from its "
-            + "result on the PAS tab or from the Runs list in History, and paste it into About the submission (run id).";
+            + "result in step 3 Submit of the Workbench or from the Runs list in Audit, and paste it into About the submission (run id).";
 
     /** Why a subscription named by an id the ledger does not keep is not looked up. */
     static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names is not one identifier (more than 128 characters, or a space "

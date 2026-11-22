@@ -51,8 +51,8 @@ class ServiceCardFrontendTest {
                 set('placeOfService', '11'); set('levelOfService', 'U'); set('certificationType', 'I'); set('requestType', 'HS'); set('serviceType', '1');
                 set('dateOfService', '2026-11-23'); set('diagnosisCodes', 'Z80.3, G47.33'); set('testerRef', 'T-1');
                 say(card.request());
-                // The hint under the fields the ledger keeps as typed.
-                say(card.node.querySelectorAll('[data-case-field="testerRef"] .field__hint, [data-case-field="note"] .field__hint').map(each => each.textContent));
+                // The hint for the fields the ledger keeps as typed, once under both (I-5).
+                say(card.node.querySelectorAll('.field__hint').filter(each => each.textContent.startsWith('Kept in the ledger')).map(each => each.textContent));
 
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
@@ -63,6 +63,6 @@ class ServiceCardFrontendTest {
                 "[\"Polysomnography, sleep staging with four...\",\"Polysomnography, sleep staging with four or more additional parameters\"]",
                 "{\"procedureCodes\":[{\"code\":\"95810\"},{\"code\":\"E0470\"}]}",
                 "{\"procedureCodes\":[{\"code\":\"95810\",\"quantity\":2,\"unit\":\"VS\"},{\"code\":\"E0470\"}],\"dateOfService\":\"2026-11-23\",\"diagnosisCodes\":[\"Z80.3\",\"G47.33\"],\"placeOfService\":\"11\",\"levelOfService\":\"U\",\"certificationType\":\"I\",\"requestType\":\"HS\",\"serviceType\":\"1\",\"testerRef\":\"T-1\"}",
-                "[\"Kept in the ledger as typed. Never type member data here.\",\"Kept in the ledger as typed. Never type member data here.\"]");
+                "[\"Kept in the ledger as typed. Never type member data here.\"]");
     }
 }

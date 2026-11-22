@@ -14,7 +14,7 @@ import org.p32h.interop.epa.pave.web.StaticSources.Source;
  * Two rules of the screens that no server test can see.
  * <ul>
  *   <li>Every field whose text the ledger keeps as typed (the note and the tester reference of a
- *       run) carries the one hint, in the same words everywhere, that member data must not be typed
+ *       run) carries the one hint, or the fold that holds both says it once under them, in the same words everywhere, that member data must not be typed
  *       into it. The server refuses only the member data of the request it goes with, so the rule is
  *       said at the field.</li>
  *   <li>The frame hands a change of the write access that comes without a change of the
@@ -23,6 +23,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.Source;
  * The last test hands the first rule a field that breaks it, so a rule that has stopped looking fails.
  */
 class StaticLedgerTextTest {
+
+    private static final String ONCE_UNDER_BOTH = "el('p', {class: 'field__hint'}, LEDGER_TEXT_HINT)";
 
     private static final Pattern LEDGER_FIELD = Pattern.compile("caseField\\(\\{name: '(note|testerRef)'[^}]*}\\)");
 
@@ -34,7 +36,8 @@ class StaticLedgerTextTest {
             Matcher matcher = LEDGER_FIELD.matcher(script.text());
             while (matcher.find()) {
                 seen++;
-                if (!matcher.group().contains("hint: LEDGER_TEXT_HINT")) {
+                // A fold that holds both fields says the hint once under them (I-5).
+                if (!matcher.group().contains("hint: LEDGER_TEXT_HINT") && !script.text().contains(ONCE_UNDER_BOTH)) {
                     missing.add(script.name() + ": " + matcher.group());
                 }
             }

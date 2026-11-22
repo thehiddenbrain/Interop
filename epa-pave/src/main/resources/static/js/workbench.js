@@ -14,7 +14,7 @@
 
 import {app} from './app.js';
 import {call} from './api.js';
-import {el, button, firstSentence, fill, clear} from './dom.js';
+import {el, button, fill, clear} from './dom.js';
 import {vocabulary} from './words.js';
 import {remember} from './session-runs.js';
 import {resultCard} from './result.js';
@@ -35,6 +35,10 @@ import {readBase64} from './files.js';
 
 // What the Workbench has read from the server. Mock lists exist on mock only: on live they are
 // never asked for, and nothing is built from them.
+// A page loaded with a chain in its address (a reload after a run) starts with an empty case: say
+// so, and where the runs of the case before are, instead of letting the case vanish unsaid.
+const RELOAD_NOTICE = 'A reload starts a new case. The runs of the case before are in Audit.';
+
 const loaded = {
     words: null,
     mockLists: null,
@@ -58,6 +62,7 @@ export function mount(root, route) {
     // never claims a journey that is not on screen.
     if (route && route.length > 0 && route[0] !== built.journey.knownChain()) {
         window.history.replaceState(null, '', '#workbench');
+        app.notice(RELOAD_NOTICE, 'plain', {href: '#audit', words: 'Open Audit'});
     }
     const offs = [
         app.on('mode', () => built.refresh()),
@@ -110,7 +115,7 @@ function build() {
 
     const bannerText = el('p', {class: 'banner__case'});
     const banner = el('div', {class: 'banner'}, bannerText, button('Start a new case', () => newCase()));
-    const stepper = createStepper(n => openStep(n, true));
+    const stepper = createStepper((n, how) => openStep(n, !(how && how.keyboard)));
 
     // The options of steps 2 to 4 belong to the case's journey, so they are built here and handed
     // to the step modules through ctx.optionsRow() and ctx.option(name).
@@ -180,6 +185,7 @@ function build() {
             typedCode: () => service.typedCode(),
             blocked,
             readinessLine,
+            labelOf: field => labelOf(field),
             latest(step) {
                 const kept = journey.result(step);
                 return kept ? kept.envelope : null;
@@ -303,11 +309,17 @@ function build() {
 
     /** The card of a result, with its next step wired to the step it leads to. */
     function card(envelope) {
-        const kept = journey.result(stepOfOperation(envelope.operation) || 1);
+        const own = stepOfOperation(envelope.operation) || 1;
+        const kept = journey.result(own);
+        const leadsTo = stepOfAction(envelope.nextStep && envelope.nextStep.action);
+        plainWhenWayOn(own, leadsTo !== null && leadsTo !== own);
         return resultCard(envelope, {
+            // A step already offers its own send (step 2's form, step 4's inquiry row): its card says
+            // that next step in words and does not repeat the button (I-6 widened, look-10).
+            wordsOnly: action => stepOfAction(action) === own,
             context: 'workbench',
             stale: Boolean(kept && kept.epoch !== null && app.epoch() !== null && kept.epoch !== app.epoch()),
-            onNext: action => next(action),
+            onNext: action => next(action, envelope),
             nextBlocked: action => {
                 const step = stepOfAction(action);
                 return step === null ? null : blocked(OPERATION_OF_STEP[step]) || (journey.offered(step) ? null : withdrawnWords(step));
@@ -315,10 +327,25 @@ function build() {
         });
     }
 
+    /**
+     * One filled button at a time (I-6): once a result of step n offers a way on, the step's own run
+     * button in its head is drawn plain; a new case or a result with no way on fills it again.
+     */
+    function plainWhenWayOn(n, wayOn) {
+        const panel = panels[n];
+        if (!panel) {
+            return;
+        }
+        for (const control of panel.querySelectorAll('.panel__head .btn--primary, .panel__head [data-run-button]')) {
+            control.setAttribute('data-run-button', 'true');
+            control.classList.toggle('btn--primary', !wayOn);
+        }
+    }
+
     /** A next-step button was pressed: Continue opens its step (step 2 fetches at once; Submit sends nothing). */
-    function next(action) {
+    function next(action, envelope) {
         if (action === 'OPEN_CONFIG') {
-            app.go('#configuration/environments');
+            app.go(configurationPlace(envelope, app.mode()));
             return;
         }
         if (action === 'UNLOCK_OR_SWITCH') {
@@ -393,6 +420,21 @@ function build() {
         return service.show(name, message) || member.show(name, message) || provider.show(name, message);
     }
 
+    /**
+     * The label a tester sees for a field a refusal names ('member.memberId', 'procedureCodes[0].quantity'),
+     * or null; a refusal panel never shows the property path itself (I-1, I-3).
+     */
+    function labelOf(field) {
+        const path = String(field || '');
+        const last = path.split('.').pop().replace(/\[\d{1,3}\]$/, '');
+        const fields = Array.from(node.querySelectorAll('[data-case-field]'));
+        const found = fields.find(each => each.getAttribute('data-case-field') === path)
+            || fields.find(each => each.getAttribute('data-case-field') === last);
+        const label = found ? found.querySelector('.field__label') : null;
+        const words = label && label.firstChild ? String(label.firstChild.textContent || '').trim() : '';
+        return words !== '' ? words : null;
+    }
+
     function blocked(operation) {
         if (app.isMock() || !loaded.effective || !operation) {
             return null;
@@ -406,8 +448,7 @@ function build() {
     }
 
     function readinessLine(sentence) {
-        return el('p', {class: 'small readiness__line'}, firstSentence(sentence)[0], ' ',
-            el('a', {href: '#configuration/environments'}, 'Open Configuration'));
+        return readinessNode(sentence);
     }
 
     function withdrawnWords(step) {
@@ -419,7 +460,8 @@ function build() {
         const by = provider.label();
         const codes = service.codesLabel();
         if (!who && !by && !codes) {
-            fill(bannerText, 'Pick a member to begin.');
+            // Live has no member picker: a tester there types the ID.
+            fill(bannerText, app.isMock() ? 'Pick a member to begin.' : 'Type a member ID to begin.');
             return;
         }
         const dot = () => el('span', {class: 'banner__sep', 'aria-hidden': 'true'}, ' \u00b7 ');
@@ -446,6 +488,7 @@ function build() {
             if (module && typeof module.reset === 'function') {
                 guarded(() => module.reset());
             }
+            plainWhenWayOn(step.n, false);
         }
         drawBanner();
         drawStepper();
@@ -579,3 +622,47 @@ function build() {
 }
 
 const OPERATION_OF_STEP = {1: 'CRD_ORDER_SIGN', 2: 'DTR_QUESTIONNAIRE_PACKAGE', 3: 'PAS_SUBMIT', 4: 'PAS_INQUIRE'};
+
+// An answer that never reached a service (refused connection, unknown host) points at the address.
+const ADDRESS_FAULTS = ['UNREACHABLE'];
+const NO_ENVIRONMENT = 'No environment is active.';
+const OPEN_CONFIGURATION = 'Open Configuration';
+
+/**
+ * The readiness line of a step: the server's sentence as it is, so its place to type a value is
+ * never cut off. In "No environment is active. Open Configuration and make one active." the words
+ * Open Configuration are the link; any other sentence gets the link after it.
+ */
+export function readinessNode(sentence) {
+    const text = String(sentence || '');
+    const at = text.indexOf(OPEN_CONFIGURATION);
+    if (text.startsWith(NO_ENVIRONMENT) && at >= 0) {
+        return el('p', {class: 'small readiness__line'}, text.slice(0, at),
+            el('a', {href: '#configuration/environments'}, OPEN_CONFIGURATION), text.slice(at + OPEN_CONFIGURATION.length));
+    }
+    return el('p', {class: 'small readiness__line'}, text, ' ',
+        el('a', {href: '#configuration/environments'}, OPEN_CONFIGURATION));
+}
+
+/**
+ * Where "Open Configuration" leads after a result (I-32): the active environment's Sign-in after a
+ * sign-in that failed, its Addresses after an answer that points at the address, else the list.
+ */
+export function configurationPlace(envelope, mode) {
+    const name = mode && mode.environment && typeof mode.environment.name === 'string' && mode.environment.name !== ''
+        ? mode.environment.name : null;
+    if (!name) {
+        return '#configuration/environments';
+    }
+    const base = '#configuration/environments/' + encodeURIComponent(name);
+    const verdict = envelope && envelope.verdict ? envelope.verdict : {};
+    const error = envelope && envelope.error ? envelope.error : {};
+    const status = typeof error.httpStatus === 'number' ? error.httpStatus : null;
+    if (verdict.outcomeCode === 'NOT_SIGNED_IN' || status === 401 || status === 403) {
+        return base + '/sign-in';
+    }
+    if (status === 404 || ADDRESS_FAULTS.includes(error.kind) || ADDRESS_FAULTS.includes(verdict.outcomeCode)) {
+        return base + '/addresses';
+    }
+    return '#configuration/environments';
+}

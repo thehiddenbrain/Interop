@@ -517,7 +517,7 @@ class RunReplayTest {
         assertThat(token.status()).isEqualTo(ReplayStatus.NOT_REPLAYABLE);
         assertThat(token.reason()).isEqualTo("This run sent a claim id, and its line holds it as a token, because a claim id the ledger "
                 + "cannot tell from somebody's data is not kept as it was given. A token cannot be turned back into the claim id, so the "
-                + "same request cannot be sent again. Send the inquiry from the PAS tab with the claim id the submission returned.");
+                + "same request cannot be sent again. Send the inquiry from step 4 Status of the Workbench with the claim id the submission returned.");
         assertThat(runner.asked).isEmpty();
 
         // On a line where the value is what came back, a refused one is only not compared, and the run is sent.

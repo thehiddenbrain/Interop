@@ -236,9 +236,23 @@
     display: none;
 }
 
-/* A code with several lines of business wraps inside its card, its Remove included. */
+/* Each code is one row under the input (look-16): the code, its description, the list's tags and
+   Remove. The description and the tags give way first, cut with their words in a title. */
 .code-lines .code-line {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+}
+
+.code-line > .code-line__tags,
+.code-line > span:not(.chip) {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.code-line > .btn {
+    margin-left: auto;
 }
 
 /* Whatever a fold of a result holds (a wide table of the response detail, a long url), it scrolls
@@ -257,9 +271,27 @@
 }
 
 /* A child of a fold never takes its min-content width, so a wide table or a long line scrolls in
-   its fold instead of widening the page (NEEDS from H0). */
-.fold__body > * {
+   its fold instead of widening the page (NEEDS from H0). A grid track sized auto still grows to
+   its widest child, so every grid inside a result gets one column that may shrink to the fold,
+   and only a table's own wrapper scrolls. */
+.fold__body > *,
+.detail > *,
+.detail__part > *,
+.verdict > * {
     min-width: 0;
+}
+
+.fold__body,
+.detail,
+.detail__part,
+.verdict,
+.result {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.detail p,
+.detail li {
+    overflow-wrap: anywhere;
 }
 
 /* The response detail's parts (detail.js, batch H). */
@@ -380,4 +412,82 @@ td .notes {
 .note-open {
     display: grid;
     gap: var(--s-2);
+}
+
+/* A refusal or a fault of a step sits under the panel's head as a result does: a rule, then a gap. */
+.step-refusal:not(:empty) {
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1px solid var(--line);
+}
+
+/* The banner and the stepper never widen the page, whatever font the browser falls back to. */
+.banner,
+.stepper,
+.stepper__step {
+    min-width: 0;
+}
+
+/* In the narrow case column the lookup's request and response stand one above the other, so no
+   cell of the wire view is squeezed to a letter a line. */
+.lookup-returned .wire {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.lookup-returned .mono {
+    overflow-wrap: anywhere;
+}
+
+/* Edit member and provider fields, and the Service card (wb-mock-1, wb-mock-8): a row's two columns
+   may shrink to the card, a label stays on one line with its "from lookup" chip on the line under
+   it, and the inputs of a row line up at the bottom whatever their labels hold. */
+.field-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+}
+
+.field-row > .field {
+    align-content: end;
+}
+
+.field-row .field__label {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.field-row .field__mark:not(:empty) {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
+.field-row .input,
+.field-row .select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* In the case column two fields share a row only where both have room for their content (a date
+   input needs about 136 px); at 1024 px they stand one above the other instead of being cut. */
+.case .field-row {
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.code-lines .code-line > .chip:not(:first-child) {
+    flex: 0 1 auto;
+    min-width: 3em;
+}
+
+/* A step's chip is cut inside its own step, never drawn over the next one (look-17). */
+.stepper__text {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.stepper__chip {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }

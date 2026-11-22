@@ -382,15 +382,19 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             // Said as what an address this tool can use is, so the sentence is true of a port no connection can use as well.
             return refused(TOKEN_URL_NOT_USABLE);
         }
+        String production = gateway.tokenUrlRefusal(tokenUrl.value());
+        if (production != null) {
+            return refused(production);
+        }
         boolean noId = !clientId.resolved() || Texts.blank(clientId.value());
         boolean noSecret = !clientSecret.resolved() || Texts.blank(clientSecret.value());
         if (noId || noSecret) {
-            // The setting is named, as Ready to send on the Config tab names it, so the tester knows which one to give. Only the
+            // The setting is named, as Configuration > Advanced > In force now names it, so the tester knows which one to give. Only the
             // names of the settings are said, never a value.
             String which = noId && noSecret ? "onyx.auth.client-id and onyx.auth.client-secret are" : noId ? "onyx.auth.client-id is"
                     : "onyx.auth.client-secret is";
             return refused("Authentication is switched on but " + which + " not set, or a placeholder the active environment "
-                    + "does not define. Ready to send, on the Config tab, says where it reads from. The request was not sent.");
+                    + "does not define. Configuration > Advanced > In force now says where it is read from. The request was not sent.");
         }
         String key = "application|" + gateway.epoch() + "|" + tokenUrl.value() + "|" + clientId.value();
         return new Prepared(key, new TokenRequest(tokenUrl.value(), clientId.value(), clientSecret.value(),
@@ -406,6 +410,12 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         }
         if (!absoluteHttpAddress(tokenUrl)) {
             return refused(ENVIRONMENT_TOKEN_URL_NOT_USABLE);
+        }
+        // Asked at the moment of sending, whatever was stored: an older store or a value changed
+        // underneath can point the sign-in at a production call's address (I-28).
+        String production = gateway.tokenUrlRefusal(tokenUrl);
+        if (production != null) {
+            return refused(production);
         }
         String clientId = setting(settings.clientId());
         String clientSecret = setting(settings.clientSecret());

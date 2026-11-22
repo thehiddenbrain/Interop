@@ -146,9 +146,8 @@ class DraftControllerTest {
         mvc.perform(post(DRAFT).contentType(MediaType.APPLICATION_JSON).content(body(EnvironmentDrafts.ENVIRONMENT_SLOT, "c.json",
                         PostmanFiles.text(PostmanFiles.VENDOR_COLLECTION), null, null, null)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.files[0].line").value("Not read: This file is a Postman collection, not an environment. Upload it "
-                        + "under Collections. Under Environments, upload an environment export. In Postman, open Environments, open the "
-                        + "menu of the environment, choose Export, and upload the file it saves."))
+                .andExpect(jsonPath("$.files[0].line").value("Not read: This file is a Postman collection, not an environment export. "
+                        + "Choose it as the Collection export, or upload it in Configuration > Collections."))
                 .andExpect(jsonPath("$.files[0].reference").doesNotExist())
                 .andExpect(jsonPath("$.files[0].cause").doesNotExist());
     }

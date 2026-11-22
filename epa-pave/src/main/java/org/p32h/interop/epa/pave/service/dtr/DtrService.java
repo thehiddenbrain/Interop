@@ -636,7 +636,7 @@ public class DtrService {
     }
 
     /** What a tester can do about a masked questionnaire or response: neither is typed on the form. */
-    static final String AGAIN = "Settle the secret in the Config tab, then fetch the questionnaire package again.";
+    static final String AGAIN = "Settle the secret in Configuration, then fetch the questionnaire package again.";
 
     /**
      * An answer this tool marks as given or changed by a person must name its author: invariant

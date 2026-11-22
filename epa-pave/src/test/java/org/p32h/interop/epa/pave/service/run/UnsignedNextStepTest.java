@@ -87,11 +87,11 @@ class UnsignedNextStepTest {
         NextStepView step = org.p32h.interop.epa.pave.service.crd.CrdVerdicts.nextStep(mapper.read(signed), signed);
         assertThat(step.reason()).isEqualTo(RunSupport.credentialsReason(401, signed)).doesNotContain("or none").doesNotContain("Bearer");
         assertThat(support(true).faultView(signed, List.of()).action()).isEqualTo("This status means the service did not accept the "
-                + "credentials this tool sent. Check the client id, the secret and the token url on the Config tab. The request that was "
-                + "sent is in the wire view.");
+                + "credentials this tool sent. Check the client id, the secret and the token url under Sign-in in Configuration > "
+                + "Environments. The request that was sent is in the wire view.");
         assertThat(support(true).faultView(bare, List.of()).action()).isEqualTo("This status means credentials were wanted, and the request "
-                + "as sent carried no Authorization header. Check the sign-in settings on the Config tab. The request that was sent is in "
-                + "the wire view.");
+                + "as sent carried no Authorization header. Check the sign-in under Sign-in in Configuration > Environments. The request "
+                + "that was sent is in the wire view.");
     }
 
     @Test

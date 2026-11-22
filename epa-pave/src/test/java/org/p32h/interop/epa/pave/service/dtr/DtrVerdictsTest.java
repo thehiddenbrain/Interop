@@ -176,7 +176,7 @@ class DtrVerdictsTest {
         }
         assertThat(DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, rejected,
                 TestExchanges.of(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 404, "{}", true), handoff()).headline())
-                .isEqualTo("Next: check the DTR url on the Config tab.");
+                .isEqualTo("Next: check the DTR url in Configuration > Environments > Addresses.");
         assertThat(DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, rejected,
                 TestExchanges.of(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 422, "{}", true), handoff()).action()).isEqualTo(NextAction.FIX_REQUEST);
         assertThat(DtrVerdicts.verdict(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, rejected,

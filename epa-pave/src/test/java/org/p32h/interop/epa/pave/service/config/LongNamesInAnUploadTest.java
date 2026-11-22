@@ -259,9 +259,9 @@ class LongNamesInAnUploadTest {
 
         ConfigViews.Effective effective = fixture.service.effective(null);
         String braced = "{{" + shown(PLACEHOLDER, 'H') + "}}";
-        assertThat(effective.operations()).anySatisfy(row -> assertThat(row.note()).startsWith("The url still needs a value for "
-                + braced + ", the header X-Tenant still needs a value for " + braced + ", and the active environment is \"Sandbox\".")
-                .contains(" Give " + braced + " a value in an environment on the Config tab"));
+        // I-1: named as the tester knows it, without braces, and once.
+        assertThat(effective.operations()).anySatisfy(row -> assertThat(row.note()).startsWith("The PAS submit address needs a value for "
+                + shown(PLACEHOLDER, 'H') + ". Add it under Values of the environment in Configuration.").doesNotContain(braced));
         // The list of what is missing keeps each name whole: it is the label a value is given against.
         assertThat(effective.operations()).filteredOn(row -> row.target() != null).singleElement()
                 .satisfies(row -> assertThat(row.target().unresolved()).containsExactly(PLACEHOLDER));

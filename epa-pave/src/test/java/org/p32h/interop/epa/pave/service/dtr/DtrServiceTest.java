@@ -792,11 +792,11 @@ class DtrServiceTest {
                 plain.bodyNotes(), plain.reached());
         RunEnvelope<DtrDetail> refused = service(stub(signed), "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(refused.nextStep().action()).isEqualTo(NextAction.OPEN_CONFIG);
-        assertThat(refused.nextStep().headline()).isEqualTo("Next: check the credentials on the Config tab.");
+        assertThat(refused.nextStep().headline()).isEqualTo("Next: check the credentials in Configuration > Environments > Sign-in.");
         RunEnvelope<DtrDetail> missing = service(stub(DtrFixtures.answered(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, 404, "<html>Not Found</html>")),
                 "mock", Map.of()).runPackage(request, RunOrigin.manual(), null);
         assertThat(missing.verdict().outcomeCode()).isEqualTo("REJECTED");
-        assertThat(missing.nextStep().headline()).isEqualTo("Next: check the DTR url on the Config tab.");
+        assertThat(missing.nextStep().headline()).isEqualTo("Next: check the DTR url in Configuration > Environments > Addresses.");
         assertThat(fetch("P32H-DTR-BAD400").nextStep().action()).isEqualTo(NextAction.FIX_REQUEST);
     }
 
@@ -1755,7 +1755,7 @@ class DtrServiceTest {
         String maskedResponse = stubResponse("in-progress", "{\"linkId\":\"q1\",\"text\":\"Findings [secret heldText]\",\"type\":\"string\"}", "");
         String questionnaireRefusal = "The questionnaire, handed on from the step before, was given masked, as [secret heldText], because the "
                 + "answer it came from repeats a secret this tool holds. A mask is never sent, so this step was not sent. Settle the secret in "
-                + "the Config tab, then fetch the questionnaire package again.";
+                + "Configuration, then fetch the questionnaire package again.";
 
         for (boolean preview : List.of(false, true)) {
             DtrNextQuestionRequest first = DtrNextQuestionRequest.builder().questionnaire(masked).provider(provider)

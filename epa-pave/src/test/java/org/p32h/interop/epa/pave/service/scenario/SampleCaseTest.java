@@ -14,6 +14,7 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.Npi;
+import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
@@ -79,6 +80,26 @@ class SampleCaseTest {
                 }
             }
         }
+    }
+
+    @Test
+    void everySampleCodeIsOnTheListForTheLineOfBusinessOfItsMember() {
+        // The Workbench asks the picker about each sample code with the member's line of business.
+        // A sample the tool fills in must not come back marked "not on the list" for its own member,
+        // so this asks exactly what the picker asks, for every scenario of every protocol.
+        int asked = 0;
+        for (String protocol : List.of("crd", "dtr", "pas")) {
+            for (Scenario scenario : scenarios.load(protocol).scenarios()) {
+                String line = scenario.sentinelMemberId() == null ? null : lineOfBusiness(scenario.sentinelMemberId());
+                for (String code : scenario.summary().sampleCase().procedureCodes()) {
+                    asked++;
+                    assertThat(codeList.find(code, line, 1000).codes()).as(scenario.source() + " " + code + " for " + line)
+                            .extracting(ProcedureCode::code).contains(code);
+                    assertThat(codeList.rowsFor(code, line, null)).as(scenario.source() + " " + code + " for " + line).isNotEmpty();
+                }
+            }
+        }
+        assertThat(asked).isGreaterThan(40);
     }
 
     @Test

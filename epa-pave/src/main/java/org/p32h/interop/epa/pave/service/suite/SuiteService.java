@@ -444,7 +444,7 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         }
         if (run == null) {
             throw new NotFoundException("This tool holds no suite run with that id. It keeps the last " + KEPT_RUNS
-                    + " suite runs until it restarts. Every case a suite ran is still in the ledger, on the History tab, under its "
+                    + " suite runs until it restarts. Every case a suite ran is still in the ledger, in Audit, under its "
                     + "suite run id.");
         }
         return run;
