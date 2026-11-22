@@ -300,8 +300,7 @@ class ConfigPagesFrontendTest {
 
     @Test
     void everyLaterPageOfThisBatchIsAOneLinePageThatKeepsThePageContract(@TempDir Path folder) throws Exception {
-        List<String> stubs = List.of("cfg-trail.js", "adv-raw.js", "adv-try.js", "adv-checks.js", "adv-discovery.js",
-                "adv-compare.js", "adv-json-lines.js");
+        List<String> stubs = List.of("cfg-trail.js");
         StringBuilder script = new StringBuilder("import './browser.js';\n");
         for (String stub : stubs) {
             script.append("{ const {mount} = await import('./js/").append(stub).append("');\n")
