@@ -31,6 +31,16 @@ export function titleOf(name) {
  * limits: {kinds [{extension, contentType, label}], perFileBytes, totalBytes}; heldBytes: the files
  * already added.
  */
+/**
+ * A size over a limit and the limit, as words. When both round to the same words (5 MB and 5 MB),
+ * the line would contradict itself, so both are given in bytes.
+ */
+function sizesApart(size, limit) {
+    const over = sizeText(size);
+    const most = sizeText(limit);
+    return over === most ? [size + ' bytes', limit + ' bytes'] : [over, most];
+}
+
 export function admit(file, limits, heldBytes) {
     const name = file && file.name ? String(file.name) : 'The file';
     const kinds = limits && Array.isArray(limits.kinds) ? limits.kinds : [];
@@ -40,10 +50,12 @@ export function admit(file, limits, heldBytes) {
     }
     const size = Number(file.size) || 0;
     if (limits.perFileBytes > 0 && size > limits.perFileBytes) {
-        return {line: name + ' is ' + sizeText(size) + '; the limit is ' + sizeText(limits.perFileBytes) + '. Not added.'};
+        const [over, limit] = sizesApart(size, limits.perFileBytes);
+        return {line: name + ' is ' + over + '; the limit is ' + limit + '. Not added.'};
     }
     if (limits.totalBytes > 0 && heldBytes + size > limits.totalBytes) {
-        return {line: 'These files come to ' + sizeText(heldBytes + size) + '; the limit is ' + sizeText(limits.totalBytes) + ' in all. Not added.'};
+        const [over, limit] = sizesApart(heldBytes + size, limits.totalBytes);
+        return {line: 'These files come to ' + over + '; the limit is ' + limit + ' in all. Not added.'};
     }
     return {kind};
 }
