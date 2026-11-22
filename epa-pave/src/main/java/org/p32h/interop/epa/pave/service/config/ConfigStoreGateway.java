@@ -210,7 +210,94 @@ public class ConfigStoreGateway implements OperationGateway {
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
                 plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection)),
-                applicationTimeouts(intent.operation()));
+                timeoutsFor(active, intent.operation()), callSettings(snapshot, active, plan));
+    }
+
+    /**
+     * What the active environment's settings give this one call, read from the snapshot the call
+     * was prepared against (plan 5.2): its sign-in resolved, its member ID rule, the shape of each
+     * request shape with its source, and the callback url it types.
+     */
+    private IssuedCall.Settings callSettings(ConfigSnapshot snapshot, StoredEnvironment active, CallPlan plan) {
+        EnvironmentSettings settings = active == null ? EnvironmentSettings.none() : active.settings();
+        return new IssuedCall.Settings(resolvedSignIn(snapshot, settings.signIn(), plan.target().collection()), settings.memberIdRule(),
+                shapes(settings, plan.target()), Texts.trimToNull(settings.values().get(KnownValues.CALLBACK_URL)));
+    }
+
+    /**
+     * The environment's sign-in with each value resolved, or null when it states none. Resolved
+     * without the values typed for a run: a value typed for one run must never choose where a
+     * secret is sent, nor which secret. A value that does not resolve is kept as written, so the
+     * sign-in names what is missing instead of sending an empty one.
+     */
+    private SignInSettings resolvedSignIn(ConfigSnapshot snapshot, SignInSettings signIn, StoredCollection collection) {
+        if (signIn == null) {
+            return null;
+        }
+        List<VariableLayer> layers = layers(snapshot, Map.of(), collection, Map.of());
+        Function<String, String> resolved = text -> {
+            if (text == null) {
+                return null;
+            }
+            Resolution resolution = resolver.resolve(text, layers);
+            return resolution.complete() && resolution.send() != null ? resolution.send() : text;
+        };
+        return signIn.with(resolved.apply(signIn.tokenUrl()), resolved.apply(signIn.clientId()), resolved.apply(signIn.clientSecret()),
+                resolved.apply(signIn.scope()), resolved.apply(signIn.bearerToken()));
+    }
+
+    /**
+     * Each request shape for a call (R-37): the value the environment states, else what the saved
+     * body of the collection request the call comes from shows, else the default. A call with no
+     * saved body, such as one to a typed address, has no sample to read and takes the default.
+     */
+    static org.p32h.interop.epa.pave.model.RequestShapes shapes(EnvironmentSettings settings, Target target) {
+        org.p32h.interop.epa.pave.model.RequestShapes shapes = org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
+        String savedBody = target == null ? null : target.savedBody();
+        for (org.p32h.interop.epa.pave.model.RequestShape shape : org.p32h.interop.epa.pave.model.RequestShape.values()) {
+            String stated = settings.shapes().get(shape);
+            if (stated != null) {
+                shapes = shapes.with(shape, org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofEnvironment(stated));
+                continue;
+            }
+            String sampled = savedBody == null ? null : org.p32h.interop.epa.pave.service.crd.VendorSamples.fromBody(shape, savedBody);
+            if (sampled != null) {
+                shapes = shapes.with(shape, org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofSample(sampled, target.requestName()));
+            }
+        }
+        return shapes;
+    }
+
+    /**
+     * The timeouts in force for an operation under an environment: what the environment states,
+     * each value falling back to application.yml's. A lookup keeps its own short timeouts (R-11):
+     * the environment's timeouts are for the vendor's services.
+     */
+    private Timeouts timeoutsFor(StoredEnvironment environment, EpaOperation operation) {
+        Timeouts application = applicationTimeouts(operation);
+        if (environment == null || operation.protocol() == Protocol.LOOKUP) {
+            return application;
+        }
+        return environment.settings().timeouts().over(application);
+    }
+
+    @Override
+    public SignInSettings.Method activeSignInMethod() {
+        StoredEnvironment active = store.snapshot().active();
+        SignInSettings signIn = active == null ? null : active.settings().signIn();
+        return signIn == null ? null : signIn.method();
+    }
+
+    @Override
+    public Timeouts vendorTimeouts() {
+        return timeoutsFor(store.snapshot().active(), EpaOperation.CRD_ORDER_SIGN);
+    }
+
+    @Override
+    public org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
+        StoredEnvironment active = store.snapshot().active();
+        org.p32h.interop.epa.pave.model.MemberIdRule rule = active == null ? null : active.settings().memberIdRule();
+        return rule == null ? org.p32h.interop.epa.pave.model.MemberIdRule.PACKED : rule;
     }
 
     /**
@@ -227,13 +314,20 @@ public class ConfigStoreGateway implements OperationGateway {
         return Timeouts.of(onyx);
     }
 
-    /** The longest of every timeout application.yml gives an outbound call: the lookups' may be set longer than the protocols'. */
+    /**
+     * The longest connect and read timeout an outbound call may use now: the vendor's, as the
+     * active environment states them over application.yml's, and the lookups', which may be set
+     * longer. Each keeps the source of the value that won.
+     */
     @Override
     public Timeouts activeTimeouts() {
-        int connect = Math.max(onyx.connectTimeoutMs(),
-                Math.max(lookup.member().connectTimeoutMs(), lookup.provider().connectTimeoutMs()));
-        int read = Math.max(onyx.readTimeoutMs(), Math.max(lookup.member().readTimeoutMs(), lookup.provider().readTimeoutMs()));
-        return Timeouts.application(connect, read);
+        Timeouts vendor = vendorTimeouts();
+        int lookupConnect = Math.max(lookup.member().connectTimeoutMs(), lookup.provider().connectTimeoutMs());
+        int lookupRead = Math.max(lookup.member().readTimeoutMs(), lookup.provider().readTimeoutMs());
+        boolean vendorConnect = vendor.connectMs() >= lookupConnect;
+        boolean vendorRead = vendor.readMs() >= lookupRead;
+        return new Timeouts(vendorConnect ? vendor.connectMs() : lookupConnect, vendorRead ? vendor.readMs() : lookupRead,
+                vendorConnect ? vendor.connectFrom() : Timeouts.FROM_APPLICATION, vendorRead ? vendor.readFrom() : Timeouts.FROM_APPLICATION);
     }
 
     /**
@@ -411,12 +505,12 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     AddressInForce addressInForce(ConfigSnapshot snapshot, StoredEnvironment environment, EpaOperation operation) {
-        String typed = environment == null ? null : environment.settings().addresses().get(operation);
-        if (typed != null) {
-            String template = operation == EpaOperation.SUBSCRIPTION_CREATE ? Texts.withoutTrailing(typed, "/") + operation.fallbackPath() : typed;
-            return shownAddress(snapshot, environment, null, template, "THIS_ENVIRONMENT", "typed here", null, null);
+        // The same choice a call makes (R-02), as if this environment were active, so the form
+        // never names an address a send would not use.
+        Target target = target(snapshot, CallIntent.of(operation), environment);
+        if (target.source() == Source.TYPED) {
+            return shownAddress(snapshot, environment, null, target.template(), "THIS_ENVIRONMENT", "typed here", null, null);
         }
-        Target target = target(snapshot, CallIntent.of(operation));
         if (!target.configured()) {
             return new AddressInForce(null, null, "NOT_SET", "not set", false, List.of(), null, null);
         }
@@ -444,6 +538,7 @@ public class ConfigStoreGateway implements OperationGateway {
     private List<VariableLayer> layersUnder(StoredEnvironment environment, StoredCollection collection) {
         List<VariableLayer> layers = new ArrayList<>();
         if (environment != null) {
+            layers.add(valuesLayer(environment));
             layers.add(VariableLayer.environment(environment.name(), environment.content().inForce()));
         }
         if (collection != null) {
@@ -451,6 +546,18 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         layers.add(VariableLayer.applicationYml(onyx.variables()));
         return layers;
+    }
+
+    /**
+     * The values typed in an environment's settings, as a layer of that environment. A value is
+     * never a secret by its name (a name that reads as one is refused when it is saved), so it is
+     * judged secret only by what it refers to, such as an operating system variable.
+     */
+    static VariableLayer valuesLayer(StoredEnvironment environment) {
+        Map<String, VariableLayer.Entry> entries = new LinkedHashMap<>();
+        environment.settings().values().forEach((name, value) -> entries.put(name, new VariableLayer.Entry(value, false)));
+        return new VariableLayer(VariableSource.ENVIRONMENT, "the values typed for the environment \"" + Names.shown(environment.name())
+                + "\"", entries);
     }
 
     /** The timeouts application.yml gives the vendor's calls, both present: what an environment's own timeouts fall back to. */
@@ -502,6 +609,7 @@ public class ConfigStoreGateway implements OperationGateway {
             Set<String> names = new LinkedHashSet<>(runValues.keySet());
             StoredEnvironment active = snapshot.active();
             if (active != null) {
+                names.addAll(active.settings().values().keySet());
                 names.addAll(active.content().inForce().keySet());
             }
             if (collection != null) {
@@ -535,7 +643,17 @@ public class ConfigStoreGateway implements OperationGateway {
                 found.variable("onyx.auth.client-secret", secret.send());
             }
         }
-        callbackCredentials(found, layers);
+        StoredEnvironment active = snapshot.active();
+        SignInSettings signIn = active == null ? null : active.settings().signIn();
+        if (signIn != null) {
+            // The environment's own sign-in secrets, resolved as a call resolves them, so a service
+            // that repeats one is masked as it is for onyx.auth's (plan 5.2).
+            List<VariableLayer> settingsLayers = layers(snapshot, Map.of(), collections.size() == 1 ? collections.get(0) : null, Map.of());
+            heldSetting(found, "signIn.clientSecret", signIn.clientSecret(), settingsLayers);
+            heldSetting(found, "signIn.bearerToken", signIn.bearerToken(), settingsLayers);
+        }
+        String typedCallback = active == null ? null : Texts.trimToNull(active.settings().values().get(KnownValues.CALLBACK_URL));
+        callbackCredentials(found, layers, typedCallback);
         lookupCredentials(found, lookup.member(), layers);
         lookupCredentials(found, lookup.provider(), layers);
         org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held = heldToken;
@@ -596,8 +714,21 @@ public class ConfigStoreGateway implements OperationGateway {
      * The credentials of the address the service is given to call back: each secret variable in
      * it, and each query parameter whose name reads as a credential, as written and decoded.
      */
-    private void callbackCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, List<VariableLayer> layers) {
-        String template = onyx.subscription() == null ? null : onyx.subscription().callbackUrl();
+    /** Holds the value of one secret of the settings, resolved, under its own name and as each secret piece it was built from. */
+    private void heldSetting(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, String name, String value, List<VariableLayer> layers) {
+        if (Texts.blank(value)) {
+            return;
+        }
+        Resolution resolved = resolver.resolve(value, layers);
+        secretPieces(found, resolved);
+        if (resolved.complete() && Texts.present(resolved.send())) {
+            found.variable(name, resolved.send());
+        }
+    }
+
+    /** @param typed the callback url the active environment types (R-42), which stands in for application.yml's; null when none */
+    private void callbackCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, List<VariableLayer> layers, String typed) {
+        String template = typed != null ? typed : onyx.subscription() == null ? null : onyx.subscription().callbackUrl();
         if (Texts.blank(template)) {
             return;
         }
@@ -742,7 +873,7 @@ public class ConfigStoreGateway implements OperationGateway {
         // A production environment whose address cannot be read is never made active; one that was
         // active before that rule, or became unreadable when a collection made another of its
         // variables an address, is not opened either.
-        ConfigStore.refuseUnreadableProduction(active.content(), snapshot.context(), "unlock");
+        ConfigStore.refuseUnreadableProduction(active.scanned(), snapshot.context(), "unlock");
         if (typedEnvironmentName == null || !typedEnvironmentName.equals(active.name())) {
             // The outcome only. What was typed is not logged.
             log.info("An unlock of production writes was refused on \"{}\": the name typed did not match", ConfigStore.quoted(active.name()));
@@ -969,6 +1100,18 @@ public class ConfigStoreGateway implements OperationGateway {
             + "from it as it is now.";
 
     private Target target(ConfigSnapshot snapshot, CallIntent intent) {
+        return target(snapshot, intent, snapshot.active());
+    }
+
+    /**
+     * Where a call goes, in the order of R-02: the collection request named for this run, the
+     * address the environment's settings type for the operation, the first collection request
+     * mapped to it, application.yml, and for discovery an address cut out of a mapped hook request.
+     *
+     * @param environment the environment whose typed addresses apply: the active one for a call,
+     *                    or the one a view describes as if it were active
+     */
+    private Target target(ConfigSnapshot snapshot, CallIntent intent, StoredEnvironment environment) {
         EpaOperation operation = intent.operation();
         RequestRef named = intent.request();
         if (named != null) {
@@ -989,6 +1132,10 @@ public class ConfigStoreGateway implements OperationGateway {
                         + operation.label() + ", or correct the mapping on the Config tab.");
             }
             return requestTarget(new Located(collection, request));
+        }
+        Target typed = typedTarget(intent, environment);
+        if (typed != null) {
+            return typed;
         }
         if (operation != EpaOperation.UNMAPPED) {
             Located mapped = firstMapped(snapshot, operation, false);
@@ -1044,6 +1191,37 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         return new Target(Source.REQUEST, located.collection(), located.request(), request.url(), request.url(), request.sentHeaders(),
                 described, null);
+    }
+
+    /**
+     * The address the environment's settings type for the operation, or null when it types none.
+     * The subscription address is a base, as application.yml's is: each subscription operation
+     * appends its own path, and a get with no id lists. A typed address replaces the mapped request
+     * wholly (R-02), so it carries no header of a request.
+     */
+    static Target typedTarget(CallIntent intent, StoredEnvironment environment) {
+        EpaOperation operation = intent.operation();
+        if (environment == null || !operation.outbound() || operation.protocol() == Protocol.LOOKUP || operation == EpaOperation.UNMAPPED) {
+            return null;
+        }
+        boolean subscription = operation.protocol() == Protocol.SUBSCRIPTION;
+        String typed = environment.settings().addresses().get(subscription ? EpaOperation.SUBSCRIPTION_CREATE : operation);
+        if (Texts.blank(typed)) {
+            return null;
+        }
+        String described = "the address typed for " + (subscription ? "Subscription" : operation.label()) + " in the settings of the "
+                + "environment \"" + Names.shown(environment.name()) + "\"";
+        if (!subscription) {
+            String template = typed.strip();
+            return new Target(Source.TYPED, null, null, template, template, List.of(), described, null);
+        }
+        String template = Texts.withoutTrailing(typed.strip(), "/") + operation.fallbackPath();
+        String followed = described + " followed by " + operation.fallbackPath();
+        if (operation == EpaOperation.SUBSCRIPTION_GET && !Texts.present(intent.urlValues().get(ID)) && template.endsWith(ID_TOKEN)) {
+            return new Target(Source.TYPED, null, null, template, template.substring(0, template.length() - ID_TOKEN.length()), List.of(),
+                    followed + ". No id was given, so the trailing " + ID_TOKEN + " is left off and this lists subscriptions", null);
+        }
+        return new Target(Source.TYPED, null, null, template, template, List.of(), followed, null);
     }
 
     /** The url from application.yml for an operation with no mapped request, or null when that is not set either. */
@@ -1161,6 +1339,9 @@ public class ConfigStoreGateway implements OperationGateway {
         layers.add(VariableLayer.runValues(runValues));
         StoredEnvironment active = snapshot.active();
         if (active != null) {
+            // R-42: a value typed in the environment's settings stands between the run's values and
+            // the export, so every variable read sees it with no change of the reader's own.
+            layers.add(valuesLayer(active));
             layers.add(VariableLayer.environment(active.name(), active.content().inForce()));
         }
         // Only the collection the request came from. With two collections uploaded, a variable of
@@ -1581,7 +1762,9 @@ public class ConfigStoreGateway implements OperationGateway {
             if (!complete) {
                 return null;
             }
-            boolean ownAddress = active.acknowledgedNotProd() && target.source() == Source.REQUEST
+            // An address typed in the environment's settings is one of its own, so the
+            // confirmation that it is not production covers it as it covers its requests (R-09).
+            boolean ownAddress = active.acknowledgedNotProd() && (target.source() == Source.REQUEST || target.source() == Source.TYPED)
                     && !contributed(origin.resolution(), VariableSource.APPLICATION_YML);
             boolean saysProd = ownAddress ? ProductionSigns.saysProd(UrlNormal.decodedForReading(runText(origin.resolution())))
                     : readsAsProduction(filled.send());

@@ -468,11 +468,13 @@ public final class ConfigViews {
      *                      without signing in although something suggests it should not: a Postman
      *                      helper on the request used, or sign-in settings in the active environment.
      *                      Names only, never a value. Absent otherwise, and always on mock
+     * @param shortLabel    the operation in a word or two (plan 7.5), served as "short"
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
                                TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note,
-                               String blockedShort, Boolean lookupEnabled, String defaultRule, String withoutSignIn) {
+                               String blockedShort, Boolean lookupEnabled, String defaultRule, String withoutSignIn,
+                               @com.fasterxml.jackson.annotation.JsonProperty("short") String shortLabel) {
 
         public OperationRow {
             requests = requests == null ? List.of() : List.copyOf(requests);
@@ -553,7 +555,8 @@ public final class ConfigViews {
 
             public OperationRow build() {
                 return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
-                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule, withoutSignIn);
+                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule, withoutSignIn,
+                        operation.shortLabel());
             }
         }
     }
@@ -629,11 +632,16 @@ public final class ConfigViews {
      * @param problem                    while sign-in is on, the first onyx.auth setting with no value
      *                                   and why. Absent when all of them resolve
      * @param howToSwitchOn              the start-up arguments that would switch sign-in on, with the
-     *                                   environment's own variable names in place. An instruction, never a value
+     *                                   environment's own variable names in place. An instruction, never a value.
+     *                                   Absent when the environment's own settings decide, which are changed on its form
+     * @param from                       where the sign-in in force is decided: "this environment" when the active
+     *                                   environment's settings state a method, else "application.yml"
+     * @param method                     the method the active environment states (NONE, CLIENT_CREDENTIALS or
+     *                                   BEARER_TOKEN), absent when it states none
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SignIn(boolean enabled, List<String> environmentSignInVariables, List<String> requestHelpers, int operationsWithHelper,
-                         String problem, String howToSwitchOn) {
+                         String problem, String howToSwitchOn, String from, String method) {
 
         public SignIn {
             environmentSignInVariables = environmentSignInVariables == null ? List.of() : List.copyOf(environmentSignInVariables);

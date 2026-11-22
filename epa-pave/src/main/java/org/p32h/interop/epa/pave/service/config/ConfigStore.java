@@ -438,10 +438,23 @@ public class ConfigStore {
         if (kind == null) {
             throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
         }
-        PostmanEnvironment parsed = PostmanParser.environment(PostmanParser.decode(content));
+        return uploadEnvironment(originalFileName, content, PostmanParser.environment(PostmanParser.decode(content)), kind,
+                acknowledgedNotProd, describe);
+    }
+
+    /** As above, for an export already read inside its own guard (R-07), so the file is parsed once. */
+    synchronized <V> Described<EnvironmentUpload, V> uploadEnvironment(String originalFileName, byte[] content, PostmanEnvironment parsed,
+                                                                       EnvironmentKind kind, boolean acknowledgedNotProd,
+                                                                       BiFunction<StoredEnvironment, ConfigSnapshot, V> describe) {
+        if (kind == null) {
+            throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
+        }
         ConfigSnapshot before = current;
         StoredEnvironment previous = before.byName(parsed.name());
-        List<String> signs = ProductionSigns.in(parsed);
+        // The settings typed on screen stay with the environment, so its typed addresses and
+        // values are checked with the new export as one environment.
+        PostmanEnvironment scanned = StoredEnvironment.withSettings(parsed, previous == null ? null : previous.settings());
+        List<String> signs = ProductionSigns.in(scanned);
         // What the file says about itself is kept with the environment. What this installation
         // already holds under the same name is a reason of its own to ask, and is not kept: once
         // the upload is confirmed it is no longer true.
@@ -450,9 +463,9 @@ public class ConfigStore {
             reasonsToAsk.add("an environment named \"" + quoted(parsed.name()) + "\" is already stored here as prod, and this upload would replace it");
         }
         if (kind != EnvironmentKind.PROD) {
-            refuseProductionAddresses(before, parsed, kind);
+            refuseProductionAddresses(before, scanned, kind);
         } else {
-            refuseUnreadableProduction(parsed, before.context(), "upload");
+            refuseUnreadableProduction(scanned, before.context(), "upload");
         }
         boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
         if (needsConfirmation && !acknowledgedNotProd) {
@@ -478,7 +491,7 @@ public class ConfigStore {
         // A production environment uploaded again, written plainly on the same host, replaces what
         // its earlier, unreadable address protected on that host. Uploaded on another host it adds
         // to what is remembered and takes nothing away: the old host may still be production.
-        List<ConfigSnapshot.KnownDestination> remembered = rememberedAfter(before, parsed, kind);
+        List<ConfigSnapshot.KnownDestination> remembered = rememberedAfter(before, scanned, kind);
         ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(), remembered,
                 before.applicationYml());
 
@@ -619,19 +632,30 @@ public class ConfigStore {
             throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
         }
 
-        // The checks of an upload with a kind, whenever the export or the kind is new.
-        boolean checked = previous == null || content != null || kind != previous.kind();
-        List<String> signs = ProductionSigns.in(parsed);
+        EnvironmentSettings settings = save.settings().apply(previous == null ? EnvironmentSettings.none() : previous.settings());
+        // The typed addresses and values are the environment's own addresses (plan 5.1), so the
+        // checks read them with the export as one environment.
+        PostmanEnvironment scanned = StoredEnvironment.withSettings(parsed, settings);
+        // A typed address or value that is new or changed by this save and reads as production
+        // asks for the confirmation again (R-09), even when the environment was confirmed before.
+        List<String> typedSigns = typedProductionSigns(previous == null ? EnvironmentSettings.none() : previous.settings(), settings);
+        boolean typedChanged = previous != null && (!settings.addresses().equals(previous.settings().addresses())
+                || !settings.values().equals(previous.settings().values()));
+
+        // The checks of an upload with a kind, whenever the export, the kind or a typed address is new.
+        boolean wholly = previous == null || content != null || kind != previous.kind();
+        boolean checked = wholly || typedChanged;
+        List<String> signs = ProductionSigns.in(scanned);
         boolean acknowledged = previous != null && kind == previous.kind() && previous.acknowledgedNotProd();
         if (checked) {
-            List<String> reasonsToAsk = new ArrayList<>(signs);
+            List<String> reasonsToAsk = new ArrayList<>(wholly ? signs : typedSigns);
             if (previous != null && previous.kind() == EnvironmentKind.PROD && kind != EnvironmentKind.PROD) {
                 reasonsToAsk.add("it is stored here as prod, and this save would make it " + kind.wire());
             }
             if (kind != EnvironmentKind.PROD) {
-                refuseProductionAddresses(before, parsed, kind);
+                refuseProductionAddresses(before, scanned, kind);
             } else {
-                refuseUnreadableProduction(parsed, before.context(), "upload");
+                refuseUnreadableProduction(scanned, before.context(), "upload");
             }
             boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
             if (needsConfirmation && !save.acknowledgeNotProd()) {
@@ -640,10 +664,11 @@ public class ConfigStore {
                         + String.join(", and ", reasonsToAsk) + ". If it really is " + kind.wire() + ", tick \"This environment is not "
                         + "production\" and save again. If it is production, choose the kind prod.")));
             }
-            acknowledged = kind != EnvironmentKind.PROD && (needsConfirmation || save.acknowledgeNotProd());
+            // A save that only changes typed addresses keeps a confirmation given before: what it
+            // confirmed is still stored, and this save asked again for anything new that needed it.
+            acknowledged = kind != EnvironmentKind.PROD && (needsConfirmation || save.acknowledgeNotProd() || (!wholly && acknowledged));
         }
 
-        EnvironmentSettings settings = save.settings().apply(previous == null ? EnvironmentSettings.none() : previous.settings());
         String id = Ids.named(parsed.name());
         String file = content == null ? previous.file() : ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
         StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file,
@@ -692,7 +717,7 @@ public class ConfigStore {
             listedLast.addAll(memberDataWarnings("collection", collection.variables(), collection.requests(), collectionFile));
         }
         ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), collections,
-                checked ? rememberedAfter(before, parsed, kind) : before.remembered(), before.applicationYml());
+                checked ? rememberedAfter(before, scanned, kind) : before.remembered(), before.applicationYml());
 
         if (content != null && save.environmentExport() != null) {
             warnings.addAll(secretWarnings(parsed.variables(), file));
@@ -735,6 +760,26 @@ public class ConfigStore {
         return new Described<>(new SettingsSaved(stored, previous == null, warnings, current), view);
     }
 
+    /**
+     * Each typed address or value that this save sets or changes and that reads as production, as
+     * the reason to ask completes "It looks like production because ...". The address or the
+     * value is never quoted.
+     */
+    private static List<String> typedProductionSigns(EnvironmentSettings before, EnvironmentSettings after) {
+        List<String> signs = new ArrayList<>();
+        after.addresses().forEach((operation, address) -> {
+            if (!address.equals(before.addresses().get(operation)) && ProductionSigns.saysProd(address)) {
+                signs.add("the " + StoredEnvironment.addressName(operation) + " contains \"prod\"");
+            }
+        });
+        after.values().forEach((name, value) -> {
+            if (!value.equals(before.values().get(name)) && ProductionSigns.looksLikeUrl(value) && ProductionSigns.saysProd(value)) {
+                signs.add("the value " + org.p32h.interop.epa.pave.postman.Names.shown(name) + " holds a url that contains \"prod\"");
+            }
+        });
+        return signs;
+    }
+
     /** Makes an uploaded environment the active one, with no restart. */
     synchronized ConfigSnapshot activate(String nameOrId) {
         ConfigSnapshot before = current;
@@ -743,7 +788,7 @@ public class ConfigStore {
             return before;
         }
         if (environment.kind() == EnvironmentKind.PROD) {
-            refuseUnreadableProduction(environment.content(), before.context(), "activate");
+            refuseUnreadableProduction(environment.scanned(), before.context(), "activate");
         }
         commit(new ConfigSnapshot(before.epoch() + 1, before.environments(), environment.name(), before.collections(),
                 before.remembered(), before.applicationYml()), null, null);
@@ -777,7 +822,12 @@ public class ConfigStore {
     /** As {@link #uploadCollection(String, byte[])}, with the answer described before the commit. */
     synchronized <V> Described<CollectionUpload, V> uploadCollection(String originalFileName, byte[] content,
                                                                      BiFunction<StoredCollection, ConfigSnapshot, V> describe) {
-        PostmanCollection parsed = PostmanParser.collection(PostmanParser.decode(content));
+        return uploadCollection(originalFileName, content, PostmanParser.collection(PostmanParser.decode(content)), describe);
+    }
+
+    /** As above, for an export already read inside its own guard (R-07), so the file is parsed once. */
+    synchronized <V> Described<CollectionUpload, V> uploadCollection(String originalFileName, byte[] content, PostmanCollection parsed,
+                                                                     BiFunction<StoredCollection, ConfigSnapshot, V> describe) {
         ConfigSnapshot before = current;
         String id = Ids.named(parsed.name());
         StoredCollection previous = before.collection(id);

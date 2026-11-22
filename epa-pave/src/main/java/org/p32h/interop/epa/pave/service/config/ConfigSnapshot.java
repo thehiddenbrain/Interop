@@ -42,7 +42,7 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
         Map<String, List<ProductionDestinations.Found>> production = new java.util.LinkedHashMap<>();
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                production.put(environment.name(), ProductionDestinations.production(environment.content(), context));
+                production.put(environment.name(), ProductionDestinations.production(environment.scanned(), context));
             }
         }
         // An address the environment leaves to a collection or application.yml is shared by every
