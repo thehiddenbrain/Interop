@@ -87,11 +87,41 @@ public final class SuiteCases {
             return new SuiteDefinition(name, table.format(), table.columns(), List.of(), problems);
         }
         Map<String, Integer> seen = new LinkedHashMap<>();
-        List<SuiteRow> rows = new ArrayList<>();
+        List<Built> built = new ArrayList<>();
+        java.util.Set<String> withheld = new java.util.HashSet<>();
         for (SourceRow source : table.rows()) {
-            rows.add(row(source, csv, mock, outcomes, seen, runner));
+            Built one = row(source, csv, mock, outcomes, seen, runner);
+            built.add(one);
+            if (one.withheld()) {
+                withheld.add(one.key());
+            }
+        }
+        List<SuiteRow> rows = new ArrayList<>();
+        for (Built one : built) {
+            rows.add(withheld.contains(one.key()) && !one.withheld() ? withheld(one.row()) : one.row());
         }
         return new SuiteDefinition(name, table.format(), table.columns(), rows, List.of(), table.skipped());
+    }
+
+    /**
+     * A row read, with the key its case id is matched by (the id as written, in lower case) and
+     * whether that id was refused for holding member data.
+     */
+    private record Built(SuiteRow row, String key, boolean withheld) {
+    }
+
+    /**
+     * A row whose case id another row of the file was refused for: the id holds that member's data
+     * whatever this row's own member is (round2-left 1). A row with no member ID, or with another
+     * member, is never checked against the refused row's member, so without this the id would be
+     * shown, and written into the results a tester downloads. It is named by its position, as the
+     * refused row is, and a row that runs is recorded in the ledger under that name too.
+     */
+    private static SuiteRow withheld(SuiteRow row) {
+        String shown = withheldCaseId(row.number());
+        CaseSpec spec = row.spec() == null ? null : row.spec().toBuilder().caseId(shown).build();
+        return new SuiteRow(row.number(), shown, row.what(), row.chain(), row.write(), row.expected(), spec, row.problems(),
+                row.cannotRun());
     }
 
     private static List<String> columnProblems(List<String> columns) {
@@ -119,13 +149,13 @@ public final class SuiteCases {
         return problems;
     }
 
-    private static SuiteRow row(SourceRow source, boolean csv, boolean mock, OutcomeCatalogue outcomes, Map<String, Integer> seen,
-                                ProtocolCaseRunner runner) {
+    private static Built row(SourceRow source, boolean csv, boolean mock, OutcomeCatalogue outcomes, Map<String, Integer> seen,
+                             ProtocolCaseRunner runner) {
         if (!source.problems().isEmpty()) {
             // A row whose shape is wrong has no cells to check: what it lacks would be reported as missing when it was written.
             String caseId = "case-" + source.number();
             seen.putIfAbsent(caseId, source.number());
-            return new SuiteRow(source.number(), caseId, null, false, false, null, null, source.problems());
+            return new Built(new SuiteRow(source.number(), caseId, null, false, false, null, null, source.problems()), caseId, false);
         }
         List<String> problems = new ArrayList<>();
         Map<Column, String> cells = new EnumMap<>(Column.class);
@@ -309,7 +339,9 @@ public final class SuiteCases {
             }
             problems.addAll(found);
         }
-        if (problems.stream().anyMatch(MemberInText::refusesCaseId)) {
+        String key = caseId.toLowerCase(Locale.ROOT);
+        boolean refusedId = problems.stream().anyMatch(MemberInText::refusesCaseId);
+        if (refusedId) {
             // A case id that holds member data is not repeated on screen or in the results, which a
             // tester downloads: the row is named by its position, in a name no case id of the file can have.
             caseId = withheldCaseId(source.number());
@@ -322,8 +354,8 @@ public final class SuiteCases {
                 shownExpected = refusal;
             }
         }
-        return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), shownExpected,
-                problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null);
+        return new Built(new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), shownExpected,
+                problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null), key, refusedId);
     }
 
     /**
