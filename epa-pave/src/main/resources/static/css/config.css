@@ -4,7 +4,10 @@
  */
 
 .config-page {
+    display: grid;
+    gap: var(--s-5);
     min-width: 0;
+    align-content: start;
 }
 
 .config-page__body {
@@ -131,4 +134,35 @@
 .modal .table td:last-child {
     white-space: normal;
     overflow-wrap: anywhere;
+}
+
+/* The lookup forms of Members and Providers: a JSON body template is read and typed as code. */
+.config-textarea {
+    width: 100%;
+    min-height: 110px;
+    resize: vertical;
+    font-size: var(--text-sm);
+}
+
+.config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-3);
+}
+
+.config-actions .btn--remove {
+    margin-left: auto;
+}
+
+.config-try {
+    border-top: 1px solid var(--line);
+    padding-top: var(--s-4);
+}
+
+/* The Advanced pages draw their text boxes as textarea.json: as wide as their section, grown by hand. */
+.section textarea.json {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
 }

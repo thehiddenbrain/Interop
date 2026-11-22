@@ -16,7 +16,11 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
  * given a value from the server; files are read through files.js and posted as JSON text; the file
  * input is let go after a refusal; a part of the form is drawn only when the server's view carries
  * its field; and the router mounts each page module by its contract and unmounts it, and mounts afresh for a new address
- * any page but Environments, whose update() redraws.
+ * any page but Environments, whose update() redraws. The lookup forms of Members and Providers
+ * (plan 3.4, 5.5) hold theirs: GET hides the body template and POST says the member ID goes in the
+ * body; each sign-in kind shows its own fields and sends only those; a lookup secret is a password
+ * field never given a value, sent as typed and gone from the page once sent; and a server without
+ * lookup settings gets no form at all.
  */
 class ConfigFrontendTest {
 
@@ -249,6 +253,7 @@ class ConfigFrontendTest {
                 await settle();
                 config.update(['members']);
                 await settle();
+                say(root.querySelectorAll('.config-page__body').map(each => each.textContent));
                 config.update(['providers']);
                 await settle();
                 config.update(['advanced']);
@@ -265,14 +270,188 @@ class ConfigFrontendTest {
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
+                "[\"config-lookups.js\",\"cfg-lists.js\"]",
                 "[\"In force now\"]",
                 "[\"mount config-environments.js environments\",\"update config-environments.js environments/pave-sample-sandbox/values\","
-                        + "\"unmount config-environments.js\",\"mount cfg-lists.js members\",\"unmount cfg-lists.js\",\"mount cfg-lists.js providers\","
-                        + "\"unmount cfg-lists.js\",\"mount cfg-inforce.js advanced/in-force\",\"unmount cfg-inforce.js\","
+                        + "\"unmount config-environments.js\","
+                        // Members and Providers: the lookup form above the saved list, each mounted and unmounted on its own.
+                        + "\"mount config-lookups.js members\",\"mount cfg-lists.js members\",\"unmount config-lookups.js\",\"unmount cfg-lists.js\","
+                        + "\"mount config-lookups.js providers\",\"mount cfg-lists.js providers\",\"unmount config-lookups.js\",\"unmount cfg-lists.js\","
+                        + "\"mount cfg-inforce.js advanced/in-force\",\"unmount cfg-inforce.js\","
                         + "\"mount config-environments.js environments\",\"unmount config-environments.js\"]",
-                "[\"config-environments.js\",\"cfg-lists.js\",\"cfg-lists.js\",\"cfg-inforce.js\",\"config-environments.js\"]",
+                "[\"config-environments.js\",\"config-lookups.js\",\"cfg-lists.js\",\"config-lookups.js\",\"cfg-lists.js\",\"cfg-inforce.js\","
+                        + "\"config-environments.js\"]",
                 "[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Access token\",\"Production writes\",\"Advanced\"]",
                 "[\"in-force\",\"trail\",\"raw\",\"try\",\"checks\",\"discovery\",\"compare\"]",
                 "[[\"advanced\",\"in-force\"],[\"advanced\",\"trail\"],[\"environments\"]]");
+    }
+
+    /** A member lookup's view in the shape of plan 5.5, with every secret stored. */
+    private static final String LOOKUP_VIEW = """
+            const lookupView = (extra) => Object.assign({kind: 'member', stated: true, enabled: true, method: 'POST',
+                address: 'https://members.example.invalid/member/search',
+                bodyTemplate: '{"memberIds": ["{memberId}"], "from": "{dateOfService}"}', dateFormat: 'MM/dd/yyyy', idForm: 'AS_TYPED',
+                signIn: {method: 'API_KEY', headerName: 'x-api-key', apiKey: {set: true, reference: '{{env:PAVE_MEMBER_KEY}}'},
+                    bearerToken: {set: true}, tokenUrl: null, clientId: null, clientSecret: {set: true}, scope: null, clientAuthentication: 'BASIC'},
+                headers: [{name: 'x-trace', value: {set: true}}], listPath: 'members', fieldPaths: {dateOfBirth: 'dob'},
+                connectMs: 3000, readMs: 5000, inForce: {from: 'this screen', words: 'POST, signs in with an API key header'}}, extra || {});
+            const {createLookupForm, KINDS} = await import('./js/config-lookups.js');
+            const {el} = await import('./js/dom.js');
+            const labelsShown = node => node.querySelectorAll('.field').filter(each => {
+                for (let at = each; at; at = at.parentNode) { if (at.hidden) { return false; } }
+                return true;
+            }).map(each => each.querySelector('.field__label').textContent);
+            const selectWith = (node, value) => node.querySelectorAll('select').find(each => each.querySelectorAll('option').some(o => o.value === value));
+            """;
+
+    @Test
+    void getHidesTheBodyTemplateAndPostNamesTheMemberIdsPlace(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the lookup form's method", PRELUDE + LOOKUP_VIEW + """
+                const form = createLookupForm(KINDS.members, lookupView({method: 'GET', address: 'https://members.example.invalid/m/{id}'}), null);
+                const node = form.node;
+                document.body.append(node);
+                const hint = () => node.querySelector('.field__hint').textContent;
+                say([labelsShown(node).includes('Body template'), labelsShown(node).includes('Date format'), hint()]);
+                say(Object.keys(form.input()).filter(key => ['bodyTemplate', 'dateFormat'].includes(key)));
+                const method = selectWith(node, 'POST');
+                method.value = 'POST';
+                await method.dispatchEvent({type: 'change'});
+                say([labelsShown(node).includes('Body template'), labelsShown(node).includes('Date format'),
+                    labelsShown(node).includes('Date of service to try'), hint()]);
+                const body = form.input();
+                say([body.method, body.bodyTemplate, body.dateFormat]);
+                // A template without the date leaves the date format out, on screen and in what is sent.
+                const template = node.querySelector('textarea');
+                template.value = '{"memberId": "{memberId}"}';
+                await template.dispatchEvent({type: 'input'});
+                say([labelsShown(node).includes('Date format'), 'dateFormat' in form.input()]);
+                const provider = createLookupForm(KINDS.providers, lookupView({kind: 'provider', method: 'POST', bodyTemplate: '{"npi": "{npi}"}'}), null);
+                say([provider.node.querySelector('.field__hint').textContent, labelsShown(provider.node).includes('Member ID form'),
+                    'idForm' in provider.input()]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[false,false,\"Put {id} where the member ID goes, in the path or the query.\"]",
+                "[]",
+                "[true,true,true,\"The member ID goes in the body, never in the address.\"]",
+                "[\"POST\",\"{\\\"memberIds\\\": [\\\"{memberId}\\\"], \\\"from\\\": \\\"{dateOfService}\\\"}\",\"MM/dd/yyyy\"]",
+                "[false,false]",
+                "[\"The NPI goes in the body, never in the address.\",false,false]");
+    }
+
+    @Test
+    void eachSignInKindShowsItsOwnFields(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the lookup form's sign-in", PRELUDE + LOOKUP_VIEW + """
+                const form = createLookupForm(KINDS.members, lookupView(), null);
+                const node = form.node;
+                document.body.append(node);
+                const signIn = selectWith(node, 'ENVIRONMENT');
+                const own = ['Header name', 'API key', 'Bearer token', 'Token url', 'Client id', 'Client secret', 'Scope', 'Client authentication'];
+                for (const method of ['NONE', 'API_KEY', 'BEARER_TOKEN', 'CLIENT_CREDENTIALS', 'ENVIRONMENT']) {
+                    signIn.value = method;
+                    await signIn.dispatchEvent({type: 'change'});
+                    say([method, labelsShown(node).filter(label => own.includes(label)), Object.keys(form.input().signIn)]);
+                }
+                say(signIn.querySelectorAll('option').map(each => each.textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"NONE\",[],[\"method\"]]",
+                "[\"API_KEY\",[\"Header name\",\"API key\"],[\"method\",\"headerName\",\"apiKey\",\"removeApiKey\"]]",
+                "[\"BEARER_TOKEN\",[\"Bearer token\"],[\"method\",\"bearerToken\",\"removeBearerToken\"]]",
+                "[\"CLIENT_CREDENTIALS\",[\"Token url\",\"Client id\",\"Client secret\",\"Scope\",\"Client authentication\"],"
+                        + "[\"method\",\"tokenUrl\",\"clientId\",\"clientSecret\",\"removeClientSecret\",\"scope\",\"clientAuthentication\"]]",
+                // The active environment's sign-in has no fields of its own: it is the environment's.
+                "[\"ENVIRONMENT\",[],[\"method\"]]",
+                "[\"None\",\"API key header\",\"Bearer token\",\"Client credentials\",\"The active environment's sign-in\"]");
+    }
+
+    @Test
+    void aLookupSecretIsNeverGivenAValueAndLeavesThePageOnceSent(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the lookup form's secrets", PRELUDE + LOOKUP_VIEW + """
+                const {mount} = await import('./js/config-lookups.js');
+                answers['GET /api/config/lookups'] = {status: 200, body: {member: lookupView({listPath: '', fieldPaths: {}}), provider: lookupView({kind: 'provider'})}};
+                answers['PUT /api/config/lookups/member'] = {status: 422, body: {kind: 'VALIDATION', title: 'Some fields need attention.',
+                    fieldErrors: [{field: 'fieldPaths.dateOfBirth', message: 'A path is names and [n] joined by dots.'}]}};
+                const root = el('section');
+                document.body.append(root);
+                const page = mount(root, ['members']);
+                await settle();
+                const passwords = () => root.querySelectorAll('input').filter(each => each.type === 'password');
+                const signIn = selectWith(root, 'ENVIRONMENT');
+                for (const method of ['API_KEY', 'BEARER_TOKEN', 'CLIENT_CREDENTIALS']) {
+                    signIn.value = method;
+                    await signIn.dispatchEvent({type: 'change'});
+                    say([method, passwords().map(each => [String(each.value ?? ''), each.autocomplete, each.placeholder])]);
+                }
+                say([root.textContent.includes('Remove the stored secret'), root.querySelector('details').open]);
+                signIn.value = 'API_KEY';
+                await signIn.dispatchEvent({type: 'change'});
+                say(root.textContent.includes('Stored: {{env:PAVE_MEMBER_KEY}}'));
+                const [apiKey, header] = passwords();
+                apiKey.value = 'typed-placeholder-key';
+                header.value = 'typed-placeholder-trace';
+                await root.querySelectorAll('button').find(each => each.textContent === 'Save lookup').click();
+                await settle();
+                const sent = JSON.parse(posted.find(each => each.path === '/api/config/lookups/member').body);
+                say([sent.signIn.apiKey, sent.signIn.removeApiKey, sent.headers]);
+                // Refused: the field that failed opens and shows why; nothing typed as a secret stays on the page.
+                say([passwords().map(each => String(each.value ?? '')), root.querySelector('details').open,
+                    root.querySelector('.field--error .field__error').textContent]);
+                // A blank secret is sent blank: the server keeps what it stored.
+                await root.querySelectorAll('button').find(each => each.textContent === 'Save lookup').click();
+                await settle();
+                const again = JSON.parse(posted.filter(each => each.path === '/api/config/lookups/member')[1].body);
+                say([again.signIn.apiKey, again.headers.map(each => each.value)]);
+                page.unmount();
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"API_KEY\",[[\"\",\"new-password\",\"blank keeps stored\"],[\"\",\"new-password\",\"blank keeps stored\"]]]",
+                "[\"BEARER_TOKEN\",[[\"\",\"new-password\",\"blank keeps stored\"],[\"\",\"new-password\",\"blank keeps stored\"]]]",
+                "[\"CLIENT_CREDENTIALS\",[[\"\",\"new-password\",\"blank keeps stored\"],[\"\",\"new-password\",\"blank keeps stored\"]]]",
+                "[true,false]",
+                "true",
+                "[\"typed-placeholder-key\",false,[{\"name\":\"x-trace\",\"value\":\"typed-placeholder-trace\",\"remove\":false}]]",
+                "[[\"\",\"\"],true,\"A path is names and [n] joined by dots.\"]",
+                "[\"\",[\"\"]]");
+    }
+
+    @Test
+    void theLookupPageDrawsNothingWithoutTheSettingAndTestsTheSavedLookupInOneLine(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the lookup page", PRELUDE + LOOKUP_VIEW + """
+                const {mount, testLine} = await import('./js/config-lookups.js');
+                const root = el('section');
+                document.body.append(root);
+                // No lookup settings on this server: no form, no copy of its words.
+                let page = mount(root, ['members']);
+                await settle();
+                say(root.textContent);
+                page.unmount();
+                globalThis.standInMode = {mode: 'mock', epoch: 1, writeAccess: {}};
+                answers['GET /api/config/lookups'] = {status: 200, body: {member: lookupView({stated: false, inForce: {from: 'not set', words: 'Off'}}),
+                    provider: lookupView({kind: 'provider', method: 'GET', address: 'https://providers.example.invalid/p/{id}'})}};
+                answers['GET /api/providers'] = {status: 200, body: {status: 'NOT_FOUND', statusLabel: 'Not found',
+                    message: 'The service does not know NPI 1234567893. Check the test data.', elapsedMillis: 41,
+                    wire: {response: {status: 404}}}};
+                const clean = el('section');
+                document.body.append(clean);
+                page = mount(clean, ['providers']);
+                await settle();
+                say([clean.querySelector('h2').textContent, clean.textContent.includes("On mock, lookups answer from PAVE's test fixtures."),
+                    clean.querySelectorAll('button').some(each => each.textContent === 'Remove the saved lookup')]);
+                clean.querySelectorAll('input').find(each => each.placeholder === '1234567893').value = '1234567893';
+                await clean.querySelectorAll('button').find(each => each.textContent === 'Test the lookup').click();
+                await settle();
+                say(clean.querySelector('.config-try .config-status').textContent);
+                page.unmount();
+                say(testLine({status: 'NOT_ANSWERING', statusLabel: 'Not answering', message: 'No answer within 5000 ms.'}, 5003));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "\"\"",
+                "[\"Provider lookup\",true,true]",
+                "\"Not found, HTTP 404, 41 ms, The service does not know NPI 1234567893.\"",
+                "\"Not answering, 5003 ms, No answer within 5000 ms.\"");
     }
 }
