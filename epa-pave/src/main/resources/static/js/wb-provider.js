@@ -28,7 +28,8 @@ export function createProviderCard(env) {
     let extra = {};
     const run = latestOnly();
 
-    const npiRow = el('div', {class: 'field'}, el('label', {class: 'field__label', for: npi.input.id}, 'NPI', npi.node.querySelector('.field__mark')),
+    // The row keeps the field's name so a refusal of the NPI is shown under the label the tester sees (I-3).
+    const npiRow = el('div', {class: 'field', 'data-case-field': 'npi'}, el('label', {class: 'field__label', for: npi.input.id}, 'NPI', npi.node.querySelector('.field__mark')),
         el('div', {class: 'inline-controls'}, npi.input, el('button', {type: 'button', class: 'btn', on: {click: () => lookup()}}, 'Look up')),
         npi.node.querySelector('.masked-carry-slot'), npi.node.querySelector('.field__error'));
     npi.node = npiRow;
