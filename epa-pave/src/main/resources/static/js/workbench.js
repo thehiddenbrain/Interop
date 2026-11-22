@@ -6,6 +6,7 @@ import {el} from './dom.js';
 // held by StaticJoinTest from the first merge on, before the Workbench itself exists.
 import {resultCard} from './result.js';
 import {remember, recall} from './session-runs.js';
+import {readBase64, sizeText} from './files.js';
 
 /** Draws the view into root. route: the parts of the address after #workbench. */
 export function mount(root, route) {

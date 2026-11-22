@@ -55,6 +55,7 @@ class StaticJoinTest {
         out.put("words.js", List.of("vocabulary"));
         out.put("session-runs.js", List.of("remember", "recall"));
         out.put("json-view.js", List.of("jsonView"));
+        out.put("files.js", List.of("readText", "readBase64"));
         out.put("result.js", List.of("resultCard"));
         out.put("detail.js", List.of("responseDetail"));
         out.put("workbench.js", List.of("mount"));
