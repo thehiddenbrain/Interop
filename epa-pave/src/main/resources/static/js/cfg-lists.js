@@ -15,7 +15,7 @@ import {call} from './api.js';
 import {el, fill, clear, chip, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, counted, sentences, none, fileRefusal, fileChooser, shownFile} from './cfg-parts.js';
+import {pageHead, section, part, during, counted, sentences, none, fileRefusal, fileChooser, shownFile, filesChangedNote} from './cfg-parts.js';
 
 const OFF_LINE = 'Saved test lists are switched off on this installation (test-lists.enabled).';
 
@@ -304,7 +304,7 @@ export function mount(root, route) {
             const got = await readText(file, {maxBytes: 5 * 1024 * 1024, source: 'csv'});
             shownFile(file);
             if (!got.ok) {
-                fill(shown, el('p', {class: 'field__error', role: 'alert'}, got.line));
+                fill(shown, el('p', {class: 'field__error', role: 'alert'}, got.line), filesChangedNote());
                 return;
             }
             const answer = await call('POST', list.path + '/import', {body: {csv: got.text, dryRun: true}});

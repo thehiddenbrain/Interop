@@ -704,6 +704,9 @@ export function createEditor(options) {
                 lines.push(el('p', {class: 'config-file-line'}, words + ': not read: ' + read.line));
             }
         }
+        if (lines.length > 0) {
+            lines.push(filesChangedNote());
+        }
         if (!request.environmentExport && !request.collectionExport) {
             fill(fileLines, lines.length > 0 ? lines : el('p', {class: 'config-file-line'}, 'Choose an environment export, a collection export or both.'));
             return;
@@ -934,7 +937,7 @@ export function createEditor(options) {
         for (const slot of Object.keys(files)) {
             const read = await readChosen(slot);
             if (read.ok === false) {
-                fill(banner, el('p', {class: 'config-warning'}, read.line));
+                fill(banner, el('p', {class: 'config-warning'}, read.line), filesChangedNote());
                 return;
             }
         }

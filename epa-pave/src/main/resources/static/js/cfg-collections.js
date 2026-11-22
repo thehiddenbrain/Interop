@@ -11,7 +11,7 @@ import {app} from './app.js';
 import {el, fill, clear, chip, button, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, once, sentences, counted, day, none, fileRefusal, fileChooser, shownFile} from './cfg-parts.js';
+import {pageHead, section, part, during, once, sentences, counted, day, none, fileRefusal, fileChooser, shownFile, filesChangedNote} from './cfg-parts.js';
 
 const UNMAPPED = 'UNMAPPED';
 
@@ -41,7 +41,7 @@ export function mount(root, route) {
         const read = await readText(file, {maxBytes: 20 * 1024 * 1024});
         shownFile(file);
         if (!read.ok) {
-            fill(outcome, el('p', {class: 'field__error', role: 'alert'}, read.line));
+            fill(outcome, el('p', {class: 'field__error', role: 'alert'}, read.line), filesChangedNote());
             return;
         }
         const answer = await call('POST', '/api/config/collections', {body: {fileName: read.fileName, text: read.text}});

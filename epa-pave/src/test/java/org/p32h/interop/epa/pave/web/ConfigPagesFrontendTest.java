@@ -121,6 +121,12 @@ class ConfigPagesFrontendTest {
             };
             say(['line', await refuse(false)]);
             say(['changed', await refuse(true)]);
+            // The page's own refusal of a file says it too.
+            input.files = [new File([new Uint8Array(0)], 'empty.json')];
+            input.value = 'C:/fakepath/empty.json';
+            await upload.click();
+            await settle();
+            say(['own line', text(root).includes('empty.json is empty.'), root.querySelectorAll('.files-changed-note').length]);
             delete fake.mode.build;
 
             // The mapping: one line per request, the choice sent at once.
@@ -159,6 +165,7 @@ class ConfigPagesFrontendTest {
                 "[\"unread\",true,true,\"\"]",
                 "[\"line\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[]]]",
                 "[\"changed\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[\"PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.\"]]]",
+                "[\"own line\",true,1]",
                 "[\"options\",[\"PAS submit\",\"PAS inquire\",\"Unmapped\"]]",
                 "[\"mapped\",[{\"requestId\":\"order-sign Happy Path\",\"operation\":\"PAS_INQUIRE\"}],true]",
                 // A removal is offered inside the open row only, asks first, and is sent once.
