@@ -95,6 +95,7 @@ class ConfigFrontendTest {
                 say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Said above the form.'));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Type an absolute address.'));
+                say(dialog.querySelectorAll('.config-form__banner .error-fields li').map(each => each.textContent));
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -102,8 +103,9 @@ class ConfigFrontendTest {
                 "[[\"timeouts\",true],[\"shapes\",false],[\"values\",true]]",
                 "[\"Between 100 and 600000.\",\"Type an absolute address.\"]",
                 "true",
-                // A refusal placed at its field is not said a second time above the form.
-                "false");
+                // I-3 (live-config-8): the panel names each field by its label with its sentence, also when it is placed at the field.
+                "true",
+                "[\"Wait for a response up to (ms) Between 100 and 600000.\",\"FHIR server Type an absolute address.\",\"Said above the form.\"]");
     }
 
     @Test
@@ -123,7 +125,8 @@ class ConfigFrontendTest {
                 say([banner.includes('declared as sandbox'), banner.includes('vendor-live'), banner.includes('Declared as sandbox.')]);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
-        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,false]");
+        // I-3 (live-config-8): the panel also names the field, Kind, with its sentence.
+        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,true]");
     }
 
     @Test

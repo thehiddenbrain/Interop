@@ -36,7 +36,8 @@ export function noteEditor(run, onSaved) {
                     placed.push(each.field);
                 }
             }
-            fill(said, errorPanel(answer.error, {fieldsPlaced: placed}));
+            fill(said, errorPanel(answer.error, {fieldsPlaced: placed,
+                labelOf: name => name === 'note' ? 'Note' : name === 'testerRef' ? 'Tester reference' : null}));
             return;
         }
         const receipt = answer.data && answer.data.receipt ? answer.data.receipt : {};

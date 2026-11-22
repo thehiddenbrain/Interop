@@ -17,7 +17,7 @@ import {call} from './api.js';
 import {el, clear, fill, chip, badge, fold, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel, faultReport} from './fault.js';
 import {readText} from './files.js';
-import {filesChangedNote, chooserInField, shownFile} from './cfg-parts.js';
+import {filesChangedNote, chooserInField, shownFile, labelsOf} from './cfg-parts.js';
 
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
@@ -1005,7 +1005,10 @@ export function createEditor(options) {
         }
         // The title says what was refused and why (which address, which production environment):
         // a field error says only where, so the panel is drawn even when every field error was placed.
-        fill(banner, errorPanel(error, {fieldsPlaced: placed}));
+        fill(banner, errorPanel(error, {fieldsPlaced: placed, labelOf: labelsOf(name => {
+            const part = parts.fields.get(name) || fileField(name);
+            return part ? part.wrapper : null;
+        })}));
         bannerInView();
     }
 

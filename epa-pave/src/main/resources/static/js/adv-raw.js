@@ -15,7 +15,7 @@ import {errorPanel} from './fault.js';
 import {jsonView} from './json-view.js';
 import {resultCard} from './result.js';
 import {remember} from './session-runs.js';
-import {pageHead, section, part, during, sentences, none, counted} from './cfg-parts.js';
+import {pageHead, section, part, during, sentences, none, counted, labelsOf} from './cfg-parts.js';
 
 /**
  * The sample body of a collection request as the collection holds it, read from one answer of
@@ -415,7 +415,7 @@ export function mount(root, route) {
                 placed.push(each.field);
             }
         }
-        fill(problem, errorPanel(error, {fieldsPlaced: placed}));
+        fill(problem, errorPanel(error, {fieldsPlaced: placed, labelOf: labelsOf(name => fields.get(name))}));
         const first = placed.length > 0 ? fields.get(placed[0]).querySelector('input, select, textarea') : null;
         if (first) {
             first.focus();
