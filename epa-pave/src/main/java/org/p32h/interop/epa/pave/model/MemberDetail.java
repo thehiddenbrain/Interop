@@ -15,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * @param memberId       the no-space form, which is the form sent to the service
  * @param dateOfBirth    ISO date, yyyy-MM-dd
  * @param lineOfBusiness as the source system names it, for example Medicare, Medicaid or Commercial
+ * @param vendorPatientId the vendor's own id for this patient, used as the Patient's resource id when
+ *                        given; never derived from the member ID, whose forms can hold spaces
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record MemberDetail(
@@ -29,7 +31,8 @@ public record MemberDetail(
         String coverageStart,
         String coverageEnd,
         String subscriberId,
-        PostalAddress address) {
+        PostalAddress address,
+        String vendorPatientId) {
 
     public static Builder builder() {
         return new Builder();
@@ -39,7 +42,8 @@ public record MemberDetail(
         return new Builder()
                 .memberId(memberId).firstName(firstName).lastName(lastName).dateOfBirth(dateOfBirth).gender(gender)
                 .lineOfBusiness(lineOfBusiness).planName(planName).coverageStatus(coverageStatus)
-                .coverageStart(coverageStart).coverageEnd(coverageEnd).subscriberId(subscriberId).address(address);
+                .coverageStart(coverageStart).coverageEnd(coverageEnd).subscriberId(subscriberId).address(address)
+                .vendorPatientId(vendorPatientId);
     }
 
     /** Redacted, because a record's default toString would print member data into a log. */
@@ -61,6 +65,7 @@ public record MemberDetail(
         private String coverageEnd;
         private String subscriberId;
         private PostalAddress address;
+        private String vendorPatientId;
 
         private Builder() {
         }
@@ -125,9 +130,14 @@ public record MemberDetail(
             return this;
         }
 
+        public Builder vendorPatientId(String value) {
+            this.vendorPatientId = value;
+            return this;
+        }
+
         public MemberDetail build() {
             return new MemberDetail(memberId, firstName, lastName, dateOfBirth, gender, lineOfBusiness, planName,
-                    coverageStatus, coverageStart, coverageEnd, subscriberId, address);
+                    coverageStatus, coverageStart, coverageEnd, subscriberId, address, vendorPatientId);
         }
     }
 }

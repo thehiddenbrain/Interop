@@ -59,6 +59,13 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
     public static final String CARRY_CLAIM_ID = "claimId";
     /** The id of a subscription a step created or read. */
     public static final String CARRY_SUBSCRIPTION_ID = "subscriptionId";
+    /**
+     * The coverage information extensions CRD returned, one value per order, each the JSON text
+     * {@code {"order": "<reference>", "extension": {...}}} with the extension exactly as received.
+     * DTR puts it back on the order it sends, as the vendor's accepted request did; carrying it as
+     * received, rather than rebuilding it, keeps the tool from asserting coverage the payer never stated.
+     */
+    public static final String CARRY_COVERAGE_INFORMATION = "coverageInformation";
 
     /**
      * The words for each carry key, for the three protocols in one place, so that the step that
@@ -77,7 +84,8 @@ public record NextStepView(NextAction action, String headline, String reason, Ma
             Map.entry(CARRY_QUESTIONNAIRE_RESPONSE, "Completed questionnaire responses"),
             Map.entry(CARRY_RUN_ID, "The run this step follows from"),
             Map.entry(CARRY_CLAIM_ID, "Claim identifier"),
-            Map.entry(CARRY_SUBSCRIPTION_ID, "Subscription id"));
+            Map.entry(CARRY_SUBSCRIPTION_ID, "Subscription id"),
+            Map.entry(CARRY_COVERAGE_INFORMATION, "Coverage information CRD returned"));
 
     public NextStepView {
         if (action == null || Texts.blank(headline)) {
