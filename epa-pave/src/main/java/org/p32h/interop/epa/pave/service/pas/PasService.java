@@ -20,6 +20,8 @@ import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.RequestShape;
+import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
@@ -127,7 +129,7 @@ public class PasService {
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
-                    "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule(), PasGuide.of(call.shapes()));
+                    "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
@@ -177,7 +179,7 @@ public class PasService {
             Codes codes = inquiryCodes(request, claimId);
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
-                    reads, call.memberIdRule(), PasGuide.of(call.shapes()));
+                    reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
@@ -337,9 +339,15 @@ public class PasService {
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
-                NEW_ID, reads, call.memberIdRule(), PasGuide.of(call.shapes()));
+                NEW_ID, reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown)
                 .withToComplete(built.toComplete());
+    }
+
+    /** True when the call's environment states its PAS guide; false when 2.0.1 holds only as the default. */
+    static boolean guideStated(PreparedCall call) {
+        return call.shapes() != null
+                && RequestShapes.FROM_ENVIRONMENT.equals(call.shapes().choice(RequestShape.PAS_GUIDE).from());
     }
 
     /** What the inquiry would be, without sending it. Nothing is recorded. */
@@ -360,7 +368,7 @@ public class PasService {
         Codes codes = inquiryCodes(request, claimId);
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads, call.memberIdRule(),
-                PasGuide.of(call.shapes()));
+                PasGuide.of(call.shapes()), guideStated(call));
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 

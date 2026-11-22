@@ -129,8 +129,8 @@ class Pas201SubmitTest {
         assertThat(built.notes().get(0)).isEqualTo("This request goes out without 4 elements PAS 2.0.1 requires, because nobody "
                 + "supplied them: PASClaim insurer; PASBeneficiary identifier.system; PASCoverage payor; PASClaim item.category. The service "
                 + "may refuse the request for that alone.");
-        assertThat(built.notes()).containsOnlyOnce("This request follows Da Vinci PAS 2.0.1, the PAS guide of the environment "
-                + "(Configuration > Environments, Request shapes).");
+        assertThat(built.notes()).containsOnlyOnce("This request follows Da Vinci PAS 2.0.1, the default: no environment states a "
+                + "PAS guide (Configuration > Environments, Request shapes).");
         assertThat(built.notes()).noneMatch(note -> note.contains("2.2.1"));
         assertThat(built.notes()).contains("The claim identifier was sent without an identifier system: the variable claimIdentifierSystem "
                 + "is not set. PAS 2.0.1 does not require one.");

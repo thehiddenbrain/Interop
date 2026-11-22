@@ -1537,8 +1537,10 @@ class PasServiceTest {
         assertThat(bare.toComplete()).extracting(RequestPreview.ToComplete::field).containsExactly("values.payerName", "serviceType");
         assertThat(bare.toComplete().get(0).line()).isEqualTo("Insurer: none. PAS 2.0.1 requires the payer: add Payer name and Payer "
                 + "identifier under Values in Configuration > Environments.");
-        assertThat(bare.notes()).contains("This request follows Da Vinci PAS 2.0.1, the PAS guide of the environment (Configuration > "
-                + "Environments, Request shapes).");
+        // With no environment the guide is the default, never credited to an environment.
+        assertThat(bare.notes()).contains("This request follows Da Vinci PAS 2.0.1, the default: no environment states a PAS guide "
+                + "(Configuration > Environments, Request shapes).");
+        assertThat(String.join(" ", bare.notes())).doesNotContain("the PAS guide of the environment");
         assertThat(String.join(" ", bare.notes())).doesNotContain("2.2.1");
 
         RunEnvelope<PasDetail> sent = unstated.runSubmit(submission("P32H-PAS-APPROVED").build(), RunOrigin.manual(), null);

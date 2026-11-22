@@ -135,6 +135,8 @@ public final class PasRequestBuilder {
     private final Clock clock;
     private final Supplier<UUID> uuids;
     private final PasGuide guide;
+    /** True when the guide was chosen for this builder, false when 2.0.1 holds as the default. */
+    private final boolean guideStated;
 
     /**
      * @param codeList       consulted for a code's system when the tester did not state one. May be null
@@ -146,20 +148,22 @@ public final class PasRequestBuilder {
 
     /** @param uuids the source of the guids of the entries' full urls, which PAS 2.0.1 and 2.2.1 require to be unique across submissions */
     PasRequestBuilder(ProcedureCodeDirectory codeList, String attachmentMode, Clock clock, Supplier<UUID> uuids) {
-        this(new PasResources(codeList), attachmentMode, clock, uuids, PasGuide.V201);
+        this(new PasResources(codeList), attachmentMode, clock, uuids, PasGuide.V201, false);
     }
 
-    private PasRequestBuilder(PasResources resources, String attachmentMode, Clock clock, Supplier<UUID> uuids, PasGuide guide) {
+    private PasRequestBuilder(PasResources resources, String attachmentMode, Clock clock, Supplier<UUID> uuids, PasGuide guide,
+                              boolean guideStated) {
         this.resources = resources;
         this.attachmentMode = attachmentMode;
         this.clock = clock;
         this.uuids = uuids;
         this.guide = guide;
+        this.guideStated = guideStated;
     }
 
     /** This builder held against another guide by the calls that name none; a call that names one keeps its own. */
     PasRequestBuilder under(PasGuide guide) {
-        return new PasRequestBuilder(resources, attachmentMode, clock, uuids, guide == null ? PasGuide.V201 : guide);
+        return new PasRequestBuilder(resources, attachmentMode, clock, uuids, guide == null ? PasGuide.V201 : guide, guide != null);
     }
 
     /**
@@ -176,7 +180,7 @@ public final class PasRequestBuilder {
 
     public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
-        return submit(request, claimId, newClaim, bundleId, variables, memberIdRule, guide);
+        return submit(request, claimId, newClaim, bundleId, variables, memberIdRule, guide, guideStated);
     }
 
     /**
@@ -185,8 +189,14 @@ public final class PasRequestBuilder {
      */
     public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide) {
+        return submit(request, claimId, newClaim, bundleId, variables, memberIdRule, guide, guide != null);
+    }
+
+    /** @param guideStated true when the environment states the guide, false when 2.0.1 holds as the default */
+    public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
+                        Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide, boolean guideStated) {
         PasNotes notes = new PasNotes(guide);
-        notes.add(guideNote(notes));
+        notes.add(guideNote(notes, guideStated));
         List<ObjectNode> carried = new ArrayList<>();
         ArrayNode supportingInfo = JSON.arrayNode();
         String statedReportType = CaseResources.value(variables, VAR_REPORT_TYPE);
@@ -299,7 +309,7 @@ public final class PasRequestBuilder {
 
     public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
                          Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
-        return inquire(request, claimId, codes, codesFrom, bundleId, variables, memberIdRule, guide);
+        return inquire(request, claimId, codes, codesFrom, bundleId, variables, memberIdRule, guide, guideStated);
     }
 
     /**
@@ -308,8 +318,14 @@ public final class PasRequestBuilder {
      */
     public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
                          Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide) {
+        return inquire(request, claimId, codes, codesFrom, bundleId, variables, memberIdRule, guide, guide != null);
+    }
+
+    /** @param guideStated true when the environment states the guide, false when 2.0.1 holds as the default */
+    public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
+                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide, boolean guideStated) {
         PasNotes notes = new PasNotes(guide);
-        notes.add(guideNote(notes));
+        notes.add(guideNote(notes, guideStated));
         if (codes.isEmpty() && !notes.guide().is221()) {
             // PAS 2.0.1 PASClaimBase, which PASClaimInquiry is built on, makes item 1..*.
             notes.missing("PASClaimInquiry item", "The inquiry lists no item: no procedure code was given on the form, handed on from the "
@@ -506,10 +522,14 @@ public final class PasRequestBuilder {
         return new Case(out);
     }
 
-    /** The one note that names the guide the request is held against, and where a tester changes it. */
-    private static String guideNote(PasNotes notes) {
-        return "This request follows " + notes.guide().fullName() + ", the PAS guide of the environment (Configuration > "
-                + "Environments, Request shapes).";
+    /**
+     * The one note that names the guide the request is held against, where it comes from, and where a
+     * tester changes it. With no environment, or one that states no guide, 2.0.1 is the default, not
+     * anyone's choice, and the note must not credit it to the environment.
+     */
+    static String guideNote(PasNotes notes, boolean stated) {
+        return "This request follows " + notes.guide().fullName() + (stated ? ", the PAS guide of the environment"
+                : ", the default: no environment states a PAS guide") + " (Configuration > Environments, Request shapes).";
     }
 
     /** What the items went out with and without, said once for all of them. */
