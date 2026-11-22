@@ -108,8 +108,9 @@ class MemberLookupServiceTest {
         service.lookup("S123456789");
         // Asked twice, answered twice: there is no cache in front of the client.
         assertThat(client.asked).hasSize(2);
-        // And nowhere to keep one. The only thing the service holds is the client.
-        Field[] fields = MemberLookupService.class.getDeclaredFields();
+        // And nowhere to keep one. The service holds the client, and the gateway it asks for the active member ID rule.
+        Field[] fields = java.util.Arrays.stream(MemberLookupService.class.getDeclaredFields())
+                .filter(field -> field.getType() != org.springframework.beans.factory.ObjectProvider.class).toArray(Field[]::new);
         assertThat(fields).hasSize(1);
         assertThat(fields[0].getType()).isEqualTo(MemberLookupClient.class);
         assertThat(Modifier.isFinal(fields[0].getModifiers())).isTrue();

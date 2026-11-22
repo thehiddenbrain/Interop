@@ -111,9 +111,37 @@ public final class ConfigViews {
      *                    its start and its length ({@link org.p32h.interop.epa.pave.postman.Names#shown})
      * @param destination scheme, host, port and base path. Never a query or user information
      * @param stored      false when that environment has been deleted and the address is remembered
+     * @param forgettable true when "Forget this production address" is offered: no environment stored
+     *                    as prod holds it, and it is not built from a secret (R-35)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ProductionDestinationView(String environment, String destination, boolean stored) {
+    public record ProductionDestinationView(String environment, String destination, boolean stored, boolean forgettable) {
+
+        /** A row as it was before Forget, for an address of a stored prod environment: never forgettable. */
+        public ProductionDestinationView(String environment, String destination, boolean stored) {
+            this(environment, destination, stored, !stored);
+        }
+    }
+
+    /** What "Forget this production address" answers: the address as it was listed, and the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Forgotten(String forgotten, long epoch) {
+    }
+
+    /**
+     * A stored file that could not be read at the start and is left out (R-32).
+     *
+     * @param file the file as the store names it, relative to the store folder: what
+     *             {@code POST /api/config/unreadable/remove} is given back
+     * @param line what is wrong and what to do, in words. The same sentence is among the problems
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableView(String file, String line) {
+    }
+
+    /** What "Remove it from the store" answers: the file as listed, where it was moved (absent when it was not there), the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableRemoved(String removed, String movedTo, long epoch) {
     }
 
     /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
@@ -588,9 +616,11 @@ public final class ConfigViews {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
                             WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings,
-                            List<ProductionDestinationView> productionDestinations, Readiness readiness) {
+                            List<ProductionDestinationView> productionDestinations, Readiness readiness,
+                            List<UnreadableView> unreadable) {
 
         public Effective {
+            unreadable = unreadable == null ? List.of() : List.copyOf(unreadable);
             productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
             problems = problems == null ? List.of() : List.copyOf(problems);
             operations = operations == null ? List.of() : List.copyOf(operations);

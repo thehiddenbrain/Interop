@@ -209,8 +209,10 @@ public class ConfigStoreGateway implements OperationGateway {
         // service may repeat a secret of any one uploaded: each is held, as for a notification.
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
-                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection)),
-                timeoutsFor(active, intent.operation()), callSettings(snapshot, active, plan));
+                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection),
+                        intent.lookup()),
+                intent.lookup() != null ? intent.lookup().timeouts().over(applicationTimeouts(intent.operation()))
+                        : timeoutsFor(active, intent.operation()), callSettings(snapshot, active, plan));
     }
 
     /**
@@ -220,7 +222,13 @@ public class ConfigStoreGateway implements OperationGateway {
      */
     private IssuedCall.Settings callSettings(ConfigSnapshot snapshot, StoredEnvironment active, CallPlan plan) {
         EnvironmentSettings settings = active == null ? EnvironmentSettings.none() : active.settings();
-        return new IssuedCall.Settings(resolvedSignIn(snapshot, settings.signIn(), plan.target().collection()), settings.memberIdRule(),
+        LookupTarget lookup = plan.intent().lookup();
+        // A saved lookup carries the environment's sign-in only when the tester chose it, so the
+        // environment's token never goes to a lookup's host unasked. Choosing it under an
+        // environment that states no sign-in leaves onyx.auth to decide, as for any call.
+        SignInSettings signIn = lookup != null && !lookup.environmentSignIn() ? SignInSettings.none()
+                : resolvedSignIn(snapshot, settings.signIn(), plan.target().collection());
+        return new IssuedCall.Settings(signIn, settings.memberIdRule(),
                 shapes(settings, plan.target()), Texts.trimToNull(settings.values().get(KnownValues.CALLBACK_URL)));
     }
 
@@ -587,11 +595,26 @@ public class ConfigStoreGateway implements OperationGateway {
         this.heldToken = held;
     }
 
+    /** The beans that hold secrets outside the store, such as the saved lookups' (plan 9.2). Absent in tests that build the gateway alone. */
+    private volatile java.util.function.Supplier<List<HeldSecretsSource>> heldSources;
+
+    /** Asked lazily, each time a set is built, so a source may itself depend on the gateway and sources added later count. */
+    @Autowired(required = false)
+    void heldSecretsSources(org.springframework.beans.factory.ObjectProvider<HeldSecretsSource> sources) {
+        this.heldSources = () -> sources.orderedStream().toList();
+    }
+
+    /** The same for a test that builds the gateway alone. */
+    void heldSecretsSources(List<HeldSecretsSource> sources) {
+        List<HeldSecretsSource> fixed = List.copyOf(sources);
+        this.heldSources = () -> fixed;
+    }
+
     @Override
     public org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
         ConfigSnapshot snapshot = store.snapshot();
         // A notification belongs to no request, so to no one collection: each one uploaded is held.
-        return held(snapshot, Map.of(), snapshot.collections());
+        return held(snapshot, Map.of(), snapshot.collections(), null);
     }
 
     /**
@@ -615,7 +638,7 @@ public class ConfigStoreGateway implements OperationGateway {
      *                    (a lookup, an operation application.yml supplies) and for a notification
      */
     private org.p32h.interop.epa.pave.model.SentSecrets held(ConfigSnapshot snapshot, Map<String, String> runValues,
-                                                             List<StoredCollection> collections) {
+                                                             List<StoredCollection> collections, LookupTarget lookupTarget) {
         org.p32h.interop.epa.pave.model.SentSecrets.Builder found = org.p32h.interop.epa.pave.model.SentSecrets.builder();
         List<StoredCollection> each = collections.isEmpty() ? Collections.singletonList(null) : collections;
         for (StoredCollection collection : each) {
@@ -670,6 +693,10 @@ public class ConfigStoreGateway implements OperationGateway {
         callbackCredentials(found, layers, typedCallback);
         lookupCredentials(found, lookup.member(), layers);
         lookupCredentials(found, lookup.provider(), layers);
+        if (lookupTarget != null) {
+            savedLookupCredentials(found, lookupTarget, layers);
+        }
+        heldElsewhere(found);
         org.springframework.beans.factory.ObjectProvider<HeldAccessToken> held = heldToken;
         HeldAccessToken token = held == null ? null : held.getIfAvailable();
         if (token != null) {
@@ -701,6 +728,46 @@ public class ConfigStoreGateway implements OperationGateway {
         List<java.util.Map.Entry<String, String>> headers = new ArrayList<>();
         endpoint.headers().forEach((name, value) -> headers.add(java.util.Map.entry(Texts.orElse(name, ""), Texts.orElse(value, ""))));
         templateCredentials(found, endpoint.url(), headers, layers);
+    }
+
+    /**
+     * The credentials of the lookup saved on screen a call is sent to: those of its address and of
+     * its headers by the rule application.yml's lookup is held by, and the value of each header it
+     * saved as a secret, whatever that header is called.
+     */
+    private void savedLookupCredentials(org.p32h.interop.epa.pave.model.SentSecrets.Builder found, LookupTarget target,
+                                        List<VariableLayer> layers) {
+        List<java.util.Map.Entry<String, String>> headers = new ArrayList<>();
+        target.headers().forEach(header -> headers.add(java.util.Map.entry(header.name(), header.value())));
+        templateCredentials(found, target.urlTemplate(), headers, layers);
+        for (HeaderSetting header : target.headers()) {
+            if (!header.secret()) {
+                continue;
+            }
+            Resolution how = resolver.resolve(header.value(), layers);
+            if (how.complete() && Texts.present(how.send())) {
+                found.header(header.name(), Secrets.credential(header.name(), how.send()));
+            }
+        }
+    }
+
+    /**
+     * What every {@link HeldSecretsSource} holds. A source that fails to answer makes the set
+     * incomplete rather than failing the call, and the wire view then says not every secret was
+     * known. Nothing about the failure is logged: its message could quote a secret.
+     */
+    private void heldElsewhere(org.p32h.interop.epa.pave.model.SentSecrets.Builder found) {
+        java.util.function.Supplier<List<HeldSecretsSource>> sources = heldSources;
+        if (sources == null) {
+            return;
+        }
+        for (HeldSecretsSource source : sources.get()) {
+            try {
+                found.held(source.held());
+            } catch (RuntimeException e) {
+                found.incomplete();
+            }
+        }
     }
 
     /**
@@ -1089,12 +1156,17 @@ public class ConfigStoreGateway implements OperationGateway {
             return resolver.resolve(typed.template(), typed.before(callLayers));
         };
         List<CallPlan.Header> headers = new ArrayList<>();
-        for (PostmanHeader header : target.headers()) {
+        List<PostmanHeader> written = target.headers();
+        for (int i = 0; i < written.size(); i++) {
+            PostmanHeader header = written.get(i);
             String template = Texts.orElse(header.value(), "");
             Resolution how = resolver.resolve(template, plainLayers);
+            // A header a lookup saved as a secret is shown as a credential is, whatever its name.
+            boolean savedSecret = target.source() == Source.LOOKUP && intent.lookup().headers().get(i).secret();
+            String shown = how.complete() ? (savedSecret ? Secrets.redactCredential(header.name(), how.send()) : shownValue(header.name(), how)) : null;
             // A header that still holds a placeholder is carried as unresolved. It is neither
             // dropped nor sent empty: the sending layer refuses the call and names what is missing.
-            headers.add(new CallPlan.Header(how.complete() ? new ResolvedHeader(header.name(), shownValue(header.name(), how), how.send())
+            headers.add(new CallPlan.Header(how.complete() ? new ResolvedHeader(header.name(), shown, how.send())
                     : ResolvedHeader.unresolved(header.name(), how.unresolved()), template, how));
         }
 
@@ -1127,6 +1199,9 @@ public class ConfigStoreGateway implements OperationGateway {
      */
     private Target target(ConfigSnapshot snapshot, CallIntent intent, StoredEnvironment environment) {
         EpaOperation operation = intent.operation();
+        if (intent.lookup() != null) {
+            return lookupTarget(intent);
+        }
         RequestRef named = intent.request();
         if (named != null) {
             StoredCollection collection = snapshot.collection(named.collectionId());
@@ -1238,6 +1313,19 @@ public class ConfigStoreGateway implements OperationGateway {
         return new Target(Source.TYPED, null, null, template, template, List.of(), followed, null);
     }
 
+    /**
+     * The lookup saved on screen that the intent carries (R-11). It replaces application.yml's
+     * lookup wholly: its own address, method and headers, and no collection's.
+     */
+    private static Target lookupTarget(CallIntent intent) {
+        LookupTarget lookup = intent.lookup();
+        List<PostmanHeader> headers = new ArrayList<>();
+        lookup.headers().forEach(header -> headers.add(new PostmanHeader(header.name(), header.value(), false)));
+        String described = intent.operation() == EpaOperation.MEMBER_LOOKUP ? "the member lookup saved in Configuration > Members"
+                : "the provider lookup saved in Configuration > Providers";
+        return new Target(Source.LOOKUP, null, null, lookup.urlTemplate(), lookup.urlTemplate(), headers, described, null);
+    }
+
     /** The url from application.yml for an operation with no mapped request, or null when that is not set either. */
     private Target fallback(CallIntent intent) {
         EpaOperation operation = intent.operation();
@@ -1337,6 +1425,9 @@ public class ConfigStoreGateway implements OperationGateway {
         if (target.source() == Source.REQUEST) {
             return target.request().request().method();
         }
+        if (target.source() == Source.LOOKUP) {
+            return intent.lookup().method();
+        }
         return intent.operation().defaultMethod();
     }
 
@@ -1431,7 +1522,7 @@ public class ConfigStoreGateway implements OperationGateway {
         if (intent.operation().write()) {
             return null;
         }
-        String because = judgedByMethod(intent, target, method, url, filled);
+        String because = target.source() == Source.LOOKUP ? judgedAsLookup(method, url, filled) : judgedByMethod(intent, target, method, url, filled);
         if (because != null) {
             return because;
         }
@@ -1450,6 +1541,27 @@ public class ConfigStoreGateway implements OperationGateway {
             if (!asked.isEmpty() && judgedByMethod(intent, target, asked, url, filled) != null) {
                 // The header's value is quoted only when it is a plain method name.
                 return "its header " + Names.shown(name) + " asks the far side to act on it as " + (asked.matches("[A-Z]{1,12}") ? asked : "another method");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The judgement for a lookup saved on screen (R-11): a read whatever its method, so a POST that
+     * carries a member ID in its body is not a write for its method. Its address is still read as
+     * every url is: a lookup whose address reads as an operation that changes something, such as a
+     * claim submission, is that operation, and the guardrail judges it so. Otherwise a lookup would
+     * be a way to submit to production without the unlock.
+     */
+    private static String judgedAsLookup(String method, ResolvedUrl url, UrlForms.Filled filled) {
+        Set<EpaOperation> signals = new LinkedHashSet<>(OperationDetector.signals(null, method, url.template()));
+        signals.addAll(OperationDetector.signals(null, method, UrlNormal.text(url.template())));
+        if (filled != null) {
+            signals.addAll(OperationDetector.signals(null, method, filled.probe()));
+        }
+        for (EpaOperation signal : signals) {
+            if (signal.outbound() && signal != EpaOperation.UNMAPPED && signal.protocol() != Protocol.LOOKUP && signal.writesWith(method)) {
+                return "the address of the saved lookup reads as " + signal.label();
             }
         }
         return null;

@@ -96,6 +96,24 @@ public class ConfigStore {
     /** The copy of store.json taken once, before it is first written as version 2: going back needs one file renamed. */
     static final String BEFORE_V2 = "store.json.before-v2";
     private static final String TEMP_MARK = ".tmp-";
+    /** The file a running copy holds a lock on, so that a second copy on the same folder is refused at its start (R-32). */
+    static final String LOCK_FILE = ".lock";
+    /** Where a stored file that cannot be read is moved by "Remove it from the store": aside, never deleted (R-32). */
+    static final String UNREADABLE = "unreadable";
+
+    /** The stores of this JVM holding the lock of a folder, by folder: a system lock is held per JVM, not per store. */
+    private static final Map<Path, HeldLock> LOCKS = new java.util.HashMap<>();
+
+    private static final class HeldLock {
+        private final FileChannel channel;
+        private final java.nio.channels.FileLock lock;
+        private int holders = 1;
+
+        private HeldLock(FileChannel channel, java.nio.channels.FileLock lock) {
+            this.channel = channel;
+            this.lock = lock;
+        }
+    }
     /**
      * How long a replace that was refused is tried again. A virus scanner, an indexer or a sync
      * client on Windows holds a file it has just seen for moments, and a refusal it causes is gone
@@ -263,6 +281,14 @@ public class ConfigStore {
     private volatile ConfigSnapshot current;
     /** The version store.json was last read or written as. Once version 2, it stays version 2. */
     private volatile int version = STATE_VERSION;
+    /**
+     * The entries of store.json whose file could not be read at the start: left out of the
+     * configuration, listed, and written back as they were on every commit, so nothing is lost
+     * until the tester removes one or uploads its environment or collection again.
+     */
+    private volatile List<Unreadable> unreadable = List.of();
+    /** True while this store counts among the holders of its folder's lock. */
+    private boolean locked;
 
     /**
      * Opens the store, creating its directory. Fails, naming the path, when the directory cannot be
@@ -297,7 +323,14 @@ public class ConfigStore {
             throw new IllegalStateException("config-store.directory is \"" + properties.directory() + "\", which is not a usable path.", e);
         }
         prepareDirectories();
-        ConfigSnapshot loaded = load();
+        ConfigSnapshot loaded;
+        try {
+            loaded = load();
+        } catch (RuntimeException e) {
+            // A store that does not open holds nothing: the lock goes with it.
+            close();
+            throw e;
+        }
         this.strays = strays(loaded);
         if (!strays.isEmpty()) {
             // A count and the directory. The Config tab names each file.
@@ -347,6 +380,154 @@ public class ConfigStore {
     }
 
     /**
+     * An entry of store.json whose file could not be read at the start.
+     *
+     * @param list  "environments" or "collections": the array of store.json the entry is kept in
+     * @param file  the file as store.json names it, relative to the store folder; what "Remove it
+     *              from the store" is given back
+     * @param key   the environment's name or the collection's id the entry stands for, or null when
+     *              it does not say. An upload under that name or id takes its place
+     * @param line  what is wrong and what to do, in words
+     * @param entry the entry as store.json holds it, written back unchanged
+     */
+    record Unreadable(String list, String file, String key, String line, JsonNode entry) {
+
+        /** Names the file only: the entry can hold settings with a secret in them. */
+        @Override
+        public String toString() {
+            return "Unreadable[" + list + ", " + file + "]";
+        }
+    }
+
+    /** The stored files that could not be read, as listed under In force now. */
+    List<Unreadable> unreadable() {
+        return unreadable;
+    }
+
+    /** What forgetting a production address did: the address as it was listed, and the new epoch. */
+    record Forgotten(String forgotten, long epoch) {
+    }
+
+    /**
+     * Forgets a production address remembered from an environment that is no longer stored as
+     * prod (R-35): the way back from a slip of the mouse. The name must be typed exactly as the
+     * address was remembered under, and an address a stored prod environment holds is never
+     * forgotten, whoever else it was remembered from.
+     *
+     * @param listed      the address as the list of production addresses shows it
+     * @param environment the environment's name, typed
+     */
+    synchronized Forgotten forgetDestination(String listed, String environment) {
+        ConfigSnapshot before = current;
+        String wanted = listed.strip();
+        List<ConfigSnapshot.KnownDestination> matching = before.remembered().stream()
+                .filter(known -> !known.secret() && (known.listed().equals(wanted) || known.destination().shown().equals(wanted))).toList();
+        if (matching.isEmpty()) {
+            throw new NotFoundException("No address of that text is remembered as production. It may have been forgotten already.",
+                    "Read the list again.");
+        }
+        List<ConfigSnapshot.KnownDestination> named = matching.stream().filter(known -> known.environment().equals(environment)).toList();
+        if (named.isEmpty()) {
+            throw ValidationException.of("environment", "That is not the name this address was remembered from. Type the name exactly as "
+                    + "the list gives it, letter case and spaces included.");
+        }
+        StoredEnvironment owner = before.byName(environment);
+        if (owner != null && owner.kind() == EnvironmentKind.PROD) {
+            throw ValidationException.of("destination", "This address belongs to the production environment \"" + quoted(environment)
+                    + "\", which is stored. An address of a stored production environment is never forgotten.");
+        }
+        List<ConfigSnapshot.KnownDestination> remembered = new ArrayList<>(before.remembered());
+        remembered.removeAll(named);
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), before.collections(),
+                remembered, before.applicationYml());
+        // The snapshot adds back every address of the prod environments stored now: one that comes
+        // back is held by one of them, and stays.
+        for (ConfigSnapshot.KnownDestination known : next.remembered()) {
+            StoredEnvironment holder = next.byName(known.environment());
+            if (holder != null && holder.kind() == EnvironmentKind.PROD
+                    && named.stream().anyMatch(gone -> gone.destination().equals(known.destination()))) {
+                throw ValidationException.of("destination", "This address belongs to the production environment \""
+                        + quoted(known.environment()) + "\", which is stored. An address of a stored production environment is never "
+                        + "forgotten.");
+            }
+        }
+        commit(next, null, null);
+        // The environment's name only, which the list shows. The address is no secret, but nothing more is needed.
+        log.info("Forgot a production address remembered from \"{}\"", quoted(environment));
+        return new Forgotten(named.get(0).listed(), current.epoch());
+    }
+
+    /** What removing an unreadable stored file did: the file as listed, where it was moved (null when it was not there), the new epoch. */
+    record UnreadableRemoved(String removed, String movedTo, long epoch) {
+    }
+
+    /**
+     * "Remove it from the store": the file moves to {@link #UNREADABLE} beside store.json, never
+     * deleted, and its entry leaves store.json. A file that is not there any more only loses its
+     * entry. The move comes first and is put back when store.json cannot be written, so a failure
+     * changes nothing.
+     */
+    synchronized UnreadableRemoved removeUnreadable(String file) {
+        String wanted = file == null ? "" : file.strip();
+        Unreadable found = null;
+        for (Unreadable each : unreadable) {
+            if (each.file().equals(wanted)) {
+                found = each;
+                break;
+            }
+        }
+        if (found == null) {
+            throw new NotFoundException("No stored file of that name is listed as unreadable. It may have been removed already.",
+                    "Read the list again.");
+        }
+        Path source = null;
+        try {
+            Path resolved = directory.resolve(found.file()).normalize();
+            source = resolved.startsWith(directory) && Files.isRegularFile(resolved) ? resolved : null;
+        } catch (InvalidPathException e) {
+            // A name that is no path holds no file to move: only the entry goes.
+        }
+        Path moved = null;
+        if (source != null) {
+            Path aside = directory.resolve(UNREADABLE);
+            try {
+                Files.createDirectories(aside, OwnerOnly.directory());
+                moved = aside.resolve(source.getFileName().toString());
+                for (int n = 2; Files.exists(moved); n++) {
+                    moved = aside.resolve(source.getFileName() + "." + n);
+                }
+                Files.move(source, moved);
+            } catch (IOException | RuntimeException e) {
+                // The paths and the type of the failure. Never content.
+                log.error("The configuration store could not move {} to {} ({})", source, aside, e.getClass().getSimpleName());
+                throw ConfigStoreException.ofThisComputer("The file " + source + " could not be moved to " + aside + ". Check that "
+                        + "nothing holds it open and that the folder can be written, then try again. Nothing was changed.", e);
+            }
+        }
+        List<Unreadable> after = new ArrayList<>(unreadable);
+        after.remove(found);
+        ConfigSnapshot before = current;
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), before.collections(),
+                before.remembered(), before.applicationYml());
+        try {
+            commitAll(next, List.of(), List.of(), after);
+        } catch (RuntimeException e) {
+            if (moved != null) {
+                try {
+                    Files.move(moved, source);
+                } catch (IOException | RuntimeException back) {
+                    // The paths only: the entry is still in store.json, so the next start lists the file as missing.
+                    log.error("The configuration store could not move {} back to {} ({})", moved, source, back.getClass().getSimpleName());
+                }
+            }
+            throw e;
+        }
+        // The file as store.json named it, and where it went. Never content.
+        log.info("Removed the unreadable stored file {} from the configuration store{}", found.file(), moved == null ? "" : ", moved to " + moved);
+        return new UnreadableRemoved(found.file(), moved == null ? null : moved.toString(), current.epoch());
+    }
+
+    /**
      * What is wrong with the configuration as it stands, in words, for the Config tab:
      * {@code config-store.active-environment} names an environment that has not been uploaded, or
      * the store directory holds a file the store does not use.
@@ -359,6 +540,9 @@ public class ConfigStore {
             problems.add("config-store.active-environment names \"" + wanted + "\", which is not in the configuration store, so it "
                     + "was not activated at startup. Upload an environment with exactly that name and activate it, or clear the property.");
         }
+        // Listed here as well as in the effective view's unreadable list, so a page that draws only
+        // the problems still shows that something was left out.
+        unreadable.forEach(each -> problems.add(each.line()));
         for (StoredEnvironment environment : snapshot.environments()) {
             if (environment.settingsProblem() != null) {
                 problems.add("The settings of the environment \"" + quoted(environment.name()) + "\" in " + directory.resolve(STATE_FILE)
@@ -394,6 +578,13 @@ public class ConfigStore {
      */
     private List<Path> strays(ConfigSnapshot loaded) {
         Set<Path> used = used(loaded);
+        for (Unreadable each : unreadable) {
+            try {
+                used.add(directory.resolve(each.file()).normalize());
+            } catch (InvalidPathException e) {
+                // No path, so no file of the folder it could stand for.
+            }
+        }
         List<Path> found = new ArrayList<>();
         for (String each : List.of(ENVIRONMENTS, COLLECTIONS)) {
             try (DirectoryStream<Path> files = Files.newDirectoryStream(directory.resolve(each))) {
@@ -988,8 +1179,8 @@ public class ConfigStore {
      * begins with that fact and a way out that works at that moment, then gives its old sentences
      * unchanged (R-35). An environment uploaded as prod by a slip and then removed leaves its
      * addresses refused for good, and the old note alone, pointing the variables at the sandbox,
-     * cannot help when they point there already. Nothing is forgotten here: the way out is the
-     * tester's own edit, made with PAVE stopped.
+     * cannot help when they point there already. Nothing is forgotten here: the way out is
+     * "Forget this production address", which the tester confirms by the environment's name.
      */
     private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
@@ -1033,12 +1224,10 @@ public class ConfigStore {
         // An owner that is no longer stored is known only as a name the store remembers the address by.
         boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
         if (removed) {
-            // The store keeps no way to forget an address while it runs, so the way out is the
-            // one that works: the remembered entries taken out of store.json while PAVE is stopped.
-            String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+            // The way out that works while PAVE runs: Forget, offered for exactly these addresses (R-35).
             note = named + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was") + " uploaded as "
-                    + "prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
-                    + directory.resolve(STATE_FILE) + ", start PAVE again and upload this environment again. " + note;
+                    + "prod by mistake, forget " + (several ? "their addresses" : "the address") + " in Configuration > Production writes "
+                    + "and upload this environment again. " + note;
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));
@@ -1259,13 +1448,26 @@ public class ConfigStore {
      * version 2, it is copied once to {@link #BEFORE_V2}, so an older build can be given its store back.
      */
     private List<String> commitAll(ConfigSnapshot next, List<String> newFiles, List<String> oldFiles) {
+        // An upload under the name or id of an unreadable entry takes its place.
+        List<Unreadable> kept = new ArrayList<>();
+        for (Unreadable each : unreadable) {
+            boolean replaced = each.key() != null && (ENVIRONMENTS.equals(each.list()) ? next.byName(each.key()) != null
+                    : next.collection(each.key()) != null);
+            if (!replaced) {
+                kept.add(each);
+            }
+        }
+        return commitAll(next, newFiles, oldFiles, kept);
+    }
+
+    private List<String> commitAll(ConfigSnapshot next, List<String> newFiles, List<String> oldFiles, List<Unreadable> keep) {
         int writeAs = version >= SETTINGS_VERSION || holdsSettings(next) ? SETTINGS_VERSION : STATE_VERSION;
         try {
             refuseMissingFiles(next);
             if (writeAs >= SETTINGS_VERSION && version < SETTINGS_VERSION) {
                 keepVersionOne();
             }
-            writeAtomically(directory.resolve(STATE_FILE), stateJson(next, writeAs).getBytes(StandardCharsets.UTF_8));
+            writeAtomically(directory.resolve(STATE_FILE), stateJson(next, writeAs, keep).getBytes(StandardCharsets.UTF_8));
         } catch (ConfigStoreException e) {
             for (String newFile : newFiles) {
                 if (!oldFiles.contains(newFile)) {
@@ -1276,6 +1478,7 @@ public class ConfigStore {
         }
         current = next;
         version = writeAs;
+        unreadable = List.copyOf(keep);
         List<String> warnings = new ArrayList<>();
         for (String oldFile : oldFiles) {
             // Uploading the same bytes again gives the same file name. That file is the new one too, so it stays.
@@ -1341,9 +1544,9 @@ public class ConfigStore {
     }
 
     /**
-     * True when a start would refuse store.json as it lies on disk now: it cannot be read, or it
-     * names a file that is not there. False when there is no store.json, since a start then opens
-     * an empty store, and when every file it names is there.
+     * True when a start would refuse store.json as it lies on disk now: it cannot be read, or its
+     * version is not one this tool reads. False when there is no store.json, since a start then
+     * opens an empty store.
      */
     private boolean startRefused() {
         Path state = directory.resolve(STATE_FILE);
@@ -1351,22 +1554,15 @@ public class ConfigStore {
             return false;
         }
         try {
+            // A stored file that is missing or cannot be read no longer stops a start: it is left
+            // out and listed. Only a store.json that cannot be read itself does.
             JsonSafe.Parsed parsed = JsonSafe.parse(read(state));
             if (!parsed.ok() || !JsonSafe.isObject(parsed.node())) {
                 return true;
             }
-            for (String list : List.of("environments", "collections")) {
-                for (JsonNode entry : JsonSafe.elements(parsed.node(), list)) {
-                    String file = JsonSafe.presentText(entry, "file");
-                    Path named = file == null ? null : directory.resolve(file).normalize();
-                    if (named == null || !named.startsWith(directory) || !Files.isRegularFile(named)) {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            Integer version = JsonSafe.integer(parsed.node(), "version");
+            return version == null || version < STATE_VERSION || version > SETTINGS_VERSION;
         } catch (RuntimeException e) {
-            // Unreadable, or a path that cannot be used: a start refuses both.
             return true;
         }
     }
@@ -1494,6 +1690,11 @@ public class ConfigStore {
 
     /** The text of store.json for a snapshot, written as the version given. Version 1 holds no settings. */
     static String stateJson(ConfigSnapshot snapshot, int version) {
+        return stateJson(snapshot, version, List.of());
+    }
+
+    /** As above, with the entries whose file could not be read written back after the readable ones, as they were. */
+    static String stateJson(ConfigSnapshot snapshot, int version, List<Unreadable> unreadable) {
         ObjectNode root = JsonSafe.mapper().createObjectNode();
         root.put("version", version);
         root.put("epoch", snapshot.epoch());
@@ -1517,6 +1718,7 @@ public class ConfigStore {
                 }
             }
         }
+        unreadable.stream().filter(each -> ENVIRONMENTS.equals(each.list())).forEach(each -> environments.add(each.entry().deepCopy()));
         // Every production destination ever known here, so that a deletion does not make
         // production forgettable. Scheme, host, port and path only: never a query or user information.
         ArrayNode known = root.putArray("productionDestinations");
@@ -1544,6 +1746,7 @@ public class ConfigStore {
                 }
             }
         }
+        unreadable.stream().filter(each -> COLLECTIONS.equals(each.list())).forEach(each -> collections.add(each.entry().deepCopy()));
         return asciiOnly(JsonSafe.pretty(root)) + "\n";
     }
 
@@ -1595,6 +1798,11 @@ public class ConfigStore {
             // A folder made by an earlier version, or by hand, is closed to other accounts as well,
             // with the files already in it.
             OwnerOnly.restrict(each);
+        }
+        // Taken before anything in the folder is cleaned up: a temporary file of another copy that
+        // is writing at this moment is not a leftover.
+        lockFolder();
+        for (Path each : List.of(directory, directory.resolve(ENVIRONMENTS), directory.resolve(COLLECTIONS))) {
             // A crash between writing a temporary file and moving it leaves the temporary file
             // behind, and it can hold a credential from an upload. Nothing reads these.
             try (DirectoryStream<Path> leftovers = Files.newDirectoryStream(each, "*" + TEMP_MARK + "*")) {
@@ -1603,6 +1811,93 @@ public class ConfigStore {
                 // The path only.
                 log.warn("The configuration store could not look for leftover temporary files in {}", each);
             }
+        }
+    }
+
+    /**
+     * Takes the lock on {@link #LOCK_FILE} for as long as this store is open, so that a second copy
+     * of PAVE on the same folder is refused at its start: the two would overwrite each other's
+     * store.json and share one ledger and one trail. The system lets go of the lock when the copy
+     * that held it ends, however it ends, so a lock file a killed copy left behind refuses nothing.
+     * A file system that cannot lock at all is told in the log and the store opens without the lock:
+     * a protection the disk cannot give must not stop the tool.
+     */
+    private void lockFolder() {
+        Path lockFile = directory.resolve(LOCK_FILE);
+        synchronized (LOCKS) {
+            HeldLock held = LOCKS.get(directory);
+            if (held != null) {
+                // The system lock is the whole JVM's: a second store on the folder in this JVM (two
+                // test contexts, a restart within a test) shares it, and the folder is let go of
+                // when the last of them closes.
+                held.holders++;
+                this.locked = true;
+                return;
+            }
+            FileChannel channel = null;
+            try {
+                channel = FileChannel.open(lockFile, Set.of(StandardOpenOption.CREATE, StandardOpenOption.WRITE), OwnerOnly.file());
+                java.nio.channels.FileLock lock = channel.tryLock();
+                if (lock == null) {
+                    closeQuietly(channel);
+                    throw anotherCopy();
+                }
+                LOCKS.put(directory, new HeldLock(channel, lock));
+                this.locked = true;
+            } catch (java.nio.channels.OverlappingFileLockException e) {
+                closeQuietly(channel);
+                throw anotherCopy();
+            } catch (IOException | UnsupportedOperationException e) {
+                closeQuietly(channel);
+                // The path and the type of the failure only.
+                log.warn("The configuration store could not lock {} ({}). It opens without the lock, so a second copy of PAVE on this "
+                        + "folder would not be refused.", lockFile, e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private IllegalStateException anotherCopy() {
+        // The folder only.
+        log.error("Another copy of PAVE holds the lock on the configuration store {}", directory);
+        return new IllegalStateException("Another copy of PAVE is using the configuration store " + directory + ". Stop it, or give this "
+                + "copy its own config-store.directory and tracking.directory.");
+    }
+
+    private static void closeQuietly(FileChannel channel) {
+        if (channel == null) {
+            return;
+        }
+        try {
+            channel.close();
+        } catch (IOException e) {
+            // Nothing is held by a channel that failed to close: the lock goes with the process.
+        }
+    }
+
+    /**
+     * Lets go of the folder's lock when the last store of this JVM on that folder closes, so that a
+     * context that stops and a new one that starts on the same folder do not refuse each other.
+     */
+    @jakarta.annotation.PreDestroy
+    public void close() {
+        if (!locked) {
+            return;
+        }
+        locked = false;
+        synchronized (LOCKS) {
+            HeldLock held = LOCKS.get(directory);
+            if (held == null || --held.holders > 0) {
+                return;
+            }
+            LOCKS.remove(directory);
+            try {
+                held.lock.release();
+            } catch (IOException | RuntimeException e) {
+                // The path and the type of the failure only. Closing the channel below lets go of it as well.
+                log.warn("The configuration store could not let go of the lock on {} ({})", directory.resolve(LOCK_FILE),
+                        e.getClass().getSimpleName());
+            }
+            closeQuietly(held.channel);
         }
     }
 
@@ -1627,6 +1922,7 @@ public class ConfigStore {
         this.version = version;
 
         List<StoredEnvironment> environments = new ArrayList<>();
+        List<Unreadable> leftOut = new ArrayList<>();
         Set<String> names = new HashSet<>();
         for (JsonNode entry : JsonSafe.elements(root, "environments")) {
             String name = JsonSafe.presentText(entry, "name");
@@ -1644,14 +1940,24 @@ public class ConfigStore {
                 throw unusable(state, "the environment \"" + Names.shown(name) + "\" has no kind of sandbox, uat or prod, and a kind is never guessed");
             }
             Path path = inside(file, state);
+            String what = "the environment \"" + quoted(name) + "\"";
             PostmanEnvironment content;
             try {
-                content = PostmanParser.environment(PostmanParser.decode(readBytes(path)));
+                content = PostmanParser.environment(PostmanParser.decode(storedBytes(path)));
+            } catch (Unopened e) {
+                leftOut.add(new Unreadable(ENVIRONMENTS, file, name, e.line(path, what), entry.deepCopy()));
+                continue;
             } catch (BadInputException e) {
-                throw unusable(path, "it is no longer a Postman environment export");
+                leftOut.add(new Unreadable(ENVIRONMENTS, file, name, "The file " + path + " of " + what + " is no longer a Postman "
+                        + "environment export, so the environment is left out. Remove it from the store and upload the environment again.",
+                        entry.deepCopy()));
+                continue;
             }
             if (!content.name().equals(name)) {
-                throw unusable(path, "it holds an environment named \"" + Names.shown(content.name()) + "\", and " + STATE_FILE + " lists it as \"" + Names.shown(name) + "\"");
+                leftOut.add(new Unreadable(ENVIRONMENTS, file, name, "The file " + path + " of " + what + " holds an environment named \""
+                        + quoted(content.name()) + "\", so the environment is left out. Remove it from the store and upload the environment "
+                        + "again.", entry.deepCopy()));
+                continue;
             }
             // A version 1 store has no settings: whatever such an entry holds under that name is not read as settings.
             JsonNode settingsNode = version >= SETTINGS_VERSION ? JsonSafe.child(entry, "settings") : null;
@@ -1675,15 +1981,26 @@ public class ConfigStore {
                 throw unusable(state, "one of its collections has no file");
             }
             Path path = inside(file, state);
+            String listedName = JsonSafe.presentText(entry, "name");
+            String what = listedName == null ? "a collection" : "the collection \"" + quoted(listedName) + "\"";
+            String listedId = JsonSafe.presentText(entry, "id");
             PostmanCollection content;
             try {
-                content = PostmanParser.collection(PostmanParser.decode(readBytes(path)));
+                content = PostmanParser.collection(PostmanParser.decode(storedBytes(path)));
+            } catch (Unopened e) {
+                leftOut.add(new Unreadable(COLLECTIONS, file, listedId, e.line(path, what), entry.deepCopy()));
+                continue;
             } catch (BadInputException e) {
-                throw unusable(path, "it is no longer a Postman collection export");
+                leftOut.add(new Unreadable(COLLECTIONS, file, listedId, "The file " + path + " of " + what + " is no longer a Postman "
+                        + "collection export, so the collection is left out. Remove it from the store and upload the collection again.",
+                        entry.deepCopy()));
+                continue;
             }
             String id = Ids.named(content.name());
             if (!ids.add(id)) {
-                throw unusable(state, "it lists the collection \"" + Names.shown(content.name()) + "\" twice");
+                leftOut.add(new Unreadable(COLLECTIONS, file, null, "The file " + path + " holds the collection \"" + quoted(content.name())
+                        + "\", which another stored file holds as well, so this one is left out. Remove it from the store.", entry.deepCopy()));
+                continue;
             }
             Map<String, EpaOperation> corrections = new LinkedHashMap<>();
             for (Map.Entry<String, JsonNode> correction : JsonSafe.properties(JsonSafe.child(entry, "corrections"))) {
@@ -1704,6 +2021,21 @@ public class ConfigStore {
         }
 
         String active = JsonSafe.presentText(root, "activeEnvironment");
+        this.unreadable = List.copyOf(leftOut);
+        for (Unreadable each : leftOut) {
+            // The file as store.json names it. Never content.
+            log.warn("The configuration store left out {}: it cannot be read. In force now lists it.", each.file());
+        }
+        boolean activeLoaded = false;
+        for (StoredEnvironment environment : environments) {
+            activeLoaded |= environment.name().equals(active);
+        }
+        if (active != null && !activeLoaded && names.contains(active)) {
+            // The active environment is among those left out: none is active until it is back.
+            log.warn("The active environment \"{}\" in {} is left out because its file cannot be read. No environment is active.",
+                    quoted(active), STATE_FILE);
+            active = null;
+        }
         if (active != null && !names.contains(active)) {
             throw unusable(state, "it names \"" + Names.shown(active) + "\" as the active environment, and it lists no environment of that name");
         }
@@ -1711,14 +2043,39 @@ public class ConfigStore {
         List<ConfigSnapshot.KnownDestination> remembered = new ArrayList<>();
         for (JsonNode entry : JsonSafe.elements(root, "productionDestinations")) {
             String environment = JsonSafe.presentText(entry, "environment");
-            org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination =
-                    org.p32h.interop.epa.pave.postman.UrlNormal.destination(JsonSafe.presentText(entry, "destination"));
-            if (environment == null || destination == null) {
-                throw unusable(state, "one of its production destinations has no environment or no address this tool can read");
+            String written = JsonSafe.presentText(entry, "destination");
+            if (written == null) {
+                // Nothing is there to protect, and nothing to keep.
+                log.warn("The configuration store left out a production destination of {} that holds no address", STATE_FILE);
+                continue;
             }
-            remembered.add(new ConfigSnapshot.KnownDestination(environment, destination));
+            if (environment == null) {
+                environment = UNNAMED_PRODUCTION;
+            }
+            remembered.add(new ConfigSnapshot.KnownDestination(environment, rememberedDestination(written)));
         }
         return new ConfigSnapshot(epoch == null ? 0L : epoch, environments, active, collections, remembered);
+    }
+
+    /** Who a remembered production address belongs to when store.json does not say: still production, under this name. */
+    static final String UNNAMED_PRODUCTION = "an environment store.json does not name";
+
+    /**
+     * A remembered production address as store.json writes it, read back: as an address where it
+     * reads as one, else as the whole host it names, else as its text taken for a host (hunt-files 5:
+     * a host with a space in it was remembered and then stopped every start). Kept rather than
+     * refused, it still protects whatever has the same host, and it is written back as it was.
+     */
+    static org.p32h.interop.epa.pave.postman.UrlNormal.Destination rememberedDestination(String written) {
+        org.p32h.interop.epa.pave.postman.UrlNormal.Destination destination = org.p32h.interop.epa.pave.postman.UrlNormal.destination(written);
+        if (destination == null) {
+            destination = org.p32h.interop.epa.pave.postman.UrlNormal.wholeHost(written);
+        }
+        if (destination == null) {
+            destination = new org.p32h.interop.epa.pave.postman.UrlNormal.Destination(null, written.strip().toLowerCase(java.util.Locale.ROOT),
+                    -1, "", false);
+        }
+        return destination;
     }
 
     /** A path named in the state file, which must stay inside the store directory. */
@@ -1737,6 +2094,34 @@ public class ConfigStore {
 
     private String read(Path file) {
         return new String(readBytes(file), StandardCharsets.UTF_8);
+    }
+
+    /** A stored file that is not there or cannot be read, told apart so the line says which. */
+    private static final class Unopened extends RuntimeException {
+        private final boolean missing;
+        private final String type;
+
+        private Unopened(boolean missing, String type) {
+            super(null, null, false, false);
+            this.missing = missing;
+            this.type = type;
+        }
+
+        String line(Path path, String what) {
+            String noun = what.startsWith("the environment") ? "environment" : "collection";
+            return "The file " + path + " of " + what + (missing ? " is missing" : " cannot be read (" + type + ")") + ", so the " + noun
+                    + " is left out. Put the file back and start PAVE again, or remove it from the store.";
+        }
+    }
+
+    private static byte[] storedBytes(Path file) {
+        try {
+            return Files.readAllBytes(file);
+        } catch (NoSuchFileException e) {
+            throw new Unopened(true, null);
+        } catch (IOException | RuntimeException e) {
+            throw new Unopened(!Files.exists(file), e.getClass().getSimpleName());
+        }
     }
 
     private byte[] readBytes(Path file) {

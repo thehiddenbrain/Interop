@@ -66,15 +66,16 @@ final class LookupOutcomes {
             case SERVER_ERROR -> fault(ErrorKind.VENDOR_ERROR, words.api() + " failed with HTTP " + status + ".",
                     "This is a fault in the environment, not in the " + words.identifier() + ". " + words.byHandSentence()
                             + " Report the environment if it repeats.", exchange, tracked);
-            case TIMEOUT -> fault(ErrorKind.TIMEOUT, words.api() + " did not answer inside the read timeout.",
+            // Not answering is kept apart from a failure: a service that never answered is fixed somewhere else.
+            case TIMEOUT -> notAnswering(fault(ErrorKind.TIMEOUT, words.api() + " did not answer inside the read timeout.",
                     "A lookup gives up quickly so that it never holds up the form. " + words.byHandSentence()
-                            + " Leave the field again to retry.", exchange, tracked);
+                            + " Leave the field again to retry.", exchange, tracked));
             case UNAVAILABLE -> {
                 String message = words.api() + " could not be reached.";
                 ErrorView error = new ErrorView(ErrorKind.UNREACHABLE, (message + " " + Texts.orElse(exchange.failureDetail(), "")).strip(),
-                        "Check " + words.property() + ".url, the network and any proxy or trust store settings. Until then, "
+                        "Check " + words.urlSetting() + ", the network and any proxy or trust store settings. Until then, "
                                 + words.byHand() + ".", null, List.of(), List.of(), null);
-                yield new Ending(LookupStatus.FAULT, message, error);
+                yield new Ending(LookupStatus.NOT_ANSWERING, message, error);
             }
             // No body at all and a body of nothing but white space are told apart in the words only. Neither holds a record.
             case MALFORMED_RESPONSE -> Texts.blank(exchange.responseBody())
@@ -102,19 +103,18 @@ final class LookupOutcomes {
             return fault(ErrorKind.VENDOR_REJECTED, words.api() + " refused the lookup with HTTP " + status
                             + ", which means the credentials were not accepted or none were sent.",
                     "The lookup went out " + (credentialSent ? "with" : "without") + " an Authorization header. The headers that were "
-                            + "sent are in the wire view. Check " + words.property() + ".headers, and if this API takes the Onyx access "
-                            + "token, " + words.property() + ".use-onyx-auth and the onyx.auth settings. Until then, " + words.byHand()
+                            + "sent are in the wire view. " + words.refusedCredentialsAdvice() + " Until then, " + words.byHand()
                             + ".", exchange, tracked);
         }
         if (status >= 300 && status < 400) {
             return fault(ErrorKind.VENDOR_REJECTED, words.api() + " answered the lookup with a redirect, HTTP " + status
                             + ", which this tool does not follow.",
-                    "A redirect means " + words.property() + ".url is not the address this API answers at. Correct it. Until then, "
+                    "A redirect means " + words.urlSetting() + " is not the address this API answers at. Correct it. Until then, "
                             + words.byHand() + ".", exchange, tracked);
         }
         return fault(ErrorKind.VENDOR_REJECTED, words.api() + " did not accept the lookup and answered HTTP " + status + ".",
                 "What it returned is listed under the returned fields. If the " + words.identifier() + " is written correctly, check that "
-                        + words.property() + ".url has the form this API expects. Until then, " + words.byHand() + ".", exchange, tracked);
+                        + words.urlSetting() + " has the form this API expects. Until then, " + words.byHand() + ".", exchange, tracked);
     }
 
     /**
@@ -122,14 +122,14 @@ final class LookupOutcomes {
      * by hand. The same on both profiles, so the state can be seen on mock.
      */
     static Ending switchedOff(LookupWords words) {
-        return new Ending(LookupStatus.DISABLED, words.lookup() + " is switched off (" + words.property() + ".enabled is false): "
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is switched off " + words.switchedOffWhere() + ": "
                 + words.byHand() + ".", null);
     }
 
     /** No url is configured for the lookup. Not an error: the tester types the details by hand. */
     static Ending notConfigured(LookupWords words) {
-        return new Ending(LookupStatus.DISABLED, words.lookup() + " is not configured, so there is no url to ask: set " + words.property()
-                + ".url, and until then " + words.byHand() + ".", null);
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is not configured, so there is no url to ask: set " + words.urlSetting()
+                + ", and until then " + words.byHand() + ".", null);
     }
 
     /**
@@ -159,19 +159,19 @@ final class LookupOutcomes {
     /** The url template has nowhere to put the identifier. */
     static Ending noPlaceForTheIdentifier(LookupWords words) {
         return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but its url has no {id} token for the "
-                + words.identifier() + " to go in: correct " + words.property() + ".url, and until then " + words.byHand() + ".", null);
+                + words.identifier() + " to go in: correct " + words.urlSetting() + ", and until then " + words.byHand() + ".", null);
     }
 
     /** The url resolved, and what it resolved to cannot be called. */
     static Ending urlCannotBeCalled(LookupWords words) {
-        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but " + words.property()
-                + ".url does not resolve to a url that can be called: correct it, and until then " + words.byHand() + ".", null);
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but " + words.urlSetting()
+                + " does not resolve to a url that can be called: correct it, and until then " + words.byHand() + ".", null);
     }
 
     /** A header or the method of the request is not valid HTTP, so the request was refused before sending. */
     static Ending notValidHttp(LookupWords words) {
         return new Ending(LookupStatus.DISABLED, words.lookup() + " is configured, but a header set for it, or its method, is not valid "
-                + "HTTP, so nothing was sent: correct " + words.property() + ".headers, and until then " + words.byHand() + ".", null);
+                + "HTTP, so nothing was sent: correct " + words.headersSetting() + ", and until then " + words.byHand() + ".", null);
     }
 
     private static final String BLOCKED = " is blocked: ";
@@ -203,8 +203,7 @@ final class LookupOutcomes {
     static Ending noAccessToken(LookupWords words, String reason) {
         String message = words.lookup() + " was not sent, because no access token could be obtained for it.";
         return new Ending(LookupStatus.FAULT, message, new ErrorView(ErrorKind.UNREACHABLE, (message + " " + Texts.orElse(reason, "")).strip(),
-                "Check the onyx.auth settings and the credentials in the active environment, or set " + words.property()
-                        + ".use-onyx-auth to false if this API does not take the Onyx access token. Until then, " + words.byHand() + ".",
+                words.noTokenAdvice() + " Until then, " + words.byHand() + ".",
                 null, List.of(), List.of(), null));
     }
 
@@ -227,11 +226,33 @@ final class LookupOutcomes {
                 + "not found.", null);
     }
 
+    /**
+     * More than one record matched: its own state (plan 7.5), with the panel that says what came
+     * back. None is picked, because picking one would be guessing which was meant.
+     */
     static Ending several(LookupWords words, int count, VendorExchange exchange) {
-        return unreadable(words.api() + " returned " + count + " records for one " + words.identifier()
+        Ending unreadable = unreadable(words.api() + " returned " + count + " records for one " + words.identifier()
                         + ", and this tool does not choose between them.",
                 "A lookup by identifier expects one record. Every record that came back is listed under the returned fields. "
                         + words.byHandSentence(), exchange);
+        return new Ending(LookupStatus.SEVERAL, unreadable.message(), unreadable.error());
+    }
+
+    /** The date of service is needed by the body and the case has none, so nothing was sent and nothing was guessed. */
+    static Ending noDateOfService(LookupWords words) {
+        return new Ending(LookupStatus.DISABLED, words.lookup() + " sends the date of service, and none was given, so nothing was sent: "
+                + "give the date of service (on the Service card, or as the date of service to try), or " + words.byHand() + ".", null);
+    }
+
+    private static Ending notAnswering(Ending fault) {
+        return new Ending(LookupStatus.NOT_ANSWERING, fault.message(), fault.error());
+    }
+
+    /** A saved lookup's list path finds nothing in the answer: not the shape the tester described, so not taken for "no match". */
+    static Ending notThere(LookupWords words, VendorExchange exchange) {
+        return unreadable(words.api() + " answered, and its answer holds nothing at the List of matches saved for " + words.where() + ".",
+                "Everything it returned is listed under the returned fields. Correct the List of matches, or leave it blank for PAVE to "
+                        + "look in the usual places. Until then, " + words.byHand() + ".", exchange);
     }
 
     static Ending notARecord(LookupWords words, VendorExchange exchange) {

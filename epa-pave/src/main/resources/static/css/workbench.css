@@ -141,6 +141,27 @@
     display: none;
 }
 
+/* A step's text never takes more than its step: a long chip is cut on screen (its words in its title)
+   instead of running into the next step. */
+.stepper__step {
+    min-width: 0;
+}
+
+.stepper__text {
+    grid-template-columns: minmax(0, 100%);
+    overflow: hidden;
+}
+
+.stepper__chip {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.stepper__chip .chip {
+    max-width: 100%;
+}
+
 .panel:focus {
     outline: none;
 }
@@ -179,6 +200,52 @@
 
 .handed {
     margin: var(--s-3) 0 0;
+}
+
+/* What a reload read back (R-38): one line under the banner, and a result the step's module does not draw. */
+.readback:not(:empty) {
+    margin: 0;
+}
+
+.readback__line {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+    border-left: 3px solid var(--line-strong);
+    background: var(--surface-sunk);
+}
+
+.step-restored:not(:empty) {
+    display: grid;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+}
+
+/* Values for one run: shown only after a refusal names placeholders with no value. */
+.run-values {
+    display: grid;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-box);
+    background: var(--surface);
+}
+
+.run-values[hidden] {
+    display: none;
+}
+
+.run-values__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--s-3);
+}
+
+.run-values > .btn {
+    justify-self: start;
+}
+
+.wire__download:empty {
+    display: none;
 }
 
 /* ---------- the result ---------- */
@@ -236,9 +303,16 @@
     display: none;
 }
 
-/* A code with several lines of business wraps inside its card, its Remove included. */
+/* A code, its description, the list's tags and Remove share one row (prototype 01): the description
+   gives way first, cut on screen with its words whole in its title; only chips that cannot fit beside
+   it move to a second row, Remove with them. */
 .code-lines .code-line {
     flex-wrap: wrap;
+}
+
+.code-lines .code-line .code-line__text {
+    flex: 1 1 0;
+    min-width: 4em;
 }
 
 /* Whatever a fold of a result holds (a wide table of the response detail, a long url), it scrolls
@@ -257,9 +331,67 @@
 }
 
 /* A child of a fold never takes its min-content width, so a wide table or a long line scrolls in
-   its fold instead of widening the page (NEEDS from H0). */
+   its fold instead of widening the page (NEEDS from H0). The fold's grid has one column as wide as
+   the fold: without it the implicit column takes the widest table's width and prose is laid out
+   past the fold's edge. */
+.fold__body {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .fold__body > * {
     min-width: 0;
+}
+
+.detail,
+.detail__part {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.fold__body .table-wrap,
+.detail__part > .table-wrap,
+.detail__part > table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* In the narrow case column the wire traffic of a lookup stacks its request over its response. */
+.case .wire {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* A field's label keeps one height whether or not it carries a mark, so a row's inputs line up. */
+.case .field__label,
+.panel__options .field__label {
+    align-items: center;
+    min-height: 22px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.case .field__mark {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.case .field .input,
+.case .field .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* A service fault inside its card (prototype 05a): each issue of the answer on one line. */
+.issue-lines {
+    display: grid;
+    gap: var(--s-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-sm);
+}
+
+.issue-line {
+    overflow-wrap: anywhere;
 }
 
 /* The response detail's parts (detail.js, batch H). */
@@ -351,7 +483,12 @@ td .notes {
     width: 100%;
 }
 
-/* Beside Send PAS request on kind prod, like the production line under the top bar. */
+/* Beside Send PAS request on kind prod, like the production line under the top bar; nothing at all
+   on any other kind, where the step mounts it empty. */
+.submit-writes:empty {
+    display: none;
+}
+
 .submit-writes {
     background: var(--purple-deep);
     color: var(--white);

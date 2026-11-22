@@ -143,6 +143,11 @@ class StaticServerWordsTest {
             new Read("app.js", "mode.build.time", ModeView.Build.class, "time"),
             new Read("app.js", "mode.build.changedOnDisk", ModeView.Build.class, "changedOnDisk"),
             new Read("app.js", "mode.build", ModeView.class, "build"),
+            new Read("app.js", "mode.signIn", ModeView.class, "signIn"),
+            // The chip's words: the record names the component shortWords and sends it as "short".
+            new Read("app.js", "signIn.short", ModeView.SignIn.class, "shortWords"),
+            new Read("app.js", "signIn.state", ModeView.SignIn.class, "state"),
+            new Read("app.js", "signIn.detail", ModeView.SignIn.class, "detail"),
             new Read("wb-status.js", "mode.bindAddress", ModeView.class, "bindAddress"),
             new Read("wb-status.js", "mode.bindNote", ModeView.class, "bindNote"),
             new Read("wb-status.js", "answer.data.latest", NotificationList.class, "latest"),

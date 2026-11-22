@@ -143,13 +143,26 @@ final class MemberResponseMapping {
      * @param today    the date coverage dates are compared with
      */
     static MemberLookupResult map(VendorExchange received, MemberIdForms memberId, LocalDate today) {
-        MemberLookupResult result = read(received, memberId, today);
+        return map(received, memberId, today, LookupReading.usual(WORDS));
+    }
+
+    /**
+     * The same, read where a lookup saved on screen says its matches and fields are (R-11).
+     *
+     * @param reading the words, the list path and the field paths; the usual ones for application.yml and the mock
+     */
+    static MemberLookupResult map(VendorExchange received, MemberIdForms memberId, LocalDate today, LookupReading reading) {
+        MemberLookupResult result = read(received, memberId, today, reading);
         // What the result concludes is read with the masks in place, so it says so where a mask fell on a value it rests on.
         org.p32h.interop.epa.pave.model.MaskedReading masked = LookupMasks.find(received, DECIDED_BY, READ, WRAPPED_IN);
         return masked == null ? result : result.withMaskedReading(masked.line());
     }
 
-    private static MemberLookupResult read(VendorExchange received, MemberIdForms memberId, LocalDate today) {
+    private static MemberLookupResult read(VendorExchange received, MemberIdForms memberId, LocalDate today, LookupReading reading) {
+        LookupWords words = reading.words();
+        // The member ID in the one form every rule starts from. The forms on the result follow the active environment's
+        // rule, which may cut or space the ID, so a comparison or the member's own ID is never made with those.
+        String packed = MemberIds.noSpace(memberId.typed());
         // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
@@ -157,38 +170,39 @@ final class MemberResponseMapping {
         List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         TrackedJson tracked = TrackedJson.of(exchange.json());
 
-        LookupOutcomes.Ending ending = LookupOutcomes.ofCall(exchange, WORDS, tracked);
+        LookupOutcomes.Ending ending = LookupOutcomes.ofCall(exchange, words, tracked);
         if (ending != null) {
             additional.addAll(tracked.unconsumed());
             return ended(ending, exchange, memberId, additional);
         }
 
         // The envelope, apart from the fields.
-        LookupEnvelope.Opened opened = LookupEnvelope.open(tracked.root(), WRAPPERS);
+        LookupEnvelope.Opened opened = reading.open(tracked.root(), WRAPPERS);
         if (opened.kind() != LookupEnvelope.Kind.RECORD) {
             additional.addAll(tracked.unconsumed());
             return ended(switch (opened.kind()) {
-                case SEVERAL -> LookupOutcomes.several(WORDS, opened.count(), exchange);
-                case NOT_A_RECORD -> LookupOutcomes.notARecord(WORDS, exchange);
-                default -> LookupOutcomes.noRecord(WORDS);
+                case SEVERAL -> LookupOutcomes.several(words, opened.count(), exchange);
+                case NOT_A_RECORD -> LookupOutcomes.notARecord(words, exchange);
+                case NOT_THERE -> LookupOutcomes.notThere(words, exchange);
+                default -> LookupOutcomes.noRecord(words);
             }, exchange, memberId, additional);
         }
 
         // The fields.
         LookupReader reader = new LookupReader(opened.scopes());
         LookupReader.Read id = reader.read(MEMBER_ID);
-        LookupReader.Read firstName = reader.read(FIRST_NAME);
-        LookupReader.Read lastName = reader.read(LAST_NAME);
+        LookupReader.Read firstName = reader.read(reading.spellings("firstName", FIRST_NAME));
+        LookupReader.Read lastName = reader.read(reading.spellings("lastName", LAST_NAME));
         LookupReader.Read fullName = reader.read(FULL_NAME);
-        LookupReader.Read dateOfBirth = reader.read(DATE_OF_BIRTH);
-        LookupReader.Read gender = reader.read(GENDER);
-        LookupReader.Read lineOfBusiness = reader.read(LINE_OF_BUSINESS);
-        LookupReader.Read planName = reader.read(PLAN_NAME);
-        LookupReader.Read coverageStatus = reader.read(COVERAGE_STATUS);
+        LookupReader.Read dateOfBirth = reader.read(reading.spellings("dateOfBirth", DATE_OF_BIRTH));
+        LookupReader.Read gender = reader.read(reading.spellings("gender", GENDER));
+        LookupReader.Read lineOfBusiness = reader.read(reading.spellings("lineOfBusiness", LINE_OF_BUSINESS));
+        LookupReader.Read planName = reader.read(reading.spellings("planName", PLAN_NAME));
+        LookupReader.Read coverageStatus = reader.read(reading.spellings("coverageStatus", COVERAGE_STATUS));
         LookupReader.Read coverageActive = reader.read(COVERAGE_ACTIVE);
-        LookupReader.Read coverageStart = reader.read(COVERAGE_START);
-        LookupReader.Read coverageEnd = reader.read(COVERAGE_END);
-        LookupReader.Read subscriberId = reader.read(SUBSCRIBER_ID);
+        LookupReader.Read coverageStart = reader.read(reading.spellings("coverageStart", COVERAGE_START));
+        LookupReader.Read coverageEnd = reader.read(reading.spellings("coverageEnd", COVERAGE_END));
+        LookupReader.Read subscriberId = reader.read(reading.spellings("subscriberId", SUBSCRIBER_ID));
         TrackedJson.Node addressObject = reader.object(ADDRESS_OBJECTS);
         LookupReader address = addressObject == null ? reader : new LookupReader(List.of(addressObject));
         LookupReader.Read line1 = address.read(addressObject == null ? LINE_1_FLAT : LINE_1_IN_ADDRESS);
@@ -205,8 +219,8 @@ final class MemberResponseMapping {
         if (about.stream().noneMatch(read -> read.hasText() && !GENERIC.contains(read.spelling()))) {
             // Read again from the start, so nothing the abandoned reading touched is missing from the returned fields.
             additional.addAll(TrackedJson.of(exchange.json()).unconsumed());
-            return ended(LookupEnvelope.holdsAValue(opened.record().raw(), memberId.sent()) ? LookupOutcomes.unrecognised(WORDS, exchange)
-                    : LookupOutcomes.hollowRecord(WORDS), exchange, memberId, additional);
+            return ended(LookupEnvelope.holdsAValue(opened.record().raw(), packed) ? LookupOutcomes.unrecognised(words, exchange)
+                    : LookupOutcomes.hollowRecord(words), exchange, memberId, additional);
         }
 
         // What needs a look. A found member stays found: these are reasons to check before using them.
@@ -244,8 +258,8 @@ final class MemberResponseMapping {
         String dateOfBirthText = date(dateOfBirth, "date of birth", false, attention);
         String coverageStartText = date(coverageStart, "coverage start date", true, attention);
         String coverageEndText = date(coverageEnd, "coverage end date", true, attention);
-        if (id.hasText() && !MemberIds.noSpace(id.text()).equals(memberId.sent())) {
-            attention.add(MemberIds.noSpace(id.text()).equalsIgnoreCase(memberId.sent())
+        if (id.hasText() && !reading.sameMember(id.text(), packed)) {
+            attention.add(MemberIds.noSpace(id.text()).equalsIgnoreCase(packed)
                     ? "The member API writes this member ID in different letter case from the ID that was typed. The ID is sent as typed."
                     : "The member API returned a record under a different member ID from the one that was asked for. Check that this "
                     + "is the member you meant. The ID that was typed is the one used.");
@@ -256,7 +270,7 @@ final class MemberResponseMapping {
         PostalAddress postal = line1.hasText() || line2.hasText() || city.hasText() || state.hasText() || postalCode.hasText()
                 ? new PostalAddress(line1.text(), line2.text(), city.text(), state.text(), postalCode.text()) : null;
         MemberDetail member = MemberDetail.builder()
-                .memberId(memberId.sent())
+                .memberId(packed)
                 .firstName(firstName.text())
                 .lastName(lastName.text())
                 .dateOfBirth(dateOfBirthText)

@@ -332,8 +332,8 @@ class DestinationGuardrailTest {
             for (byte[] file : List.of(same, renamed)) {
                 for (EnvironmentKind kind : List.of(EnvironmentKind.SANDBOX, EnvironmentKind.UAT)) {
                     // R-16: the guardrail's sentence keeps its words. R-35: the field note names the environment as no
-                    // longer stored, and the way to forget the address, should it have been a slip, is the tester's own
-                    // edit with PAVE stopped.
+                    // longer stored, and the way to forget the address, should it have been a slip, is Forget in
+                    // Configuration > Production writes (D6).
                     assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", file, kind, true)).as(profile)
                             .isInstanceOfSatisfying(ValidationException.class, e -> {
                                 assertThat(e.getMessage()).isEqualTo("This environment was declared as " + kind.wire() + ", and its "
@@ -341,9 +341,8 @@ class DestinationGuardrailTest {
                                         + "lies above or beneath one. It was not stored.");
                                 assertThat(e.fieldErrors().get(0).field()).isEqualTo("kind");
                                 assertThat(e.fieldErrors().get(0).message()).startsWith("\"vendor-live-two\" is no longer stored. If it "
-                                        + "was uploaded as prod by mistake, stop PAVE, delete the entries whose environment is "
-                                        + "\"vendor-live-two\" from productionDestinations in " + shared.resolve(ConfigStore.STATE_FILE)
-                                        + ", start PAVE again");
+                                        + "was uploaded as prod by mistake, forget the address in Configuration > Production writes "
+                                        + "and upload this environment again.");
                             });
                 }
             }

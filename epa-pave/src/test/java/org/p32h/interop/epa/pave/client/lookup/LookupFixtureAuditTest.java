@@ -326,11 +326,11 @@ class LookupFixtureAuditTest {
         assertThat(fault.additionalFields()).extracting(AdditionalField::path).containsExactly("error", "message", "traceId");
 
         MemberLookupResult timeout = member("P32H-LOOKUP-TIMEOUT");
-        assertThat(timeout.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(timeout.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
 
         MemberLookupResult several = member("P32H-LOOKUP-MULTI");
-        assertThat(several.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(several.status()).isEqualTo(LookupStatus.SEVERAL);
         assertThat(several.message()).startsWith("The member API returned 2 records for one member ID");
 
         MemberLookupResult none = member("P32H-LOOKUP-NONE");

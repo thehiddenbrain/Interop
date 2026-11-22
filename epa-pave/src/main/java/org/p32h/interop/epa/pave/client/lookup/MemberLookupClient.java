@@ -14,4 +14,12 @@ import org.p32h.interop.epa.pave.model.MemberLookupResult;
 public interface MemberLookupClient {
 
     MemberLookupResult lookup(MemberIdForms memberId);
+
+    /**
+     * The same, with the case's date of service, which a lookup saved on screen may send in its
+     * body (R-11). Null when the case has none. A client that sends no date ignores it.
+     */
+    default MemberLookupResult lookup(MemberIdForms memberId, java.time.LocalDate dateOfService) {
+        return lookup(memberId);
+    }
 }

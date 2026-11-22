@@ -95,6 +95,15 @@ class ConfigFrontendTest {
                 say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Said above the form.'));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Type an absolute address.'));
+                // Every error placed at a field: the title still says what no field can (which address, which environment).
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION',
+                    title: 'This environment was declared as sandbox, and its address https://vendor.example.invalid/fhir/Claim/$submit is an address '
+                        + 'of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'timeouts.readMs', message: 'An address of production stays production.'}]}};
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const banner = dialog.querySelector('.config-form__banner').textContent;
+                say([banner.includes('"vendor-live"'), banner.includes('An address of production stays production.')]);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -103,7 +112,8 @@ class ConfigFrontendTest {
                 "[\"Between 100 and 600000.\",\"Type an absolute address.\"]",
                 "true",
                 // A refusal placed at its field is not said a second time above the form.
-                "false");
+                "false",
+                "[true,false]");
     }
 
     @Test

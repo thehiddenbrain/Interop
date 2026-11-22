@@ -27,6 +27,12 @@ public class ProviderLookupService implements ProviderLookup {
 
     @Override
     public ProviderLookupResult lookup(String npi) {
+        return lookup(npi, null);
+    }
+
+    /** As {@link #lookup(String)}, with the date of service a saved lookup may send (R-11): ISO, or blank for none. */
+    public ProviderLookupResult lookup(String npi, String dateOfService) {
+        java.time.LocalDate date = LookupDate.parse(dateOfService);
         // The same sentence as a send says for the same mistake, so one mistake reads as one message.
         // Spaces around a pasted number are not part of it. Anything inside it is left alone and fails the check.
         String problem = Npi.problem(npi);
@@ -34,7 +40,7 @@ public class ProviderLookupService implements ProviderLookup {
             throw refused(problem);
         }
         String candidate = npi.strip();
-        ProviderLookupResult result = client.lookup(candidate);
+        ProviderLookupResult result = client.lookup(candidate, date);
         if (result == null) {
             throw new IllegalStateException("The provider lookup client returned no result.");
         }
