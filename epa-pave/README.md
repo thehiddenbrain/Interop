@@ -85,14 +85,16 @@ for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip 
 **Known to be open in release 1**, each with what to do:
 
 - Started with `-Dpave.classes.load-at-start=false` (not the default), an internal error just after
-  the IDE rebuilt the classes can ask you to report it: stop PAVE and start it again (release 2).
+  the IDE rebuilt the classes can ask you to report it, and the top bar's environment list can
+  fail: stop PAVE and start it again (release 2).
 - A replay sent from Audit that fails just after a pull does not say that PAVE's files changed:
   stop PAVE and start it again, then replay once more.
 - A folder whose name ends in `.json` or `.csv`, chosen in place of a file, is told the file "can
   no longer be read": choose the exported file inside the folder.
-- Dates in the questionnaire show in the browser's own form (for example 01/10/2026); the value sent
-  is the ISO date whatever it shows.
-- On live, type the member's date of birth and the date of service in step 2 yourself.
+- The Date of service and the questionnaire's dates show in the browser's own form (for example
+  01/10/2026); the value sent is the ISO date whatever it shows.
+- On live, answers are not filled from the case in release 1: type the questionnaire's dates (on
+  the stand-in, the member's date of birth and the date of service) in step 2 yourself.
 - At a window 1024 pixels wide the top bar can cut the environment's name; the whole name is in the
   list when you open it, and in Configuration > Environments.
 - "Save environment" on an empty new environment names the missing field (Kind) at the field only,
@@ -159,7 +161,7 @@ Stop PAVE and start it again." An internal error that names `NoClassDefFoundErro
 While that line shows, a refusal on a screen ends with "PAVE's files changed on disk since it
 started, which can cause this. Stop PAVE and start it again, then try once more." A page left open
 while PAVE restarts shows what the new start holds and says only "PAVE was started again." Both
-were seen in the real STS 5.4.0 on the jar of `19ddf8e`.
+were seen in the real STS 5.4.0, with `19ddf8e` imported and started from the Boot Dashboard.
 
 **One copy of PAVE per configuration store and ledger folder.** To run mock and live side by side,
 give the second copy folders and a port of its own:
@@ -294,13 +296,13 @@ When a sign-in fails, "Open Configuration" opens the active environment's form a
 answer points at the address (404, unknown host, refused connection), at Addresses. A token url
 that does not answer is named first: "Check the token url of the environment <name>, set in
 Configuration > Environments > Sign-in: <url>." Both were seen again on live against the stand-in,
-on the jar of `19ddf8e`.
+on the jar of `19ddf8e`, for a wrong client secret and a 404.
 
 **Secrets.** A secret field left blank keeps the stored value; "Remove the stored secret" removes
 it. Type `{{env:PAVE_NAME}}` to read it from an operating system variable at the moment of sending
 (only names that start with `PAVE_` are read). **A client secret or bearer token typed any other way
-is kept as typed in `config-store/store.json`**, a file only your account can read, and the save
-warns once. **A token pasted on Configuration > Access token** ("Paste a token", then "Use this
+is kept as typed in `config-store/store.json`**, a file only your account can read on Linux and
+macOS (on Windows, the folder's access list decides who can read it), and the save warns once. **A token pasted on Configuration > Access token** ("Paste a token", then "Use this
 token") is held in memory for the active environment only, never saved, and dropped by a 401, a
 restart or any change of the configuration. It is refused on mock. "Test the sign-in" on the same
 page asks the token url for a token now and sends nothing to the service.
@@ -1193,7 +1195,8 @@ open item, the worst first, with the entry that gives the reason.
   exported file inside the folder.
 - **A replay from Audit that fails just after a pull** does not add the files-changed line: stop
   PAVE and start it again, then replay once more.
-- **Dates in the questionnaire** show in the browser's own form; the ISO date is sent.
+- **The Date of service and the questionnaire's dates** show in the browser's own form; the ISO
+  date is sent.
 
 ## How release 1 was checked
 
