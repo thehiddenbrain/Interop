@@ -304,7 +304,9 @@ class ConfigFrontendTest {
                 signIn: {method: 'API_KEY', headerName: 'x-api-key', apiKey: {set: true, reference: '{{env:PAVE_MEMBER_KEY}}'},
                     bearerToken: {set: true}, tokenUrl: null, clientId: null, clientSecret: {set: true}, scope: null, clientAuthentication: 'BASIC'},
                 headers: [{name: 'x-trace', value: {set: true}}], listPath: 'members', fieldPaths: {dateOfBirth: 'dob'},
-                connectMs: 3000, readMs: 5000, inForce: {from: 'this screen', words: 'POST, signs in with an API key header'}}, extra || {});
+                connectMs: 3000, readMs: 5000, inForce: {from: 'this screen', words: 'POST, signs in with an API key header'},
+                fields: [{name: 'firstName', label: 'First name'}, {name: 'dateOfBirth', label: 'Date of birth'}, {name: 'planName', label: 'Plan'}],
+                defaults: {connectMs: 3000, readMs: 5000}}, extra || {});
             const {createLookupForm, KINDS} = await import('./js/config-lookups.js');
             const {el} = await import('./js/dom.js');
             const labelsShown = node => node.querySelectorAll('.field').filter(each => {
@@ -338,6 +340,12 @@ class ConfigFrontendTest {
                 const provider = createLookupForm(KINDS.providers, lookupView({kind: 'provider', method: 'POST', bodyTemplate: '{"npi": "{npi}"}'}), null);
                 say([provider.node.querySelector('.field__hint').textContent, labelsShown(provider.node).includes('Member ID form'),
                     'idForm' in provider.input()]);
+                // The field paths are the server's own fields, by its names and labels.
+                say([Object.keys(form.input().fieldPaths), labelsShown(node).includes('Plan'), form.input().fieldPaths.dateOfBirth]);
+                // A blank timeout says what applies instead, and is sent as not stated.
+                const blank = createLookupForm(KINDS.members, lookupView({connectMs: null, readMs: null}), null);
+                say([blank.node.querySelectorAll('input').filter(each => each.type === 'number').map(each => each.placeholder),
+                    blank.input().connectMs, blank.input().readMs]);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -346,7 +354,9 @@ class ConfigFrontendTest {
                 "[true,true,true,\"The member ID goes in the body, never in the address.\"]",
                 "[\"POST\",\"{\\\"memberIds\\\": [\\\"{memberId}\\\"], \\\"from\\\": \\\"{dateOfService}\\\"}\",\"MM/dd/yyyy\"]",
                 "[false,false]",
-                "[\"The NPI goes in the body, never in the address.\",false,false]");
+                "[\"The NPI goes in the body, never in the address.\",false,false]",
+                "[[\"firstName\",\"dateOfBirth\",\"planName\"],true,\"dob\"]",
+                "[[\"3000, from application.yml\",\"5000, from application.yml\"],null,null]");
     }
 
     @Test

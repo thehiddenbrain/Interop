@@ -15,16 +15,11 @@ import {errorPanel} from './fault.js';
 export const KINDS = {
     members: {
         kind: 'member', title: 'Member lookup', token: '{memberId}', idName: 'member ID', tryLabel: 'Member ID to try',
-        tryPlaceholder: 'S123456789', tryPath: '/api/members', tryName: 'memberId', dates: true,
-        paths: [['firstName', 'First name'], ['lastName', 'Last name'], ['dateOfBirth', 'Date of birth'], ['gender', 'Gender'],
-            ['lineOfBusiness', 'Line of business'], ['plan', 'Plan'], ['coverageStatus', 'Coverage status'],
-            ['coverageStart', 'Coverage start'], ['coverageEnd', 'Coverage end'], ['subscriberId', 'Subscriber ID']]
+        tryPlaceholder: 'S123456789', tryPath: '/api/members', tryName: 'memberId'
     },
     providers: {
         kind: 'provider', title: 'Provider lookup', token: '{npi}', idName: 'NPI', tryLabel: 'NPI to try',
-        tryPlaceholder: '1234567893', tryPath: '/api/providers', tryName: 'npi', dates: false,
-        paths: [['firstName', 'First name'], ['lastName', 'Last name'], ['organizationName', 'Organization'], ['specialty', 'Specialty'],
-            ['phone', 'Phone'], ['fax', 'Fax']]
+        tryPlaceholder: '1234567893', tryPath: '/api/providers', tryName: 'npi'
     }
 };
 
@@ -134,7 +129,9 @@ export function createLookupForm(words, view, reload) {
         connectMs: number(),
         readMs: number()
     };
-    const pathInputs = new Map(words.paths.map(([name]) => [name, text()]));
+    // The card fields a path may name are the server's (names and labels), never a copy kept here.
+    const pathFields = (Array.isArray(settings.fields) ? settings.fields : []).filter(each => each && each.name && each.label);
+    const pathInputs = new Map(pathFields.map(each => [each.name, text()]));
     const headers = [];
 
     inputs.enabled.checked = settings.enabled === true;
@@ -155,6 +152,13 @@ export function createLookupForm(words, view, reload) {
     }
     inputs.connectMs.value = typeof settings.connectMs === 'number' ? String(settings.connectMs) : '';
     inputs.readMs.value = typeof settings.readMs === 'number' ? String(settings.readMs) : '';
+    const defaults = settings.defaults || {};
+    if (typeof defaults.connectMs === 'number') {
+        inputs.connectMs.placeholder = defaults.connectMs + ', from application.yml';
+    }
+    if (typeof defaults.readMs === 'number') {
+        inputs.readMs.placeholder = defaults.readMs + ', from application.yml';
+    }
 
     function register(name, wrapper) {
         parts.set(name, wrapper);
@@ -169,12 +173,14 @@ export function createLookupForm(words, view, reload) {
     const dateField = register('dateFormat', field({label: 'Date format', input: inputs.dateFormat}));
     const signInFields = el('div', {class: 'form-grid'});
     const headerRows = el('div', {class: 'config-values'});
+    // The server names a header's problem at "headers" as a whole; it is said under the rows.
+    const headersLine = register('headers', el('div', {class: 'config-headers-line'}, el('p', {class: 'field__error', hidden: true})));
     for (const header of Array.isArray(settings.headers) ? settings.headers : []) {
         headerRows.append(headerRow(header));
     }
     const tryInput = text(words.tryPlaceholder);
     const tryDate = el('input', {class: 'input mono', type: 'date'});
-    const tryDateField = words.dates ? field({label: 'Date of service to try', input: tryDate}) : null;
+    const tryDateField = field({label: 'Date of service to try', input: tryDate});
     const tryLine = el('div', {class: 'config-status', role: 'status', 'aria-live': 'polite'});
     const saveButton = button('Save lookup', () => save(), {primary: true});
     const tryButton = button('Test the lookup', () => test());
@@ -204,9 +210,7 @@ export function createLookupForm(words, view, reload) {
             : 'Put {id} where the ' + words.idName + ' goes, in the path or the query.';
         bodyField.hidden = !post;
         dateField.hidden = !(post && inputs.bodyTemplate.value.includes('{dateOfService}'));
-        if (tryDateField) {
-            tryDateField.hidden = dateField.hidden;
-        }
+        tryDateField.hidden = dateField.hidden;
     }
 
     function drawSignIn() {
@@ -214,13 +218,13 @@ export function createLookupForm(words, view, reload) {
         const rows = [];
         if (method === 'API_KEY') {
             rows.push(register('signIn.headerName', field({label: 'Header name', input: inputs.headerName})));
-            rows.push(secretField('API key', inputs.apiKey, inputs.removeApiKey, signIn.apiKey));
+            rows.push(register('signIn.apiKey', secretField('API key', inputs.apiKey, inputs.removeApiKey, signIn.apiKey)));
         } else if (method === 'BEARER_TOKEN') {
-            rows.push(secretField('Bearer token', inputs.bearerToken, inputs.removeBearerToken, signIn.bearerToken));
+            rows.push(register('signIn.bearerToken', secretField('Bearer token', inputs.bearerToken, inputs.removeBearerToken, signIn.bearerToken)));
         } else if (method === 'CLIENT_CREDENTIALS') {
             rows.push(register('signIn.tokenUrl', field({label: 'Token url', input: inputs.tokenUrl})));
             rows.push(register('signIn.clientId', field({label: 'Client id', input: inputs.clientId})));
-            rows.push(secretField('Client secret', inputs.clientSecret, inputs.removeClientSecret, signIn.clientSecret));
+            rows.push(register('signIn.clientSecret', secretField('Client secret', inputs.clientSecret, inputs.removeClientSecret, signIn.clientSecret)));
             rows.push(field({label: 'Scope', input: inputs.scope}));
             rows.push(field({label: 'Client authentication', input: inputs.clientAuthentication}));
         }
@@ -276,13 +280,14 @@ export function createLookupForm(words, view, reload) {
             el('div', {class: 'form-section'},
                 el('h3', {class: 'form-section__title'}, 'Headers'),
                 headerRows,
+                headersLine,
                 el('div', null, button('Add a header', () => headerRows.append(headerRow(null)), {small: true}))),
             fold({summary: "Where the answer's fields are", open: Boolean(settings.listPath) || hasPaths(settings),
                 body: [
                     el('p', {class: 'field__hint'}, 'Names joined by dots, [n] for a position, for example data.members[0].dob. Blank: PAVE looks in the usual places.'),
                     el('div', {class: 'form-grid'},
                         register('listPath', field({label: 'List of matches', input: inputs.listPath})),
-                        words.paths.map(([name, label]) => register('fieldPaths.' + name, field({label, input: pathInputs.get(name)}))))
+                        pathFields.map(each => register('fieldPaths.' + each.name, field({label: each.label, input: pathInputs.get(each.name)}))))
                 ]}),
             el('div', {class: 'form-grid'},
                 register('connectMs', field({label: 'Connect timeout (ms)', input: inputs.connectMs})),
@@ -397,7 +402,7 @@ export function createLookupForm(words, view, reload) {
     async function test() {
         clear(tryLine);
         const query = {[words.tryName]: tryInput.value.trim()};
-        if (tryDateField && !tryDateField.hidden && tryDate.value) {
+        if (!tryDateField.hidden && tryDate.value) {
             query.dateOfService = tryDate.value;
         }
         tryButton.disabled = true;
