@@ -77,7 +77,8 @@ export function busyLine() {
 }
 
 /**
- * Sends one run of a step. spec: {path, body, busy (a busyLine), busyWords, buttons (to disable),
+ * Sends one run of a step. spec: {method (POST when left out), path, body or query, busy (a busyLine), busyWords,
+ * buttons (to disable), sendsCase (false for a call that carries nothing of the case),
  * typed (text left in the code box), ctx, onResult(envelope), onRefused(error, placed),
  * onFailed(error)}. Returns the answer of api.js, or null when the send was refused in the page.
  */
@@ -95,7 +96,8 @@ export async function sendRun(spec) {
     spec.busy.start(spec.busyWords);
     let answer;
     try {
-        answer = await call('POST', spec.path, {body: spec.body});
+        // A read or a delete of a subscription sends its facts as parameters; everything else as a JSON body.
+        answer = await call(spec.method || 'POST', spec.path, spec.body === undefined ? {query: spec.query} : {body: spec.body});
     } finally {
         spec.busy.stop();
         for (const control of spec.buttons) {
