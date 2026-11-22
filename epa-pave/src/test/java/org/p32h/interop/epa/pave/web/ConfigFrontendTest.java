@@ -261,7 +261,7 @@ class ConfigFrontendTest {
                         + "\"mount config-environments.js environments\",\"unmount config-environments.js\"]",
                 "[\"config-environments.js\",\"cfg-lists.js\",\"cfg-lists.js\",\"cfg-inforce.js\",\"config-environments.js\"]",
                 "[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Access token\",\"Production writes\",\"Advanced\"]",
-                "[\"in-force\",\"trail\",\"send-as-written\",\"try-a-value\",\"check-this-installation\",\"cds-discovery\",\"compare\"]",
+                "[\"in-force\",\"trail\",\"raw\",\"try\",\"checks\",\"discovery\",\"compare\"]",
                 "[[\"advanced\",\"in-force\"],[\"advanced\",\"trail\"],[\"environments\"]]");
     }
 }

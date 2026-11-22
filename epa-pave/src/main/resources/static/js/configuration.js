@@ -24,32 +24,34 @@ export const PAGES = [
 export const ADVANCED = [
     {id: 'in-force', label: 'In force now', module: 'cfg-inforce.js'},
     {id: 'trail', label: 'Trail', module: 'cfg-trail.js'},
-    {id: 'send-as-written', label: 'Send as written', module: 'adv-raw.js'},
-    {id: 'try-a-value', label: 'Try a value', module: 'adv-try.js'},
-    {id: 'check-this-installation', label: 'Check this installation', module: 'adv-checks.js'},
-    {id: 'cds-discovery', label: 'CDS discovery', module: 'adv-discovery.js'},
+    {id: 'raw', label: 'Send as written', module: 'adv-raw.js'},
+    {id: 'try', label: 'Try a value', module: 'adv-try.js'},
+    {id: 'checks', label: 'Check this installation', module: 'adv-checks.js'},
+    {id: 'discovery', label: 'CDS discovery', module: 'adv-discovery.js'},
     {id: 'compare', label: 'Compare with a request that works', module: 'adv-compare.js'}
 ];
 
 // Each module by a literal import, so the build can see that every page the navigation names exists.
 const LOADERS = {
-    'config-environments.js': () => import('./config-environments.js')
-};
-
-// A page of the navigation whose module is not in this build yet says so in one line, the words
-// the stubs of those pages use, rather than the line for a fault.
-const NOT_YET = {
-    mount(root) {
-        fill(root, el('p', {class: 'stub-line'}, 'This page comes in the next release.'));
-        return {update() {}, unmount() {}};
-    }
+    'config-environments.js': () => import('./config-environments.js'),
+    'cfg-collections.js': () => import('./cfg-collections.js'),
+    'cfg-lists.js': () => import('./cfg-lists.js'),
+    'cfg-token.js': () => import('./cfg-token.js'),
+    'cfg-writes.js': () => import('./cfg-writes.js'),
+    'cfg-inforce.js': () => import('./cfg-inforce.js'),
+    'cfg-trail.js': () => import('./cfg-trail.js'),
+    'adv-raw.js': () => import('./adv-raw.js'),
+    'adv-try.js': () => import('./adv-try.js'),
+    'adv-checks.js': () => import('./adv-checks.js'),
+    'adv-discovery.js': () => import('./adv-discovery.js'),
+    'adv-compare.js': () => import('./adv-compare.js')
 };
 
 /** Draws the view into root. route: the parts of the address after #configuration. */
 export function mount(root, route) {
     return mountWith(root, route, name => {
         const load = LOADERS[name];
-        return load ? load() : Promise.resolve(NOT_YET);
+        return load ? load() : Promise.reject(new Error('No page module ' + name));
     });
 }
 
