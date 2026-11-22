@@ -269,13 +269,18 @@ public final class PostmanParser {
         }
         String schema = JsonSafe.presentText(info, "schema");
         if (schema == null) {
-            throw new BadInputException("This collection does not say which format it is in, so this tool cannot tell whether it is v2.1.",
+            throw new BadInputException("This collection does not say which format it is in, so this tool cannot tell whether it is v2.1 "
+                    + "or v2.0.",
                     EXPORT_COLLECTION);
         }
-        if (!schema.toLowerCase(Locale.ROOT).contains("v2.1")) {
+        // Format v2.0 differs from v2.1 in a few shapes this reader already takes, each where it is
+        // read (a url, a header or a request written as text, a helper written as an object), so
+        // a vendor's older export is read rather than refused whole (D-307).
+        boolean older = schema.toLowerCase(Locale.ROOT).contains("v2.0");
+        if (!schema.toLowerCase(Locale.ROOT).contains("v2.1") && !older) {
             Matcher version = VERSION.matcher(schema);
             throw new BadInputException("This is a Postman collection in " + (version.find() ? "format " + version.group() : "a format this "
-                    + "tool does not recognise") + ". This tool reads format v2.1 only.", EXPORT_COLLECTION);
+                    + "tool does not recognise") + ". This tool reads formats v2.1 and v2.0.", EXPORT_COLLECTION);
         }
         String name = JsonSafe.presentText(info, "name");
         if (name == null) {
@@ -287,6 +292,9 @@ public final class PostmanParser {
         }
 
         List<String> notes = new ArrayList<>(document.notes());
+        if (older) {
+            notes.add("This collection is in Postman's older format v2.0, which this tool reads as it reads v2.1.");
+        }
         List<PostmanVariable> variables = variables(JsonSafe.child(root, "variable"), true, notes);
 
         Walk walk = new Walk();

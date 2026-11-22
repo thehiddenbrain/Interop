@@ -453,10 +453,12 @@ class PostmanParserTest {
     }
 
     @Test
-    void aCollectionThatIsNotSchemaV21IsRefusedNamingTheFormatItIsIn() {
-        assertThatThrownBy(() -> PostmanParser.collection(PostmanFiles.text(PostmanFiles.V2_0_COLLECTION)))
+    void aCollectionInAFormatOtherThanV21OrV20IsRefusedNamingTheFormatItIsIn() {
+        // D-307: a v2.0 file is read now (PostmanParserV20Test), so the refusal is held with a format that is neither.
+        String other = PostmanFiles.text(PostmanFiles.V2_0_COLLECTION).replace("collection/v2.0.0/", "collection/v3.0.0/");
+        assertThatThrownBy(() -> PostmanParser.collection(other))
                 .isInstanceOfSatisfying(BadInputException.class, e -> {
-                    assertThat(e.getMessage()).isEqualTo("This is a Postman collection in format v2.0.0. This tool reads format v2.1 only.");
+                    assertThat(e.getMessage()).isEqualTo("This is a Postman collection in format v3.0.0. This tool reads formats v2.1 and v2.0.");
                     assertThat(e.action()).contains("Collection v2.1");
                 });
         String noSchema = PostmanFiles.text(PostmanFiles.V2_0_COLLECTION)

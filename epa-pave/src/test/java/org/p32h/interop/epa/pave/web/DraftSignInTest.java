@@ -85,10 +85,11 @@ class DraftSignInTest {
     void aRawFormBodyAndAUrlAsTextAreReadAndAnotherMethodIsSaid() throws Exception {
         Map<String, Object> request = request("GET", "https://auth.example.invalid/token", List.of(),
                 Map.of("mode", "raw", "raw", "grant_type=client_credentials&client_id={{clientId}}&client_secret=%7B%7BclientSecret%7D%7D"));
-        // The parser reads format v2.1 files only and says so for a v2.0 file; the shapes v2.0 wrote (a url as text, a helper as
-        // an object) still appear in v2.1 files that older exports were converted from, so they are read inside one.
-        assertThat(draft(null, collection(V20, null, List.of(item("Token", request)))).at("/files/0/line").asString())
-                .startsWith("Not read: This is a Postman collection in format v2.0.0.");
+        // D-307: a v2.0 file is read as a whole now, and its token request with it; the shapes v2.0 wrote (a url as text, a helper
+        // as an object) also appear in v2.1 files that older exports were converted from, so they are read inside one too.
+        JsonNode older = draft(null, collection(V20, null, List.of(item("Token", request))));
+        assertThat(older.at("/files/0/line").asString()).startsWith("Read: 1 request");
+        assertThat(older.at("/signIn/tokenUrl").asString()).isEqualTo("https://auth.example.invalid/token");
         String collection = collection(V21, null, List.of(item("Token", request), orderSign()));
 
         JsonNode signIn = draft(null, collection).get("signIn");
