@@ -1,0 +1,81 @@
+{
+  "about": "The same placeholder submission as submit-221.json, every Service card field and environment value given, held against Da Vinci PAS 2.0.1, the default guide. Every value is a placeholder of this project; no member, provider or payer is real.",
+  "request": {
+    "member": {
+      "memberId": "S123456789",
+      "firstName": "Given",
+      "lastName": "Placeholder-Surname",
+      "dateOfBirth": "1970-01-31",
+      "gender": "female",
+      "lineOfBusiness": "Medicare",
+      "coverageStatus": "active"
+    },
+    "provider": {
+      "npi": "1234567893",
+      "firstName": "Pat",
+      "lastName": "Requesting-Placeholder",
+      "phone": "555-0100",
+      "fax": "555-0101"
+    },
+    "servicingProvider": {
+      "npi": "1234567893",
+      "firstName": "Sam",
+      "lastName": "Servicing-Placeholder",
+      "phone": "555-0102"
+    },
+    "procedureCodes": [
+      {
+        "code": "95810",
+        "description": "Sleep study, attended",
+        "quantity": 1.5,
+        "unit": "HS"
+      },
+      {
+        "code": "E0601",
+        "quantity": 2
+      }
+    ],
+    "diagnosisCodes": [
+      {
+        "code": "G47.33"
+      }
+    ],
+    "attachments": [
+      {
+        "title": "Placeholder sleep study",
+        "contentType": "application/pdf",
+        "data": "UDMySC1wbGFjZWhvbGRlcg==",
+        "size": 16,
+        "type": {
+          "code": "11506-3",
+          "system": "http://loinc.org"
+        },
+        "category": {
+          "code": "clinical-note",
+          "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category"
+        }
+      }
+    ],
+    "dateOfService": "2026-03-20",
+    "placeOfService": "11",
+    "levelOfService": "U",
+    "certificationType": "I",
+    "requestType": "HS",
+    "serviceType": "1",
+    "carry": {
+      "questionnaireResponse": [
+        "{\"resourceType\":\"QuestionnaireResponse\",\"id\":\"qr-placeholder-1\",\"status\":\"completed\",\"subject\":{\"reference\":\"Patient/patient-1\"},\"item\":[{\"linkId\":\"1\",\"answer\":[{\"valueString\":\"Placeholder answer\"}]}]}"
+      ]
+    }
+  },
+  "values": {
+    "claimIdentifierSystem": "https://example.org/p32h-placeholder/claims",
+    "itemTraceNumberSystem": "https://example.org/p32h-placeholder/trace",
+    "payerName": "Placeholder payer",
+    "payerIdentifier": "PAYER-PLACEHOLDER-1",
+    "payerIdentifierSystem": "https://example.org/p32h-placeholder/payers",
+    "memberIdSystem": "https://example.org/p32h-placeholder/member-id",
+    "coverageRelationship": "self",
+    "pasReportType": "09"
+  }
+}

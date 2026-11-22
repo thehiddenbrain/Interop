@@ -69,7 +69,7 @@ class Pas221SubmitTest {
         AtomicInteger next = new AtomicInteger();
         return new PasRequestBuilder(new FakeCodeList(), StartupChecks.ATTACHMENT_FHIR, CLOCK,
                 () -> UUID.fromString(String.format("00000000-0000-4000-8000-%012d", next.incrementAndGet())))
-                .submit(request, CLAIM, true, BUNDLE, variables(values));
+                .under(PasGuide.V221).submit(request, CLAIM, true, BUNDLE, variables(values));
     }
 
     private static PasRequestBuilder.Built built() {

@@ -73,7 +73,8 @@ class PasControllerTest {
             + "\"dateOfService\":\"2026-03-20\"%s}";
     private static final String INQUIRY = "{\"member\":{\"memberId\":\"%s\"},\"provider\":{\"npi\":\"1234567893\"}%s}";
 
-    private final FakeGateway gateway = FakeGateway.unconfigured();
+    // Written for PAS 2.2.1, which an environment chooses in its form; the default 2.0.1 is held by Pas201SubmitTest.
+    private final FakeGateway gateway = FakeGateway.unconfigured().pasGuide("2.2.1");
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final ScenarioRepository scenarios = new ScenarioRepository(APP);
 

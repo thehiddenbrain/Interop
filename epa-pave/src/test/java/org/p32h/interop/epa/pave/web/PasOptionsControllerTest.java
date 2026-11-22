@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.RequestShape;
+import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.service.pas.PasOptions;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,7 +22,7 @@ import tools.jackson.databind.JsonNode;
  */
 class PasOptionsControllerTest {
 
-    private final MockMvc mvc = TestMvc.standalone(new PasOptionsController());
+    private final MockMvc mvc = TestMvc.standalone(new PasOptionsController(() -> RequestShapes.DEFAULTS));
 
     private JsonNode options() throws Exception {
         String body = mvc.perform(get("/api/pas/options")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -42,11 +44,20 @@ class PasOptionsControllerTest {
     }
 
     @Test
+    void theLabelNamesTheGuideTheActiveEnvironmentChose() throws Exception {
+        RequestShapes chose221 = RequestShapes.DEFAULTS.with(RequestShape.PAS_GUIDE, RequestShapes.Choice.ofEnvironment("2.2.1"));
+        String body = TestMvc.standalone(new PasOptionsController(() -> chose221)).perform(get("/api/pas/options"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(JsonSafe.parse(body).node().get("version").asString()).isEqualTo("Da Vinci PAS 2.2.1");
+    }
+
+    @Test
     void theAnswerNamesTheGuideAndHoldsEveryListInItsSettledOrder() throws Exception {
         JsonNode options = options();
         assertThat(names(options)).containsExactly("version", "certificationTypes", "requestTypes", "serviceTypes", "levelsOfService",
                 "placesOfService", "units", "attachments");
-        assertThat(options.get("version").asString()).isEqualTo("Da Vinci PAS 2.2.1");
+        assertThat(options.get("version").asString()).as("an environment that states no PAS guide is held against 2.0.1")
+                .isEqualTo("Da Vinci PAS 2.0.1");
         assertThat(pairs(options.get("certificationTypes"))).containsExactly("I Initial", "S Revised", "4 Extension", "R Renewal",
                 "3 Cancel", "1 Appeal, immediate", "2 Appeal, standard");
         assertThat(pairs(options.get("requestTypes"))).containsExactly("HS Health services review", "AR Admission review",

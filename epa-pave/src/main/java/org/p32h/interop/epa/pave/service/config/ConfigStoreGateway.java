@@ -360,6 +360,12 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     @Override
+    public org.p32h.interop.epa.pave.model.RequestShapes activeShapes() {
+        StoredEnvironment active = store.snapshot().active();
+        return shapes(active == null ? EnvironmentSettings.none() : active.settings(), null);
+    }
+
+    @Override
     public org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
         StoredEnvironment active = store.snapshot().active();
         org.p32h.interop.epa.pave.model.MemberIdRule rule = active == null ? null : active.settings().memberIdRule();

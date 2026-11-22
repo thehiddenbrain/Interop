@@ -11,7 +11,7 @@ import org.p32h.interop.epa.pave.model.CodeInput;
  *
  * <p>A file the tester chose on the screen arrives as {@code data} with its {@code size}: the page
  * reads it as base64 when the button is pressed. Da Vinci PAS 2.2.1 requires the content inline and
- * forbids a url; {@code url} is still read, because a body sent from curl may carry one, and a test
+ * forbids a url, and 2.0.1 allows either; {@code url} is still read, because a body sent from curl may carry one, and a test
  * of a request that breaks that rule is a test a tester may want to run.
  *
  * @param title       what the document is, in the tester's words. Shown in the request notes

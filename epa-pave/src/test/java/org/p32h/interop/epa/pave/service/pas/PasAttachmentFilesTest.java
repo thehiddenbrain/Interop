@@ -178,7 +178,7 @@ class PasAttachmentFilesTest {
     }
 
     private static PasRequestBuilder.Built build(PasSubmitRequest request) {
-        return new PasRequestBuilder(new FakeCodeList(), StartupChecks.ATTACHMENT_FHIR, CLOCK, UUID::randomUUID)
+        return new PasRequestBuilder(new FakeCodeList(), StartupChecks.ATTACHMENT_FHIR, CLOCK, UUID::randomUUID).under(PasGuide.V221)
                 .submit(request, "claim-test-0001", true, "urn:uuid:00000000-0000-4000-8000-0000000000b1",
                         name -> new ResolvedText(name, null, null, List.of(), List.of(name)));
     }
@@ -208,7 +208,7 @@ class PasAttachmentFilesTest {
 
     @Test
     void inX12ModeAFileIsNamedByItsControlNumberAndItsDataStaysOutOfTheBundle() {
-        PasRequestBuilder.Built built = new PasRequestBuilder(new FakeCodeList(), StartupChecks.ATTACHMENT_X12_275, CLOCK, UUID::randomUUID)
+        PasRequestBuilder.Built built = new PasRequestBuilder(new FakeCodeList(), StartupChecks.ATTACHMENT_X12_275, CLOCK, UUID::randomUUID).under(PasGuide.V221)
                 .submit(request(file("application/pdf", DATA, SIZE)).build(), "claim-test-0001", true,
                         "urn:uuid:00000000-0000-4000-8000-0000000000b1",
                         name -> "{{pasReportType}}".equals(name) ? ResolvedText.plain("09")
@@ -232,7 +232,7 @@ class PasAttachmentFilesTest {
         ObjectProvider<RunLedger> provider = beans.getBeanProvider(RunLedger.class);
         OnyxProperties onyx = OnyxProperties.of(Map.of());
         RunSupport support = new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.of(Map.of()), onyx, provider, CLOCK);
-        return new PasService(onyx, FakeGateway.unconfigured(),
+        return new PasService(onyx, FakeGateway.unconfigured().pasGuide("2.2.1"),
                 new MockOnyxPasClient(new ScenarioRepository(app), new MockExchanges(app)), new FakeCodeList(), support, provider);
     }
 

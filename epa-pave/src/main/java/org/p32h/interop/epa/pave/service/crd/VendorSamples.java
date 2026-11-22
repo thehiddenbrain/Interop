@@ -68,6 +68,8 @@ public final class VendorSamples {
         }
         return switch (shape) {
             case CRD_DRAFT_ORDERS_TYPE -> draftOrdersType(parsed.node());
+            // A CRD sample says nothing about the PAS guide; only the environment states it.
+            case PAS_GUIDE -> null;
         };
     }
 

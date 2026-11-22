@@ -242,6 +242,15 @@ public interface OperationGateway {
     }
 
     /**
+     * The request shapes the active environment states, each else at its default. For what is shown
+     * before any call is prepared, such as the PAS guide the Service card names. This default knows
+     * no configuration and answers the defaults.
+     */
+    default org.p32h.interop.epa.pave.model.RequestShapes activeShapes() {
+        return org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
+    }
+
+    /**
      * The connect and read timeouts a call to the vendor's services is given now, both present,
      * each with its source: the active environment's own where it states them, else
      * application.yml's. For words about a timeout when the call itself is not at hand.
