@@ -262,6 +262,30 @@ class SuiteServiceTest {
     }
 
     /**
+     * round2-left 1, with the file of that check: the first row is refused because its case id holds
+     * the member's last name (the preview looks the member up, as on mock). The second repeats the id
+     * with no member ID, so it is never looked up and never compared with a name, and it once kept the
+     * id in the preview, the run and the results CSV. Now every row of the file with that id is named
+     * by its position.
+     */
+    @Test
+    void everyRowThatRepeatsACaseIdRefusedForTheMembersNameIsNamedByItsPosition() throws Exception {
+        bed.wrap = runner -> ((org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner) runner).previewMembers(SuiteTestBed.members());
+        String file = new String(SuiteServiceTest.class.getResourceAsStream("/suite/m-x-dupnomember.csv").readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("Placeholder-Inactive", SuiteTestBed.SURNAME);
+        SuitePreview preview = bed.service().preview("x-dupnomember.csv", file);
+        assertThat(preview.rowProblems()).extracting(SuitePreview.RowProblem::caseId)
+                .containsExactly("case-1 [id not shown]", "case-2 [id not shown]");
+        SuiteRunView run = bed.service().start("x-dupnomember.csv", file, null, null, null);
+        assertThat(run.headline()).isEqualTo("Finished: 3 cases. 1 passed, 2 not valid.");
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1 [id not shown]", "case-2 [id not shown]", "plain-row");
+        assertThat(run.results().get(1).reason()).isEqualTo("This case id is already used by case 1 of the file. Each case needs its own "
+                + "id, because results are matched to cases by it. The row has no member ID.");
+        assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run) + JsonSafe.mapper().writeValueAsString(preview))
+                .doesNotContain("Placeholder").doesNotContain("Surname");
+    }
+
+    /**
      * A row refused for a case id holding member data is named by its position in a name no case id
      * can have, so a case of the tester's own named after a position is never shown, or compared, as
      * the same case.
@@ -823,14 +847,33 @@ class SuiteServiceTest {
 
     @Test
     void theStopIsBoundedByWhatTheWebServerGivesARequestInFlight() {
-        org.p32h.interop.epa.pave.config.OnyxProperties defaults = org.p32h.interop.epa.pave.config.OnyxProperties.defaults();
+        org.p32h.interop.epa.pave.service.config.Timeouts defaults = org.p32h.interop.epa.pave.service.config.Timeouts.application(5000, 15000);
         // Spring Boot's default: the graceful stop, each phase of it given 30 seconds unless set.
         assertThat(SuiteService.stopBound("graceful", java.time.Duration.ofSeconds(30), defaults)).isEqualTo(java.time.Duration.ofSeconds(30));
         assertThat(SuiteService.stopBound("graceful", java.time.Duration.ofSeconds(45), defaults)).isEqualTo(java.time.Duration.ofSeconds(45));
         // A server that stops at once gives none: the longest one call can take, never more than 30 seconds.
         assertThat(SuiteService.stopBound("immediate", java.time.Duration.ofSeconds(45), defaults)).isEqualTo(java.time.Duration.ofSeconds(20));
-        assertThat(SuiteService.stopBound("IMMEDIATE", null, org.p32h.interop.epa.pave.config.OnyxProperties.of(
-                Map.of("connect-timeout-ms", "20000", "read-timeout-ms", "60000")))).isEqualTo(java.time.Duration.ofSeconds(30));
+        assertThat(SuiteService.stopBound("IMMEDIATE", null, org.p32h.interop.epa.pave.service.config.Timeouts.application(20000, 60000)))
+                .isEqualTo(java.time.Duration.ofSeconds(30));
+    }
+
+    /**
+     * The timeouts a stop that comes at once is bounded by are those in force when the stop begins,
+     * as the gateway answers them: an environment that states its own shortens or lengthens the
+     * bound, and a gateway that cannot say leaves application.yml's.
+     */
+    @Test
+    void aStopThatComesAtOnceIsBoundedByTheActiveEnvironmentsOwnTimeouts() {
+        org.p32h.interop.epa.pave.service.config.Timeouts own = new org.p32h.interop.epa.pave.service.config.Timeouts(1000, 3000,
+                org.p32h.interop.epa.pave.service.config.Timeouts.FROM_ENVIRONMENT, org.p32h.interop.epa.pave.service.config.Timeouts.FROM_ENVIRONMENT);
+        assertThat(SuiteService.stopBound("immediate", java.time.Duration.ofSeconds(45), own)).isEqualTo(java.time.Duration.ofSeconds(4));
+        org.p32h.interop.epa.pave.service.config.Timeouts readOnly = new org.p32h.interop.epa.pave.service.config.Timeouts(null, 2000,
+                null, org.p32h.interop.epa.pave.service.config.Timeouts.FROM_ENVIRONMENT);
+        assertThat(SuiteService.stopBound("immediate", null, readOnly)).isEqualTo(java.time.Duration.ofMillis(
+                org.p32h.interop.epa.pave.service.config.Timeouts.APPLICATION.connectMs() + 2000L));
+        assertThat(SuiteService.stopBound("immediate", null, null)).isEqualTo(java.time.Duration.ofMillis(Math.min(30_000L,
+                (long) org.p32h.interop.epa.pave.service.config.Timeouts.APPLICATION.connectMs()
+                        + org.p32h.interop.epa.pave.service.config.Timeouts.APPLICATION.readMs())));
     }
 
     /**

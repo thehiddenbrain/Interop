@@ -34,7 +34,9 @@ final class LookupEnvelope {
         /** A list of more than one record. A lookup by identifier is never answered by choosing. */
         SEVERAL,
         /** Not a record: a single value where an object was expected, or wrapping deeper than this tool follows. */
-        NOT_A_RECORD
+        NOT_A_RECORD,
+        /** Nothing at the list path a saved lookup names (R-11). */
+        NOT_THERE
     }
 
     /**
@@ -91,6 +93,66 @@ final class LookupEnvelope {
             node = inner;
         }
         return new Opened(Kind.NOT_A_RECORD, List.of(), 0);
+    }
+
+    /**
+     * Finds the matches where a saved lookup says they are (R-11): the node at the list path. A
+     * list there holds the matches (none, one, or several, which is never chosen from); an object
+     * there is the one match. Nothing at that place is not taken for "no match": the answer is
+     * then not the shape the tester described, and the result says so.
+     *
+     * @param path the list path's steps, at most a dozen, walked in one loop
+     */
+    static Opened at(TrackedJson.Node root, List<Spelling.Step> path) {
+        TrackedJson.Node node = root;
+        for (Spelling.Step step : path) {
+            TrackedJson.Node object = node.isArray() && node.elements().size() == 1 ? node.elements().get(0) : node;
+            if (!object.isObject()) {
+                return new Opened(Kind.NOT_THERE, List.of(), 0);
+            }
+            TrackedJson.Node next = null;
+            for (Map.Entry<String, TrackedJson.Node> property : object.properties()) {
+                if (Spelling.normalise(property.getKey()).equals(step.name())) {
+                    next = property.getValue();
+                    break;
+                }
+            }
+            if (next == null) {
+                return new Opened(Kind.NOT_THERE, List.of(), 0);
+            }
+            if (step.index() >= 0) {
+                List<TrackedJson.Node> elements = next.elements();
+                if (!next.isArray() || step.index() >= elements.size()) {
+                    return new Opened(Kind.NOT_THERE, List.of(), 0);
+                }
+                next = elements.get(step.index());
+            }
+            node = next;
+        }
+        Presence presence = node.presence();
+        if (presence == Presence.ABSENT) {
+            return new Opened(Kind.NOT_THERE, List.of(), 0);
+        }
+        if (presence == Presence.NULL) {
+            return new Opened(Kind.EMPTY, List.of(), 0);
+        }
+        if (node.isArray()) {
+            List<TrackedJson.Node> elements = node.elements();
+            if (elements.isEmpty()) {
+                return new Opened(Kind.EMPTY, List.of(), 0);
+            }
+            if (elements.size() > 1) {
+                return new Opened(Kind.SEVERAL, List.of(), elements.size());
+            }
+            node = elements.get(0);
+        }
+        if (!node.isObject()) {
+            return new Opened(Kind.NOT_A_RECORD, List.of(), 0);
+        }
+        if (node.presence() == Presence.EMPTY) {
+            return new Opened(Kind.EMPTY, List.of(), 0);
+        }
+        return new Opened(Kind.RECORD, List.of(node), 1);
     }
 
     private static TrackedJson.Node wrapped(TrackedJson.Node object, List<String> wrapperNames) {

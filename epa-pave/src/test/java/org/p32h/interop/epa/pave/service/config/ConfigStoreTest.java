@@ -29,9 +29,10 @@ class ConfigStoreTest {
     @TempDir
     Path directory;
 
+    /** Every file the store keeps, the lock file of a running copy aside: it holds nothing and is there while PAVE runs (R-32). */
     private static List<Path> filesUnder(Path root) throws IOException {
         try (Stream<Path> walk = Files.walk(root)) {
-            return walk.filter(Files::isRegularFile).sorted().toList();
+            return walk.filter(Files::isRegularFile).filter(path -> !path.equals(root.resolve(ConfigStore.LOCK_FILE))).sorted().toList();
         }
     }
 
@@ -666,7 +667,7 @@ class ConfigStoreTest {
     }
 
     @Test
-    void anUploadedFileThatWentMissingOrWasDamagedFailsAtStartupNamingThatFile() throws IOException {
+    void anUploadedFileThatWentMissingOrWasDamagedIsLeftOutAtStartupAndListedByName() throws IOException {
         ConfigFixture first = ConfigFixture.mock(directory);
         StoredEnvironment environment = first.environment(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
         StoredCollection collection = first.collection(PostmanFiles.VENDOR_COLLECTION);
@@ -674,23 +675,33 @@ class ConfigStoreTest {
         Path collectionFile = directory.resolve(collection.file());
         byte[] environmentBytes = Files.readAllBytes(environmentFile);
 
+        // R-32: a stored file that cannot be read no longer stops the start. It is left out and listed.
         Files.writeString(collectionFile, "{\"not\": \"a collection\"}");
-        assertThatThrownBy(() -> ConfigFixture.mock(directory)).isInstanceOf(IllegalStateException.class)
-                .hasMessageStartingWith("The configuration store file " + collectionFile + " cannot be used: it is no longer a Postman "
-                        + "collection export.");
+        ConfigFixture damaged = ConfigFixture.mock(directory);
+        assertThat(damaged.store.snapshot().collections()).isEmpty();
+        assertThat(damaged.store.unreadable()).extracting(ConfigStore.Unreadable::line).containsExactly("The file " + collectionFile
+                + " of the collection \"Onyx Sandbox ePA\" is no longer a Postman collection export, so the collection is left out. Remove "
+                + "it from the store and upload the collection again.");
         Files.write(collectionFile, PostmanFiles.bytes(PostmanFiles.VENDOR_COLLECTION));
 
         Files.delete(environmentFile);
-        assertThatThrownBy(() -> ConfigFixture.mock(directory)).isInstanceOf(IllegalStateException.class)
-                .hasMessageStartingWith("The configuration store file " + environmentFile + " cannot be used: it is missing or cannot be read");
+        assertThat(ConfigFixture.mock(directory).store.unreadable()).extracting(ConfigStore.Unreadable::line).containsExactly("The file "
+                + environmentFile + " of the environment \"Onyx Sandbox\" is missing, so the environment is left out. Put the file back "
+                + "and start PAVE again, or remove it from the store.");
 
         // A file swapped for another environment's is not taken under the old name and the old kind.
         Files.write(environmentFile, PostmanFiles.bytes(PostmanFiles.PRODUCTION_ENVIRONMENT));
-        assertThatThrownBy(() -> ConfigFixture.mock(directory)).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("it holds an environment named \"Onyx Production\", and store.json lists it as \"Onyx Sandbox\"");
+        ConfigFixture swapped = ConfigFixture.mock(directory);
+        assertThat(swapped.store.snapshot().environments()).isEmpty();
+        assertThat(swapped.store.unreadable()).extracting(ConfigStore.Unreadable::line).containsExactly("The file " + environmentFile
+                + " of the environment \"Onyx Sandbox\" holds an environment named \"Onyx Production\", so the environment is left out. "
+                + "Remove it from the store and upload the environment again.");
 
         Files.write(environmentFile, environmentBytes);
-        assertThat(ConfigFixture.mock(directory).store.snapshot().environments()).hasSize(1);
+        ConfigFixture repaired = ConfigFixture.mock(directory);
+        assertThat(repaired.store.snapshot().environments()).hasSize(1);
+        assertThat(repaired.store.snapshot().collections()).hasSize(1);
+        assertThat(repaired.store.unreadable()).isEmpty();
     }
 
     @Test

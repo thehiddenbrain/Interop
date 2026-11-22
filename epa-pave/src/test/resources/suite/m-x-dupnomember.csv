@@ -1,0 +1,4 @@
+caseId,protocol,memberId,npi,procedureCodes,dateOfService,expected,testerRef,note
+row-Placeholder-Inactive,crd,P32H-INACTIVE,1234567893,T1030,2026-03-02,COVERAGE_INACTIVE,QA-1,plain note
+row-Placeholder-Inactive,crd,,1234567893,T1030,2026-03-02,COVERAGE_INACTIVE,QA-1,plain note
+plain-row,crd,P32H-INACTIVE,1234567893,T1030,2026-03-02,COVERAGE_INACTIVE,QA-1,plain note

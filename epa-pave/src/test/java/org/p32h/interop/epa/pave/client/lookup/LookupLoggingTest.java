@@ -132,7 +132,7 @@ class LookupLoggingTest {
 
         // The lookups ended the ways this test means them to, with the member data in the results, where it belongs.
         assertThat(results).extracting(MemberLookupResult::status).containsExactly(LookupStatus.FOUND, LookupStatus.NOT_FOUND,
-                LookupStatus.FAULT, LookupStatus.FAULT, LookupStatus.FAULT, LookupStatus.DISABLED);
+                LookupStatus.FAULT, LookupStatus.FAULT, LookupStatus.NOT_ANSWERING, LookupStatus.DISABLED);
         assertThat(results.get(0).member().lastName()).isEqualTo("Placeholder-Quillfeather");
         assertThat(results.get(0).member().dateOfBirth()).isEqualTo("1961-07-19");
         assertThat(results.get(0).attention()).isNotEmpty();
@@ -144,7 +144,7 @@ class LookupLoggingTest {
                 "INFO " + MEMBER_LOGGER + ": Member lookup ended NOT_FOUND with HTTP status 404",
                 "INFO " + MEMBER_LOGGER + ": Member lookup ended FAULT with HTTP status 500",
                 "INFO " + MEMBER_LOGGER + ": Member lookup ended FAULT with HTTP status 200",
-                "INFO " + MEMBER_LOGGER + ": Member lookup ended FAULT with HTTP status none",
+                "INFO " + MEMBER_LOGGER + ": Member lookup ended NOT_ANSWERING with HTTP status none",
                 "INFO " + MEMBER_LOGGER + ": Member lookup ended DISABLED with HTTP status none");
         // And in everything any logger wrote, at any level, nothing about the member.
         String written = String.join("\n", everything);

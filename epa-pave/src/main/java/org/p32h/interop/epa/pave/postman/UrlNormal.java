@@ -234,7 +234,8 @@ public final class UrlNormal {
      * ends at its first colon outside an IPv6 literal, and compatibility characters are folded, so
      * {@code http://127.0.0.1:+18865\fhir} and {@code http://127.0.0.1:18865:/fhir} both protect
      * every address of {@code 127.0.0.1}. The result keeps no scheme, port or path, so that it is
-     * written and read back the same way: as the host alone.
+     * written and read back the same way: as the host alone. Null too for a host that is not read
+     * back as itself, such as one holding a space or a percent sign: no client reaches it.
      */
     public static Destination wholeHost(String url) {
         if (url == null) {
@@ -264,7 +265,13 @@ public final class UrlNormal {
         if (host.isEmpty() || host.contains("{")) {
             return null;
         }
-        return new Destination(null, host, -1, "", false);
+        Destination whole = new Destination(null, host, -1, "", false);
+        // The store writes this host as its shown text and reads it back with destination(), whose
+        // lenient reading refuses a host with white space or a percent sign, and a host that folding
+        // turned into one with a slash or another separator reads back as a different host. A host
+        // that does not read back as itself is no host any client reaches, and remembered it would
+        // keep the tool from starting (hunt-files 5), so the two readings accept the same hosts.
+        return whole.equals(destination(whole.shown())) ? whole : null;
     }
 
     /**

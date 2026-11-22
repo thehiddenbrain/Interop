@@ -24,12 +24,14 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>{@code P32H-LOOKUP-FAULT}: the member API fails with HTTP 503. The fault state</li>
  *   <li>{@code P32H-LOOKUP-TIMEOUT}: the member API does not answer in time</li>
- *   <li>{@code P32H-LOOKUP-MULTI}: two records come back for one ID, which is a fault and is never
- *       answered by choosing one</li>
+ *   <li>{@code P32H-LOOKUP-MULTI}: two records come back for one ID: several matched, which is
+ *       never answered by choosing one</li>
  *   <li>{@code P32H-LOOKUP-NONE}: HTTP 200 with an empty list, the other way of saying not found</li>
  * </ul>
  * {@code P32H-INACTIVE} is found with coverage that is not active, which is the "needs a look"
- * state. Setting {@code lookup.member.enabled} to false shows the disabled state.
+ * state. Setting {@code lookup.member.enabled} to false shows the disabled state. A lookup saved
+ * on screen changes nothing here: on mock, lookups answer from the fixtures whatever is configured
+ * (R-29), so the Members page can be filled in on mock and used on live.
  */
 @Component
 @Profile("mock")
@@ -51,7 +53,8 @@ public class MockMemberLookupClient implements MemberLookupClient {
         if (!endpoint.enabled()) {
             return MemberResponseMapping.notSent(LookupOutcomes.switchedOff(LookupWords.MEMBER), memberId, null);
         }
-        LookupFixtures.Fixture fixture = fixtures.member(memberId.sent());
+        // The packed form, whatever the active environment's rule makes of it, so a sentinel picks its fixture under every rule.
+        LookupFixtures.Fixture fixture = fixtures.member(org.p32h.interop.epa.pave.model.MemberIds.noSpace(memberId.typed()));
         VendorExchange exchange = fixture == null ? MockLookups.unknown(endpoint.url(), LookupWords.MEMBER)
                 : MockLookups.answer(fixture, endpoint.url());
         return MemberResponseMapping.map(exchange, memberId, LocalDate.now(clock));
