@@ -10,7 +10,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
 /**
  * What the recheck of the release candidate found in the Workbench, run with Node and the stand-in
  * for the document: a field's refusal goes when its value is replaced by a pick, a lookup or a new
- * case, so it never shows under a value the server did not refuse.
+ * case, so it never shows under a value the server did not refuse; and a question that waits on
+ * another answer is drawn muted, not required, and takes an answer (I-36).
  */
 class WorkbenchRecheckFrontendTest {
 
@@ -54,5 +55,31 @@ class WorkbenchRecheckFrontendTest {
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly("[false,false,false]", "[true,false,\"\"]");
+    }
+
+    @Test
+    void aQuestionThatWaitsOnAnotherAnswerTakesAnAnswer(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "a question that waits on another answer", PRELUDE + """
+                const {questionField} = await import('./js/wb-dtr-items.js');
+                const v = value => ({presence: 'VALUE', value});
+                const absent = {presence: 'ABSENT'};
+                const item = (linkId, enabled, extra) => Object.assign({path: 'item', linkId: v(linkId), text: v('Number of affected relatives'),
+                    prefix: absent, type: {presence: 'VALUE', code: 'integer', recognised: true}, question: true, required: v('true'),
+                    repeats: absent, readOnly: absent, answerValueSet: absent, answerOptions: [], initial: [], prepopulated: [],
+                    enableBehavior: absent, enableWhen: [], enabled, extensions: [], items: [], lists: {}}, extra || {});
+                const given = [];
+                const off = questionField({item: item('q-2', 'DISABLED', {enabledReason: 'Not asked until q-1 is Yes.'}), depth: 0, held: null,
+                    onChange: (id, values) => given.push([id, values])});
+                off.input.value = '2';
+                off.input.dispatchEvent({type: 'input'});
+                say([off.node.className.includes('question--off'), off.input.readOnly === true, Boolean(off.node.querySelector('.required')),
+                  off.node.querySelector('.enabled-reason').textContent, given]);
+                const fixed = questionField({item: item('q-3', 'ENABLED', {readOnly: v('true')}), depth: 0, held: null, onChange() {}});
+                say([fixed.input.readOnly === true, Boolean(fixed.node.querySelector('.required'))]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[true,false,false,\"Not asked until q-1 is Yes.\",[[\"q-2\",[\"2\"]]]]",
+                "[true,true]");
     }
 }

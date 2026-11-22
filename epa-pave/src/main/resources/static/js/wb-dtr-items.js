@@ -154,7 +154,8 @@ export function questionField(spec) {
     const item = spec.item;
     const linkId = linkIdOf(item);
     const type = (item.type && item.type.code) || '';
-    // A question its conditions turn off is not asked: never drawn as required, its field not open (B6).
+    // A question its conditions turn off is drawn muted and never as required, but stays open to
+    // typing (I-36): the answers sent with it may meet its condition, and the server decides then.
     const off = item.enabled === 'DISABLED';
     const required = value(item.required) === 'true' && !off;
     const repeats = value(item.repeats) === 'true';
@@ -200,7 +201,7 @@ export function questionField(spec) {
     if (prefilled) {
         control.prefilled(true);
     }
-    if (readOnly || off) {
+    if (readOnly) {
         control.disable();
     }
     node.append(label, control.node);

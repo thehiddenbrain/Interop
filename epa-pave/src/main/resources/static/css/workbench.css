@@ -491,3 +491,14 @@ td .notes {
     max-width: 100%;
     overflow: hidden;
 }
+
+/* A question its conditions turn off is quieter than the asked ones, yet still takes an answer (I-36). */
+.question--off .field__label {
+    color: var(--ink-soft);
+    font-weight: 400;
+}
+
+.question--off .input,
+.question--off .select {
+    border-style: dashed;
+}
