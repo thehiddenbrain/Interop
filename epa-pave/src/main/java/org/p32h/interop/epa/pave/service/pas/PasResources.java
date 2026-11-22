@@ -3,6 +3,7 @@ package org.p32h.interop.epa.pave.service.pas;
 import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
@@ -65,6 +66,8 @@ final class PasResources {
             "http://terminology.hl7.org/CodeSystem/icd9cm", "http://www.cms.gov/Medicare/Coding/ICD10", "http://hl7.org/fhir/sid/ndc");
 
     private static final String RELATIONSHIPS = "http://terminology.hl7.org/CodeSystem/subscriber-relationship";
+    /** Where a value of the environment is typed, ending the sentence that sends the tester there. */
+    private static final String UNDER_VALUES = " under Values in Configuration > Environments.";
 
     /** The same labels {@link CaseResources} knows, mapped to the uris PAS 2.2.1 names. */
     private static final Map<String, String> LABELS = Map.of("cpt", CaseResources.CPT, "cpt4", CaseResources.CPT, "hcpcs", "HCPCS",
@@ -85,11 +88,11 @@ final class PasResources {
     // ---------------------------------------------------------------------------------------------
 
     /** The member as PASBeneficiary, whose parent is US Core 7.0.0 Patient. */
-    ObjectNode patient(MemberDetail member, Function<String, ResolvedText> variables, PasNotes notes) {
+    ObjectNode patient(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables, PasNotes notes) {
         ObjectNode patient = JSON.objectNode();
         patient.put("resourceType", "Patient");
         patient.put("id", CaseResources.PATIENT_ID);
-        patient.putArray("identifier").add(memberIdentifier(member, variables, notes, true));
+        patient.putArray("identifier").add(memberIdentifier(member, rule, variables, notes, true));
         if (Texts.present(member.lastName()) || Texts.present(member.firstName())) {
             ObjectNode name = patient.putArray("name").addObject();
             if (Texts.present(member.lastName())) {
@@ -119,7 +122,8 @@ final class PasResources {
         return patient;
     }
 
-    private static ObjectNode memberIdentifier(MemberDetail member, Function<String, ResolvedText> variables, PasNotes notes, boolean note) {
+    private static ObjectNode memberIdentifier(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables, PasNotes notes,
+                                               boolean note) {
         ObjectNode identifier = JSON.objectNode();
         identifier.putObject("type").putArray("coding").addObject().put("system", CaseResources.IDENTIFIER_TYPES).put("code", "MB");
         String system = CaseResources.value(variables, CaseResources.VAR_MEMBER_ID_SYSTEM);
@@ -130,8 +134,18 @@ final class PasResources {
                     + CaseResources.VAR_MEMBER_ID_SYSTEM + " is not set. PAS 2.2.1 PASBeneficiary, on US Core 7.0.0 Patient, requires a "
                     + "system on every identifier.");
         }
-        // The no-space form, which is the only form the service accepts.
-        identifier.put("value", MemberIds.noSpace(member.memberId()));
+        // The form the environment's rule writes. The vendor's sandbox routes only the packed form,
+        // which is every environment's rule until another is chosen for it.
+        MemberIdRule applied = rule == null ? MemberIdRule.PACKED : rule;
+        identifier.put("value", MemberIds.sent(member.memberId(), applied));
+        if (note) {
+            String unapplied = applied.note(member.memberId());
+            if (unapplied != null) {
+                notes.add(unapplied);
+            } else if (applied != MemberIdRule.PACKED) {
+                notes.add("The member ID was sent in the " + applied.word() + " form, by this environment's member ID rule.");
+            }
+        }
         return identifier;
     }
 
@@ -145,7 +159,7 @@ final class PasResources {
      *
      * @param insurerSent true when the insurer Organization travels in the bundle, so the coverage can point at it
      */
-    ObjectNode coverage(MemberDetail member, Function<String, ResolvedText> variables, boolean insurerSent, PasNotes notes) {
+    ObjectNode coverage(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables, boolean insurerSent, PasNotes notes) {
         ObjectNode coverage = JSON.objectNode();
         coverage.put("resourceType", "Coverage");
         coverage.put("id", CaseResources.COVERAGE_ID);
@@ -163,7 +177,7 @@ final class PasResources {
                         + "\"active\", so the service may refuse the request for that alone.");
             }
         }
-        coverage.putArray("identifier").add(memberIdentifier(member, variables, notes, false));
+        coverage.putArray("identifier").add(memberIdentifier(member, rule, variables, notes, false));
         String relationship = CaseResources.value(variables, VAR_RELATIONSHIP);
         if (Texts.present(member.subscriberId())) {
             coverage.put("subscriberId", member.subscriberId().strip());
@@ -225,6 +239,8 @@ final class PasResources {
         String payerId = CaseResources.value(variables, CaseResources.VAR_PAYER_ID);
         String payerName = CaseResources.value(variables, CaseResources.VAR_PAYER_NAME);
         if (payerId == null && payerName == null) {
+            notes.toComplete("values.payerName", "Insurer: none. PAS 2.2.1 requires the payer: add Payer name and Payer identifier"
+                    + UNDER_VALUES);
             notes.missing(claimProfile + " insurer", "No insurer organization was sent: neither " + CaseResources.VAR_PAYER_ID + " nor "
                     + CaseResources.VAR_PAYER_NAME + " is set. PAS 2.2.1 " + claimProfile + " requires the insurer (PASClaimBase, which "
                     + "PASClaim and PASClaimInquiry share, makes it 1..1): add Payer name and Payer identifier under Values in "
@@ -247,12 +263,16 @@ final class PasResources {
                         + "Environments.");
             }
             identifier.put("value", payerId);
+        } else {
+            notes.toComplete("values.payerIdentifier", "Payer identifier: none. The insurer is named by its name alone: add Payer "
+                    + "identifier" + UNDER_VALUES);
         }
         organization.putArray("type").addObject().putArray("coding").addObject().put("system", OnyxPasConventions.X12_ENTITY_TYPES)
                 .put("code", "PR").put("display", "Payer");
         if (payerName != null) {
             organization.put("name", payerName);
         } else {
+            notes.toComplete("values.payerName", "Payer name: none. PAS 2.2.1 requires a name on the insurer: add Payer name" + UNDER_VALUES);
             notes.missing("PASInsurer name", "The insurer organization was sent without a name: the variable " + CaseResources.VAR_PAYER_NAME
                     + " is not set. PAS 2.2.1 PASInsurer, on US Core 7.0.0 Organization, requires one.");
         }
@@ -306,6 +326,7 @@ final class PasResources {
         role.put("id", CaseResources.PRACTITIONER_ROLE_ID);
         role.putObject("practitioner").put("reference", CaseResources.PRACTITIONER_REF);
         if (!telecom(role, provider)) {
+            notes.toComplete("provider.phone", "Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit provider fields.");
             notes.missing("PASPractitionerRole telecom (rule pd-1)", "Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit "
                     + "provider fields. PAS 2.2.1 PASPractitionerRole, on US Core 7.0.0 PractitionerRole, needs a phone, a fax or an "
                     + "endpoint on the requesting provider's role.");
@@ -356,6 +377,8 @@ final class PasResources {
         role.put("id", OnyxPasConventions.SERVICING_ROLE_ID);
         role.putObject("practitioner").put("reference", "Practitioner/" + OnyxPasConventions.SERVICING_PRACTITIONER_ID);
         if (!telecom(role, provider)) {
+            notes.toComplete("servicingProvider.phone", "Servicing provider phone or fax: none. PAS rule pd-1 needs one: add it to the "
+                    + "servicing provider.");
             notes.missing("PASPractitionerRole telecom of the servicing provider (rule pd-1)", "Servicing provider phone or fax: none. PAS "
                     + "rule pd-1 needs one: add it to the servicing provider. PAS 2.2.1 PASPractitionerRole, on US Core 7.0.0 "
                     + "PractitionerRole, needs a phone, a fax or an endpoint.");

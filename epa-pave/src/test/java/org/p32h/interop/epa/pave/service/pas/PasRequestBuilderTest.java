@@ -22,10 +22,12 @@ import org.p32h.interop.epa.pave.model.AuthRequirement;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
 import tools.jackson.databind.JsonNode;
 
@@ -513,5 +515,86 @@ class PasRequestBuilderTest {
         assertThat(withAttachments().toString()).doesNotContain("Placeholder-Surname").doesNotContain(REPORT);
         assertThat(new PasAttachment("Sleep study report", "text/plain", REPORT, null).toString()).doesNotContain(REPORT);
         assertThat(inquiry().build().toString()).doesNotContain("S123456789");
+    }
+
+    // ---- the member ID rule and what is left to complete (E3) ----
+
+    private static PasRequestBuilder.Built submit(PasSubmitRequest request, Map<String, String> values, MemberIdRule rule) {
+        return builder(StartupChecks.ATTACHMENT_FHIR).submit(request, CLAIM, true, BUNDLE, variables(values), rule);
+    }
+
+    @Test
+    void theMemberIdGoesOnThePatientAndTheCoverageInTheFormTheEnvironmentsRuleWrites() {
+        Map<MemberIdRule, String> expected = Map.of(MemberIdRule.PACKED, "S1234567801", MemberIdRule.SPACED, "S12345678   01",
+                MemberIdRule.SPLIT, "S12345678");
+        for (Map.Entry<MemberIdRule, String> rule : expected.entrySet()) {
+            PasRequestBuilder.Built built = submit(complete().build(), ALL, rule.getKey());
+            assertThat(resource(built, "Patient").at("/identifier/0/value").asString()).as(rule.getKey().word()).isEqualTo(rule.getValue());
+            assertThat(resource(built, "Coverage").at("/identifier/0/value").asString()).as(rule.getKey().word()).isEqualTo(rule.getValue());
+            // The patient keeps its own resource id whatever form the member ID takes.
+            assertThat(resource(built, "Patient").get("id").asString()).isEqualTo("patient-1");
+        }
+        assertThat(submit(complete().build(), ALL, MemberIdRule.SPACED).notes())
+                .contains("The member ID was sent in the spaced form, by this environment's member ID rule.");
+        assertThat(submit(complete().build(), ALL, MemberIdRule.PACKED).notes()).noneMatch(note -> note.contains("member ID rule"));
+        // A null rule is packed, the rule of every environment that has not chosen one, and so is the inquiry's.
+        assertThat(resource(submit(complete().build(), ALL, null), "Patient").at("/identifier/0/value").asString()).isEqualTo("S1234567801");
+        PasRequestBuilder.Built inquiry = builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry()
+                .member(MemberDetail.builder().memberId("S12345678   01").build()).build(), CLAIM, List.of(), null, BUNDLE, variables(ALL),
+                MemberIdRule.SPLIT);
+        assertThat(resource(inquiry, "Patient").at("/identifier/0/value").asString()).isEqualTo("S12345678");
+    }
+
+    @Test
+    void anIdTheRuleCannotApplyToIsSentPackedAndTheNoteSaysWhy() {
+        PasSubmitRequest request = complete().member(MemberDetail.builder().memberId("S123 45678").firstName("Given")
+                .lastName("Placeholder-Surname").gender("female").coverageStatus("active").build()).build();
+        PasRequestBuilder.Built built = submit(request, ALL, MemberIdRule.SPACED);
+        assertThat(resource(built, "Patient").at("/identifier/0/value").asString()).isEqualTo("S12345678");
+        assertThat(built.notes()).contains("The spaced rule applies to an 11-character ID; this one has 9, so it was sent packed.");
+    }
+
+    @Test
+    void eachGapATesterCanCloseIsListedOnceWithTheFieldThatClosesIt() {
+        PasRequestBuilder.Built bare = submit(request().attachments(List.of(new PasAttachment("Report", "text/plain", REPORT, null))).build(),
+                Map.of());
+        assertThat(bare.toComplete()).extracting(RequestPreview.ToComplete::field)
+                .containsExactly("values.pasReportType", "values.payerName", "provider.phone", "serviceType", "requestType", "placeOfService");
+        assertThat(bare.toComplete()).filteredOn(gap -> gap.field().equals("provider.phone")).extracting(RequestPreview.ToComplete::line)
+                .containsExactly("Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit provider fields.");
+        assertThat(bare.toComplete()).filteredOn(gap -> gap.field().equals("values.payerName")).extracting(RequestPreview.ToComplete::line)
+                .containsExactly("Insurer: none. PAS 2.2.1 requires the payer: add Payer name and Payer identifier under Values in "
+                        + "Configuration > Environments.");
+        assertThat(bare.toComplete()).filteredOn(gap -> gap.field().equals("placeOfService")).extracting(RequestPreview.ToComplete::line)
+                .containsExactly("Place of service: none. PAS 2.2.1 requires one on every item: choose it under Service details.");
+        // Each gap is also an element left out, so the count the notes open with is never smaller than the list.
+        assertThat(bare.leftOut()).hasSizeGreaterThanOrEqualTo(bare.toComplete().size());
+
+        // Everything supplied: nothing left to complete, said as an empty list.
+        assertThat(submit(complete().build(), ALL).toComplete()).isEmpty();
+
+        // A typed claim id leaves the certification type to the tester; a minted one is initial by rule.
+        PasRequestBuilder.Built typed = builder(StartupChecks.ATTACHMENT_FHIR).submit(complete().build(), CLAIM, false, BUNDLE, variables(ALL));
+        assertThat(typed.toComplete()).extracting(RequestPreview.ToComplete::field).containsExactly("certificationType");
+        assertThat(typed.toComplete().get(0).line()).startsWith("Certification type: none. ");
+
+        // Half the payer: the half that is missing is the gap.
+        Map<String, String> nameOnly = new HashMap<>(ALL);
+        nameOnly.remove("payerIdentifier");
+        assertThat(submit(complete().build(), nameOnly).toComplete()).extracting(RequestPreview.ToComplete::field)
+                .containsExactly("values.payerIdentifier");
+        Map<String, String> idOnly = new HashMap<>(ALL);
+        idOnly.remove("payerName");
+        assertThat(submit(complete().build(), idOnly).toComplete()).extracting(RequestPreview.ToComplete::field)
+                .containsExactly("values.payerName");
+
+        // A servicing provider with no phone or fax is its own gap.
+        PasSubmitRequest servicing = complete().servicingProvider(ProviderDetail.builder().npi("1234567893").lastName("Servicing").build())
+                .build();
+        assertThat(submit(servicing, ALL).toComplete()).extracting(RequestPreview.ToComplete::field).containsExactly("servicingProvider.phone");
+
+        // An inquiry lists no gap: nothing it lacks is the tester's to complete on Submit's card.
+        assertThat(builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry().build(), CLAIM, List.of(), null, BUNDLE, NO_VARIABLES).toComplete())
+                .isEmpty();
     }
 }
