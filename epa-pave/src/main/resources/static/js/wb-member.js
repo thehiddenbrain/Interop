@@ -77,7 +77,8 @@ export function createMemberCard(env) {
     const run = latestOnly();
 
     const lookupButton = el('button', {type: 'button', class: 'btn', on: {click: () => lookup()}}, 'Look up');
-    const idRow = el('div', {class: 'field'}, el('label', {class: 'field__label', for: id.input.id}, 'Member ID', id.node.querySelector('.field__mark')),
+    // The row keeps the field's name so a refusal of member.memberId is shown under the label the tester sees (I-3).
+    const idRow = el('div', {class: 'field', 'data-case-field': 'memberId'}, el('label', {class: 'field__label', for: id.input.id}, 'Member ID', id.node.querySelector('.field__mark')),
         el('div', {class: 'inline-controls'}, id.input, lookupButton),
         id.node.querySelector('.masked-carry-slot'), id.node.querySelector('.field__error'));
     id.node = idRow;

@@ -295,10 +295,14 @@
 }
 
 /* A response table's cells wrap inside the fold, so a long meaning or url is read, not cut at the
-   fold's edge (critic-2); the column heads stay on one line and the wrapper scrolls only past that. */
+   fold's edge (critic-2). They wrap at spaces and hyphens only: a column is then never narrower
+   than its longest word, so a short code name such as questionnaire stays whole (critic-k3-1);
+   a value with no break in it still breaks rather than run past the cell. The column heads stay on
+   one line and the wrapper scrolls only past that. */
 .detail .table td {
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
     vertical-align: top;
 }
 

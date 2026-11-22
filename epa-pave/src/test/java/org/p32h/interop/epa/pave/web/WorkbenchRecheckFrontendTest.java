@@ -87,7 +87,32 @@ class WorkbenchRecheckFrontendTest {
     void aResponseTableWrapsItsCellsInsideTheFold() throws Exception {
         // Layout is not run here; the rule that lets a cell wrap is what a browser needs to fit it (critic-2).
         String css = StaticSources.withoutComments(StaticSources.read("css/workbench.css"));
-        assertThat(StaticSources.body(css, ".detail .table td {")).contains("white-space: normal;", "overflow-wrap: anywhere;");
+        // Wrapping at spaces and hyphens only keeps a column as wide as its longest word, so a code
+        // name such as questionnaire is never cut in its middle at 1024 (critic-k3-1).
+        assertThat(StaticSources.body(css, ".detail .table td {"))
+                .contains("white-space: normal;", "overflow-wrap: break-word;", "word-break: normal;")
+                .doesNotContain("anywhere");
+    }
+
+    @Test
+    void aRefusedMemberIdOrNpiIsNamedByItsLabel(@TempDir Path folder) throws Exception {
+        // The ID and NPI rows replace their case field's node; the row must still carry the field's
+        // name, or the refusal panel lists the sentence without the label on screen (I-3).
+        NodeRun run = StaticSources.runModule(folder, "a refused member ID named by its label", PRELUDE + """
+                const {createMemberCard} = await import('./js/wb-member.js');
+                const {createProviderCard} = await import('./js/wb-provider.js');
+                const member = createMemberCard({isMock: () => true, mockLists: () => null, savedMembers: () => [],
+                    dateOfService: () => '', useSample() {}});
+                const provider = createProviderCard({savedProviders: () => [], placeOfService() {}});
+                const labelIn = (card, name) => {
+                    const row = card.node.querySelector('[data-case-field="' + name + '"]');
+                    const label = row ? row.querySelector('.field__label') : null;
+                    return label && label.childNodes.length > 0 ? String(label.childNodes[0].textContent).trim() : null;
+                };
+                say([labelIn(member, 'memberId'), labelIn(provider, 'npi')]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[\"Member ID\",\"NPI\"]");
     }
 
     @Test
