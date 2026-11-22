@@ -769,6 +769,7 @@ public class EnvironmentDrafts {
     }
 
     private static EpaOperation detect(PostmanRequest request) {
-        return OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath()).operation();
+        return OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath(), request.body())
+                .operation();
     }
 }

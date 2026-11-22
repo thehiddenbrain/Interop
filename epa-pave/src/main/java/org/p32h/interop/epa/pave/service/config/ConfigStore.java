@@ -1167,7 +1167,8 @@ public class ConfigStore {
     private static List<StoredCollection.Mapped> mapped(PostmanCollection collection, Map<String, EpaOperation> corrections) {
         List<StoredCollection.Mapped> requests = new ArrayList<>();
         for (PostmanRequest request : collection.requests()) {
-            OperationDetector.Detection detection = OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath());
+            OperationDetector.Detection detection = OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath(),
+                    request.body());
             EpaOperation correction = corrections.get(request.id());
             // A correction that says what detection now says is no correction.
             requests.add(new StoredCollection.Mapped(request, detection, correction == detection.operation() ? null : correction));

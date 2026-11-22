@@ -191,6 +191,28 @@ class FilesGiveTest {
         assertThat(resolved.url().display()).isEqualTo("https://vendor.example.invalid/fhir/cds-services/epa-service");
     }
 
+    @Test
+    void aRequestWhoseBodyStatesItsHookIsTheCoverageCheckOnceStoredAsInTheDraft() throws Exception {
+        ConfigFixture fixture = ConfigFixture.live(directory);
+        Map<String, Object> check = Map.of("name", "Prior Auth Check", "request", Map.of("method", "POST",
+                "url", Map.of("raw", "{{base}}/cds-services/epa-crd-service"), "header", List.of(),
+                "body", Map.of("mode", "raw", "raw", "{\"hook\": \"order-sign\", \"context\": {}}")));
+        String collection = collection(List.of(check));
+        JsonNode orderSign = row(draft(fixture, environment(), collection), "CRD_ORDER_SIGN");
+        assertThat(orderSign.get("requestName").asString()).isEqualTo("Prior Auth Check");
+
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        Map<String, Object> save = new LinkedHashMap<>();
+        save.put("kind", "sandbox");
+        save.put("environmentExport", Map.of("fileName", "uat.postman_environment.json", "text", environment()));
+        save.put("collectionExport", Map.of("fileName", "vendor.postman_collection.json", "text", collection));
+        JsonNode saved = json(mvc.perform(post("/api/config/environments/settings").contentType(MediaType.APPLICATION_JSON)
+                .content(JsonSafe.mapper().writeValueAsString(save))).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        fixture.service.activate(saved.at("/settings/id").asString(), null);
+        assertThat(fixture.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).requestName())
+                .isEqualTo("Prior Auth Check");
+    }
+
     // ------------------------------------------------------------------------------------------
 
     private JsonNode draft(ConfigFixture fixture, String environment, String collection) throws Exception {

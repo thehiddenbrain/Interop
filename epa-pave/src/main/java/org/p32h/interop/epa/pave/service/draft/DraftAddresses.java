@@ -51,7 +51,7 @@ final class DraftAddresses {
         List<Detected> detected = new ArrayList<>();
         for (PostmanRequest request : collection.requests()) {
             detected.add(new Detected(request, OperationDetector.detect(request.name(), request.method(), request.url(),
-                    request.folderPath())));
+                    request.folderPath(), request.body())));
         }
         return detected;
     }
