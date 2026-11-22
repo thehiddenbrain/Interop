@@ -139,7 +139,8 @@ export function createLookupForm(words, view, reload) {
     inputs.address.value = settings.address || '';
     inputs.bodyTemplate.value = settings.bodyTemplate || '';
     inputs.dateFormat.value = DATE_FORMATS.includes(settings.dateFormat) ? settings.dateFormat : DATE_FORMATS[0];
-    inputs.idForm.value = ID_FORMS.some(each => each.value === settings.idForm) ? settings.idForm : 'AS_TYPED';
+    // With no form stated the select shows packed, the form the server saves when none is given.
+    inputs.idForm.value = ID_FORMS.some(each => each.value === settings.idForm) ? settings.idForm : 'PACKED';
     inputs.signIn.value = SIGN_IN.some(each => each.value === signIn.method) ? signIn.method : 'NONE';
     inputs.headerName.value = signIn.headerName || '';
     inputs.tokenUrl.value = signIn.tokenUrl || '';
