@@ -371,7 +371,7 @@ export function mount(root, ctx) {
 
     async function previewPackage() {
         await showPreview('/api/dtr/package/preview', packageBody(ctx.request(), own(), ctx.carry(2)),
-            error => ctx.placeErrors((error && error.fieldErrors) || []));
+            error => ctx.placeErrors((error && error.fieldErrors) || []), ctx.labelOf);
     }
 
     /** The package result: on one line when it holds a questionnaire to answer, else the whole card, which says what came back. */
@@ -625,7 +625,7 @@ export function mount(root, ctx) {
     /** The panel of a refusal, unless every reason of it is already shown at its field. */
     function refusedPanel(error, placed) {
         const all = (error.fieldErrors || []).every(each => placed.includes(each.field));
-        return all && (error.fieldErrors || []).length > 0 ? null : failurePanel(error, placed);
+        return all && (error.fieldErrors || []).length > 0 ? null : failurePanel(error, placed, ctx.labelOf);
     }
 
     /**

@@ -69,9 +69,10 @@ export function errorPanel(error, options) {
         return panel('fault', null, PAGE_FAULT_LINE, null);
     }
     const placed = new Set(options && options.fieldsPlaced ? options.fieldsPlaced : []);
+    const labelOf = options && typeof options.labelOf === 'function' ? options.labelOf : null;
     const box = panel(FRAMES[error.kind] || 'neutral', error.heading, error.title, error.action,
-        typeof error.httpStatus === 'number' ? 'HTTP ' + error.httpStatus : null);
-    const fieldErrors = Array.isArray(error.fieldErrors) ? error.fieldErrors.filter(each => each && !placed.has(each.field)) : [];
+        typeof error.httpStatus === 'number' ? 'HTTP ' + error.httpStatus : null, labelOf ? namedFields(error.fieldErrors, labelOf) : null);
+    const fieldErrors = labelOf ? [] : Array.isArray(error.fieldErrors) ? error.fieldErrors.filter(each => each && !placed.has(each.field)) : [];
     if (fieldErrors.length > 0) {
         box.append(el('ul', {class: 'notes error-fields'}, fieldErrors.map(each =>
             el('li', null, el('span', {class: 'mono'}, each.field), ' ', each.message))));
@@ -115,11 +116,34 @@ export function failureInCard(error) {
     ].filter(Boolean);
 }
 
-function panel(frame, heading, title, action, status) {
+// A refused form names at most this many fields in its panel; the rest are counted.
+const MOST_FIELDS_NAMED = 3;
+
+/**
+ * The fields of a refused form by the labels the tester sees (I-3), each with its sentence: never a
+ * property path. A field the page has no label for is said by its sentence alone.
+ */
+function namedFields(fieldErrors, labelOf) {
+    const all = Array.isArray(fieldErrors) ? fieldErrors.filter(each => each && typeof each.message === 'string') : [];
+    if (all.length === 0) {
+        return null;
+    }
+    const items = all.slice(0, MOST_FIELDS_NAMED).map(each => {
+        const label = labelOf(each.field);
+        return el('li', null, label ? [el('strong', null, label), ' '] : null, each.message);
+    });
+    if (all.length > MOST_FIELDS_NAMED) {
+        items.push(el('li', null, 'and ' + (all.length - MOST_FIELDS_NAMED) + ' more'));
+    }
+    return el('ul', {class: 'notes error-fields'}, items);
+}
+
+function panel(frame, heading, title, action, status, named) {
     const [first, rest] = firstSentence(action);
     return el('div', {class: 'verdict verdict--' + frame + ' error-panel'},
         heading || status ? el('p', {class: 'verdict__label'}, heading || null, heading && status ? ', ' : null, status || null) : null,
         el('p', {class: 'verdict__headline'}, title || null),
+        named || null,
         first ? el('p', {class: 'muted'}, first) : null,
         rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null,
         filesChangedNote());

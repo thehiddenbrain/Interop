@@ -120,7 +120,9 @@ export function createProviderCard(env) {
         const values = fieldsOf(fields).values;
         const name = [values.firstName, values.lastName].filter(Boolean).join(' ') || values.organizationName || '';
         const chosen = name || npi.value() || values.vendorPractitionerId || '';
-        head.picked(chosen || 'not chosen', Boolean(chosen));
+        // An NPI the server refused is never drawn with the tick of a chosen provider (I-3).
+        const refused = npi.node.classList.contains('field--error');
+        head.picked(chosen || 'not chosen', Boolean(chosen) && !refused);
         head.attention(Boolean(answer && Array.isArray(answer.attention) && answer.attention.length > 0));
         const status = statusChip(answer);
         const network = extra.networkStatus || null;
@@ -171,6 +173,7 @@ export function createProviderCard(env) {
             }
             control.setError(message || null);
             control.input.focus();
+            draw();
             return true;
         },
         /** Takes the NPI of a mock member's sample case, and looks it up. */

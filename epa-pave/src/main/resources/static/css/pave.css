@@ -281,8 +281,18 @@ input[type="radio"] {
     white-space: nowrap;
 }
 
+/* The sign-in chip may be cut to its first words (its title holds them all), so the badges beside
+   it never lie over the chooser at 1024 px (look-1). */
 .topbar__signin {
     display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 220px;
+}
+
+.topbar__end > .badge,
+.topbar__env > .badge,
+.topbar__stamp {
     flex: none;
 }
 
@@ -2152,6 +2162,10 @@ input[type="radio"] {
 
     .topbar__stamp .stamp-word {
         display: none;
+    }
+
+    .topbar__signin {
+        max-width: 120px;
     }
 }
 

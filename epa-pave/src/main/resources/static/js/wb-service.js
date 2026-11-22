@@ -168,6 +168,17 @@ export function createServiceCard(env) {
         },
         show(name, message) {
             const all = [date, diagnosis, place, level, certification, requestType, serviceType, testerRef, note];
+            // A quantity or unit of one code is shown at that code's row, its fold opened (I-3).
+            const perCodeField = /^procedureCodes\[(\d{1,3})\]\.(quantity|unit)$/.exec(name);
+            const code = perCodeField ? picker.values()[Number(perCodeField[1])] : null;
+            const row = code ? perCode.get(code.code) : null;
+            if (row) {
+                const control = row[perCodeField[2]];
+                details.open = true;
+                control.setError(message || null);
+                control.input.focus();
+                return true;
+            }
             if (name === 'procedureCodes' || name.startsWith('procedureCodes')) {
                 picker.input.focus();
                 return true;

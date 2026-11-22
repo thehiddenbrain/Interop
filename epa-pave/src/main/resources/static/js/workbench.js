@@ -115,7 +115,7 @@ function build() {
 
     const bannerText = el('p', {class: 'banner__case'});
     const banner = el('div', {class: 'banner'}, bannerText, button('Start a new case', () => newCase()));
-    const stepper = createStepper(n => openStep(n, true));
+    const stepper = createStepper((n, how) => openStep(n, !(how && how.keyboard)));
 
     // The options of steps 2 to 4 belong to the case's journey, so they are built here and handed
     // to the step modules through ctx.optionsRow() and ctx.option(name).
@@ -185,6 +185,7 @@ function build() {
             typedCode: () => service.typedCode(),
             blocked,
             readinessLine,
+            labelOf: field => labelOf(field),
             latest(step) {
                 const kept = journey.result(step);
                 return kept ? kept.envelope : null;
@@ -308,8 +309,14 @@ function build() {
 
     /** The card of a result, with its next step wired to the step it leads to. */
     function card(envelope) {
-        const kept = journey.result(stepOfOperation(envelope.operation) || 1);
+        const own = stepOfOperation(envelope.operation) || 1;
+        const kept = journey.result(own);
+        const leadsTo = stepOfAction(envelope.nextStep && envelope.nextStep.action);
+        plainWhenWayOn(own, leadsTo !== null && leadsTo !== own);
         return resultCard(envelope, {
+            // A step already offers its own send (step 2's form, step 4's inquiry row): its card says
+            // that next step in words and does not repeat the button (I-6 widened, look-10).
+            wordsOnly: action => stepOfAction(action) === own,
             context: 'workbench',
             stale: Boolean(kept && kept.epoch !== null && app.epoch() !== null && kept.epoch !== app.epoch()),
             onNext: action => next(action, envelope),
@@ -318,6 +325,21 @@ function build() {
                 return step === null ? null : blocked(OPERATION_OF_STEP[step]) || (journey.offered(step) ? null : withdrawnWords(step));
             }
         });
+    }
+
+    /**
+     * One filled button at a time (I-6): once a result of step n offers a way on, the step's own run
+     * button in its head is drawn plain; a new case or a result with no way on fills it again.
+     */
+    function plainWhenWayOn(n, wayOn) {
+        const panel = panels[n];
+        if (!panel) {
+            return;
+        }
+        for (const control of panel.querySelectorAll('.panel__head .btn--primary, .panel__head [data-run-button]')) {
+            control.setAttribute('data-run-button', 'true');
+            control.classList.toggle('btn--primary', !wayOn);
+        }
     }
 
     /** A next-step button was pressed: Continue opens its step (step 2 fetches at once; Submit sends nothing). */
@@ -398,6 +420,21 @@ function build() {
         return service.show(name, message) || member.show(name, message) || provider.show(name, message);
     }
 
+    /**
+     * The label a tester sees for a field a refusal names ('member.memberId', 'procedureCodes[0].quantity'),
+     * or null; a refusal panel never shows the property path itself (I-1, I-3).
+     */
+    function labelOf(field) {
+        const path = String(field || '');
+        const last = path.split('.').pop().replace(/\[\d{1,3}\]$/, '');
+        const fields = Array.from(node.querySelectorAll('[data-case-field]'));
+        const found = fields.find(each => each.getAttribute('data-case-field') === path)
+            || fields.find(each => each.getAttribute('data-case-field') === last);
+        const label = found ? found.querySelector('.field__label') : null;
+        const words = label && label.firstChild ? String(label.firstChild.textContent || '').trim() : '';
+        return words !== '' ? words : null;
+    }
+
     function blocked(operation) {
         if (app.isMock() || !loaded.effective || !operation) {
             return null;
@@ -451,6 +488,7 @@ function build() {
             if (module && typeof module.reset === 'function') {
                 guarded(() => module.reset());
             }
+            plainWhenWayOn(step.n, false);
         }
         drawBanner();
         drawStepper();

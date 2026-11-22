@@ -126,11 +126,11 @@ export function mount(root, ctx) {
     /** The panel of a refusal, unless every reason of it is already shown at its field. */
     function refusedPanel(error, placed) {
         const all = (error.fieldErrors || []).every(each => placed.includes(each.field));
-        return all && !error.title ? null : failurePanel(error, placed);
+        return all && !error.title ? null : failurePanel(error, placed, ctx.labelOf);
     }
 
     async function preview() {
-        await showPreview('/api/crd/preview', crdBody(ctx.request(), own()), error => ctx.placeErrors(error.fieldErrors || []));
+        await showPreview('/api/crd/preview', crdBody(ctx.request(), own()), error => ctx.placeErrors(error.fieldErrors || []), ctx.labelOf);
     }
 
     function draw() {

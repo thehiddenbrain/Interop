@@ -413,3 +413,44 @@ td .notes {
 .stepper__step {
     min-width: 0;
 }
+
+/* In the narrow case column the lookup's request and response stand one above the other, so no
+   cell of the wire view is squeezed to a letter a line. */
+.lookup-returned .wire {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.lookup-returned .mono {
+    overflow-wrap: anywhere;
+}
+
+/* Edit member and provider fields, and the Service card (wb-mock-1, wb-mock-8): a row's two columns
+   may shrink to the card, a label stays on one line with its "from lookup" chip on the line under
+   it, and the inputs of a row line up at the bottom whatever their labels hold. */
+.field-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+}
+
+.field-row > .field {
+    align-content: end;
+}
+
+.field-row .field__label {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.field-row .field__mark:not(:empty) {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
+.field-row .input,
+.field-row .select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}

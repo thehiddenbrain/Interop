@@ -332,7 +332,7 @@ function drawFrame() {
     const signIn = mode.signIn && typeof mode.signIn === 'object' && mode.signIn.short ? mode.signIn : null;
     const signInHost = document.getElementById('sign-in');
     signInHost.hidden = !signIn;
-    fill(signInHost, signIn ? chip(signIn.short, {tone: signIn.state === 'FAILED' ? 'fault' : null, title: signIn.detail || null}) : null);
+    fill(signInHost, signIn ? chip(signIn.short, {tone: signIn.state === 'FAILED' ? 'fault' : null, title: signIn.detail || signIn.short}) : null);
 
     drawStamp(mode);
     drawChooser();

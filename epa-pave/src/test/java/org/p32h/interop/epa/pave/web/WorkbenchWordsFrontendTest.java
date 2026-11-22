@@ -135,4 +135,51 @@ class WorkbenchWordsFrontendTest {
                 "\"scan.csv is a picture or a PDF, not a CSV file.\"",
                 "\"latin.json is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, or export it again from Postman.\"");
     }
+
+    @Test
+    void aRefusalNamesItsFieldsByLabelAndTheCardSaysOnlyWhatAddsWords(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "labels, displays and gaps", PRELUDE + """
+                const {errorPanel} = await import('./js/fault.js');
+                const {failurePanel} = await import('./js/wb-run.js');
+                const {displayAddsWords} = await import('./js/result.js');
+                const {caseGaps} = await import('./js/wb-submit.js');
+                const labels = {'provider.npi': 'NPI', 'procedureCodes[0].quantity': 'Qty'};
+                const refusal = {kind: 'VALIDATION', title: 'The form has 5 problems. Nothing was sent.', action: 'Correct the marked fields and send again.',
+                  fieldErrors: [{field: 'provider.npi', message: 'This NPI fails its check digit.'},
+                    {field: 'procedureCodes[0].quantity', message: 'A quantity is more than 0. Leave it blank when none is stated.'},
+                    {field: 'unknown.path', message: 'Something else.'}, {field: 'a', message: 'Four.'}, {field: 'b', message: 'Five.'}]};
+                const panel = errorPanel(refusal, {labelOf: field => labels[field] || null});
+                say(panel.querySelectorAll('.error-fields li').map(each => each.textContent));
+                say(panel.textContent.includes('procedureCodes'));
+                say(failurePanel({kind: 'NOT_JSON', status: 500}));
+                say([displayAddsWords('in-progress', 'In progress'), displayAddsWords('complete', 'Complete'),
+                  displayAddsWords('withpa', 'Send with the prior authorization request'), displayAddsWords('x', '')]);
+                say(caseGaps({member: {memberId: ''}, provider: {}, procedureCodes: []}).map(gap => gap.field));
+                say(caseGaps({member: {memberId: 'S123456789'}, provider: {npi: '1234567893'}, procedureCodes: [{code: 'E0470'}]}));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"NPI This NPI fails its check digit.\",\"Qty A quantity is more than 0. Leave it blank when none is stated.\",\"Something else.\",\"and 2 more\"]",
+                "false",
+                "null",
+                "[false,false,true,false]",
+                "[\"member.memberId\",\"provider.npi\",\"procedureCodes\"]",
+                "[]");
+    }
+
+    @Test
+    void theStatusRowAndTheMemberCardSpeakOfThisCaseOnly(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "this case's notifications and sent forms", PRELUDE + """
+                const {ofThisCase} = await import('./js/wb-status.js');
+                const {sentForms} = await import('./js/wb-member.js');
+                const held = [{id: 'n-3', correlatedRunId: 'run-other'}, {id: 'n-2', correlatedRunId: 'run-mine'}, {id: 'n-1'}];
+                say([ofThisCase(held, 'run-mine').map(each => each.id), ofThisCase(held, null), ofThisCase(held, '')]);
+                const forms = {typed: 'P32H-PA-REQ', sent: 'P32H-PA-REQ', rule: 'packed'};
+                say([sentForms({status: 'DISABLED', memberId: forms}), sentForms({status: 'FOUND', memberId: forms}).rule, sentForms(null)]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"n-2\"],[],[]]",
+                "[null,\"packed\",null]");
+    }
 }
