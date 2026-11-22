@@ -15,7 +15,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
  * cannot: a refused field opens the fold that holds it; a secret input is a password field never
  * given a value from the server; files are read through files.js and posted as JSON text; the file
  * input is let go after a refusal; a part of the form is drawn only when the server's view carries
- * its field; and the router mounts each page module by its contract and unmounts it.
+ * its field; and the router mounts each page module by its contract and unmounts it, and mounts afresh for a new address
+ * any page but Environments, whose update() redraws.
  */
 class ConfigFrontendTest {
 
@@ -255,10 +256,10 @@ class ConfigFrontendTest {
         assertThat(run.lines()).containsExactly(
                 "[\"In force now\"]",
                 "[\"mount config-environments.js environments\",\"update config-environments.js environments/pave-sample-sandbox/values\","
-                        + "\"unmount config-environments.js\",\"mount cfg-lists.js members\",\"update cfg-lists.js providers\","
+                        + "\"unmount config-environments.js\",\"mount cfg-lists.js members\",\"unmount cfg-lists.js\",\"mount cfg-lists.js providers\","
                         + "\"unmount cfg-lists.js\",\"mount cfg-inforce.js advanced/in-force\",\"unmount cfg-inforce.js\","
                         + "\"mount config-environments.js environments\",\"unmount config-environments.js\"]",
-                "[\"config-environments.js\",\"cfg-lists.js\",\"cfg-inforce.js\",\"config-environments.js\"]",
+                "[\"config-environments.js\",\"cfg-lists.js\",\"cfg-lists.js\",\"cfg-inforce.js\",\"config-environments.js\"]",
                 "[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Access token\",\"Production writes\",\"Advanced\"]",
                 "[\"in-force\",\"trail\",\"send-as-written\",\"try-a-value\",\"check-this-installation\",\"cds-discovery\",\"compare\"]",
                 "[[\"advanced\",\"in-force\"],[\"advanced\",\"trail\"],[\"environments\"]]");

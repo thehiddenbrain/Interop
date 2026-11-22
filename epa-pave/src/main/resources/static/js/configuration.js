@@ -11,7 +11,7 @@ import {PAGE_FAULT_LINE} from './fault.js';
 
 /** The pages of the sub-navigation, in its order. Advanced holds a list of its own. */
 export const PAGES = [
-    {id: 'environments', label: 'Environments', module: 'config-environments.js'},
+    {id: 'environments', label: 'Environments', module: 'config-environments.js', updates: true},
     {id: 'collections', label: 'Collections', module: 'cfg-collections.js'},
     {id: 'members', label: 'Members', module: 'cfg-lists.js'},
     {id: 'providers', label: 'Providers', module: 'cfg-lists.js'},
@@ -67,7 +67,9 @@ export function mountWith(root, route, load) {
         state.route = normal(next);
         drawNav();
         const page = pageOf(state.route);
-        if (page.module === state.module && state.handle) {
+        // A page that redraws itself on update() keeps what it read; any other is mounted afresh
+        // for its new address, since its update() is not bound to redraw.
+        if (page.module === state.module && state.handle && page.updates === true) {
             guarded(() => state.handle.update(state.route));
             return;
         }
