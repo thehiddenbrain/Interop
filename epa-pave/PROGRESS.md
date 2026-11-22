@@ -4,7 +4,28 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**This is release 2 of the rebuild of the screens** (D-301 to D-303), on 2026-11-22, the same day as
+**This is release 2 with the switch between mock and live added** (D-304), on 2026-11-22, after
+release 2 was handed over. The operator asked to switch mock and live on screen without a stop and a
+start. **The code** is release 2 (`777fd1e`) with the switch: `f9774a5` (PAVE restarts itself in
+place, `POST /api/mode`), `3275e82` (the control in the top bar, the dialog, the waiting state and the
+redraw), `2c3c1b5` (the sentences that said the mode is chosen at start), `5e07f4c` (two edge tests
+moved to an address that is still GET only), built by one builder; then one check by an agent that
+built none of it, on the jar on Linux, in the real STS 5.4.0 under a virtual display and on the Windows
+Java under Wine, which found no fault on screen and two minor gaps in the tests; both were corrected by
+the agent of these records (`c17b525`: the frame's part of the switch run in Node; `954f796`: the
+store's lock read from the system's list of locks, and a wait that no longer takes an answer still
+switching). These records were committed after them. **No second check of the corrections was run**;
+each correction was seen failing without what it holds, and the switch was walked again on the jar at
+1440 by 900 and 1024 by 768. Nothing was run on a Windows workstation or against the vendor's
+service. The gates of section 0 before the hand-over (two whole builds from clean, a build from a
+fresh clone, a start and the two proofs) are run by the integrator on the commit that carries these
+records, after them; their result is reported with the hand-over.
+**The new entry**: D-304, the switch: a restart in place, why the client is not chosen at run time,
+what a switch clears and drops, when it is refused, what happens when the wanted mode cannot start,
+and that the mode is not remembered. D-297 carries a "Later:" line. The commit that records it changes
+this file, `DECISIONS.md` and `README.md` only.
+
+**Release 2 of the rebuild of the screens** (D-301 to D-303), on 2026-11-22, the same day as
 release 1. **The code** is `c31ae00` of the branch `release2`: the second half of the plan (the trail of
 the last 500 runs' requests and responses, Audit's request and answer from it with Download, Journeys
 and Suites, a reload that redraws the case and "Load into the Workbench", lookups set up on screen with
@@ -145,6 +166,14 @@ Each line can be read alone. The detail of each is in the entry named.
    the environment chooses 2.2.1 (D-300; their earlier answer that named 2.2.1 is D-293). The lookups
    have never met the real member API or a provider directory, and how the vendor wants the client to
    sign in is an assumption (D-233, D-290).
+   **The switch between mock and live (D-304) is no exception**: it was seen in the real STS 5.4.0 on
+   Linux (start, switches both ways, Stop from the Boot Dashboard after a switch) and on the Windows
+   Java under Wine (five switches, an environment saved after each), never on Windows itself. Not
+   reached by anyone: STS's Restart button right after a switch; a start from STS's Profile field set to
+   live followed by a switch; "PAVE is already switching" in the dialog of a second page (held by tests,
+   seen with simultaneous POSTs). The refusal while runs are replayed was seen by the builder only.
+   Meanwhile: if the page says "PAVE did not come back", read the console, then stop PAVE and start it
+   again; a real start follows the launcher, whatever was chosen on screen.
 2. **Release 2 was checked once, and its corrections by nobody but their corrector** (D-303). The merge of
    release 1 into it was walked by its own agent on mock at 1440 only (D-302); two agents that built none
    of it checked the merge once; one corrector corrected their five findings. No second check and no
@@ -287,10 +316,9 @@ Each line can be read alone. The detail of each is in the entry named.
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
    has seen; whether the vendor's client secrets shown in the photographs of their earlier sessions were
-   changed since (from the reading of those sessions; nothing of them is copied here); whether they
-   accept that mock and live stay chosen at start, which the integrator kept against their stated
-   requirement that mock on or off be set on screen and take effect at once (35 to 50 agent-hours, and
-   D-188's guarantee that on live the mock beans do not exist; D-297); and the questions
+   changed since (from the reading of those sessions; nothing of them is copied here); whether the
+   switch in the top bar (D-304, a restart in place of a few seconds, not remembered over a real start)
+   is what they asked for, which closes the question D-297 left; and the questions
    D-269 left: the NPI's first digit, a sample request from the vendor.
 5. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
    check follows them** (D-268). Four fixes (ledger, completeness on screen, walkthrough, guardrail)
