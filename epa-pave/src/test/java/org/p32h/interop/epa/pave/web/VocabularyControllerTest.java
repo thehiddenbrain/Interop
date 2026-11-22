@@ -8,9 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
+import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.RunOutcome;
+import org.p32h.interop.epa.pave.model.chain.ChainStep;
 import org.p32h.interop.epa.pave.model.dtr.DtrOutcome;
 import org.p32h.interop.epa.pave.model.pas.NotificationOutcome;
 import org.p32h.interop.epa.pave.model.pas.PasOutcome;
@@ -49,7 +51,8 @@ class VocabularyControllerTest {
 
     @Test
     void theAnswerHoldsEveryPartInThePlansOrder() throws Exception {
-        assertThat(names(vocabulary())).containsExactly("steps", "stepStates", "outcomes", "nextActions", "testResults", "answeredBy");
+        assertThat(names(vocabulary())).containsExactly("steps", "stepStates", "outcomes", "nextActions", "testResults", "answeredBy",
+                "operations");
     }
 
     @Test
@@ -58,7 +61,55 @@ class VocabularyControllerTest {
         assertThat(texts(steps, "step")).containsExactly("COVERAGE", "QUESTIONNAIRE", "SUBMIT", "STATUS");
         assertThat(texts(steps, "name")).containsExactly("Coverage check", "Questionnaire", "Submit", "Status");
         assertThat(texts(steps, "protocol")).containsExactly("CRD", "DTR", "PAS", "PAS");
-        assertThat(names(steps.get(0))).containsExactly("step", "name", "protocol");
+        assertThat(names(steps.get(0))).containsExactly("step", "name", "protocol", "filters");
+    }
+
+    @Test
+    void eachStepNamesTheQueriesThatListExactlyItsRuns() throws Exception {
+        JsonNode steps = vocabulary().get("steps");
+        assertThat(steps.get(0).get("filters").toString()).isEqualTo("[{\"protocol\":\"crd\"}]");
+        assertThat(steps.get(1).get("filters").toString()).isEqualTo("[{\"protocol\":\"dtr\"}]");
+        // PAS holds the submission and the inquiry, which are two steps, so neither step takes the whole protocol.
+        assertThat(steps.get(2).get("filters").toString()).isEqualTo("[{\"operation\":\"PAS_SUBMIT\"}]");
+        assertThat(steps.get(3).get("filters").toString())
+                .isEqualTo("[{\"operation\":\"PAS_INQUIRE\"},{\"protocol\":\"subscription\"}]");
+    }
+
+    @Test
+    void theFiltersOfTheStepsCoverEveryOperationOfAStepOnceAndNoOther() {
+        for (ChainStep.Step step : ChainStep.Step.inOrder()) {
+            List<EpaOperation> listed = new ArrayList<>();
+            for (VocabularyController.RunFilter filter : VocabularyController.filters(step)) {
+                for (EpaOperation operation : EpaOperation.values()) {
+                    boolean taken = filter.operation() != null ? operation.name().equals(filter.operation())
+                            : operation.protocol().name().equalsIgnoreCase(filter.protocol());
+                    if (taken) {
+                        listed.add(operation);
+                    }
+                }
+            }
+            List<EpaOperation> expected = new ArrayList<>();
+            for (EpaOperation operation : EpaOperation.values()) {
+                if (ChainStep.Step.of(operation) == step) {
+                    expected.add(operation);
+                }
+            }
+            assertThat(listed).as(step.name()).containsExactlyInAnyOrderElementsOf(expected).doesNotHaveDuplicates();
+        }
+    }
+
+    @Test
+    void everyOperationIsNamedWithItsStepAndWhetherItWrites() throws Exception {
+        JsonNode operations = vocabulary().get("operations");
+        assertThat(operations.size()).isEqualTo(EpaOperation.values().length);
+        for (JsonNode operation : operations) {
+            EpaOperation named = EpaOperation.valueOf(operation.get("code").asString());
+            assertThat(operation.get("label").asString()).isEqualTo(named.label());
+            assertThat(operation.get("protocol").asString()).isEqualTo(named.protocol().name());
+            assertThat(operation.get("write").asBoolean()).isEqualTo(named.write());
+            ChainStep.Step step = ChainStep.Step.of(named);
+            assertThat(operation.has("step") ? operation.get("step").asString() : null).isEqualTo(step == null ? null : step.name());
+        }
     }
 
     @Test
