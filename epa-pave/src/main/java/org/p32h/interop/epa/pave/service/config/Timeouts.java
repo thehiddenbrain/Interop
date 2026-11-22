@@ -24,6 +24,9 @@ public record Timeouts(Integer connectMs, Integer readMs, String connectFrom, St
     /** The source word for a value the environment's own settings state. */
     public static final String FROM_ENVIRONMENT = "this environment";
 
+    /** The source of a timeout a lookup saved on screen states (R-11). */
+    public static final String FROM_LOOKUP = "the saved lookup";
+
     /** The smallest and largest value an environment may state, in milliseconds (plan 5.1). */
     public static final int MIN_MS = 100;
     public static final int MAX_MS = 600_000;
