@@ -1080,7 +1080,7 @@ class ConfigServiceTest {
 
         for (Resolved resolved : List.of(mock, live)) {
             assertThat(resolved.url().configured()).isFalse();
-            assertThat(resolved.url().source()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set.");
+            assertThat(resolved.url().source()).isEqualTo("No address for order-sign. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
             assertThat(resolved.urlShown()).isNull();
             assertThat(resolved.request()).isNull();
             assertThat(resolved.requestName()).isNull();

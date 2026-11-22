@@ -1606,7 +1606,7 @@ class DtrServiceTest {
                 "{\"linkId\":\"q2\",\"answer\":[{\"valueBoolean\":true}]}"), "RESPONSE_COMPLETED");
 
         assertThat(result.verdict().outcomeCode()).isEqualTo("REQUIRED_UNANSWERED");
-        assertThat(result.verdict().headline()).isEqualTo("A required question has no answer.");
+        assertThat(result.verdict().headline()).isEqualTo("A required question has no answer: \"First\".");
         assertThat(result.verdict().supporting()).contains("Required and unanswered: q1 \"First\".",
                 "The response carries the status completed all the same. This tool does not report it as complete.");
         assertThat(result.detail().form().complete()).isFalse();
@@ -1923,7 +1923,8 @@ class DtrServiceTest {
                 RunOrigin.manual());
 
         assertThat(result.verdict().outcomeCode()).isEqualTo("REQUIRED_UNANSWERED");
-        assertThat(result.verdict().headline()).isEqualTo("2 required questions have no answer.");
+        assertThat(result.verdict().headline()).isEqualTo("2 required questions have no answer: "
+                + "\"Which activities does the member need help with?\", \"Describe the skilled need\".");
         assertThat(result.verdict().tone()).isEqualTo(Tone.ACTION);
         assertThat(result.detail().form().complete()).isFalse();
         assertThat(result.detail().form().requiredUnanswered()).containsExactly(

@@ -15,7 +15,7 @@ import {call} from './api.js';
 import {el, fill, clear, chip, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, counted, sentences, none, fileRefusal, fileChooser, shownFile, filesChangedNote} from './cfg-parts.js';
+import {pageHead, section, part, during, counted, sentences, none, fileRefusal, fileChooser, shownFile, filesChangedNote, labelsOf} from './cfg-parts.js';
 
 const OFF_LINE = 'Saved test lists are switched off on this installation (test-lists.enabled).';
 
@@ -232,7 +232,7 @@ export function mount(root, route) {
                         placed.push(each.field);
                     }
                 }
-                fill(problems, errorPanel(answer.error, {fieldsPlaced: placed}));
+                fill(problems, errorPanel(answer.error, {fieldsPlaced: placed, labelOf: labelsOf(name => wrappers[name])}));
                 // The pressed button was disabled while it waited, which drops the focus; it goes
                 // to the first field to correct, so the keyboard stays inside the form.
                 if (placed.length > 0) {

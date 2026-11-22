@@ -262,8 +262,8 @@ class RunReplayTest {
         assertThat(entry.status()).isEqualTo(ReplayStatus.NOT_SIGNED_IN);
         assertThat(entry.differences()).isEmpty();
         assertThat(entry.reason()).isEqualTo("Not sent again: this tool could not sign in, so nothing reached the service and nothing is "
-                + "compared. Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to "
-                + "the service.");
+                + "compared. Check the token url (the Sign-in of the environment in Configuration > Environments, or onyx.auth.token-url as "
+                + "PAVE was started): it gave this tool no access token, so nothing was sent to the service.");
         assertThat(entry.replayRunId()).isNotNull();
     }
 

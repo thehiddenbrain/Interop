@@ -95,8 +95,9 @@ class FaultReportFrontendTest {
                 say(internal.querySelector('.verdict__label').textContent);
                 say(internal.querySelector('.verdict__headline').textContent);
                 say(internal.querySelector('.muted').textContent);
-                const why = internal.querySelector('details');
-                say([why.open, why.textContent]);
+                // One sentence after the first is a second, quieter line, read without a click (I-34).
+                say([internal.querySelectorAll('details').filter(each => each.textContent.startsWith('Why')).length,
+                  internal.querySelector('.action-rest').textContent]);
                 say(Boolean(internal.querySelector('.fault-report')) && internal.querySelector('.fault-report').closest('details') === null);
                 say(internal.className);
                 """);
@@ -116,7 +117,7 @@ class FaultReportFrontendTest {
                 "\"A failure of this tool, not of the service\"",
                 "\"This tool hit an internal error and could not complete the request.\"",
                 "\"Copy the reference and the cause below with the button and report them.\"",
-                "[false,\"WhyThe server log holds the rest.\"]",
+                "[0,\"The server log holds the rest.\"]",
                 "true",
                 "\"verdict verdict--fault error-panel\"");
     }

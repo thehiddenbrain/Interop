@@ -16,7 +16,7 @@ import {errorPanel} from './fault.js';
 import {readText} from './files.js';
 import {lineMap} from './adv-json-lines.js';
 import {bodyBox, sampleButton} from './adv-raw.js';
-import {pageHead, section, part, during, none, fileChooser, shownFile} from './cfg-parts.js';
+import {pageHead, section, part, during, none, fileChooser, shownFile, labelsOf} from './cfg-parts.js';
 
 // The server compares at most 2 MB (CrdRequestComparer), so a larger file is refused in the page.
 const LARGEST = 2 * 1024 * 1024;
@@ -177,7 +177,8 @@ export function mount(root, route) {
                     placed.push(each.field);
                 }
             }
-            fill(problem, errorPanel(got.error, {fieldsPlaced: placed}));
+            fill(problem, errorPanel(got.error, {fieldsPlaced: placed,
+                labelOf: labelsOf(name => fields.get(fields.has(name) ? name : String(name).startsWith('procedureCodes') ? 'procedureCodes' : null))}));
             if (compared) {
                 fill(stale, el('strong', null, 'The latest Compare was refused, '), 'so the comparison below answers an earlier one.');
             }
