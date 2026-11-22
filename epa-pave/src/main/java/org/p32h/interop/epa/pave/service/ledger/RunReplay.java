@@ -425,7 +425,7 @@ public class RunReplay {
         if (RunRecord.CORR_CLAIM_ID.equals(needed) && RunRecord.token(sent)) {
             return "This run sent a claim id, and its line holds it as a token, because a claim id the ledger cannot tell from "
                     + "somebody's data is not kept as it was given. A token cannot be turned back into the claim id, so the same request "
-                    + "cannot be sent again. Send the inquiry from the PAS tab with the claim id the submission returned.";
+                    + "cannot be sent again. Send the inquiry from step 4 Status of the Workbench with the claim id the submission returned.";
         }
         if (original.procedureCodes().stream().anyMatch(code -> CODE_NOT_KEPT.matcher(code).matches())) {
             return "A procedure code of this run was not recorded, because what was sent did not have the shape of a code or held the "

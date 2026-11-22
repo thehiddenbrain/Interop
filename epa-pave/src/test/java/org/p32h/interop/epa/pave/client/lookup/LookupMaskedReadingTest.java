@@ -45,7 +45,7 @@ class LookupMaskedReadingTest {
         assertThat(masked.status()).isEqualTo(LookupStatus.FOUND);
         assertThat(masked.maskedReading()).isEqualTo("Read from a mask, not from what the service sent: coverageStatus was read as "
                 + "[secret statusWord]. The variable or setting the mask names holds a value that the answers of this service use as an "
-                + "ordinary word, so what is read from it may be wrong. Look at that value in the Config tab.");
+                + "ordinary word, so what is read from it may be wrong. Look at that value in Configuration.");
         assertThat(JsonSafe.mapper().writeValueAsString(masked)).contains("\"maskedReading\"");
 
         MemberLookupResult plain = MemberResponseMapping.map(answered(MEMBER,

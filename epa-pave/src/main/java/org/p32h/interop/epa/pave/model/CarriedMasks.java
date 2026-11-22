@@ -99,7 +99,7 @@ public final class CarriedMasks {
      */
     public static String refusal(Found found) {
         String what = NextStepView.CARRY_LABELS.getOrDefault(found.key(), found.key());
-        return refusal(what, found.masks(), "Type the value on the form, or settle the secret in the Config tab.");
+        return refusal(what, found.masks(), "Type the value on the form, or settle the secret in Configuration.");
     }
 
     /**
@@ -115,6 +115,6 @@ public final class CarriedMasks {
     /** Why a field holding a mask is refused: the value is the mask of a held secret, not one the service gave. */
     public static String typed(String what, String masks) {
         return "This is not " + what + " but a mask, " + masks + ": an answer gave the value masked because it repeats a secret this tool "
-                + "holds. A mask is never sent. Type the value itself, or settle the secret in the Config tab.";
+                + "holds. A mask is never sent. Type the value itself, or settle the secret in Configuration.";
     }
 }

@@ -9,9 +9,10 @@ import {jsonView} from './json-view.js';
 /**
  * Asks the server for the preview of a request and shows it in a dialog. path: the preview
  * endpoint ('/api/crd/preview'); body: what the run would post. onRefused(error): a refusal of the
- * form, which the caller places at its fields. Returns the answer of api.js.
+ * form, which the caller places at its fields. labelOf(field): the label a tester sees for a field
+ * of a refusal, so the panel never names a property path. Returns the answer of api.js.
  */
-export async function showPreview(path, body, onRefused) {
+export async function showPreview(path, body, onRefused, labelOf) {
     const answer = await call('POST', path, {body});
     if (!answer.ok) {
         if (answer.status === 422 && typeof onRefused === 'function') {
@@ -19,7 +20,7 @@ export async function showPreview(path, body, onRefused) {
         }
         modal({
             title: 'Request preview',
-            body: errorPanel(answer.error),
+            body: errorPanel(answer.error, {labelOf: labelOf || null}),
             footer: dialog => [button('Close preview', () => dialog.close())]
         });
         return answer;

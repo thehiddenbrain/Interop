@@ -33,8 +33,8 @@ export function createServiceCard(env) {
     const certification = caseField({name: 'certificationType', label: 'Certification type', kind: 'select', options: [['', 'Not stated']]});
     const requestType = caseField({name: 'requestType', label: 'Request type', kind: 'select', options: [['', 'Not stated']]});
     const serviceType = caseField({name: 'serviceType', label: 'Service type', mono: true, list: typesId});
-    const testerRef = caseField({name: 'testerRef', label: 'Tester reference', hint: LEDGER_TEXT_HINT});
-    const note = caseField({name: 'note', label: 'Note', hint: LEDGER_TEXT_HINT});
+    const testerRef = caseField({name: 'testerRef', label: 'Tester reference'});
+    const note = caseField({name: 'note', label: 'Note'});
 
     // Quantity and unit per code, kept by code so that a code removed and added again starts empty.
     let perCode = new Map();
@@ -46,7 +46,10 @@ export function createServiceCard(env) {
         el('div', {class: 'field-row'}, serviceType.node, el('div')),
         places, types,
         el('p', {class: 'field__hint'}, 'Submit sends these; the questionnaire uses the place of service.'))});
-    const options = fold({summary: 'Options', inline: true, body: el('div', {class: 'field-row'}, testerRef.node, note.node)});
+    // The ledger hint covers both fields, so it is said once under them (I-5).
+    const options = fold({summary: 'Options', inline: true, body: el('div', null,
+        el('div', {class: 'field-row'}, testerRef.node, note.node),
+        el('p', {class: 'field__hint'}, LEDGER_TEXT_HINT))});
     const node = el('section', {class: 'card', 'aria-label': 'Service'}, head.node,
         el('div', {class: 'card__body'}, picker.node, el('div', {class: 'field-row'}, date.node, diagnosis.node), details, options));
 
@@ -165,6 +168,17 @@ export function createServiceCard(env) {
         },
         show(name, message) {
             const all = [date, diagnosis, place, level, certification, requestType, serviceType, testerRef, note];
+            // A quantity or unit of one code is shown at that code's row, its fold opened (I-3).
+            const perCodeField = /^procedureCodes\[(\d{1,3})\]\.(quantity|unit)$/.exec(name);
+            const code = perCodeField ? picker.values()[Number(perCodeField[1])] : null;
+            const row = code ? perCode.get(code.code) : null;
+            if (row) {
+                const control = row[perCodeField[2]];
+                details.open = true;
+                control.setError(message || null);
+                control.input.focus();
+                return true;
+            }
             if (name === 'procedureCodes' || name.startsWith('procedureCodes')) {
                 picker.input.focus();
                 return true;

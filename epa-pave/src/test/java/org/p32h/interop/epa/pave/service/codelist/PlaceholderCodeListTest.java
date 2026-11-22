@@ -62,7 +62,7 @@ class PlaceholderCodeListTest {
         assertThat(rows).hasSize(43);
         assertThat(check.statingAuthRequirement()).isEqualTo(39);
         assertThat(check.namingVendor()).isEqualTo(22);
-        assertThat(check.linesOfBusiness()).containsExactly(Map.entry("Medicare", 21), Map.entry("Medicaid", 7), Map.entry("Commercial", 10));
+        assertThat(check.linesOfBusiness()).containsExactly(Map.entry("Medicare", 21), Map.entry("Medicaid", 8), Map.entry("Commercial", 11));
     }
 
     @Test

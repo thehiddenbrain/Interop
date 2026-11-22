@@ -45,6 +45,19 @@ class ModeControllerTest {
     }
 
     @Test
+    void itNamesTheInstantThisProcessStartedTheSameOnEveryAnswerAndAfterAChange() throws Exception {
+        JsonNode first = mode("mock");
+        String startedAt = first.get("startedAt").stringValue();
+        // An ISO-8601 instant in UTC, as Instant.toString writes it.
+        assertThat(java.time.Instant.parse(startedAt).toString()).isEqualTo(startedAt);
+        assertThat(java.time.Instant.parse(startedAt)).isBeforeOrEqualTo(java.time.Instant.now());
+        gateway.environment("Onyx Production", EnvironmentKind.PROD).changeConfiguration();
+        JsonNode live = mode("live");
+        assertThat(live.get("epoch").longValue()).isNotEqualTo(first.get("epoch").longValue());
+        assertThat(live.get("startedAt").stringValue()).isEqualTo(startedAt);
+    }
+
+    @Test
     void theActiveEnvironmentAndTheEpochFollowTheConfiguration() throws Exception {
         gateway.environment("Onyx Production", EnvironmentKind.PROD).changeConfiguration();
         JsonNode view = mode("live");

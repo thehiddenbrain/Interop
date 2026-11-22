@@ -118,3 +118,8 @@
 .audit-note__missing {
     font-weight: 600;
 }
+
+/* The quiet line where a run's request and answer would be, set off from the card above it. */
+.audit-run__unkept {
+    margin-top: var(--s-2);
+}

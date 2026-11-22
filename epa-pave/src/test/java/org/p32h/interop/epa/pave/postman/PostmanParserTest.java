@@ -545,20 +545,20 @@ class PostmanParserTest {
     void aCollectionUploadedAsAnEnvironmentIsRefusedAndToldWhereItBelongs() {
         assertThatThrownBy(() -> PostmanParser.environment(PostmanFiles.text(PostmanFiles.VENDOR_COLLECTION)))
                 .isInstanceOfSatisfying(BadInputException.class, e -> {
-                    assertThat(e.getMessage()).isEqualTo("This file is a Postman collection, not an environment.");
-                    assertThat(e.action()).startsWith("Upload it under Collections.");
+                    assertThat(e.getMessage()).isEqualTo("This file is a Postman collection, not an environment export.");
+                    assertThat(e.action()).isEqualTo("Choose it as the Collection export, or upload it in Configuration > Collections.");
                 });
         // The old format is still a collection, and says so here too.
         assertThatThrownBy(() -> PostmanParser.environment(PostmanFiles.text(PostmanFiles.V1_COLLECTION)))
-                .isInstanceOf(BadInputException.class).hasMessage("This file is a Postman collection, not an environment.");
+                .isInstanceOf(BadInputException.class).hasMessage("This file is a Postman collection, not an environment export.");
     }
 
     @Test
     void anEnvironmentUploadedAsACollectionIsRefusedAndToldWhereItBelongs() {
         assertThatThrownBy(() -> PostmanParser.collection(PostmanFiles.text(PostmanFiles.SANDBOX_ENVIRONMENT)))
                 .isInstanceOfSatisfying(BadInputException.class, e -> {
-                    assertThat(e.getMessage()).isEqualTo("This file is a Postman environment, not a collection.");
-                    assertThat(e.action()).startsWith("Upload it under Environments.");
+                    assertThat(e.getMessage()).isEqualTo("This file is a Postman environment export, not a collection.");
+                    assertThat(e.action()).isEqualTo("Choose it as the Environment export of an environment, in Configuration > Environments.");
                 });
     }
 

@@ -649,7 +649,7 @@ class SuiteServiceTest {
         assertThat(service.list().get(0).name()).isEqualTo("cases-" + SuiteService.KEPT_RUNS + ".csv");
         String dropped = firstId;
         assertThatThrownBy(() -> service.get(dropped, true)).isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("History tab");
+                .hasMessageContaining("in Audit");
         // The dropped run is still in the ledger, under its suite run id.
         assertThat(bed.ledger.query(RunQuery.forSuite(dropped))).hasSize(1);
         assertThatThrownBy(() -> service.get(null, true)).isInstanceOf(NotFoundException.class);

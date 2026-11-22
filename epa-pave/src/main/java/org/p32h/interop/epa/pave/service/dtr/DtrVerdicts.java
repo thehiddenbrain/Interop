@@ -497,11 +497,11 @@ public final class DtrVerdicts {
     private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
         int status = exchange == null || exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 401 || status == 403) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials in Configuration > Environments > Sign-in.",
                     RunSupport.credentialsReason(status, exchange), carry);
         }
         if (status == 404) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the DTR url on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the DTR url in Configuration > Environments > Addresses.",
                     "The service answered HTTP 404 and did not say the member or the provider is unknown, so the address is the "
                             + "likely cause.", carry);
         }

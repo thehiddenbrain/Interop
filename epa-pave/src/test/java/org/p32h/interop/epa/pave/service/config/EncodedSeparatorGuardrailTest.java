@@ -94,7 +94,16 @@ class EncodedSeparatorGuardrailTest {
     @Test
     void anEnvironmentWhoseBaseHoldsAnEncodedSeparatorIsReportedAtUploadAndCannotBeSentTo() {
         for (String profile : PROFILES) {
+            // I-29: a base that decodes to the production base is production, and is refused at upload.
             for (String base : List.of("http://127.0.0.1:18742/pa%2Ffhir", "http://127.0.0.1:18742/pa/fhir%3Bv=1")) {
+                ConfigFixture fixture = ConfigFixture.on(directory.resolve(profile + "-" + (++fixtures))).mode(profile).build();
+                fixture.environmentOf("Audit Live A", EnvironmentKind.PROD, "baseUrl", PROD_A);
+                assertThatThrownBy(() -> fixture.store.uploadEnvironment("s.json",
+                        ("{\"name\": \"Spelling 14\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + base + "\"}]}")
+                                .getBytes(StandardCharsets.UTF_8), EnvironmentKind.SANDBOX, false)).as(profile + " " + base)
+                        .hasMessageContaining("is an address of the production environment \"Audit Live A\"");
+            }
+            for (String base : List.of("http://127.0.0.1:18742/sb%2Ffhir", "http://127.0.0.1:18742/sb/fhir%3Bv=1")) {
                 ConfigFixture fixture = ConfigFixture.on(directory.resolve(profile + "-" + (++fixtures))).mode(profile).build();
                 fixture.environmentOf("Audit Live A", EnvironmentKind.PROD, "baseUrl", PROD_A);
                 ConfigStore.EnvironmentUpload upload = fixture.store.uploadEnvironment("s.json",

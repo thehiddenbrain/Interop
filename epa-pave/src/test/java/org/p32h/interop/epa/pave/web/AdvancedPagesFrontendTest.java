@@ -89,7 +89,9 @@ class AdvancedPagesFrontendTest {
             checks.mount(two, ['advanced', 'checks']);
             await settle();
             say(['checks', two.querySelectorAll('h3').map(text), text(two).includes('Tracking is on, and runs are being recorded.'),
-                text(two).includes('The code list did not answer its self-check.'), text(two).includes('ref-1'), text(two).includes('Member lookupoff')]);
+                text(two).includes('The code list did not answer its self-check.'), text(two).includes('ref-1'), text(two).includes('Member lookupoff'),
+                // Release 1 has no /api/config/lookups: the page never asks for it (features-3).
+                fake.sent.filter(each => each.key.includes('/api/config/lookups')).length]);
 
             // CDS discovery: nothing is asked until the button is pressed; each value is shown with its presence.
             const discovery = await import('./js/adv-discovery.js');
@@ -111,7 +113,7 @@ class AdvancedPagesFrontendTest {
                 "[\"operations\",[\"CRD order-sign\"],[\"The one the operation uses by default\",\"order-sign Happy Path (Sample ePA), used by default\"]]",
                 "[\"fields\",[[\"baseUrl\",\"text\",\"\"],[\"apiKey\",\"password\",\"\"]]]",
                 "[\"tried\",{\"operation\":\"CRD_ORDER_SIGN\",\"variables\":{\"baseUrl\":\"https://typed.example.invalid\",\"apiKey\":\"typed-key-value\"}},[\"https://typed.example.invalid\",\"\"],false,true]",
-                "[\"checks\",[\"The ledger of test runs\",\"The procedure code list\",\"PAVE and where it is pointed\",\"Member and provider lookup\"],true,true,true,true]",
+                "[\"checks\",[\"The ledger of test runs\",\"The procedure code list\",\"PAVE and where it is pointed\",\"Member and provider lookup\"],true,true,true,true,0]",
                 "[\"not asked\",0]",
                 "[\"asked\",1,[\"not returned\",\"hook\",\"returned empty\"],[\"Returned but not interpreted1\"]]");
     }

@@ -260,7 +260,7 @@ public class RawService {
         for (String placeholder : placeholders) {
             fields.add(new FieldError("variables." + placeholder, "No value for {{" + placeholder + "}}"
                     + (e.reasons().containsKey(placeholder) ? ": " + e.reasons().get(placeholder)
-                    : ". Type one here, or add it to the environment on the Config tab.")));
+                    : ". Type one here, or add it under Values of the environment in Configuration.")));
         }
         List<String> named = new ArrayList<>(parts.stream().map(part -> "{" + part + "}").toList());
         named.addAll(placeholders.stream().map(placeholder -> "{{" + placeholder + "}}").toList());

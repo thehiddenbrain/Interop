@@ -132,3 +132,23 @@
     white-space: normal;
     overflow-wrap: anywhere;
 }
+
+/* In force now, Where each operation goes: a row's key sits at the top beside its two lines. */
+.config-operations .kv th {
+    vertical-align: top;
+}
+
+/* A line in place of the cards of a grid (no environment stored yet) spans the whole grid, not one column. */
+.config-grid-line {
+    grid-column: 1 / -1;
+}
+
+/* The file chooser of prototype 07b: the button and the chosen name share one control-high box. */
+.config-chooser {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.config-chooser .btn {
+    flex: none;
+}

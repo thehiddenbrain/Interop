@@ -104,7 +104,24 @@ public final class NotificationVerdicts {
      */
     public static VerdictView verdict(NotificationOutcome outcome, NotificationReading reading, List<String> correlationNotes,
                                       String sampleScenarioId, String cut, Unmatched unmatched) {
+        return verdict(outcome, reading, correlationNotes, sampleScenarioId, cut, unmatched, null);
+    }
+
+    /**
+     * The same, for a notification that was tied to a submission of this tool although no
+     * subscription of this tool matches it.
+     *
+     * @param submissionRun the submission it was tied to, or null. A tester in the middle of a case
+     *                      looks for whether the notification is about their submission, so that
+     *                      leads; that no subscription matches it is said second
+     */
+    public static VerdictView verdict(NotificationOutcome outcome, NotificationReading reading, List<String> correlationNotes,
+                                      String sampleScenarioId, String cut, Unmatched unmatched, String submissionRun) {
+        boolean forTheSubmission = forTheSubmission(outcome, unmatched, submissionRun);
         List<String> supporting = new ArrayList<>();
+        if (forTheSubmission) {
+            supporting.add(MATCHES_NONE);
+        }
         // First, so a sample is never mistaken for something a service sent.
         if (sampleScenarioId != null) {
             supporting.add("This is a sample delivered on the mock profile from scenario " + sampleScenarioId + ". It did not come from a service.");
@@ -131,7 +148,8 @@ public final class NotificationVerdicts {
                 if (type.code() != null) {
                     supporting.add("Its type: " + type.display() + ".");
                 }
-                yield unmatched == Unmatched.DELETED ? "A notification arrived on a subscription this tool created and then deleted."
+                yield forTheSubmission ? FOR_THE_SUBMISSION
+                        : unmatched == Unmatched.DELETED ? "A notification arrived on a subscription this tool created and then deleted."
                         : "A notification arrived that matches no subscription this tool created.";
             }
             case UNCHECKED_NOTIFICATION -> {
@@ -178,6 +196,22 @@ public final class NotificationVerdicts {
         return VerdictView.of(outcome, headline, List.copyOf(new LinkedHashSet<>(supporting)));
     }
 
+    /** The headline of a notification tied to a submission of this tool that no subscription of this tool matches. */
+    static final String FOR_THE_SUBMISSION = "A notification arrived for this submission.";
+
+    /** What is said second about it. */
+    static final String MATCHES_NONE = "No subscription was created here, so it matches none.";
+
+    /**
+     * Whether a notification no subscription of this tool matches is still about a submission of
+     * this tool. Only when the ledger was asked and holds no run that created the subscription:
+     * for a subscription this tool deleted, or one the ledger could not look up, "no subscription
+     * was created here" would not be true.
+     */
+    private static boolean forTheSubmission(NotificationOutcome outcome, Unmatched unmatched, String submissionRun) {
+        return outcome == NotificationOutcome.UNMATCHED_NOTIFICATION && unmatched == Unmatched.NOT_IN_LEDGER && Texts.present(submissionRun);
+    }
+
     /**
      * What the tester should do next.
      *
@@ -220,7 +254,12 @@ public final class NotificationVerdicts {
             case UNRECOGNISED_TYPE -> new NextStepView(NextAction.REVIEW, "Next: record this notification as \"type not recognised\" and "
                     + "report it to the people who look after the service.", "The notification does not state a type this tool knows, and "
                     + "this tool does not guess what it is. What arrived is shown below.", carry);
-            case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> notMatched(unmatched, sample, toSeeAMatch, carry);
+            case UNMATCHED_NOTIFICATION, UNCHECKED_NOTIFICATION -> forTheSubmission(outcome, unmatched, submissionRun) && toSeeAMatch == null
+                    ? new NextStepView(NextAction.REVIEW, sample ? "Next: in the Status step, press Send subscription call, then Deliver a sample."
+                    : "Next: in the Status step, press Send subscription call, so that the next notification can be matched to it.",
+                    "If a subscription was made another way (by another client, before this ledger began, or by another installation of "
+                            + "this tool), the list of subscriptions shows what the service holds.", carry)
+                    : notMatched(unmatched, sample, toSeeAMatch, carry);
             case UNREADABLE_NOTIFICATION -> new NextStepView(NextAction.REVIEW, "Next: read the payload below as it arrived, and find out "
                     + "what sent it.", "The body is not a subscription notification this tool can read.", carry);
         };
@@ -245,8 +284,9 @@ public final class NotificationVerdicts {
                     "This sample names a subscription this tool did not create, on purpose: a notification that matches nothing is "
                             + "what it shows, and is a finding in itself. Creating another subscription would not change that.", carry)
                     : new NextStepView(NextAction.REVIEW, sample
-                    ? "Next: create a subscription with Create subscription on the PAS tab, then choose Deliver a sample notification again."
-                    : "Next: create a subscription with Create subscription on the PAS tab, so that the next notification can be matched to it.",
+                    ? "Next: create a subscription with Send subscription call in step 4 Status of the Workbench, then choose Deliver a sample again."
+                    : "Next: create a subscription with Send subscription call in step 4 Status of the Workbench, so that the next notification "
+                    + "can be matched to it.",
                     "If a subscription was made another way (by another client, before this ledger began, or by another installation of "
                             + "this tool), the list of subscriptions shows what the service holds.", carry);
             case NOT_ASKED -> new NextStepView(NextAction.REVIEW, "Next: find out why the ledger could not be read. Until it can, this "
@@ -265,7 +305,7 @@ public final class NotificationVerdicts {
     private static NextStepView aboutARequest(NotificationReading reading, String claimId, Map<String, List<String>> carry) {
         List<PasDecision> decisions = reading.carried().claimResponses().stream().flatMap(response -> response.decisions().stream()).toList();
         if (!decisions.isEmpty() && decisions.stream().allMatch(decision -> decision.outcome().finalDecision())) {
-            return new NextStepView(NextAction.FLOW_ENDS, "The decision has arrived. Record this result.",
+            return new NextStepView(NextAction.FLOW_ENDS, "The decision has arrived. The flow ends here: nothing further to send.",
                     "The notification carries the ClaimResponse, and its review action is a final decision.", carry);
         }
         if (Texts.present(claimId)) {

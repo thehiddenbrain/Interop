@@ -11,18 +11,22 @@ const CHANGED = 'The file you chose can no longer be read: it was moved, renamed
 
 const NO_FILE = 'Choose a file first.';
 
+const FOLDER = ' is a folder. Choose the exported file inside it.';
+
 // The words that name where a file comes from. A Postman export is exported again from Postman; a
 // CSV is saved again by whatever wrote it, so it is never sent to Postman.
 const SOURCES = {
     postman: {
         what: 'exports',
         incomplete: 'This file is not complete. Export it again from Postman.',
-        encoding: ' is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, or export it again from Postman.'
+        encoding: ' is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, or export it again from Postman.',
+        notThis: 'not a Postman export.'
     },
     csv: {
         what: 'files',
         incomplete: 'This file is not complete. Save it again, then choose it again.',
-        encoding: ' is saved in another encoding (for example by Excel or Notepad). Save it as CSV UTF-8, then choose it again.'
+        encoding: ' is saved in another encoding (for example by Excel or Notepad). Save it as CSV UTF-8, then choose it again.',
+        notThis: 'not a CSV file.'
     }
 };
 
@@ -40,6 +44,10 @@ export async function readText(file, options) {
         name => name + ' is empty.');
     if (!read.ok) {
         return read;
+    }
+    const packed = notText(read.bytes, read.fileName, words);
+    if (packed) {
+        return refuse(read.input, packed);
     }
     const decoded = decode(read.bytes);
     if (decoded.problem) {
@@ -63,6 +71,11 @@ export async function readBase64(file, options) {
         return read;
     }
     return {ok: true, data: base64Of(read.bytes), fileName: read.fileName, size: read.bytes.length, contentType: read.contentType};
+}
+
+/** The size of something over a limit: in bytes when rounded it would read as the limit itself. */
+export function sizeOver(size, most) {
+    return sizeText(size) === sizeText(most) ? grouped(size) + ' bytes' : sizeText(size);
 }
 
 /** A size as a tester reads it: "512 bytes", "1.2 KB", "1.2 MB". */
@@ -112,7 +125,7 @@ async function bytesOf(target, maxBytes, tooBig, empty) {
         if (size > most) {
             // Said before it is read, so a file far too large never fills the page's memory. At the
             // limit itself the rounded size would read as the limit, so the bytes are given.
-            const shown = sizeText(size) === sizeText(most) ? grouped(size) + ' bytes' : sizeText(size);
+            const shown = sizeOver(size, most);
             return refuse(input, tooBig(fileName, shown, sizeText(most)));
         }
         // Emptiness is judged by what is read, never by the size the browser reports: Chromium
@@ -122,7 +135,7 @@ async function bytesOf(target, maxBytes, tooBig, empty) {
             buffer = await file.arrayBuffer();
         } catch (gone) {
             // The browser cannot read a file that was moved, deleted or written again since it was chosen.
-            return refuse(input, CHANGED);
+            return refuse(input, looksLikeFolder(file, gone) ? fileName + FOLDER : CHANGED);
         }
         const bytes = new Uint8Array(buffer);
         if (bytes.length === 0) {
@@ -133,6 +146,36 @@ async function bytesOf(target, maxBytes, tooBig, empty) {
         // Whatever else stops the read: the tester chooses the file again; nothing was sent.
         return refuse(input, CHANGED);
     }
+}
+
+/**
+ * What a file that is not text at all is, read from its first bytes (I-21), or null: a zip, a
+ * gzip, a picture or a PDF would otherwise be told to re-save as UTF-8, which cannot help.
+ */
+function notText(bytes, name, words) {
+    const starts = (...head) => bytes.length >= head.length && head.every((value, i) => bytes[i] === value);
+    if (starts(0x50, 0x4B, 0x03, 0x04) || starts(0x50, 0x4B, 0x05, 0x06)) {
+        return name + ' is a zip file. Unzip it and choose the .json file inside.';
+    }
+    if (starts(0x1F, 0x8B)) {
+        return name + ' is a compressed file. Unpack it and choose the file inside.';
+    }
+    if (starts(0x89, 0x50, 0x4E, 0x47) || starts(0xFF, 0xD8, 0xFF) || starts(0x25, 0x50, 0x44, 0x46)) {
+        return name + ' is a picture or a PDF, ' + words.notThis;
+    }
+    return null;
+}
+
+/**
+ * Whether what could not be read is a folder given in place of a file (I-25): the browser gives a
+ * folder no type and a size of 0 or a whole number of 4096-byte blocks, and refuses to read it as
+ * not found or not readable. Anything else keeps the line for a file that changed.
+ */
+function looksLikeFolder(file, failure) {
+    const name = failure && typeof failure.name === 'string' ? failure.name : '';
+    const size = Number(file.size);
+    return (name === 'NotFoundError' || name === 'NotReadableError') && file.type === ''
+        && Number.isFinite(size) && size % 4096 === 0;
 }
 
 function refuse(input, line) {

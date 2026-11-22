@@ -429,16 +429,16 @@ public final class CrdVerdicts {
                     "The response asks for documentation in a way this tool cannot act on.", carry);
             case AUTH_REQUIRED -> new NextStepView(NextAction.START_PAS, "Next: choose Continue in PAS, then Send PAS request.",
                     authRequiredReason(coverage, vendor), carry);
-            case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case NO_AUTH_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer answered that prior authorization is not required, so there is nothing to submit.", carry);
-            case AUTH_SATISFIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case AUTH_SATISFIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer answered that the requirements prior authorization would check are already met, so prior "
                             + "authorization can be bypassed and there is nothing to submit.", carry);
-            case NOT_COVERED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case NOT_COVERED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The service is not a covered benefit, so there is no authorization to request.", carry);
-            case COVERAGE_INACTIVE -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case COVERAGE_INACTIVE -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The member has no active coverage on the date of service, so there is no authorization to request.", carry);
-            case PERFORMER_AUTH -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here for the ordering provider. Record this result.",
+            case PERFORMER_AUTH -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here for the ordering provider: nothing further to send.",
                     "The payer answered that the performing provider, not the ordering provider, must obtain the authorization.", carry);
             case INFORMATION_NEEDED, CONDITIONAL -> new NextStepView(NextAction.SUPPLY_INFORMATION,
                     "Next: supply what the payer asked for and send CRD again.",
@@ -517,12 +517,12 @@ public final class CrdVerdicts {
             return new NextStepView(NextAction.OPEN_CONFIG, leaveOutDraftOrdersType(environmentName), DRAFT_ORDERS_TYPE_REASON, carry);
         }
         if (status == 401 || status == 403) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials in Configuration > Environments > Sign-in.",
                     RunSupport.credentialsReason(status, exchange), carry);
         }
         if (status == 404) {
             return new NextStepView(NextAction.OPEN_CONFIG,
-                    "Next: check the CRD url and the service id on the Config tab. Discovery lists the services this environment offers.",
+                    "Next: check the CRD url and the service id in Configuration > Environments > Addresses. Discovery lists the services this environment offers.",
                     "The service answered HTTP 404 and did not say the member or the provider is unknown, so the address is the "
                             + "likely cause.", carry);
         }

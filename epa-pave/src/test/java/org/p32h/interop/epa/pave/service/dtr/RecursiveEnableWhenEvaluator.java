@@ -331,13 +331,9 @@ final class RecursiveEnableWhenEvaluator {
                                 + "all or any to combine them by. It is still shown.";
                     }
                     if (reason == null) {
-                        reason = switch (own) {
-                            case ENABLED -> several ? ("any".equals(behavior) ? "Enabled: at least one of its conditions holds."
-                                    : "Enabled: every one of its conditions holds.") : "Enabled: its condition holds.";
-                            case DISABLED -> several ? ("any".equals(behavior) ? "Disabled: none of its conditions holds."
-                                    : "Disabled: at least one of its conditions does not hold.") : "Disabled: its condition does not hold.";
-                            case UNDETERMINED -> "Undetermined: a condition that decides it could not be evaluated. It is still shown.";
-                        };
+                        // The words are the evaluator's own: this copy is kept to compare how the two work items out, not how they word them.
+                        reason = EnableWhenEvaluator.conditionReason(own, several, behavior,
+                                JsonSafe.elements(item.node(), "enableWhen").get(0), byLinkId);
                     }
                 }
                 List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));

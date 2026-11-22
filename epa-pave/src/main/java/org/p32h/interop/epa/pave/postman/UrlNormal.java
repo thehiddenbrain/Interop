@@ -86,14 +86,19 @@ public final class UrlNormal {
          * True when the other destination is this one or lies beneath it: same origin, and a path
          * that starts with this path at a segment boundary. The paths are compared without regard
          * to letter case: many servers route {@code /LIVE} as {@code /live}, and a comparison that
-         * decides whether an address is production errs toward a match.
+         * decides whether an address is production errs toward a match. They are compared with
+         * every percent-escape decoded once, as a server reads a path before it routes it, so
+         * {@code /Claim/%24submit} is {@code /Claim/$submit}. An escape of an escape, which a
+         * second decoding would change again, is refused as an address, see {@link #escapeOfEscape}.
          */
         public boolean covers(Destination other) {
             if (!sameOrigin(other)) {
                 return false;
             }
-            String mine = path.toLowerCase(Locale.ROOT);
-            String theirs = other.path.toLowerCase(Locale.ROOT);
+            // Decoded first, then read without segment parameters, as the raw path was: an escaped
+            // semicolon starts a parameter once a server has decoded it.
+            String mine = withoutParameters(decodedOnce(path)).toLowerCase(Locale.ROOT);
+            String theirs = withoutParameters(decodedOnce(other.path)).toLowerCase(Locale.ROOT);
             return theirs.equals(mine) || theirs.startsWith(mine + "/") || mine.isEmpty();
         }
 
@@ -599,6 +604,58 @@ public final class UrlNormal {
             path = decoded;
         }
         return null;
+    }
+
+    /** The words a refusal of an escape of an escape says (I-29). */
+    public static final String NO_ESCAPE_OF_AN_ESCAPE = "An address holds no percent-escape of an escape.";
+
+    /**
+     * True when the path of a url holds a percent-escape of an escape, such as {@code %2524}, or a
+     * percent sign that starts no escape. Addresses are compared with production with every
+     * escape of the path decoded once, as a server reads them; a path that still holds a percent
+     * sign after that would be read as something else by a server that decodes twice, and one
+     * whose escape cannot be decoded is read by each server in its own way. Refusing it is the
+     * safe side. Only the path is read: the query keeps whatever escapes it carries.
+     */
+    public static boolean escapeOfEscape(String url) {
+        if (url == null) {
+            return false;
+        }
+        String path = pathOf(url.strip());
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '%' && hex(path, i + 1) < 0) {
+                return true;
+            }
+        }
+        return decodedOnce(path).indexOf('%') >= 0;
+    }
+
+    /**
+     * True when the path of a url holds an escaped percent sign ({@code %25}), so that it still
+     * holds a percent sign after one decoding. Asked of an address as configured, before the
+     * values typed for a run are filled in: a percent sign typed in a url part is sent as
+     * {@code %25} and means itself. A percent sign that starts no escape is left to the check of
+     * a url that is not valid, which names the value it came from.
+     */
+    public static boolean escapedPercent(String url) {
+        return url != null && pathOf(url.strip()).toUpperCase(Locale.ROOT).contains("%25");
+    }
+
+    /** The path of a url: after its scheme and authority when it has {@code ://}, up to a question mark or a hash. */
+    private static String pathOf(String text) {
+        int scheme = text.indexOf("://");
+        int pathStart = 0;
+        if (scheme > 0) {
+            pathStart = scheme + 3;
+            while (pathStart < text.length() && "/?#".indexOf(text.charAt(pathStart)) < 0) {
+                pathStart++;
+            }
+        }
+        int pathEnd = pathStart;
+        while (pathEnd < text.length() && text.charAt(pathEnd) != '?' && text.charAt(pathEnd) != '#') {
+            pathEnd++;
+        }
+        return text.substring(pathStart, pathEnd);
     }
 
     /**
