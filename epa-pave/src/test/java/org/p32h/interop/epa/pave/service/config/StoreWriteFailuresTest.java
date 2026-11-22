@@ -404,13 +404,16 @@ class StoreWriteFailuresTest {
 
         assertThatThrownBy(() -> upload(store, "Vendor Sandbox C")).isInstanceOfSatisfying(ConfigStoreException.class, refused -> {
             assertThat(refused).hasMessage("The configuration store folder " + directory() + " changed while PAVE ran: 1 stored file is "
-                    + "missing. Put it back and try again, or stop PAVE, move the folder aside and start PAVE again with an empty store.");
+                    + "missing. Stop PAVE and start it again.");
             assertThat(refused.thisComputer()).isTrue();
         });
         assertThat(store.snapshot()).isSameAs(before);
         assertThat(Files.readAllBytes(state())).isEqualTo(stateBefore);
-        // Why the sentence does not offer a restart here: a start reads that store.json and refuses it.
-        assertThatThrownBy(() -> store(new PlantedDisk())).isInstanceOf(IllegalStateException.class).hasMessageContaining(gone.toString());
+        // The start the sentence asks for opens (R-32): the missing file is left out and listed by name.
+        ConfigStore restarted = store(new PlantedDisk());
+        assertThat(restarted.snapshot().environments()).extracting(StoredEnvironment::name).containsExactly("Vendor Sandbox B");
+        assertThat(restarted.unreadable()).extracting(ConfigStore.Unreadable::line).singleElement().asString()
+                .startsWith("The file " + gone + " of the environment \"Vendor Sandbox A\" is missing");
 
         // Put back, the same save goes through, with no restart.
         Files.write(gone, kept);

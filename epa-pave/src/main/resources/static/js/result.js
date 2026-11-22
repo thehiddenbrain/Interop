@@ -10,10 +10,11 @@
 
 import {el, append, chip, fold, kv, button, copyButton, firstSentence, toneName, fill, clear} from './dom.js';
 import {responseDetail} from './detail.js';
-import {errorPanel} from './fault.js';
+import {errorPanel, faultReport} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
+import {call} from './api.js';
 
 // The facts the card shows before the rest go into a fold inside it, so the card stays short.
 const MOST_FACTS = 8;
@@ -63,6 +64,10 @@ export function resultCard(envelope, options) {
     if (ledger) {
         card.append(ledger);
     }
+    const inCard = faultInCard(envelope);
+    if (inCard) {
+        append(card, faultFacts(envelope));
+    }
     const nextSlot = el('div', {class: 'verdict__foot'});
     card.append(nextSlot);
 
@@ -90,7 +95,7 @@ export function resultCard(envelope, options) {
         }, () => null);
     }
 
-    if (envelope.error) {
+    if (envelope.error && !inCard) {
         const panel = errorPanel(envelope.error, {fieldsPlaced: settings.fieldsPlaced});
         if (panel) {
             root.append(panel);
@@ -186,7 +191,12 @@ export function maskedReading(line) {
     return typeof line === 'string' && line !== '' ? el('p', {class: 'masked-reading'}, line) : null;
 }
 
-/** A service's own refusal in one line, as it said it: an OperationOutcome's first issue, or a CDS answer's card. */
+/**
+ * A service's own refusal in one line, as it said it: an OperationOutcome's first issue, or the
+ * summary and detail a CDS service answers a refusal with, which the server leaves among the fields
+ * returned but not interpreted. Never from a body the wire says was masked: a secret the service
+ * repeated must not reach the screen here.
+ */
 function serviceLine(envelope) {
     const error = envelope.error;
     if (!error || (error.kind !== 'VENDOR_REJECTED' && error.kind !== 'VENDOR_ERROR')) {
@@ -195,11 +205,72 @@ function serviceLine(envelope) {
     const issue = Array.isArray(error.issues) && error.issues.length > 0 ? error.issues[0] : null;
     const said = issue && issue.diagnostics && issue.diagnostics.presence === 'VALUE' ? String(issue.diagnostics.value) : null;
     if (!said) {
-        return null;
+        const cds = cdsRefusal(envelope);
+        return cds ? el('p', {class: 'small service-said'}, el('strong', null, 'Service said: '), cds) : null;
     }
     const where = issue.expression && issue.expression.length > 0 && issue.expression[0].presence === 'VALUE'
         ? String(issue.expression[0].value) : null;
     return el('p', {class: 'small'}, el('strong', null, 'Service said: '), said, where ? [' (', el('span', {class: 'mono'}, where), ')'] : null);
+}
+
+/** "summary: detail" of a CDS refusal, from the fields returned but not interpreted, or null. */
+function cdsRefusal(envelope) {
+    const masked = envelope.wire && envelope.wire.response && envelope.wire.response.maskedPlaces > 0;
+    const fields = Array.isArray(envelope.additionalFields) ? envelope.additionalFields : [];
+    if (masked) {
+        return null;
+    }
+    const value = path => {
+        const found = fields.find(field => field && field.path === path && field.presence === 'VALUE' && field.kind !== 'NOTE');
+        return found && found.value !== undefined && found.value !== null && String(found.value) !== '' ? String(found.value) : null;
+    };
+    const summary = value('summary');
+    const detail = value('detail');
+    return summary || detail ? [summary, summary && detail ? ': ' : null, detail].filter(Boolean).join('') : null;
+}
+
+// The kinds of failure that are the service's or its environment's, drawn inside the result card
+// itself (prototype 05a): one card, never a second framed box repeating its headline.
+const SERVICE_FAULTS = new Set(['VENDOR_ERROR', 'VENDOR_REJECTED', 'TIMEOUT', 'UNREACHABLE', 'MALFORMED_RESPONSE']);
+
+/** True when a run's failure is drawn inside its card: a service fault on a run that has a headline of its own. */
+export function faultInCard(envelope) {
+    const verdict = envelope && envelope.verdict;
+    return Boolean(envelope && envelope.error && SERVICE_FAULTS.has(envelope.error.kind) && verdict
+        && typeof verdict.headline === 'string' && verdict.headline !== '');
+}
+
+/**
+ * The rest of a service fault, inside the card: who played it (the heading), each issue on one line
+ * (severity, code, what it says, where), and the action's first sentence when the card has no next
+ * step of its own. The title is the card's headline in other words and is not said again.
+ */
+function faultFacts(envelope) {
+    const error = envelope.error;
+    const issues = Array.isArray(error.issues) ? error.issues : [];
+    const text = value => (value && value.presence === 'VALUE' && value.value !== undefined && value.value !== null ? String(value.value) : null);
+    // The first issue's diagnostics are already the card's "Service said" line; its own line keeps the rest.
+    const saidAbove = serviceLine(envelope) ? text(issues.length > 0 ? issues[0].diagnostics : null) : null;
+    const lines = issues.map((issue, index) => {
+        const said = index === 0 && saidAbove ? null : text(issue.diagnostics);
+        const details = text(issue.detailsText);
+        const where = Array.isArray(issue.expression) ? issue.expression.map(text).filter(Boolean) : [];
+        return el('li', {class: 'issue-line'},
+            text(issue.severity) ? chip(text(issue.severity), {mono: true}) : chip('severity not returned', {dashed: true}), ' ',
+            text(issue.code) ? chip(text(issue.code), {mono: true}) : null, ' ',
+            said || (details || (index === 0 && saidAbove) ? null : chip('diagnostics not returned', {dashed: true})),
+            details && details !== said && details !== saidAbove ? [said ? ' ' : null, el('span', {class: 'muted'}, details)] : null,
+            where.length > 0 ? [' ', el('span', {class: 'mono small'}, where.join(', '))] : null);
+    });
+    const hasNext = envelope.nextStep && envelope.nextStep.action;
+    const [first, rest] = firstSentence(error.action || '');
+    return [
+        error.heading ? el('p', {class: 'verdict__label'}, error.heading) : null,
+        lines.length > 0 ? el('ul', {class: 'issue-lines'}, lines) : null,
+        !hasNext && first ? el('p', {class: 'verdict__next'}, first) : null,
+        !hasNext && rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null,
+        faultReport(error.reference, error.cause)
+    ];
 }
 
 /**
@@ -312,7 +383,7 @@ function folds(envelope) {
     if (returned.length > 0) {
         out.push(fold({summary: 'Returned but not interpreted (' + returned.length + ')', body: () => returnedTable(returned, envelope.wire)}));
     }
-    out.push(wireFold(envelope.wire, {profile: envelope.profile, error: envelope.error, answeredBy: envelope.answeredBy}));
+    out.push(wireFold(envelope.wire, {profile: envelope.profile, error: envelope.error, answeredBy: envelope.answeredBy, runId: envelope.runId}));
     return out;
 }
 
@@ -417,6 +488,9 @@ function wireBody(wire, facts) {
             headers(response.headers),
             response.body !== undefined && response.body !== null ? jsonView(response.body, {label: 'Response body'}) : null));
     }
+    if (request && typeof facts.runId === 'string' && facts.runId !== '') {
+        parts.push(downloadSlot(facts.runId));
+    }
     const forms = wire.memberId;
     if (forms && forms.sent) {
         parts.push(el('p', {class: 'small'}, 'Member ID as typed ', el('span', {class: 'mono'}, forms.typed || ''),
@@ -424,6 +498,55 @@ function wireBody(wire, facts) {
             forms.note ? el('span', {class: 'muted'}, ' ' + forms.note) : null));
     }
     return el('div', {class: 'wire'}, parts);
+}
+
+/**
+ * The link "Download request and answer", shown only once the trail says it keeps the run: a run
+ * the trail does not keep (or a trail switched off) has nothing to download, and a link that could
+ * only answer "not found" is never drawn. Asked when the fold opens, so a closed fold asks nothing.
+ */
+export function downloadSlot(runId) {
+    const slot = el('p', {class: 'small wire__download'});
+    call('GET', '/api/trail/' + encodeURIComponent(runId)).then(answer => {
+        if (answer.ok && answer.data && answer.data.kept === true) {
+            fill(slot, downloadLink(runId));
+        }
+    }, () => null);
+    return slot;
+}
+
+/** The download of a run's kept request and answer, as the trail masked them, named run-<runId>.json. */
+export function downloadLink(runId) {
+    return el('a', {href: '/api/trail/' + encodeURIComponent(runId) + '/download', attrs: {download: 'run-' + runId + '.json'}},
+        'Download request and answer');
+}
+
+/**
+ * A card from a run's ledger line, for a run the trail no longer keeps: its chips, the outcome in
+ * the vocabulary's words, and only what the line holds. The line keeps codes and identifiers, never
+ * the request, the answer or the sentences the result was worded in, so the card says no more.
+ */
+export function ledgerCard(record, words) {
+    const run = record && typeof record === 'object' ? record : {};
+    const outcomes = words && words.outcomes ? words.outcomes[run.protocol] || [] : [];
+    const outcome = outcomes.find(each => each.code === run.outcome) || null;
+    const who = words && Array.isArray(words.answeredBy) ? words.answeredBy.find(each => each.code === run.answeredBy) : null;
+    const expected = run.expected ? outcomes.find(each => each.code === run.expected) || null : null;
+    const codes = Array.isArray(run.procedureCodes) ? run.procedureCodes : [];
+    return el('div', {class: 'result result--ledger'},
+        el('div', {class: 'result__meta'},
+            typeof run.httpStatus === 'number' ? chip('HTTP ' + run.httpStatus) : null,
+            who && who.chip ? chip(who.chip, {hatched: run.answeredBy === 'SCENARIO', dashed: run.answeredBy !== 'SCENARIO'}) : null,
+            typeof run.elapsedMillis === 'number' ? chip(run.elapsedMillis + ' ms') : null,
+            typeof run.runId === 'string' ? el('a', {class: 'push small', href: '#audit/runs/' + encodeURIComponent(run.runId)}, 'Open in Audit') : null),
+        el('div', {class: ['verdict', 'verdict--' + (outcome && toneName(outcome.tone) ? toneName(outcome.tone) : 'neutral')]},
+            el('p', {class: 'verdict__headline'}, outcome ? outcome.label : run.outcome || 'No outcome recorded'),
+            kv([
+                {key: 'Outcome', value: run.outcome ? chip(outcome && outcome.short ? outcome.short : run.outcome, {mono: !outcome || !outcome.short})
+                    : chip('not recorded', {dashed: true})},
+                {key: 'Code', value: codes.length > 0 ? el('span', {class: 'mono'}, codes.join(', ')) : chip('not recorded', {dashed: true})},
+                {key: 'Expected', value: run.expected ? (expected ? expected.label : el('span', {class: 'mono'}, run.expected)) : chip('Not set', {dashed: true})}
+            ])));
 }
 
 function headers(list) {

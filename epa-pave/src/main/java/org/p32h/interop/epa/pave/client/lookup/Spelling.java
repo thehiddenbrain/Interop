@@ -42,6 +42,18 @@ record Spelling(String written, List<Step> steps) {
         return new Spelling(written, List.copyOf(steps));
     }
 
+    /**
+     * A path a tester saved for a lookup (R-11), already parsed by {@code LookupPath} without a
+     * pattern, since the tester's text has no bound a pattern could be trusted with.
+     */
+    static Spelling ofPath(String written, List<org.p32h.interop.epa.pave.service.lookup.LookupPath.Step> parts) {
+        List<Step> steps = new ArrayList<>();
+        for (org.p32h.interop.epa.pave.service.lookup.LookupPath.Step part : parts) {
+            steps.add(new Step(normalise(part.name()), part.index()));
+        }
+        return new Spelling(written, List.copyOf(steps));
+    }
+
     /** Spellings in order of preference. */
     static List<Spelling> list(String... written) {
         List<Spelling> out = new ArrayList<>();

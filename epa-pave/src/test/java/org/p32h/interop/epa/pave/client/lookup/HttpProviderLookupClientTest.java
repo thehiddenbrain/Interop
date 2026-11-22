@@ -149,7 +149,7 @@ class HttpProviderLookupClientTest {
         server.reset();
         server.expect(requestTo(URL)).andRespond(withException(new ConnectException("Connection refused")));
         ProviderLookupResult unreachable = client.lookup(NPI);
-        assertThat(unreachable.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(unreachable.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(unreachable.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
 
         server.reset();

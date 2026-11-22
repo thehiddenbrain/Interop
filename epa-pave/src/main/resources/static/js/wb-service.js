@@ -8,7 +8,7 @@
 
 import {el, fold, fill, clear} from './dom.js';
 import {createCodePicker} from './code-picker.js';
-import {caseField, caseChanged, LEDGER_TEXT_HINT} from './wb-case.js';
+import {caseField, caseChanged, restoreFields, LEDGER_TEXT_HINT} from './wb-case.js';
 import {cardHead} from './wb-lookup.js';
 
 let lists = 0;
@@ -22,7 +22,10 @@ export function createServiceCard(env) {
         draw();
         caseChanged('codes');
     }});
-    const date = caseField({name: 'dateOfService', label: 'Date of service', kind: 'date', mono: true});
+    // A text field in mono, ISO as the server reads it and as every other date on screen is shown (prototype 01):
+    // a native date field shows the browser's locale order and is cut at 1024.
+    const date = caseField({name: 'dateOfService', label: 'Date of service', mono: true});
+    date.input.placeholder = 'YYYY-MM-DD';
     const diagnosis = caseField({name: 'diagnosisCodes', label: 'Diagnosis codes', mono: true});
     const placesId = 'places-' + lists;
     const typesId = 'service-types-' + lists;
@@ -181,6 +184,38 @@ export function createServiceCard(env) {
             control.setError(message || null);
             control.input.focus();
             return true;
+        },
+        /**
+         * The service of a case read back after a reload: the codes with their quantity and unit,
+         * and every field, marked where they came from. Diagnosis codes go back as typed, comma
+         * separated; one posted as {code} gives its code.
+         */
+        restore(given, mark) {
+            const values = given && typeof given === 'object' ? given : {};
+            const codes = (Array.isArray(values.procedureCodes) ? values.procedureCodes : [])
+                .filter(code => code && typeof code.code === 'string' && code.code !== '');
+            picker.replace(codes.map(code => {
+                const copy = {...code};
+                delete copy.quantity;
+                delete copy.unit;
+                return copy;
+            }));
+            drawDetails();
+            for (const code of codes) {
+                const row = perCode.get(code.code);
+                if (row && code.quantity !== undefined && code.quantity !== null && code.quantity !== '') {
+                    row.quantity.set(code.quantity, mark);
+                }
+                if (row && typeof code.unit === 'string' && code.unit !== '') {
+                    row.unit.set(code.unit, mark);
+                }
+            }
+            const diagnoses = (Array.isArray(values.diagnosisCodes) ? values.diagnosisCodes : [])
+                .map(each => (typeof each === 'string' ? each : each && typeof each.code === 'string' ? each.code : ''))
+                .filter(each => each !== '');
+            const text = {...values, diagnosisCodes: diagnoses.length > 0 ? diagnoses.join(', ') : undefined};
+            restoreFields([date, diagnosis, place, level, certification, requestType, serviceType, testerRef, note], text, [], mark);
+            draw();
         },
         clear() {
             picker.replace([]);

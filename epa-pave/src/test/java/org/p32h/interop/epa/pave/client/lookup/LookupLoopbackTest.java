@@ -101,7 +101,8 @@ class LookupLoopbackTest {
             MemberLookupResult result = assertTimeoutPreemptively(WELL_INSIDE_THE_PROTOCOL_TIMEOUT,
                     () -> client.lookup(MemberIds.forms("S123456789")));
 
-            assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
+            // Not answering, its own state (plan 7.5): a service that never answered is fixed elsewhere than one that failed.
+            assertThat(result.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
             assertThat(result.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
             assertThat(result.message()).isEqualTo("The member API did not answer inside the read timeout.");
             assertThat(result.wire().request().sent()).isTrue();
@@ -135,7 +136,7 @@ class LookupLoopbackTest {
             ProviderLookupResult result = assertTimeoutPreemptively(WELL_INSIDE_THE_PROTOCOL_TIMEOUT,
                     () -> client.lookup(Npi.withCheckDigit("123456789")));
 
-            assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
+            assertThat(result.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
             assertThat(result.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
             acceptor.interrupt();
         } finally {
@@ -153,7 +154,7 @@ class LookupLoopbackTest {
         }
         // The socket is closed, so the connection is refused.
         MemberLookupResult result = members(port, Map.of()).lookup(MemberIds.forms("S123456789"));
-        assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(result.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(result.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
         assertThat(result.message()).isEqualTo("The member API could not be reached.");
         assertThat(result.wire().response().status()).isNull();

@@ -123,7 +123,7 @@ public class ConfigService {
     /** @param unlock the session's unlock. A switch drops it, and the answer says whether a write would be sent now */
     public Activated activate(String nameOrId, ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.activate(nameOrId);
-        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), AddressChecks.of(snapshot.active(), snapshot));
+        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), addressChecks(snapshot.active(), snapshot));
     }
 
     public Removed removeEnvironment(String nameOrId) {
@@ -145,7 +145,31 @@ public class ConfigService {
         environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         return new EnvironmentView(environment.id(), environment.name(), environment.kind(), environment.name().equals(snapshot.activeName()),
                 environment.uploadedAt(), environment.originalFileName(), store.directory().resolve(environment.file()).toString(),
-                environment.acknowledgedNotProd(), environment.productionSigns(), variables, AddressChecks.of(environment, snapshot));
+                environment.acknowledgedNotProd(), environment.productionSigns(), variables, addressChecks(environment, snapshot));
+    }
+
+    /** The address checks of one snapshot, by environment name. */
+    private record AddressCache(ConfigSnapshot snapshot, Map<String, List<String>> byName) {
+    }
+
+    private volatile AddressCache addressCache;
+
+    /**
+     * The address checks of an environment, worked out once per snapshot (hunt-files 12): every
+     * refresh of the environment list read every address of every environment through the
+     * production rules again, which took close to a minute with large environments stored. A
+     * snapshot never changes, so what was worked out for it stays true until the next epoch.
+     */
+    private List<String> addressChecks(StoredEnvironment environment, ConfigSnapshot snapshot) {
+        if (environment == null) {
+            return List.of();
+        }
+        AddressCache cache = addressCache;
+        if (cache == null || cache.snapshot() != snapshot) {
+            cache = new AddressCache(snapshot, new java.util.concurrent.ConcurrentHashMap<>());
+            addressCache = cache;
+        }
+        return cache.byName().computeIfAbsent(environment.name(), name -> List.copyOf(AddressChecks.of(environment, snapshot)));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -553,7 +577,35 @@ public class ConfigService {
         }
         return new Effective(epa.mode(), snapshot.activeRef(), snapshot.epoch(), store.problems(), store.allowProdWrites(),
                 gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot),
-                readiness(snapshot, rows, signInNames));
+                readiness(snapshot, rows, signInNames),
+                store.unreadable().stream().map(each -> new ConfigViews.UnreadableView(each.file(), each.line())).toList());
+    }
+
+    /** "Forget this production address" (R-35): only for an address whose environment is no longer stored as prod, named exactly. */
+    public ConfigViews.Forgotten forgetDestination(String destination, String environment) {
+        List<org.p32h.interop.epa.pave.model.FieldError> errors = new ArrayList<>();
+        if (Texts.blank(destination)) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError("destination", "Name the address to forget, as the list of addresses "
+                    + "remembered as production gives it."));
+        }
+        if (Texts.blank(environment)) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError("environment", "Type the name of the environment the address was "
+                    + "remembered from, exactly as it was written."));
+        }
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
+        ConfigStore.Forgotten forgotten = store.forgetDestination(destination, environment);
+        return new ConfigViews.Forgotten(forgotten.forgotten(), forgotten.epoch());
+    }
+
+    /** "Remove it from the store": the unreadable file moves aside into the store's unreadable folder and leaves store.json. */
+    public ConfigViews.UnreadableRemoved removeUnreadable(String file) {
+        if (Texts.blank(file)) {
+            throw ValidationException.of("file", "Name the stored file to remove, as the list of unreadable files gives it.");
+        }
+        ConfigStore.UnreadableRemoved removed = store.removeUnreadable(file);
+        return new ConfigViews.UnreadableRemoved(removed.removed(), removed.movedTo(), removed.epoch());
     }
 
     /** The names a variable is matched against, lower case with underscores, hyphens and dots taken out. */
@@ -746,14 +798,14 @@ public class ConfigService {
         for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
             StoredEnvironment stored = snapshot.byName(known.environment());
             // A destination whose host or port is built from a secret is listed without it.
-            String destination = known.secret() ? "an address whose host is built from a secret of the environment, not shown"
-                    : known.destination().everyPortAndPath() ? "every port and every path of the host " + known.destination().host()
-                    + ", because an address of this environment could not be read the way the HTTP client reads it"
-                    : known.destination().shown();
+            String destination = known.listed();
+            boolean storedAsProd = stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD;
             // The environment's name is held to the rule of a sentence: each address repeats it, and the
             // answer gives the name of a stored environment whole once already, as its label.
-            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination,
-                    stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
+            // Forget is offered only where no stored prod environment holds the address and the
+            // address can be named back: one built from a secret is never written down to forget.
+            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination, storedAsProd,
+                    !storedAsProd && !known.secret()));
         }
         return views;
     }

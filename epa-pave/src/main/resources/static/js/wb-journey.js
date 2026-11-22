@@ -176,6 +176,10 @@ export function createJourney() {
         chain() {
             return chain;
         },
+        /** A chain read back after a reload: the runs that follow post to it. */
+        setChainId(id) {
+            chainId = typeof id === 'string' && id !== '' ? id : chainId;
+        },
         setChain(view) {
             chain = view && typeof view === 'object' ? view : null;
         },
@@ -203,4 +207,169 @@ export function refusedForAMask(error) {
         reasons.push(error.title);
     }
     return reasons.length > 0 && reasons.every(reason => masksIn(reason) !== null);
+}
+
+/* ---------- the reload (R-38) ---------- */
+
+/** The words a reload shows when a run of the case is no longer in the trail. */
+export const NOT_KEPT_LINE = 'Not kept in the trail: the case shows what the ledger kept.';
+
+// The step 4 rows a reload fills, each from the latest run of its operations.
+const STATUS_ROWS = {
+    inquiry: ['PAS_INQUIRE'],
+    subscription: ['SUBSCRIPTION_CREATE', 'SUBSCRIPTION_GET', 'SUBSCRIPTION_UPDATE', 'SUBSCRIPTION_DELETE']
+};
+
+/**
+ * Every run a chain view lists, from its stages and its other runs: a subscription call is of no
+ * stage (its protocol is not CRD, DTR or PAS), so it is among the other runs.
+ */
+export function chainRuns(chain) {
+    const runs = [];
+    if (!chain || typeof chain !== 'object') {
+        return runs;
+    }
+    for (const stage of Array.isArray(chain.stages) ? chain.stages : []) {
+        for (const run of stage && Array.isArray(stage.runs) ? stage.runs : []) {
+            runs.push(run);
+        }
+    }
+    for (const run of Array.isArray(chain.otherRuns) ? chain.otherRuns : []) {
+        runs.push(run);
+    }
+    return runs.filter(run => run && typeof run.runId === 'string' && run.runId !== '');
+}
+
+/**
+ * The runs a reload redraws: for steps 1 to 3 the latest run the chain's steps name, and for step 4
+ * the latest inquiry and the latest subscription call, each by its own operation (a notification is
+ * not a run envelope and is read from the receiver). Each is {runId, at} with the time the chain
+ * gives it. Returns {1, 2, 3, inquiry, subscription}, a step with no run left out.
+ */
+export function runsToRedraw(chain) {
+    const out = {};
+    const all = chainRuns(chain);
+    const timeOf = runId => {
+        const found = all.find(run => run.runId === runId);
+        return found && typeof found.timestamp === 'string' ? found.timestamp : null;
+    };
+    for (const step of chain && Array.isArray(chain.steps) ? chain.steps : []) {
+        const known = STEPS.find(each => each.step === step.step);
+        if (known && known.n < 4 && typeof step.latestRunId === 'string' && step.latestRunId !== '') {
+            out[known.n] = {runId: step.latestRunId, at: timeOf(step.latestRunId)};
+        }
+    }
+    for (const [row, operations] of Object.entries(STATUS_ROWS)) {
+        let latest = null;
+        for (const run of all) {
+            if (operations.includes(run.operation) && (!latest || String(run.timestamp || '') >= String(latest.timestamp || ''))) {
+                latest = run;
+            }
+        }
+        if (latest) {
+            out[row] = {runId: latest.runId, at: typeof latest.timestamp === 'string' ? latest.timestamp : null};
+        }
+    }
+    return out;
+}
+
+/**
+ * Reads back a case and its results after a reload or "Load into the Workbench": the chain, then
+ * each run to redraw from the trail, and from the ledger the runs the trail no longer keeps.
+ * target: {chainId} or {runId}. ask(method, path): api.js's call. Never throws.
+ *
+ * Returns {ok: false, error} when the chain cannot be read, else {ok: true, chainId, chain, runs:
+ * {<1|2|3|inquiry|subscription>: {runId, at, step, envelope, entry} | {runId, at, step, record,
+ * line}}, theCase: {from: 'trail', entry} (the newest kept run that posted a case) | {from: 'ledger',
+ * record} | null, notKept: true when a run came from the ledger}. Nothing of it is written anywhere but the page's memory.
+ */
+export async function readBack(target, ask) {
+    let chainId = target && typeof target.chainId === 'string' ? target.chainId : null;
+    const firstKept = {};
+    if (!chainId && target && typeof target.runId === 'string') {
+        // A run named alone leads to its chain: the trail names it, else the ledger line does.
+        const kept = await ask('GET', '/api/trail/' + encodeURIComponent(target.runId));
+        if (kept.ok && kept.data && kept.data.kept === true && kept.data.entry) {
+            firstKept[target.runId] = kept.data;
+            chainId = kept.data.entry.chainId || (kept.data.entry.envelope && kept.data.entry.envelope.chainId) || null;
+        }
+        if (!chainId) {
+            const line = await ask('GET', '/api/runs/' + encodeURIComponent(target.runId));
+            if (!line.ok) {
+                return {ok: false, error: line.error};
+            }
+            chainId = line.data && typeof line.data.chainId === 'string' ? line.data.chainId : null;
+        }
+        if (!chainId) {
+            return {ok: false, error: {kind: 'NOT_FOUND', title: 'This run belongs to no journey, so there is no case to load.'}};
+        }
+    }
+    if (!chainId) {
+        return {ok: false, error: {kind: 'NOT_FOUND', title: 'No journey was named.'}};
+    }
+    const read = await ask('GET', '/api/chains/' + encodeURIComponent(chainId));
+    if (!read.ok) {
+        return {ok: false, error: read.error};
+    }
+    const chain = read.data || {};
+    const wanted = runsToRedraw(chain);
+    const runs = {};
+    let notKept = false;
+    let newestEntry = null;
+    let newestRecord = null;
+    for (const [slot, run] of Object.entries(wanted)) {
+        const step = slot === 'inquiry' || slot === 'subscription' ? 4 : Number(slot);
+        const kept = firstKept[run.runId] || await keptRun(run.runId, ask);
+        if (kept && kept.kept === true && kept.entry && kept.entry.envelope) {
+            runs[slot] = {runId: run.runId, at: run.at, step, envelope: kept.entry.envelope, entry: kept.entry};
+            const when = kept.keptAt || run.at || '';
+            // A subscription call posts no case (no member, no codes): the case is read from a run that posted one.
+            const carriesCase = kept.entry.case && typeof kept.entry.case === 'object' && kept.entry.case.member;
+            if (carriesCase && (!newestEntry || String(when) >= String(newestEntry.when))) {
+                newestEntry = {when, entry: kept.entry};
+            }
+            continue;
+        }
+        notKept = true;
+        const line = await ask('GET', '/api/runs/' + encodeURIComponent(run.runId));
+        const record = line.ok && line.data ? line.data : null;
+        runs[slot] = {runId: run.runId, at: run.at, step, record, line: kept && typeof kept.line === 'string' ? kept.line : null};
+        if (record && (!newestRecord || String(record.timestamp || '') >= String(newestRecord.timestamp || ''))) {
+            newestRecord = record;
+        }
+    }
+    const theCase = newestEntry ? {from: 'trail', entry: newestEntry.entry} : newestRecord ? {from: 'ledger', record: newestRecord} : null;
+    return {ok: true, chainId, chain, runs, theCase, notKept};
+}
+
+async function keptRun(runId, ask) {
+    const answer = await ask('GET', '/api/trail/' + encodeURIComponent(runId));
+    return answer.ok && answer.data ? answer.data : null;
+}
+
+/**
+ * The case fields a ledger line keeps, as the case cards take them: the member ID only where
+ * tracking recorded it (never the token or its last characters), the NPI, the codes, the date of
+ * service and the line of business. A field the line does not hold is left out, never guessed.
+ */
+export function caseFromLedger(record) {
+    const out = {member: {}, provider: {}, procedureCodes: []};
+    if (!record || typeof record !== 'object') {
+        return out;
+    }
+    if (typeof record.memberId === 'string' && record.memberId !== '') {
+        out.member.memberId = record.memberId;
+    }
+    if (typeof record.lineOfBusiness === 'string' && record.lineOfBusiness !== '') {
+        out.member.lineOfBusiness = record.lineOfBusiness;
+    }
+    if (typeof record.npi === 'string' && record.npi !== '') {
+        out.provider.npi = record.npi;
+    }
+    out.procedureCodes = (Array.isArray(record.procedureCodes) ? record.procedureCodes : [])
+        .filter(code => typeof code === 'string' && code !== '').map(code => ({code}));
+    if (typeof record.dateOfService === 'string' && record.dateOfService !== '') {
+        out.dateOfService = record.dateOfService;
+    }
+    return out;
 }

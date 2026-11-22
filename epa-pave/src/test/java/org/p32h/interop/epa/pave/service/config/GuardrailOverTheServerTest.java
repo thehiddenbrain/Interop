@@ -201,7 +201,7 @@ class GuardrailOverTheServerTest {
         assertThat(relabelled.body()).contains("is an address of the production environment \\\"vendor-live-two\\\"")
                 .contains("\\\"vendor-live-two\\\" is no longer stored.");
         assertThat(json("GET", "/api/config/environments", null, null).body()).contains("\"productionDestinations\"")
-                .contains("{\"environment\":\"vendor-live-two\",\"destination\":\"" + liveTwo + "\",\"stored\":false}");
+                .contains("{\"environment\":\"vendor-live-two\",\"destination\":\"" + liveTwo + "\",\"stored\":false,\"forgettable\":true}");
 
         // An address a server treats as production two's, written another way, is production two's: at upload, and at write
         // from a sandbox and from production one unlocked.

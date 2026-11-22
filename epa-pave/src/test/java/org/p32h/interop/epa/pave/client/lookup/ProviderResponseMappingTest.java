@@ -296,7 +296,7 @@ class ProviderResponseMappingTest {
     @Test
     void severalRecordsAreAFaultThatSaysHowManyCameBack() {
         ProviderLookupResult result = map(200, "{\"result_count\":2,\"results\":[" + RECORD + "," + RECORD + "]}");
-        assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(result.status()).isEqualTo(LookupStatus.SEVERAL);
         assertThat(result.message()).isEqualTo("The provider directory returned 2 records for one NPI, and this tool does not choose between them.");
         assertThat(result.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
         assertThat(result.provider()).isNull();
@@ -347,7 +347,7 @@ class ProviderResponseMappingTest {
         assertThat(result.message()).isEqualTo("Provider found, but the provider directory returned no network status.");
         assertThat(result.attention()).isEmpty();
         assertThat(result.fields()).extracting(LookupField::name).containsExactly("npi", "firstName", "lastName", "organizationName",
-                "name", "specialty", "taxonomyCode", "networkStatus", "inNetwork", "phone", "addressLine1", "addressLine2", "city",
+                "name", "specialty", "taxonomyCode", "networkStatus", "inNetwork", "phone", "fax", "addressLine1", "addressLine2", "city",
                 "state", "postalCode");
     }
 
@@ -449,7 +449,7 @@ class ProviderResponseMappingTest {
         assertThat(refused.error().action()).contains("lookup.provider.headers").contains("lookup.provider.use-onyx-auth");
 
         ProviderLookupResult timeout = ProviderResponseMapping.map(TestExchanges.timeout(EpaOperation.PROVIDER_LOOKUP), NPI);
-        assertThat(timeout.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(timeout.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(timeout.message()).isEqualTo("The provider directory did not answer inside the read timeout.");
         ProviderLookupResult unreachable = ProviderResponseMapping.map(TestExchanges.unavailable(EpaOperation.PROVIDER_LOOKUP), NPI);
         assertThat(unreachable.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
