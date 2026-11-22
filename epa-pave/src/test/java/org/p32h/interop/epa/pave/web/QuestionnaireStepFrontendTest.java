@@ -187,9 +187,9 @@ class QuestionnaireStepFrontendTest {
                 "[false,true,[3,\"questionnaireResponse,runId\"]]",
                 "[true,\"Complete the response again before Submit.\",false,[3,null]]",
                 "[false,[3,\"questionnaireResponse,runId\"]]",
-                "\"0 of 0 answered · turn 0 · in progress\"",
-                "[\"0 of 1 answered · turn 1 · in progress\",[\"Now asked: How many weeks?\"]]",
-                "[\"0 of 1 answered · turn 2 · in progress\",[\"Now asked: Which side.\",\"No longer asked: How many weeks?\"]]",
+                "\"0 of 0 answered \u00b7 turn 0 \u00b7 in progress\"",
+                "[\"0 of 1 answered \u00b7 turn 1 \u00b7 in progress\",[\"Now asked: How many weeks?\"]]",
+                "[\"0 of 1 answered \u00b7 turn 2 \u00b7 in progress\",[\"Now asked: Which side.\",\"No longer asked: How many weeks?\"]]",
                 "[\"{\\\"turn\\\":1}\",false,false,false]");
     }
 }

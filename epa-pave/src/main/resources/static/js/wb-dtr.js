@@ -222,7 +222,7 @@ export function countLine(entry) {
     } else if (status && status.presence === 'VALUE') {
         parts.push(String(status.display || status.code).toLowerCase());
     }
-    return parts.join(' · ');
+    return parts.join(' \u00b7 ');
 }
 
 /** The questions that appeared or disappeared at the last step, each as one visible line. */
