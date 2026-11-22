@@ -615,11 +615,11 @@ a:hover {
     color: var(--ink-soft);
 }
 
-/* The mock mark of a result: a hatched end and the word, so it reads without colour. */
+/* The mock mark of a result: yellow like the MOCK badge of the top bar (plan R-01), and the word
+   says it without the colour. */
 .chip--mock {
-    padding-left: 22px;
-    border: 1.5px solid var(--ink-strong);
-    background: var(--hatch) left / 14px 100% no-repeat, var(--surface);
+    border: 1px solid var(--mock-edge);
+    background: var(--mock-bg);
     color: var(--ink-strong);
     font-weight: 700;
 }
