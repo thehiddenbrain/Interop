@@ -137,9 +137,13 @@ class StoreWriteFailuresTest {
     }
 
     private static byte[] environment(String name) {
-        return ("{\"name\": \"" + name + "\", \"values\": [{\"key\": \"baseUrl\", \"value\": "
-                + "\"https://sandbox.vendor.example.invalid/fhir\", \"enabled\": true}, {\"key\": \"clientSecret\", \"value\": \""
-                + SECRET + "\", \"type\": \"secret\", \"enabled\": true}]}").getBytes(StandardCharsets.UTF_8);
+        return environment(name, "https://sandbox.vendor.example.invalid/fhir");
+    }
+
+    private static byte[] environment(String name, String baseUrl) {
+        return ("{\"name\": \"" + name + "\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + baseUrl + "\", \"enabled\": true}, "
+                + "{\"key\": \"clientSecret\", \"value\": \"" + SECRET + "\", \"type\": \"secret\", \"enabled\": true}]}")
+                .getBytes(StandardCharsets.UTF_8);
     }
 
     private static void upload(ConfigStore store, String name) {
@@ -354,5 +358,101 @@ class StoreWriteFailuresTest {
         ConfigSnapshot restarted = store(new PlantedDisk()).snapshot();
         assertThat(restarted.environments()).extracting(StoredEnvironment::name).containsExactly("Vendor Sandbox A");
         assertThat(restarted.collections()).extracting(StoredCollection::name).containsExactly("Vendor Collection");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Stored files gone from under the running tool
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    void aSaveAfterTheWholeStoreFolderWentIsRefusedAndTheStartItAsksForOpens(CapturedOutput output) throws IOException {
+        ConfigStore store = store(new PlantedDisk());
+        upload(store, "Vendor Sandbox A");
+        upload(store, "Vendor Sandbox B");
+        ConfigSnapshot before = store.snapshot();
+        removeTree(directory());
+
+        assertThatThrownBy(() -> upload(store, "Vendor Sandbox C")).isInstanceOfSatisfying(ConfigStoreException.class, refused -> {
+            assertThat(refused).hasMessage("The configuration store folder " + directory() + " changed while PAVE ran: 2 stored files are "
+                    + "missing. Stop PAVE and start it again.");
+            assertThat(refused.thisComputer()).isTrue();
+        });
+
+        // No store.json names the missing files, and the file the refused upload wrote is taken away again.
+        assertThat(store.snapshot()).isSameAs(before);
+        assertThat(Files.exists(state())).isFalse();
+        assertThat(files()).isEmpty();
+        // So the start the sentence asks for opens the store as it now is.
+        assertThat(store(new PlantedDisk()).snapshot().environments()).isEmpty();
+        assertThat(output).contains("is missing 2 of the files it names, so the change was refused").doesNotContain(SECRET);
+    }
+
+    @Test
+    void aSaveWhileOneStoredFileIsGoneIsRefusedAndGoesThroughOnceItIsBack() throws IOException {
+        ConfigStore store = store(new PlantedDisk());
+        upload(store, "Vendor Sandbox A");
+        upload(store, "Vendor Sandbox B");
+        ConfigSnapshot before = store.snapshot();
+        byte[] stateBefore = Files.readAllBytes(state());
+        Path gone = directory().resolve(before.byName("Vendor Sandbox A").file());
+        byte[] kept = Files.readAllBytes(gone);
+        // A scanner takes one file into quarantine. store.json still names it.
+        Files.delete(gone);
+
+        assertThatThrownBy(() -> upload(store, "Vendor Sandbox C")).isInstanceOfSatisfying(ConfigStoreException.class, refused -> {
+            assertThat(refused).hasMessage("The configuration store folder " + directory() + " changed while PAVE ran: 1 stored file is "
+                    + "missing. Put it back and try again, or stop PAVE, move the folder aside and start PAVE again with an empty store.");
+            assertThat(refused.thisComputer()).isTrue();
+        });
+        assertThat(store.snapshot()).isSameAs(before);
+        assertThat(Files.readAllBytes(state())).isEqualTo(stateBefore);
+        // Why the sentence does not offer a restart here: a start reads that store.json and refuses it.
+        assertThatThrownBy(() -> store(new PlantedDisk())).isInstanceOf(IllegalStateException.class).hasMessageContaining(gone.toString());
+
+        // Put back, the same save goes through, with no restart.
+        Files.write(gone, kept);
+        upload(store, "Vendor Sandbox C");
+        assertThat(store.snapshot().environments()).hasSize(3);
+        assertThat(store(new PlantedDisk()).snapshot().environments()).hasSize(3);
+    }
+
+    @Test
+    void anEnvironmentWhoseFileIsGoneCanStillBeRemovedAndNothingElseIsCommitted() throws IOException {
+        ConfigStore store = store(new PlantedDisk());
+        upload(store, "Vendor Sandbox A");
+        upload(store, "Vendor Sandbox B");
+        Files.delete(directory().resolve(store.snapshot().byName("Vendor Sandbox A").file()));
+
+        // Any other change would write a store.json that names the missing file, so it is refused, an activation too.
+        assertThatThrownBy(() -> store.activate("Vendor Sandbox B")).isInstanceOf(ConfigStoreException.class)
+                .hasMessageContaining(": 1 stored file is missing.");
+        assertThat(store.snapshot().activeName()).isNull();
+
+        store.removeEnvironment("Vendor Sandbox A");
+
+        assertThat(store.snapshot().environments()).extracting(StoredEnvironment::name).containsExactly("Vendor Sandbox B");
+        assertThat(store(new PlantedDisk()).snapshot().environments()).extracting(StoredEnvironment::name)
+                .containsExactly("Vendor Sandbox B");
+    }
+
+    @Test
+    void aSecondCopyOnTheSameFolderCannotLeaveAStoreThatStopsTheNextStart() {
+        // Two copies on one folder, as the hunt ran them: each holds its own picture of the store in memory.
+        ConfigStore first = store(new PlantedDisk());
+        upload(first, "Vendor Sandbox A");
+        ConfigStore second = store(new PlantedDisk());
+        upload(second, "Vendor Sandbox B");
+        // The first replaces A with new content, which removes the file of A that the second still names.
+        first.uploadEnvironment("a2.json", environment("Vendor Sandbox A", "https://sandbox-a2.vendor.example.invalid/fhir"),
+                EnvironmentKind.SANDBOX, false);
+
+        // The second would have written a store.json naming that file, and the next start would have been refused.
+        assertThatThrownBy(() -> upload(second, "Vendor Sandbox C")).isInstanceOfSatisfying(ConfigStoreException.class, refused ->
+                assertThat(refused).hasMessage("The configuration store folder " + directory() + " changed while PAVE ran: 1 stored "
+                        + "file is missing. Stop PAVE and start it again."));
+
+        // The start the sentence asks for reads what the first copy wrote, and opens.
+        assertThat(store(new PlantedDisk()).snapshot().environments()).extracting(StoredEnvironment::name)
+                .containsExactly("Vendor Sandbox A");
     }
 }

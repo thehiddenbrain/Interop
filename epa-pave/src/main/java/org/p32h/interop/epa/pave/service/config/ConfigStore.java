@@ -937,6 +937,7 @@ public class ConfigStore {
      */
     private List<String> commit(ConfigSnapshot next, String newFile, String oldFile) {
         try {
+            refuseMissingFiles(next);
             writeAtomically(directory.resolve(STATE_FILE), stateJson(next).getBytes(StandardCharsets.UTF_8));
         } catch (ConfigStoreException e) {
             if (newFile != null && !newFile.equals(oldFile)) {
@@ -952,6 +953,65 @@ public class ConfigStore {
                     + "credentials. Delete it by hand.");
         }
         return warnings;
+    }
+
+    /**
+     * Refuses a change when a file the new state would name is not on disk. A store.json that
+     * names a missing file stops the next start, so it is never written: the store folder changed
+     * under the running tool, as a clean-up, a scanner or a second copy of the tool on the same
+     * folder changes it, and memory no longer says what is there.
+     */
+    private void refuseMissingFiles(ConfigSnapshot next) {
+        int missing = 0;
+        for (StoredEnvironment environment : next.environments()) {
+            missing += Files.isRegularFile(directory.resolve(environment.file())) ? 0 : 1;
+        }
+        for (StoredCollection collection : next.collections()) {
+            missing += Files.isRegularFile(directory.resolve(collection.file())) ? 0 : 1;
+        }
+        if (missing == 0) {
+            return;
+        }
+        // The folder and a count. Never a name from an uploaded file.
+        log.error("The configuration store at {} is missing {} of the files it names, so the change was refused", directory, missing);
+        String files = missing == 1 ? "1 stored file is missing" : missing + " stored files are missing";
+        // A start reads store.json as it lies on disk. Where that still names a missing file, a
+        // restart is refused as well, so the sentence says what does work.
+        String what = startRefused() ? (missing == 1 ? "Put it back" : "Put them back") + " and try again, or stop PAVE, move the folder "
+                + "aside and start PAVE again with an empty store." : "Stop PAVE and start it again.";
+        throw ConfigStoreException.ofThisComputer("The configuration store folder " + directory + " changed while PAVE ran: " + files + ". "
+                + what, null);
+    }
+
+    /**
+     * True when a start would refuse store.json as it lies on disk now: it cannot be read, or it
+     * names a file that is not there. False when there is no store.json, since a start then opens
+     * an empty store, and when every file it names is there.
+     */
+    private boolean startRefused() {
+        Path state = directory.resolve(STATE_FILE);
+        if (!Files.exists(state)) {
+            return false;
+        }
+        try {
+            JsonSafe.Parsed parsed = JsonSafe.parse(read(state));
+            if (!parsed.ok() || !JsonSafe.isObject(parsed.node())) {
+                return true;
+            }
+            for (String list : List.of("environments", "collections")) {
+                for (JsonNode entry : JsonSafe.elements(parsed.node(), list)) {
+                    String file = JsonSafe.presentText(entry, "file");
+                    Path named = file == null ? null : directory.resolve(file).normalize();
+                    if (named == null || !named.startsWith(directory) || !Files.isRegularFile(named)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (RuntimeException e) {
+            // Unreadable, or a path that cannot be used: a start refuses both.
+            return true;
+        }
     }
 
     /**
