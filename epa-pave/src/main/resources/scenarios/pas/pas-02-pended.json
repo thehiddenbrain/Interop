@@ -2,6 +2,7 @@
   "id": "pas-02-pended",
   "number": 2,
   "label": "Pended",
+  "short": "pended",
   "description": "The payer pends the request: there is no final decision yet. The review action is on the item's adjudication, as in the PAS 2.2.0 ballot's pended example (2.0.1 has none). An inquiry returns the same. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-PENDED",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

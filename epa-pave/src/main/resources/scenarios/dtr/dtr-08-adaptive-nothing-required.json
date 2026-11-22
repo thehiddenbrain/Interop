@@ -2,6 +2,7 @@
   "id": "dtr-08-adaptive-nothing-required",
   "number": 8,
   "label": "Adaptive questionnaire that asks nothing",
+  "short": "asks nothing",
   "description": "The package holds one adaptive questionnaire. The first next-question call comes back completed with no question in it: the payer asks for no documentation. That is an answer the service gives through the loop, and it is kept apart from scenarios 7 and 15, where the package holds no questionnaire. It models DTR 2.0.1, apart from the completed response holding no item, which is the point of it.",
   "sentinelMemberId": "P32H-DTR-NOTHING",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
