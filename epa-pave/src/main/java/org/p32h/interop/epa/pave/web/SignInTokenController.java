@@ -62,7 +62,7 @@ public class SignInTokenController {
         OnyxTokenService service = tokens.getIfAvailable();
         if (service == null) {
             throw new ValidationException("No sign-in on mock: the mock profile answers every call itself, so a pasted token is not "
-                    + "used.", List.of(), "Start PAVE on the live profile to use a pasted token.");
+                    + "used.", List.of(), "Switch to live in the top bar to use a pasted token.");
         }
         if (request == null || Texts.blank(request.token())) {
             throw ValidationException.of("token", "Paste the access token.");

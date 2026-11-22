@@ -218,7 +218,9 @@ class PastedTokenTest {
         mvc.perform(post("/api/config/sign-in/token").contentType(MediaType.APPLICATION_JSON).content(body(PASTED, "any")))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("No sign-in on mock: the mock profile answers every call itself, so a pasted token "
-                        + "is not used."));
+                        + "is not used."))
+                // The mode is switched on screen now, so the refusal points at the switch, not at a start on the other profile.
+                .andExpect(jsonPath("$.action").value("Switch to live in the top bar to use a pasted token."));
         mvc.perform(delete("/api/config/sign-in/token")).andExpect(status().isOk()).andExpect(jsonPath("$.held").value(false));
     }
 
