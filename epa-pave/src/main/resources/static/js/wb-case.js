@@ -80,7 +80,7 @@ export function caseField(spec) {
         origin: null,      // {value, mark} that a lookup, a list or a mock member gave, or null
         current: null,     // the mark on the field now, or null
         value() {
-            return input.value.trim();
+            return String(input.value || '').trim();
         },
         /** Sets the value and its mark; with no mark, it is the tester's own. */
         set(value, mark) {

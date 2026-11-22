@@ -157,7 +157,7 @@ function build() {
                     return app.isMock() && scenarioFields[n] ? scenarioFields[n].value() : '';
                 }
                 const control = options[n] ? options[n][name] : null;
-                return control ? control.input.value.trim() : '';
+                return control ? control.String(input.value || '').trim() : '';
             },
             optionsRow() {
                 return optionRows[n] || null;

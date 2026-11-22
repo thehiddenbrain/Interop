@@ -136,7 +136,7 @@ export function createCodePicker(spec) {
 
     async function search(first) {
         clearTimeout(pause);
-        const query = input.value.trim();
+        const query = String(input.value || '').trim();
         if (query === '' && first !== true) {
             close();
             return;
@@ -284,7 +284,7 @@ export function createCodePicker(spec) {
         },
         /** Text typed in the box and not added, trimmed. */
         typed() {
-            return input.value.trim();
+            return String(input.value || '').trim();
         },
         replace(candidates) {
             entries = [];

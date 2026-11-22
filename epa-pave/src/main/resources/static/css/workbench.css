@@ -235,3 +235,8 @@
 .card__body > div:empty {
     display: none;
 }
+
+/* A code with several lines of business wraps inside its card, its Remove included. */
+.code-lines .code-line {
+    flex-wrap: wrap;
+}
