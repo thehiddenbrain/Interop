@@ -2014,6 +2014,17 @@ a:hover {
 
 /* ---------- narrow screens: a laptop in a meeting ---------- */
 
+/* The chooser says what it is by what it lists; below 1600 px its label is for a screen reader only. */
+@media (max-width: 1599px) {
+    .topbar__env label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+}
+
 @media (max-width: 1200px) {
     .topbar {
         gap: var(--s-4);
@@ -2022,14 +2033,6 @@ a:hover {
 
     .topbar__brand {
         font-size: 19px;
-    }
-
-    .topbar__env label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0 0 0 0);
     }
 
     .topbar__env .select {
