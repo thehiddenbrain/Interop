@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 /**
  * One procedure code as the tester chose it.
  *
- * <p>The quantity and its unit are sent by Submit only (Da Vinci PAS 2.2.1 PASQuantity). CRD and DTR
+ * <p>The quantity and its unit are sent by Submit only (Claim.item.quantity, a PASQuantity under Da Vinci PAS 2.2.1). CRD and DTR
  * do not send them, so a quantity typed once on the case card does not change what those two send.
  *
  * @param code        the code. A code that is not in the code list can still be sent

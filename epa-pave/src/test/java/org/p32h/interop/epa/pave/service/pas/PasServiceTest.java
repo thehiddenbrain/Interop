@@ -90,7 +90,8 @@ class PasServiceTest {
             + "\"item\":[{\"linkId\":\"1\",\"answer\":[{\"valueString\":\"Placeholder answer about daytime sleepiness\"}]}]}";
     private static final String REPORT = "Placeholder report: attended sleep study, synthetic text.";
 
-    private final FakeGateway gateway = FakeGateway.unconfigured();
+    // Written for PAS 2.2.1, which an environment chooses in its form; Pas201SubmitTest holds the default.
+    private final FakeGateway gateway = FakeGateway.unconfigured().pasGuide("2.2.1");
     private final InMemoryLedger ledger = new InMemoryLedger();
     private final FakeCodeList codeList = new FakeCodeList();
     private final ScenarioRepository scenarios = new ScenarioRepository(APP);

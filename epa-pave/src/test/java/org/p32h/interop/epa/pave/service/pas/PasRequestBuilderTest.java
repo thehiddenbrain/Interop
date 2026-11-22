@@ -71,8 +71,9 @@ class PasRequestBuilderTest {
 
     private static PasRequestBuilder builder(String mode) {
         AtomicInteger next = new AtomicInteger();
+        // These tests were written for PAS 2.2.1, which an environment chooses; Pas201SubmitTest holds the default.
         return new PasRequestBuilder(new FakeCodeList(), mode, CLOCK,
-                () -> UUID.fromString(String.format("00000000-0000-4000-8000-%012d", next.incrementAndGet())));
+                () -> UUID.fromString(String.format("00000000-0000-4000-8000-%012d", next.incrementAndGet()))).under(PasGuide.V221);
     }
 
     private static PasRequestBuilder.Built submit(PasSubmitRequest request, Map<String, String> values) {
@@ -340,7 +341,7 @@ class PasRequestBuilderTest {
         FakeCodeList codeList = new FakeCodeList().row(ProcedureCode.builder().code("95810").system("https://example.org/p32h-placeholder/codes")
                 .authRequired(AuthRequirement.REQUIRED).build())
                 .row(ProcedureCode.builder().code("E0601").system("HCPCS").authRequired(AuthRequirement.REQUIRED).build());
-        PasRequestBuilder.Built built = new PasRequestBuilder(codeList, StartupChecks.ATTACHMENT_FHIR, CLOCK)
+        PasRequestBuilder.Built built = new PasRequestBuilder(codeList, StartupChecks.ATTACHMENT_FHIR, CLOCK).under(PasGuide.V221)
                 .submit(request().build(), CLAIM, true, BUNDLE, NO_VARIABLES);
         assertThat(claim(built).at("/item/0/productOrService/coding/0/system").asString()).isEqualTo("https://example.org/p32h-placeholder/codes");
         // A label in the list is replaced by the uri PAS 2.2.1 names.

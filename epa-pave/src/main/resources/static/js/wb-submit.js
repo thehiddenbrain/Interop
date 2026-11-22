@@ -1,7 +1,7 @@
 // Step 3 of the Workbench, Submit (plan 3.2, step 3; section 4): what goes, in at most three lines
 // of chips; what the server says is still missing, as chips that open their field; the files to
-// attach; and "Send PAS request". The request follows Da Vinci PAS 2.2.1 and is built by the
-// server; this page only says what it carries.
+// attach; and "Send PAS request". The request follows the environment's PAS guide (2.0.1 unless
+// it chooses 2.2.1) and is built by the server; this page only says what it carries.
 //
 // Sending stays possible whatever is missing: an incomplete request is a negative test, said before
 // it is sent (R-39). On an environment of kind prod the server's own words on writes stand beside

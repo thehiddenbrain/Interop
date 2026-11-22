@@ -15,7 +15,7 @@ import java.util.Map;
  * What the PAS tab posts to submit one prior authorization request.
  *
  * <p>The fields every protocol shares are described on {@link RunRequest}. A submission adds the
- * claim id, diagnoses and documents, and the Service card's details Da Vinci PAS 2.2.1 asks for.
+ * claim id, diagnoses and documents, and the Service card's details, each sent where the PAS guide in force has a place for it.
  * Each of those details is optional and taken as typed: a value left out stays not stated, and the
  * request takes it from the environment's values or says it is missing, never from a guess here.
  *

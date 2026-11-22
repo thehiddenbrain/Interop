@@ -127,7 +127,7 @@ public class PasService {
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
-                    "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule());
+                    "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule(), PasGuide.of(call.shapes()));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
@@ -177,7 +177,7 @@ public class PasService {
             Codes codes = inquiryCodes(request, claimId);
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
-                    reads, call.memberIdRule());
+                    reads, call.memberIdRule(), PasGuide.of(call.shapes()));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
@@ -285,7 +285,7 @@ public class PasService {
 
         List<Finding> findings = new ArrayList<>();
         if (!leftOut.isEmpty()) {
-            findings.add(PasFindings.requestIncomplete(leftOut));
+            findings.add(PasFindings.requestIncomplete(leftOut, PasGuide.of(call.shapes())));
         }
         findings.addAll(PasFindings.check(reading));
         // A key the body repeats is said with every value, as on CRD; the values are already among the returned fields.
@@ -337,7 +337,7 @@ public class PasService {
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
-                NEW_ID, reads, call.memberIdRule());
+                NEW_ID, reads, call.memberIdRule(), PasGuide.of(call.shapes()));
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown)
                 .withToComplete(built.toComplete());
     }
@@ -359,7 +359,8 @@ public class PasService {
         String claimId = claimId(request, false);
         Codes codes = inquiryCodes(request, claimId);
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
-        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads, call.memberIdRule());
+        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads, call.memberIdRule(),
+                PasGuide.of(call.shapes()));
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
@@ -480,8 +481,8 @@ public class PasService {
     /**
      * The codes of the submission an inquiry asks about, in the order it sent them: the ones on the
      * form, else the ones the submission handed on, else the ones on the ledger line of the newest
-     * submission of that claim identifier. PAS 2.2.1 does not require an item on an inquiry, but each
-     * decision of the answer can be tied to a code only when the inquiry lists them.
+     * submission of that claim identifier. PAS 2.0.1 requires an item on an inquiry and 2.2.1 does
+     * not, but each decision of the answer can be tied to a code only when the inquiry lists them.
      */
     private Codes inquiryCodes(PasInquireRequest request, String claimId) {
         if (!request.procedureCodes().isEmpty()) {

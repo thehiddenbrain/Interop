@@ -33,8 +33,8 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Builds the request bundle for a PAS submission and for an inquiry from the form, in the shape Da
- * Vinci PAS 2.2.1 gives it: PASRequestBundle with a PASClaim, PASInquiryRequestBundle with a
+ * Builds the request bundle for a PAS submission and for an inquiry from the form, in the shape the
+ * PAS guide in force gives it (2.0.1 unless the environment chooses 2.2.1, {@link PasGuide}): PASRequestBundle with a PASClaim, PASInquiryRequestBundle with a
  * PASClaimInquiry, and every resource either claim refers to, as {@link PasResources} builds them.
  *
  * <p>What this class adds is the Claim that ties them together, the order behind each item, the
@@ -43,9 +43,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Nothing is filled in that was not supplied. A value of the Service card comes from the card
  * first, else from the environment's values or variables, else from the one rule this tool has
- * (certification I for a claim identifier minted here), else the element is left out. Where a PAS
- * 2.2.1 profile requires an element that went out without its value, it is counted as left out, so
- * the result can say so first and carry a finding. Nothing blocks sending: an incomplete request
+ * (certification I for a claim identifier minted here), else the element is left out. Where a
+ * profile of the guide in force requires an element that went out without its value, it is counted as left out, so
+ * the result can say so first and carry a finding. A value given for an element the guide in force
+ * does not define is not sent, and a note names it by its label. Nothing blocks sending: an incomplete request
  * is a negative test, and the notes say what it lacks and where to add it.
  *
  * <p>Instants are written in whole seconds in UTC: the vendor's sandbox refused a timestamp with
@@ -71,7 +72,7 @@ public final class PasRequestBuilder {
     public static final String VAR_CERTIFICATION_TYPE = "pasCertificationType";
     /** The X12 PWK01 report type code of every additional information entry: the documentInformation extension. */
     public static final String VAR_REPORT_TYPE = "pasReportType";
-    /** The identifier system of the item trace numbers, which PAS 2.2.1 PASIdentifier requires. */
+    /** The identifier system of the item trace numbers, which PAS 2.2.1 PASIdentifier requires and 2.0.1's allows. */
     public static final String VAR_ITEM_TRACE_SYSTEM = "itemTraceNumberSystem";
 
     /** The identifier system for a value that is itself a uri, which is how FHIR writes a UUID as an identifier. */
@@ -88,10 +89,10 @@ public final class PasRequestBuilder {
      *
      * @param json           the request as pretty JSON
      * @param notes          one plain sentence for each thing left out or worked out. When something
-     *                       a PAS 2.2.1 profile requires was left out, the first note says so with the count
+     *                       a profile of the guide in force requires was left out, the first note says so with the count
      * @param sent           the claim identifier and each item sent, so a decision can be tied to its code
      * @param attachmentMode how the attachments of the request travel, or null when it has none
-     * @param leftOut        each element a PAS 2.2.1 profile requires that the request went out without,
+     * @param leftOut        each element a profile of the guide in force requires that the request went out without,
      *                       named by its profile and path. Empty when nothing was
      * @param toComplete     the gaps a tester can close before sending, each with the field that
      *                       closes it, for "To complete before sending". Empty when there are none
@@ -133,6 +134,7 @@ public final class PasRequestBuilder {
     private final String attachmentMode;
     private final Clock clock;
     private final Supplier<UUID> uuids;
+    private final PasGuide guide;
 
     /**
      * @param codeList       consulted for a code's system when the tester did not state one. May be null
@@ -142,12 +144,22 @@ public final class PasRequestBuilder {
         this(codeList, attachmentMode, clock, UUID::randomUUID);
     }
 
-    /** @param uuids the source of the guids of the entries' full urls, which PAS 2.2.1 requires to be unique across submissions */
+    /** @param uuids the source of the guids of the entries' full urls, which PAS 2.0.1 and 2.2.1 require to be unique across submissions */
     PasRequestBuilder(ProcedureCodeDirectory codeList, String attachmentMode, Clock clock, Supplier<UUID> uuids) {
-        this.resources = new PasResources(codeList);
+        this(new PasResources(codeList), attachmentMode, clock, uuids, PasGuide.V201);
+    }
+
+    private PasRequestBuilder(PasResources resources, String attachmentMode, Clock clock, Supplier<UUID> uuids, PasGuide guide) {
+        this.resources = resources;
         this.attachmentMode = attachmentMode;
         this.clock = clock;
         this.uuids = uuids;
+        this.guide = guide;
+    }
+
+    /** This builder held against another guide by the calls that name none; a call that names one keeps its own. */
+    PasRequestBuilder under(PasGuide guide) {
+        return new PasRequestBuilder(resources, attachmentMode, clock, uuids, guide == null ? PasGuide.V201 : guide);
     }
 
     /**
@@ -162,15 +174,24 @@ public final class PasRequestBuilder {
         return submit(request, claimId, newClaim, bundleId, variables, MemberIdRule.PACKED);
     }
 
-    /**
-     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
-     */
     public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
-        PasNotes notes = new PasNotes();
+        return submit(request, claimId, newClaim, bundleId, variables, memberIdRule, guide);
+    }
+
+    /**
+     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
+     * @param guide        the PAS version the request is held against; null is read as 2.0.1
+     */
+    public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
+                        Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide) {
+        PasNotes notes = new PasNotes(guide);
+        notes.add(guideNote(notes));
         List<ObjectNode> carried = new ArrayList<>();
         ArrayNode supportingInfo = JSON.arrayNode();
-        String reportType = CaseResources.value(variables, VAR_REPORT_TYPE);
+        String statedReportType = CaseResources.value(variables, VAR_REPORT_TYPE);
+        // PAS 2.0.1 defines no documentInformation extension, so a report type has nowhere to go.
+        String reportType = notes.guide().is221() ? statedReportType : null;
 
         int position = 1;
         for (String text : questionnaireResponses(request.carry())) {
@@ -207,7 +228,7 @@ public final class PasRequestBuilder {
                 notes.add("Attachment " + position + " (\"" + title + "\") was not put in the bundle. In the attachment mode "
                         + StartupChecks.ATTACHMENT_X12_275 + " the claim only names the document, by the attachment control number " + number
                         + ", for an X12 275 transaction that this tool does not send. The service receives no document from this tool. "
-                        + "In PAS 2.2.1 a 275 is produced by the intermediary from the bundle, not sent by the client beside it."
+                        + "In " + notes.pas() + " a 275 is produced by the intermediary from the bundle, not sent by the client beside it."
                         + typeAndCategoryNotSent(attachment));
             } else {
                 String id = OnyxPasConventions.documentReferenceId(position);
@@ -221,19 +242,23 @@ public final class PasRequestBuilder {
             position++;
         }
         if (!request.attachments().isEmpty()) {
-            notes.add("Neither attachment mode is the PAS 2.2.1 way of sending documentation after the payer has asked for it: that is a "
+            notes.add("Neither attachment mode is the " + notes.pas() + " way of sending documentation after the payer has asked for it: that is a "
                     + "claim update that replaces the earlier claim, or the CDex operation $submit-attachment, and this tool builds neither.");
         }
-        if (!supportingInfo.isEmpty()) {
+        if (!supportingInfo.isEmpty() && !notes.guide().is221()) {
+            if (statedReportType != null) {
+                notes.notSent("PAS report type");
+            }
+        } else if (!supportingInfo.isEmpty()) {
             if (reportType != null) {
-                notes.add("Each additional information entry carries the document information PAS 2.2.1 asks for: the report type "
+                notes.add("Each additional information entry carries the document information " + notes.pas() + " asks for: the report type "
                         + reportType + " (X12 PWK01, from the value " + VAR_REPORT_TYPE + ") and the transmission method "
                         + OnyxPasConventions.TRANSMISSION_ELECTRONIC + ", electronically.");
             } else {
-                notes.toComplete("values.pasReportType", "Report type: none. PAS 2.2.1 requires document information on each additional "
+                notes.toComplete("values.pasReportType", "Report type: none. " + notes.pas() + " requires document information on each additional "
                         + "information entry: add PAS report type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim supportingInfo[AdditionalInformation].extension[documentInformation]", "No document information was "
-                        + "sent on the claim's supporting information: the value " + VAR_REPORT_TYPE + " is not set. PAS 2.2.1 PASClaim requires "
+                        + "sent on the claim's supporting information: the value " + VAR_REPORT_TYPE + " is not set. " + notes.pas() + " PASClaim requires "
                         + "it, with an X12 PWK01 report type, on every additional information entry: add PAS report type" + UNDER_VALUES + ".");
             }
         }
@@ -272,15 +297,27 @@ public final class PasRequestBuilder {
         return inquire(request, claimId, codes, codesFrom, bundleId, variables, MemberIdRule.PACKED);
     }
 
-    /**
-     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
-     */
     public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
                          Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
-        PasNotes notes = new PasNotes();
-        if (codes.isEmpty()) {
+        return inquire(request, claimId, codes, codesFrom, bundleId, variables, memberIdRule, guide);
+    }
+
+    /**
+     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
+     * @param guide        the PAS version the inquiry is held against; null is read as 2.0.1
+     */
+    public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
+                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule, PasGuide guide) {
+        PasNotes notes = new PasNotes(guide);
+        notes.add(guideNote(notes));
+        if (codes.isEmpty() && !notes.guide().is221()) {
+            // PAS 2.0.1 PASClaimBase, which PASClaimInquiry is built on, makes item 1..*.
+            notes.missing("PASClaimInquiry item", "The inquiry lists no item: no procedure code was given on the form, handed on from the "
+                    + "submission or found on its ledger line. PAS 2.0.1 requires at least one item on an inquiry: give the procedure code "
+                    + "the submission sent.");
+        } else if (codes.isEmpty()) {
             notes.add("The inquiry lists no item: no procedure code was given on the form, handed on from the submission or found on its "
-                    + "ledger line. PAS 2.2.1 does not require an item on an inquiry.");
+                    + "ledger line. " + notes.pas() + " does not require an item on an inquiry.");
         } else {
             notes.add("The inquiry names the request by its claim identifier and lists the procedure codes " + codesFrom + " as items, in "
                     + "that order. That has to be the order the submission sent them in for each decision to be tied to its code.");
@@ -357,9 +394,12 @@ public final class PasRequestBuilder {
         String identifierSystem = CaseResources.value(variables, VAR_CLAIM_ID_SYSTEM);
         if (identifierSystem != null) {
             identifier.put("system", identifierSystem);
+        } else if (!notes.guide().is221()) {
+            notes.add("The claim identifier was sent without an identifier system: the variable " + VAR_CLAIM_ID_SYSTEM + " is not set. "
+                    + "PAS 2.0.1 does not require one.");
         } else {
             notes.missing(claimProfile + " identifier.system", "The claim identifier was sent without an identifier system: the variable "
-                    + VAR_CLAIM_ID_SYSTEM + " is not set. PAS 2.2.1 gives the claim identifier the profile PASIdentifier, which requires "
+                    + VAR_CLAIM_ID_SYSTEM + " is not set. " + notes.pas() + " gives the claim identifier the profile PASIdentifier, which requires "
                     + "a system: add " + VAR_CLAIM_ID_SYSTEM + UNDER_VALUES + ".");
         }
         identifier.put("value", claimId);
@@ -443,9 +483,9 @@ public final class PasRequestBuilder {
                 items.add(new SentClaim.Item(sequence, code.code().strip(), traceNumber));
                 sequence++;
             }
-            if (traceSystem == null) {
+            if (traceSystem == null && notes.guide().is221()) {
                 notes.missing(claimProfile + " item.extension[itemTraceNumber] system", "The item trace numbers were sent without an "
-                        + "identifier system: the variable " + VAR_ITEM_TRACE_SYSTEM + " is not set. PAS 2.2.1 gives an item trace number "
+                        + "identifier system: the variable " + VAR_ITEM_TRACE_SYSTEM + " is not set. " + notes.pas() + " gives an item trace number "
                         + "the profile PASIdentifier, which requires a system: add " + VAR_ITEM_TRACE_SYSTEM + UNDER_VALUES + ".");
             }
             itemNotes(submission, card, certification, certificationByRule, serviceType, requestType, dateOfService, notes);
@@ -466,15 +506,21 @@ public final class PasRequestBuilder {
         return new Case(out);
     }
 
+    /** The one note that names the guide the request is held against, and where a tester changes it. */
+    private static String guideNote(PasNotes notes) {
+        return "This request follows " + notes.guide().fullName() + ", the PAS guide of the environment (Configuration > "
+                + "Environments, Request shapes).";
+    }
+
     /** What the items went out with and without, said once for all of them. */
     private static void itemNotes(boolean submission, Card card, String certification, boolean certificationByRule, String serviceType,
                                   String requestType, String dateOfService, PasNotes notes) {
         if (serviceType == null) {
             if (submission) {
-                notes.toComplete("serviceType", "Service type: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD
+                notes.toComplete("serviceType", "Service type: none. " + notes.pas() + " requires one on every item: " + ON_THE_CARD
                         + ", or add PAS service type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim item.category", "No service type was sent on the items: none was chosen on the Service card and the "
-                        + "value " + VAR_SERVICE_TYPE + " is not set. PAS 2.2.1 PASClaim requires item.category, an X12 service type code "
+                        + "value " + VAR_SERVICE_TYPE + " is not set. " + notes.pas() + " PASClaim requires item.category, an X12 service type code "
                         + "such as 1 for medical care: " + ON_THE_CARD + ", or add PAS service type" + UNDER_VALUES + ".");
             } else {
                 notes.add("No service type was sent on the items: the variable " + VAR_SERVICE_TYPE + " is not set. An inquiry does "
@@ -482,11 +528,15 @@ public final class PasRequestBuilder {
             }
         }
         if (requestType == null) {
-            if (submission) {
-                notes.toComplete("requestType", "Request type: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD
+            if (submission && !notes.guide().is221()) {
+                notes.add("No request type was sent on the items: none was chosen on the Service card and the value " + VAR_REQUEST_TYPE
+                        + " is not set. PAS 2.0.1 PASClaim marks it must-support; it is an X12 request type code, such as HS for health "
+                        + "services review: " + ON_THE_CARD + ".");
+            } else if (submission) {
+                notes.toComplete("requestType", "Request type: none. " + notes.pas() + " requires one on every item: " + ON_THE_CARD
                         + ", or add PAS request type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim item.extension[requestType]", "No request type was sent on the items: none was chosen on the Service "
-                        + "card and the value " + VAR_REQUEST_TYPE + " is not set. PAS 2.2.1 PASClaim requires it on every item, an X12 "
+                        + "card and the value " + VAR_REQUEST_TYPE + " is not set. " + notes.pas() + " PASClaim requires it on every item, an X12 "
                         + "request type code such as HS for health services review: " + ON_THE_CARD + ", or add PAS request type"
                         + UNDER_VALUES + ".");
             } else {
@@ -497,21 +547,28 @@ public final class PasRequestBuilder {
         if (!submission) {
             return;
         }
-        if (certification == null) {
-            notes.toComplete("certificationType", "Certification type: none. PAS 2.2.1 requires one on every item, and a typed claim id "
+        if (certification == null && !notes.guide().is221()) {
+            notes.add("No certification type was sent on the items: none was chosen on the Service card, the value "
+                    + VAR_CERTIFICATION_TYPE + " is not set, and the claim identifier was typed or handed on, so whether this is an "
+                    + "initial request or a revision of one is not known. PAS 2.0.1 PASClaim marks it must-support: " + ON_THE_CARD + ".");
+        } else if (certification == null) {
+            notes.toComplete("certificationType", "Certification type: none. " + notes.pas() + " requires one on every item, and a typed claim id "
                     + "does not say whether the request is initial: " + ON_THE_CARD + ", or add PAS certification type" + UNDER_VALUES + ".");
             notes.missing("PASClaim item.extension[certificationType]", "No certification type was sent on the items: none was chosen on "
                     + "the Service card, the value " + VAR_CERTIFICATION_TYPE + " is not set, and the claim identifier was typed or handed "
-                    + "on, so whether this is an initial request or a revision of one is not known. PAS 2.2.1 PASClaim requires it on "
+                    + "on, so whether this is an initial request or a revision of one is not known. " + notes.pas() + " PASClaim requires it on "
                     + "every item: " + ON_THE_CARD + ", or add PAS certification type" + UNDER_VALUES + ".");
         } else if (certificationByRule) {
             notes.add("Each item was sent with the certification type I (initial), because the claim identifier was minted for "
                     + "this submission.");
         }
-        if (card.placeOfService() == null) {
-            notes.toComplete("placeOfService", "Place of service: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD + ".");
+        if (card.placeOfService() == null && !notes.guide().is221()) {
+            notes.add("No place of service was sent on the items: none was chosen on the Service card. PAS 2.0.1 PASClaim marks "
+                    + "item.location[x] must-support.");
+        } else if (card.placeOfService() == null) {
+            notes.toComplete("placeOfService", "Place of service: none. " + notes.pas() + " requires one on every item: " + ON_THE_CARD + ".");
             notes.missing("PASClaim item.location[x]", "No place of service was sent on the items: none was chosen on the Service card. "
-                    + "PAS 2.2.1 PASClaim requires one on every item, a CMS place of service code such as 11 for office: "
+                    + notes.pas() + " PASClaim requires one on every item, a CMS place of service code such as 11 for office: "
                     + ON_THE_CARD + ".");
         }
         notes.add("Each item names its order by the requestedService extension, and each order travels in the bundle as "
@@ -523,7 +580,8 @@ public final class PasRequestBuilder {
 
     /**
      * The level of service on the Claim, when the Service card states one. PAS 2.2.1 rule
-     * ImmediateLevelOfCare requires it when the certification type is 1, an immediate appeal.
+     * ImmediateLevelOfCare requires it when the certification type is 1, an immediate appeal; PAS
+     * 2.0.1 has no such rule and marks the extension must-support only.
      */
     private static void levelOfService(ObjectNode claim, Card card, String certification, PasNotes notes) {
         if (card.levelOfService() != null) {
@@ -531,16 +589,16 @@ public final class PasRequestBuilder {
                     x12(OnyxPasConventions.X12_LEVELS_OF_SERVICE, card.levelOfService()));
             return;
         }
-        if ("1".equals(certification)) {
+        if ("1".equals(certification) && notes.guide().is221()) {
             notes.missing("PASClaim extension[levelOfServiceType] (rule ImmediateLevelOfCare)", "No level of service was sent, and the "
-                    + "certification type is 1, an immediate appeal. PAS 2.2.1 rule ImmediateLevelOfCare requires a level of service "
+                    + "certification type is 1, an immediate appeal. " + notes.pas() + " rule ImmediateLevelOfCare requires a level of service "
                     + "then: " + ON_THE_CARD + ".");
         } else {
-            notes.add("No level of service was sent: none was chosen on the Service card. PAS 2.2.1 PASClaim marks it must-support.");
+            notes.add("No level of service was sent: none was chosen on the Service card. " + notes.pas() + " PASClaim marks it must-support.");
         }
     }
 
-    /** The item's quantity as PASQuantity, and a note when a unit came without a quantity or a quantity without a unit. */
+    /** The item's quantity (PASQuantity under 2.2.1, a FHIR Quantity under 2.0.1, which has no profile for it), and a note when a unit came without a quantity or a quantity without a unit. */
     private static void quantity(ObjectNode item, CodeInput code, PasNotes notes) {
         ObjectNode quantity = PasResources.quantity(code);
         String value = code.code().strip();
@@ -551,7 +609,7 @@ public final class PasRequestBuilder {
             }
         } else if (Texts.present(code.unit())) {
             notes.add("The unit " + code.unit().strip() + " given with the code " + value + " was not sent, because no quantity came with "
-                    + "it. PAS 2.2.1 PASQuantity requires a value.");
+                    + "it. " + (notes.guide().is221() ? "PAS 2.2.1 PASQuantity requires a value." : "A quantity without a value says nothing."));
         }
     }
 
@@ -582,7 +640,8 @@ public final class PasRequestBuilder {
 
     /**
      * One additionalInformation entry of the claim's supporting information. Its documentInformation
-     * extension is written only when a report type is stated, because PAS 2.2.1 requires a report
+     * extension is written only when a report type is stated and the guide is 2.2.1 (PAS 2.0.1 has no
+     * such extension), because PAS 2.2.1 requires a report
      * type inside it and none is assumed; the caller counts its absence once for all entries.
      *
      * @param reportType    the X12 PWK01 report type code, or null when none is stated
@@ -625,7 +684,7 @@ public final class PasRequestBuilder {
      * A diagnosis code as a CodeableConcept. Its coding system is the one the tester stated, else
      * ICD-10-CM when the code has that format, which is a rule about a published code format and
      * is still reported. A code of any other format is sent without a system, and the note says
-     * that PAS 2.2.1 binds the element, required, to a value set the code then cannot be shown to be in.
+     * that PAS binds the element, required, to a value set the code then cannot be shown to be in.
      */
     private static ObjectNode diagnosisConcept(CodeInput code, PasNotes notes) {
         ObjectNode concept = JSON.objectNode();
@@ -638,7 +697,7 @@ public final class PasRequestBuilder {
             notes.add("The coding system for the diagnosis " + value + " was taken from its format: ICD-10-CM.");
         } else {
             notes.missing("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis " + value + ")", "No coding system could be "
-                    + "worked out for the diagnosis " + value + ", so it was sent without one. PAS 2.2.1 binds the diagnosis, required, to "
+                    + "worked out for the diagnosis " + value + ", so it was sent without one. " + notes.pas() + " binds the diagnosis, required, to "
                     + "the value set X12278DiagnosisCodes, so the service may refuse it. State its system with the code.");
         }
         coding.put("code", value);
@@ -649,7 +708,7 @@ public final class PasRequestBuilder {
     }
 
     /**
-     * The bundle. PAS 2.2.1 requires a full url on every entry: the address the resource has on
+     * The bundle. PAS 2.0.1 and 2.2.1 require a full url on every entry: the address the resource has on
      * the client's server, when the tester states that base, else a urn:uuid. With urn:uuid full
      * urls a relative reference resolves to nothing, so every reference inside the bundle that
      * names an entry is rewritten to that entry's full url.
@@ -680,7 +739,7 @@ public final class PasRequestBuilder {
             entry.set("resource", resource);
         }
         if (base == null) {
-            notes.add("Every entry carries a full url of the form urn:uuid:, as PAS 2.2.1 allows when the resources have no address of "
+            notes.add("Every entry carries a full url of the form urn:uuid:, as " + notes.pas() + " allows when the resources have no address of "
                     + "their own (the variable " + CaseResources.VAR_FHIR_SERVER + " is not set), and every reference between the "
                     + "resources names one of those full urls.");
         }
@@ -689,7 +748,7 @@ public final class PasRequestBuilder {
                 notes.missing(bundleProfile + " entry for " + reference, null);
             }
             notes.add("These references inside the bundle name a resource the bundle does not carry: " + String.join(", ", unresolved)
-                    + ". PAS 2.2.1 requires (SHALL) that the bundle carry every resource the claim refers to, and every resource those "
+                    + ". " + notes.pas() + " requires (SHALL) that the bundle carry every resource the claim refers to, and every resource those "
                     + "refer to in turn.");
         }
         return JsonSafe.pretty(bundle);

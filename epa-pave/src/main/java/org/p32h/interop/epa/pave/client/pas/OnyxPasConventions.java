@@ -18,9 +18,10 @@ import tools.jackson.databind.JsonNode;
  * ASSUMPTIONS ABOUT THE VENDOR, ALL IN ONE FILE: PAS, subscriptions and notifications.
  *
  * <p>Nothing here has been observed from the live service. The requests this tool sends follow Da
- * Vinci PAS 2.2.1, read from the guide's own source at its 2.2.1 tag, because that is the version
- * the operator asked Submit to follow. The readers of answers were written from PAS 2.0.1 (D-136),
- * read the same way, with the 2.2.0 ballot read for what changes.
+ * Vinci PAS 2.0.1, the version the payer runs, unless the environment's PAS guide chooses 2.2.1; both
+ * were read from the guide's own source at their tags. The names below are the same in both unless
+ * one says otherwise. The readers of answers were written from PAS 2.0.1 (D-136), with the 2.2.0
+ * ballot read for what changes.
  * A name or rule taken from the guide says so and names the version; one marked ASSUMPTION is how
  * this tool expects the vendor to apply the guide, or covers a case the guide does not define.
  * The subscriptions backport 1.1.0 that PAS 2.0.1 depends on could not be read, so its names are
@@ -108,12 +109,12 @@ public final class OnyxPasConventions {
     public static final String ADDITIONAL_INFORMATION = "additionalInformation";
 
     /**
-     * The profile an inquiry's Claim declares in meta.profile. PAS 2.2.1 PASClaimInquiry; the
-     * vendor's sandbox refused an inquiry whose Claim did not declare it.
+     * The profile an inquiry's Claim declares in meta.profile: PASClaimInquiry, under this canonical
+     * url in PAS 2.0.1 (Claim.fsh, Id profile-claim-inquiry) and in 2.2.1. The vendor's sandbox refused an inquiry whose Claim did not declare it.
      */
     public static final String CLAIM_INQUIRY_PROFILE = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claim-inquiry";
 
-    /** PAS item and claim extensions, by their canonical urls (the ids in the guide's Claim-update.fsh and Claim.fsh, 2.2.1). */
+    /** PAS item and claim extensions, by their canonical urls (the ids in the guide's Claim-update.fsh and Claim.fsh, the same in 2.0.1 and 2.2.1, except documentInformation, which 2.0.1 does not define). */
     private static final String PAS_EXTENSION = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-";
     public static final String ITEM_TRACE_NUMBER = PAS_EXTENSION + "itemTraceNumber";
     public static final String ITEM_REQUEST_TYPE = PAS_EXTENSION + "serviceItemRequestType";
@@ -135,7 +136,7 @@ public final class OnyxPasConventions {
     public static final String X12_ENTITY_TYPES = "https://codesystem.x12.org/005010/98";
     public static final String X12_RELATIONSHIP = "https://codesystem.x12.org/005010/1069";
     public static final String X12_LEVELS_OF_SERVICE = "https://codesystem.x12.org/005010/1338";
-    /** The units of a PASQuantity. */
+    /** The units of a quantity (PASQuantity in 2.2.1). */
     public static final String X12_UNITS = "https://codesystem.x12.org/005010/673";
     /** PWK01 attachment report type codes, the reportTypeCode of documentInformation. */
     public static final String X12_REPORT_TYPES = "https://codesystem.x12.org/005010/755";
@@ -143,7 +144,7 @@ public final class OnyxPasConventions {
     public static final String X12_TRANSMISSION_METHODS = "https://codesystem.x12.org/005010/756";
     /** X12 756 code EL, "Electronically Only": every document this tool names goes electronically, in the bundle or in a 275. */
     public static final String TRANSMISSION_ELECTRONIC = "EL";
-    /** The CMS place of service code system PAS 2.2.1 X12278LocationType takes Claim.item.locationCodeableConcept from. */
+    /** The CMS place of service code system PAS X12278LocationType (2.0.1 and 2.2.1) takes Claim.item.locationCodeableConcept from. */
     public static final String PLACE_OF_SERVICE = "https://www.cms.gov/Medicare/Coding/place-of-service-codes/Place_of_Service_Code_Set";
     /** X12 98 code SJ, "Service Provider": the role of the servicing provider on the claim's care team. */
     public static final String SERVICING_PROVIDER_ROLE = "SJ";
@@ -157,8 +158,8 @@ public final class OnyxPasConventions {
 
     /**
      * ASSUMPTION, attachment mode fhir: a document travels in the request bundle as a
-     * DocumentReference with status current, its content inline as base64 (PAS 2.2.1
-     * PASDocumentReference requires data and forbids a url), and the claim names it in
+     * DocumentReference with status current, its content inline as base64 when given (PAS 2.2.1
+     * PASDocumentReference requires data and forbids a url; 2.0.1 allows either), and the claim names it in
      * supportingInfo by a reference to that resource.
      */
     public static final String DOCUMENT_STATUS = "current";
