@@ -17,6 +17,8 @@ export const PAGES = [
     {id: 'collections', label: 'Collections', module: 'cfg-collections.js'},
     {id: 'members', label: 'Members', module: 'cfg-lists.js', modules: ['config-lookups.js', 'cfg-lists.js']},
     {id: 'providers', label: 'Providers', module: 'cfg-lists.js', modules: ['config-lookups.js', 'cfg-lists.js']},
+    // The saved procedure codes: the third saved list, with no lookup above it.
+    {id: 'procedure-codes', label: 'Procedure codes', module: 'cfg-lists.js'},
     {id: 'access-token', label: 'Access token', module: 'cfg-token.js'},
     {id: 'production-writes', label: 'Production writes', module: 'cfg-writes.js'},
     {id: 'advanced', label: 'Advanced', module: null}

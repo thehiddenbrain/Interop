@@ -8,12 +8,21 @@
 
 import {el, fold, fill, clear} from './dom.js';
 import {createCodePicker} from './code-picker.js';
-import {caseField, caseChanged, restoreFields, LEDGER_TEXT_HINT} from './wb-case.js';
+import {caseField, caseChanged, restoreFields, LEDGER_TEXT_HINT, MARKS} from './wb-case.js';
 import {cardHead} from './wb-lookup.js';
 
 let lists = 0;
 
-/** env: {lineOfBusiness(), options() (the answer of GET /api/pas/options, or null)}. */
+/**
+ * A saved procedure code as the "Saved codes" choice names it: its code, then its label or else its
+ * description. Its system is the option's title.
+ */
+export function savedCodeText(entry) {
+    const words = entry.label || entry.description || '';
+    return entry.code + (words ? ' \u00b7 ' + words : '');
+}
+
+/** env: {lineOfBusiness(), options() (the answer of GET /api/pas/options, or null), savedCodes() (the saved list, or [])}. */
 export function createServiceCard(env) {
     lists += 1;
     const head = cardHead('Service', 'service');
@@ -22,6 +31,42 @@ export function createServiceCard(env) {
         draw();
         caseChanged('codes');
     }});
+    // "Saved codes": a pick adds the code with its system and description, as a saved member fills the Member card.
+    const savedId = 'saved-codes-' + lists;
+    const saved = el('select', {class: 'select', id: savedId});
+    const savedLabel = el('label', {class: 'field__label', for: savedId}, 'Saved codes');
+    const savedField = el('div', {class: 'field', hidden: true}, savedLabel, saved);
+    saved.addEventListener('change', () => {
+        const entry = savedCodes().find(each => each.id === saved.value);
+        saved.value = '';
+        if (!entry) {
+            return;
+        }
+        const candidate = {code: entry.code};
+        if (entry.system) {
+            candidate.system = entry.system;
+        }
+        if (entry.description) {
+            candidate.description = entry.description;
+        }
+        picker.addSaved(candidate, MARKS.SAVED);
+    });
+
+    function savedCodes() {
+        const given = typeof env.savedCodes === 'function' ? env.savedCodes() : [];
+        return Array.isArray(given) ? given.filter(each => each && typeof each.code === 'string' && each.code !== '') : [];
+    }
+
+    /** Draws the saved codes, offered only when the list holds any. */
+    function drawSaved() {
+        const entries = savedCodes();
+        fill(saved, el('option', {value: ''}, 'Choose a saved code'),
+            entries.map(entry => el('option', {value: entry.id, title: entry.system || null}, savedCodeText(entry))));
+        saved.value = '';
+        savedField.hidden = entries.length === 0;
+    }
+    drawSaved();
+
     // A text field in mono, ISO as the server reads it and as every other date on screen is shown (prototype 01):
     // a native date field shows the browser's locale order and is cut at 1024.
     const date = caseField({name: 'dateOfService', label: 'Date of service', mono: true});
@@ -54,7 +99,7 @@ export function createServiceCard(env) {
         el('div', {class: 'field-row'}, testerRef.node, note.node),
         el('p', {class: 'field__hint'}, LEDGER_TEXT_HINT))});
     const node = el('section', {class: 'card', 'aria-label': 'Service'}, head.node,
-        el('div', {class: 'card__body'}, picker.node, el('div', {class: 'field-row'}, date.node, diagnosis.node), details, options));
+        el('div', {class: 'card__body'}, savedField, picker.node, el('div', {class: 'field-row'}, date.node, diagnosis.node), details, options));
 
     date.input.addEventListener('input', () => caseChanged('date'));
 
@@ -112,6 +157,8 @@ export function createServiceCard(env) {
     return {
         node,
         drawOptions,
+        /** The saved list was read again: its codes are offered as it now holds them. */
+        drawSaved,
         /** The service as every run sends it. Quantity and unit go with a code only when given. */
         request() {
             const procedureCodes = picker.values().map(code => {

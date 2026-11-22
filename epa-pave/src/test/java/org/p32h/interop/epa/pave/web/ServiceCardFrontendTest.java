@@ -28,7 +28,9 @@ class ServiceCardFrontendTest {
                 const card = createServiceCard({lineOfBusiness: () => '', options: () => options});
                 document.body.append(card.node);
                 // Before the server gives its words, every choice offers "Not stated" only.
-                const selects = () => card.node.querySelectorAll('select').map(each => each.textContent);
+                // The choices of the service; "Saved codes" is a pick of the saved list, held by FoundFrontendTest.
+                const selects = () => card.node.querySelectorAll('select').filter(each => !String(each.id || '').startsWith('saved-codes'))
+                    .map(each => each.textContent);
                 say(selects());
                 options = {levelsOfService: [{code: 'U', label: 'Urgent'}], certificationTypes: [{code: 'I', label: 'Initial'}],
                   requestTypes: [{code: 'HS', label: 'Health services review'}], serviceTypes: [{code: '1', label: 'Medical care'}],

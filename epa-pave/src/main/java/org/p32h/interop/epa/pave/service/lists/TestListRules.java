@@ -22,6 +22,8 @@ final class TestListRules {
     private static final int MAX_MEMBER_ID = 30;
     private static final int MAX_RESOURCE_ID = 64;
     static final int MAX_CODE = 40;
+    private static final int MAX_SYSTEM = 255;
+    private static final int MAX_DESCRIPTION = 500;
 
     private TestListRules() {
     }
@@ -60,6 +62,22 @@ final class TestListRules {
             }
         }
         resourceId(errors, "vendorPractitionerId", "practitioner", provider.vendorPractitionerId());
+        return errors;
+    }
+
+    static List<FieldError> code(TestCodeInput code) {
+        List<FieldError> errors = new ArrayList<>();
+        if (code.code() == null) {
+            errors.add(new FieldError("code", "Enter the code, for example 97110."));
+        } else if (!fitsCode(code.code())) {
+            errors.add(new FieldError("code", "A code is at most 40 characters, with no space in it."));
+        }
+        if (code.system() != null && code.system().length() > MAX_SYSTEM) {
+            errors.add(new FieldError("system", "A code system is at most 255 characters."));
+        }
+        if (code.description() != null && code.description().length() > MAX_DESCRIPTION) {
+            errors.add(new FieldError("description", "A description is at most 500 characters."));
+        }
         return errors;
     }
 

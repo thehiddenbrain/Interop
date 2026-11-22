@@ -42,6 +42,7 @@ const loaded = {
     mockLists: null,
     savedMembers: [],
     savedProviders: [],
+    savedCodes: [],
     pasOptions: null,
     effective: null,
     epoch: null
@@ -102,7 +103,8 @@ function build() {
     });
     const service = createServiceCard({
         lineOfBusiness: () => member.lineOfBusiness(),
-        options: () => loaded.pasOptions
+        options: () => loaded.pasOptions,
+        savedCodes: () => loaded.savedCodes
     });
 
     const caseColumn = el('aside', {class: 'case', 'aria-label': 'Case'},
@@ -774,7 +776,7 @@ function build() {
             }
             loaded.epoch = epoch;
             const mock = app.isMock();
-            const [words, crd, dtr, pas, members, providers, pasOptions, effective] = await Promise.all([
+            const [words, crd, dtr, pas, members, providers, pasOptions, effective, codes] = await Promise.all([
                 vocabulary(),
                 mock ? call('GET', '/api/crd/scenarios') : null,
                 mock ? call('GET', '/api/dtr/scenarios') : null,
@@ -782,18 +784,21 @@ function build() {
                 call('GET', '/api/lists/members'),
                 call('GET', '/api/lists/providers'),
                 call('GET', '/api/pas/options'),
-                call('GET', '/api/config/effective')
+                call('GET', '/api/config/effective'),
+                call('GET', '/api/lists/codes')
             ]);
             loaded.words = words;
             loaded.mockLists = mock && crd && crd.ok ? {crd: crd.data, dtr: dtr && dtr.ok ? dtr.data : null, pas: pas && pas.ok ? pas.data : null}
                 : null;
             loaded.savedMembers = members.ok && Array.isArray(members.data.members) ? members.data.members : [];
             loaded.savedProviders = providers.ok && Array.isArray(providers.data.providers) ? providers.data.providers : [];
+            loaded.savedCodes = codes.ok && codes.data && Array.isArray(codes.data.codes) ? codes.data.codes : [];
             loaded.pasOptions = pasOptions.ok ? pasOptions.data : null;
             loaded.effective = effective.ok ? effective.data : null;
             member.drawPicker();
             provider.drawPicker();
             service.drawOptions();
+            service.drawSaved();
             drawScenarioOptions();
             drawStepper();
             for (const module of Object.values(modules)) {

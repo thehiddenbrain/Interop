@@ -2,7 +2,10 @@ package org.p32h.interop.epa.pave.web;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.p32h.interop.epa.pave.service.lists.TestCode;
+import org.p32h.interop.epa.pave.service.lists.TestCodeInput;
 import org.p32h.interop.epa.pave.service.lists.TestListService;
+import org.p32h.interop.epa.pave.service.lists.TestListViews.CodeList;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.MemberList;
@@ -26,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Saved test members and providers. A CSV file is read in the browser and posted as JSON text, so
+ * Saved test members, providers and procedure codes. A CSV file is read in the browser and posted as JSON text, so
  * no upload reaches the multipart path; the template is a download of placeholders only.
  */
 @RestController
@@ -97,6 +100,36 @@ public class TestListController {
     @PostMapping("/providers/import")
     public ImportResult importProviders(@RequestBody ImportRequest request) {
         return lists.importProviders(request);
+    }
+
+    @GetMapping("/codes")
+    public CodeList codes() {
+        return lists.codes();
+    }
+
+    @PostMapping("/codes")
+    public TestCode addCode(@RequestBody TestCodeInput code) {
+        return lists.addCode(code);
+    }
+
+    @PutMapping("/codes/{id}")
+    public TestCode replaceCode(@PathVariable("id") String id, @RequestBody TestCodeInput code) {
+        return lists.replaceCode(id, code);
+    }
+
+    @DeleteMapping("/codes/{id}")
+    public Map<String, Boolean> removeCode(@PathVariable("id") String id) {
+        return Map.of("removed", lists.removeCode(id));
+    }
+
+    @GetMapping("/codes/template.csv")
+    public ResponseEntity<String> codeTemplate() {
+        return csv(TestListService.codeTemplate(), "test-procedure-codes-template.csv");
+    }
+
+    @PostMapping("/codes/import")
+    public ImportResult importCodes(@RequestBody ImportRequest request) {
+        return lists.importCodes(request);
     }
 
     private static ResponseEntity<String> csv(String text, String fileName) {

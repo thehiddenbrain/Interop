@@ -117,7 +117,7 @@ class FoundFrontendTest {
                 "[\"box\",true,true,true]",
                 "[\"unticked\",false]",
                 "[\"added\",[\"/api/lists/found\",\"/api/lists/found/add\"],true,\"Added to the saved lists: 2 members, 1 provider. Already there: "
-                        + "1 member.Open the saved lists: Members and Providers.\",[\"#configuration/members\",\"#configuration/providers\"]]",
+                        + "1 member.Open the saved lists: Members, Providers and Procedure codes.\",[\"#configuration/members\",\"#configuration/providers\",\"#configuration/procedure-codes\"]]",
                 "[\"nothing\",0,[\"Nothing to add to the saved lists was found in the collection.\"],false]",
                 "[\"failed\",true,true,false]",
                 "[\"cleared\",true,0,false,[]]");
@@ -172,7 +172,7 @@ class FoundFrontendTest {
                 "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Seen and not used\"],[\"/api/config/environments/draft\","
                         + "\"/api/lists/found\",\"/api/config/environments/settings\",\"/api/lists/found/add\"],true,"
                         + "\"Saved \\\"Vendor UAT\\\". Its other settings can be set now.Added to the saved lists: 2 members, 1 provider. Already "
-                        + "there: 1 member.Open the saved lists: Members and Providers.\",true]",
+                        + "there: 1 member.Open the saved lists: Members, Providers and Procedure codes.\",true]",
                 "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Seen and not used\"],[\"/api/config/environments/draft\","
                         + "\"/api/lists/found\",\"/api/config/environments/settings\"],null,\"Saved \\\"Vendor UAT\\\". Its other settings can be "
                         + "set now.\",true]",
@@ -234,5 +234,64 @@ class FoundFrontendTest {
                 "[\"From Order sign (vendor patient id pat-001)\",\"Typed (S123456789)\",\"vendor patient id pat-003\"]",
                 "[\"Choose a saved member\",\"From Order sign (vendor patient id pat-001)\",\"Typed (S123456789)\",\"vendor patient id pat-003\"]",
                 "[\"\",\"pat-001\",{\"vendorPatientId\":\"pat-001\"},0]");
+    }
+
+    @Test
+    void theProcedureCodesPageIsTheThirdListAndTheServiceCardPicksASavedCode(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the procedure codes list and Saved codes", PRELUDE + """
+                const {PAGES, normal} = await import('./js/configuration.js');
+                say(['pages', PAGES.map(each => each.label), normal(['procedure-codes'])]);
+                answers['GET /api/lists/codes'] = {status: 200, body: {enabled: true, count: 1, codes: [
+                    {id: 'c-1', label: 'From Order sign', code: '97110', system: 'http://www.ama-assn.org/go/cpt', description: 'Therapeutic exercise'}]}};
+                const {mount} = await import('./js/cfg-lists.js');
+                const root = document.createElement('div');
+                document.body.append(root);
+                const page = mount(root, ['procedure-codes']);
+                await settle();
+                say(['page', text(root.querySelector('h2')), root.querySelectorAll('th').map(text), root.querySelectorAll('tbody tr').map(text),
+                    root.querySelector('a').href]);
+                await root.querySelectorAll('button').find(each => text(each) === 'Add procedure code').click();
+                const dialog = document.body.querySelector('dialog');
+                const inputs = Object.fromEntries(dialog.querySelectorAll('input').map(each => [each.name, each]));
+                inputs.code.value = ' E0601 ';
+                answers['POST /api/lists/codes'] = {status: 200, body: {id: 'c-2', code: 'E0601'}};
+                await dialog.querySelectorAll('button').find(each => text(each) === 'Save procedure code').click();
+                await settle();
+                say(['added', posted.map(each => [each.path, each.body]), text(root).includes('Added the procedure code "E0601".')]);
+                page.unmount();
+
+                const {createServiceCard} = await import('./js/wb-service.js');
+                const saved = [{id: 'c-1', label: 'From Order sign', code: '97110', system: 'http://www.ama-assn.org/go/cpt', description: 'Therapeutic exercise'},
+                    {id: 'c-2', code: 'E0601'}];
+                let given = [];
+                const card = createServiceCard({lineOfBusiness: () => '', options: () => null, savedCodes: () => given});
+                document.body.append(card.node);
+                const select = card.node.querySelector('select');
+                say(['none saved', select.closest('.field').hidden]);
+                given = saved;
+                card.drawSaved();
+                say(['offered', select.closest('.field').hidden, text(select.closest('.field').querySelector('label')),
+                    select.querySelectorAll('option').map(text)]);
+                select.value = 'c-1';
+                await select.dispatchEvent({type: 'change'});
+                await settle();
+                say(['picked', card.request().procedureCodes, text(card.node.querySelector('.code-lines')).includes('97110 from saved list'),
+                    select.value]);
+                select.value = 'c-1';
+                await select.dispatchEvent({type: 'change'});
+                say(['again', card.request().procedureCodes.length, text(card.node).includes('97110 is in the case already.'), stored]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"pages\",[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Procedure codes\",\"Access token\","
+                        + "\"Production writes\",\"Advanced\"],[\"procedure-codes\"]]",
+                "[\"page\",\"Test procedure codes\",[\"Label\",\"Code\",\"Code system\",\"Description\",\"Actions\"],"
+                        + "[\"From Order sign97110http://www.ama-assn.org/go/cptTherapeutic exerciseEdit\"],\"/api/lists/codes/template.csv\"]",
+                "[\"added\",[[\"/api/lists/codes\",{\"code\":\"E0601\"}]],true]",
+                "[\"none saved\",true]",
+                "[\"offered\",false,\"Saved codes\",[\"Choose a saved code\",\"97110 \u00b7 From Order sign\",\"E0601\"]]",
+                "[\"picked\",[{\"code\":\"97110\",\"system\":\"http://www.ama-assn.org/go/cpt\",\"description\":\"Therapeutic exercise\"}],"
+                        + "true,\"\"]",
+                "[\"again\",1,true,[]]");
     }
 }

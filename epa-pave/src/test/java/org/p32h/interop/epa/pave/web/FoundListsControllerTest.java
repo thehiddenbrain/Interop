@@ -232,4 +232,21 @@ class FoundListsControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.line").value(startsWith("The collection was not read: ")));
         assertThat(Files.exists(directory.resolve("lists"))).isFalse();
     }
+
+    @Test
+    void theCodesOfTheCollectionGoToTheProcedureCodesListOnceEach() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("store"));
+        MockMvc mvc = mvc(fixture, true);
+        String withEnvironment = body(COLLECTION, environment("Vendor UAT", "pat-001"), null, null);
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(withEnvironment))
+                .andExpect(jsonPath("$.line").value("Added to the saved lists: 1 member, 1 provider, 1 procedure code."))
+                .andExpect(jsonPath("$.codes.added").value(1));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/lists/codes"))
+                .andExpect(jsonPath("$.codes[0].label").value("From Order sign")).andExpect(jsonPath("$.codes[0].code").value("97110"))
+                .andExpect(jsonPath("$.codes[0].system").value("http://www.ama-assn.org/go/cpt"))
+                .andExpect(jsonPath("$.codes[0].description").value("Therapeutic exercise"));
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(withEnvironment))
+                .andExpect(jsonPath("$.line").value("Nothing new was added to the saved lists. Already there: 1 member, 1 provider, "
+                        + "1 procedure code."));
+    }
 }

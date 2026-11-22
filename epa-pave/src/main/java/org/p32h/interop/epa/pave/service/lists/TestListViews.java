@@ -34,6 +34,16 @@ public final class TestListViews {
         }
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonPropertyOrder({"enabled", "codes", "count", "problem"})
+    public record CodeList(boolean enabled, List<TestCode> codes, int count, String problem) {
+
+        @Override
+        public String toString() {
+            return "CodeList[enabled=" + enabled + ", count=" + count + "]";
+        }
+    }
+
     /** What a row of an imported file does, or would do on a dry run. */
     public enum Status {
         ADD, REPLACE, REFUSED

@@ -21,8 +21,10 @@ import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.Counts;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.Finds;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundCode;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundMember;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundProvider;
+import org.p32h.interop.epa.pave.service.lists.TestListViews.CodeList;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRow;
@@ -34,17 +36,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Saved test members and providers: added, replaced and removed one at a time, or imported from a
+ * Saved test members, providers and procedure codes: added, replaced and removed one at a time, or imported from a
  * CSV file with a dry run first. Entries are kept as given: nothing is looked up, nothing derived.
  * They exist on both profiles, never reach the ledger, and the log holds counts only.
  *
- * <p>One member ID (in its no-space form), one NPI and one vendor practitioner id name at most one
- * entry, so that a re-import knows which entry a row replaces.
+ * <p>One member ID (in its no-space form), one vendor patient id, one NPI, one vendor practitioner id
+ * and one code in one code system name at most one entry, so that a re-import knows which entry a
+ * row replaces.
  */
 @Service
 public class TestListService {
 
     private static final Logger log = LoggerFactory.getLogger(TestListService.class);
+
+    /** The file of the saved procedure codes, beside the two the store names. */
+    static final String CODES = "codes.json";
 
     static final String OFF = "Saved test lists are switched off on this installation (test-lists.enabled).";
     private static final String OFF_ACTION = "Set test-lists.enabled to true in application.yml, then start PAVE again.";
@@ -68,6 +74,7 @@ public class TestListService {
     private final Clock clock;
     private final Kind<TestMember, TestMemberInput> members;
     private final Kind<TestProvider, TestProviderInput> providers;
+    private final Kind<TestCode, TestCodeInput> codes;
 
     public TestListService(TestListProperties properties, TestListStore store, Clock clock) {
         this.properties = properties;
@@ -86,6 +93,25 @@ public class TestListService {
                 field -> "A saved provider has this " + ("npi".equals(field) ? "NPI" : "vendor practitioner id")
                         + " already. Edit that entry instead.",
                 "Its NPI and its vendor practitioner id belong to two different saved providers. Correct one of them.");
+        this.codes = new Kind<>(CODES, TestCode.class, "c-", "procedure code", TestCode.COLUMNS, TestCodeInput::of,
+                TestCodeInput::withId, TestCode::values, input -> input.withId(null).values(), TestListRules::code,
+                TestListService::sameCode, List.of("code"),
+                field -> "A saved procedure code has this code and code system already. Edit that entry instead.",
+                "This row matches two saved procedure codes. Correct one of them.");
+    }
+
+    /**
+     * The same procedure code: the same code in the same system as written, a code with no system
+     * being its own entry. 97110 of CPT and 97110 stated with no system are two entries, because
+     * the Service card sends the system with the code and the two are sent differently.
+     */
+    private static String sameCode(Map<String, String> a, Map<String, String> b) {
+        String code = a.get("code");
+        if (code == null || !code.equals(b.get("code"))) {
+            return null;
+        }
+        String system = a.get("system") == null ? "" : a.get("system");
+        return system.equals(b.get("system") == null ? "" : b.get("system")) ? "code" : null;
     }
 
     /**
@@ -133,6 +159,30 @@ public class TestListService {
         }
         TestListStore.Loaded<TestProvider> loaded = store.read(providers.file(), TestProvider.class);
         return new ProviderList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public CodeList codes() {
+        if (!enabled()) {
+            return new CodeList(false, List.of(), 0, null);
+        }
+        TestListStore.Loaded<TestCode> loaded = store.read(codes.file(), TestCode.class);
+        return new CodeList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public TestCode addCode(TestCodeInput input) {
+        return add(codes, input);
+    }
+
+    public TestCode replaceCode(String id, TestCodeInput input) {
+        return replace(codes, id, input);
+    }
+
+    public boolean removeCode(String id) {
+        return remove(codes, id);
+    }
+
+    public ImportResult importCodes(ImportRequest request) {
+        return importRows(codes, request);
     }
 
     public TestMember addMember(TestMemberInput input) {
@@ -187,7 +237,8 @@ public class TestListService {
     /**
      * Adds what a collection states to the saved lists. An entry a list holds already (the same
      * member ID or vendor patient id, NPI or vendor practitioner id) is left as it is; an entry
-     * that does not fit a full list is counted, never dropped in silence. Each entry is labelled
+     * that does not fit a full list is counted, never dropped in silence. A procedure code is the
+     * same when its code and its code system are. Each entry is labelled
      * with the request it was found in, so that it is told apart from one typed by hand.
      */
     public synchronized FoundAdd addFound(Finds finds) {
@@ -210,7 +261,13 @@ public class TestListService {
         }
         Counts memberCounts = addAll(members, memberInputs, memberFrom, notAdded);
         Counts providerCounts = addAll(providers, providerInputs, providerFrom, notAdded);
-        Counts codeCounts = new Counts(0, 0, 0, 0);
+        List<TestCodeInput> codeInputs = new ArrayList<>();
+        List<String> codeFrom = new ArrayList<>();
+        for (FoundCode found : finds.codes()) {
+            codeInputs.add(new TestCodeInput(label(found.from()), found.code(), found.system(), found.description()));
+            codeFrom.add(found.from());
+        }
+        Counts codeCounts = addAll(codes, codeInputs, codeFrom, notAdded);
         return new FoundAdd(memberCounts, providerCounts, codeCounts, notAdded);
     }
 
@@ -274,6 +331,17 @@ public class TestListService {
                         "dateOfBirth", "1990-11-02", "gender", "unknown", "lineOfBusiness", "Commercial", "subscriberId", "S123456787",
                         "vendorPatientId", "patient-sample-3"));
         return ListCsv.write(TestMember.COLUMNS, rows);
+    }
+
+    /** The procedure codes template: a code of each common system, and one with no system stated. */
+    public static String codeTemplate() {
+        List<Map<String, String>> rows = List.of(
+                row("label", "Therapy, needs prior authorization", "code", "97110", "system", "http://www.ama-assn.org/go/cpt",
+                        "description", "Therapeutic exercise"),
+                row("label", "Equipment", "code", "E0601", "system", "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                        "description", "Continuous positive airway pressure device"),
+                row("label", "No system stated", "code", "95810", "description", "Sleep study, attended"));
+        return ListCsv.write(TestCode.COLUMNS, rows);
     }
 
     /** The providers template: an NPI, then two vendor practitioner ids without one. */

@@ -20,7 +20,8 @@ export const BUTTON_WORDS = 'Add to the saved lists';
 /** The three saved lists, by where each opens, for the result line. */
 export const LIST_LINKS = [
     {words: 'Members', href: '#configuration/members'},
-    {words: 'Providers', href: '#configuration/providers'}
+    {words: 'Providers', href: '#configuration/providers'},
+    {words: 'Procedure codes', href: '#configuration/procedure-codes'}
 ];
 
 function present(value) {
