@@ -19,12 +19,26 @@ function listed(names) {
 }
 
 /**
- * The server's reason for the write state, less its first sentence when that only says again that
- * no environment is active: "Ready to send?" and the Environment row have said it already.
+ * The server's reason for the write state, less its opening when that only says again that no
+ * environment is active: "Ready to send?" and the Environment row have said it already. On mock
+ * the opening is a sentence of its own; on live it leads into why writes are refused.
  */
 function withoutNoEnvironment(reason, environment) {
-    const said = 'No environment is active. ';
-    return !environment.active && reason.startsWith(said) ? reason.slice(said.length) : reason;
+    const said = /^No environment is active(?:\. |, so writes are refused: )/.exec(reason);
+    if (environment.active || !said) {
+        return reason;
+    }
+    const rest = reason.slice(said[0].length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
+ * A row's sentence, or null when it only says that no environment is active: with eleven rows
+ * that would say it eleven times, and "Ready to send?" says it once, with the way to make one
+ * active (look-19). saidAbove: "Ready to send?" was drawn.
+ */
+function rowSentence(text, saidAbove) {
+    return text && saidAbove && text.startsWith('No environment is active.') ? null : text;
 }
 
 /** Draws the page into root. route: the parts of the address after #configuration. */
@@ -53,7 +67,7 @@ export function mount(root, route) {
         fill(body,
             ready,
             pointed(data, mode, environments.ok ? environments.data : null, ready !== null),
-            operationsPart(data),
+            operationsPart(data, ready !== null),
             settingsPart(data));
     }
 
@@ -145,7 +159,7 @@ export function mount(root, route) {
 
     /* ---------- every operation, where it goes, and what stands in its way ---------- */
 
-    function operationsPart(data) {
+    function operationsPart(data, saidAbove) {
         const rows = (Array.isArray(data.operations) ? data.operations : []).filter(row => row.operation !== 'UNMAPPED');
         if (rows.length === 0) {
             return null;
@@ -158,7 +172,7 @@ export function mount(root, route) {
             key: [row.label || row.operation, row.method ? [' ', chip(row.method, {mono: true})] : null,
                 row.write ? [' ', chip('write', {tone: 'blocked', title: 'On production it is blocked unless writes are unlocked.'})] : null],
             value: [el('div', null, addressCell(row), el('span', {class: 'kv__display'}, sourceCell(row))),
-                el('div', null, statusCell(row, signIn))]
+                el('div', null, statusCell(row, signIn, saidAbove))]
         })))));
     }
 
@@ -187,13 +201,15 @@ export function mount(root, route) {
         ];
     }
 
-    function statusCell(row, signIn) {
+    function statusCell(row, signIn, saidAbove) {
         const parts = [];
+        const unavailable = rowSentence(row.unavailable, saidAbove);
+        const note = rowSentence(row.note, saidAbove);
         if (row.blocked) {
             parts.push(el('div', {title: row.blocked}, el('strong', null, 'Blocked by the production guardrail. '), row.blockedShort || row.blocked));
         }
         if (row.unavailable) {
-            parts.push(el('div', null, row.outbound ? el('strong', null, 'Cannot be sent. ') : null, row.unavailable));
+            parts.push(el('div', null, row.outbound ? el('strong', null, unavailable ? 'Cannot be sent. ' : 'Cannot be sent.') : null, unavailable));
         }
         if (row.outbound && !row.blocked && !row.unavailable && row.operation !== 'UNMAPPED') {
             if (signIn && signIn.enabled && signIn.problem) {
@@ -205,9 +221,9 @@ export function mount(root, route) {
                 parts.push(el('strong', null, 'Yes.'));
             }
         }
-        if (row.note) {
+        if (note) {
             // On the same line as the state it explains.
-            parts.push(parts.length > 0 ? ' ' : null, el('span', {class: 'small'}, row.note));
+            parts.push(parts.length > 0 ? ' ' : null, el('span', {class: 'small'}, note));
         }
         return parts;
     }

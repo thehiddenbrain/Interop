@@ -265,6 +265,44 @@ class ConfigPagesFrontendTest {
     }
 
     @Test
+    void withNoEnvironmentActiveInForceNowSaysSoOnceOnMockAndOnLive(@TempDir Path folder) throws Exception {
+        // The server's words as ConfigService and ConfigStoreGateway write them with no environment active.
+        NodeRun run = StaticSources.runModule(folder, "cfg-inforce.js", PRELUDE + """
+            const none = 'No environment is active. Open Configuration and make one active.';
+            const page = async (profile, write, row) => {
+                fake.mode = {mode: profile, environment: {active: false}, writeAccess: {production: false, writesAllowed: profile === 'mock', reason: write}};
+                fake.answers['GET /api/config/effective'] = {status: 200, body: {mode: profile, problems: [],
+                    operations: [
+                        Object.assign({operation: 'CRD_ORDER_SIGN', label: 'CRD order-sign', outbound: true, method: 'POST', write: false}, row),
+                        Object.assign({operation: 'PAS_SUBMIT', label: 'PAS submit', outbound: true, method: 'POST', write: true}, row),
+                        {operation: 'DTR_QUESTIONNAIRE_RESPONSE', label: 'DTR questionnaire response', outbound: false,
+                            note: 'This step is completed inside the tool. Nothing is sent for it, so it has no target.'}],
+                    readiness: {environmentLine: 'none is active.', environmentActive: false, collections: 0, mapped: 0, sendable: 0, outbound: 2, missingSecrets: []}}};
+                fake.answers['GET /api/config/environments'] = {status: 200, body: {environments: []}};
+                const {mount} = await import('./js/cfg-inforce.js');
+                const root = document.createElement('div');
+                document.body.append(root);
+                const drawn = mount(root, ['advanced', 'in-force']);
+                await settle();
+                const all = text(root);
+                drawn.unmount();
+                return [profile, all.split('No environment is active').length - 1, all.split('no address').length - 1,
+                    all.includes('This step is completed inside the tool.'), all.includes('Make one active')];
+            };
+            say(await page('mock', 'No environment is active. On the mock profile nothing is sent, so writes are allowed.',
+                {note: none + ' On the mock profile nothing is sent, so this still runs.'}));
+            say(await page('live', 'No environment is active, so writes are refused: this tool cannot tell whether a target is production. '
+                + 'Upload an environment, state its kind and activate it.', {unavailable: none}));
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        // Said once, in "Ready to send?" with the way to make one active (look-19); each row keeps its
+        // address and a sentence that says anything else.
+        assertThat(run.lines()).containsExactly(
+                "[\"mock\",1,2,true,true]",
+                "[\"live\",1,2,true,true]");
+    }
+
+    @Test
     void accessTokenNeverShowsASecretAndOffersOnlyWhatTheServerServes(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "cfg-token.js", PRELUDE + """
             fake.mode = {mode: 'live', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true}, writeAccess: {production: false}};
