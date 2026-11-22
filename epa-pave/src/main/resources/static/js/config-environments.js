@@ -647,7 +647,7 @@ export function createEditor(options) {
             el('td', null, variable.secret ? chip('masked', {tone: 'neutral'})
                 : variable.display !== undefined && variable.display !== null ? el('span', {class: 'mono'}, String(variable.display))
                     : chip('blank', {dashed: true})),
-            el('td', null, variable.used === true ? 'used' : variable.used === false ? 'not used' : '')));
+            el('td', null, variable.enabled === false ? 'switched off' : variable.used === true ? 'used' : variable.used === false ? 'not used' : '')));
         return fold({summary: 'Variables of the Postman environment (' + variables.length + ')',
             body: el('table', {class: 'ops-table'}, el('tbody', null, rows))});
     }
@@ -893,14 +893,20 @@ export function createEditor(options) {
         if (addressInputs.size > 0) {
             body.addresses = collectAddresses();
         }
-        if (settings && settings.memberIdRule && inputs.memberIdRule.value) {
+        // The rule and the shapes go only when the tester or the files changed them: sending the value
+        // shown would turn a default, or the evidence of the collection's sample, into a stated value.
+        if (settings && settings.memberIdRule && inputs.memberIdRule.value && inputs.memberIdRule.value !== settings.memberIdRule.rule) {
             body.memberIdRule = inputs.memberIdRule.value;
         }
-        if (shapeInputs.size > 0) {
-            body.shapes = {};
-            for (const [key, select] of shapeInputs) {
-                body.shapes[key] = select.value;
+        const shapes = {};
+        for (const [key, select] of shapeInputs) {
+            const shown = (Array.isArray(settings && settings.shapes) ? settings.shapes : []).find(each => each.key === key);
+            if (!shown || select.value !== shown.value) {
+                shapes[key] = select.value;
             }
+        }
+        if (Object.keys(shapes).length > 0) {
+            body.shapes = shapes;
         }
         if (settings && Array.isArray(settings.values)) {
             body.values = collectValues();
@@ -1108,7 +1114,8 @@ function shapeLine(shape) {
 
 function operationChip(address) {
     const inForce = address.inForce || {};
-    const none = !inForce.source || inForce.source === 'NONE';
+    // Nothing in force for this operation: the server says NONE or NOT_SET.
+    const none = !inForce.source || inForce.source === 'NONE' || inForce.source === 'NOT_SET';
     // The plan names the short label "short"; the server's record may name it "shortLabel". Either is the server's word.
     const words = address.short || address.shortLabel || address.label || address.operation;
     return chip(words, {dashed: none, title: inForce.sourceLabel || null});
