@@ -3,6 +3,8 @@ package org.p32h.interop.epa.pave.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -197,14 +199,225 @@ class ModeSwitchFrontendTest {
                 "[null,null,null,false,false]");
     }
 
-    /** The frame: no plain reload on a change of mode, which kept a case's address; the address carries the switch and is cleaned at start. */
+    /**
+     * The frame itself (app.js) on the page that asks: the line said after a switch is read from the
+     * address and taken out of it before a view writes the address; the question is asked with what
+     * is held read afresh; while PAVE switches, the page shows the waiting state that ignores Escape,
+     * disables the control, says nothing of PAVE not answering and keeps its own polls back; once the
+     * new start answers, the page is loaded again onto its tab with what was dropped.
+     */
     @Test
-    void theFrameLoadsAPageLeftOpenAgainOntoItsTabAndTakesTheSwitchOutOfTheAddress() throws IOException {
+    void theFrameAsksWaitsWithoutSayingPaveIsDownAndLoadsTheTabAgainOnTheNewMode(@TempDir Path folder) throws Exception {
+        Files.writeString(folder.resolve("frame.js"), FRAME, StandardCharsets.UTF_8);
+        NodeRun run = StaticSources.runModule(folder, "the frame on the page that asks", """
+                import {frame} from './frame.js';
+                const say = value => console.log(JSON.stringify(value));
+                const page = frame('/?pave-now=live&pave-dropped=unlock#history');
+                await page.answer({mode: 'live', startedAt: 's1', held: {productionUnlock: false, pastedToken: true}});
+                await page.start();
+                say([page.replaced, window.location.search, window.location.hash, page.notice(), page.parts()]);
+                // The tester presses MOCK: what is held is read afresh, then the one question.
+                await document.getElementById('profile').querySelector('button[data-mode="mock"]').click();
+                await page.answer({mode: 'live', startedAt: 's1', held: {productionUnlock: false, pastedToken: true}});
+                say([page.dialog().querySelector('.modal__title').textContent, page.dialog().querySelectorAll('.mode-switch__words p').map(p => p.textContent)]);
+                page.postAnswer = {status: 202, body: {mode: 'live', startedAt: 's1', switchingTo: 'mock', held: {productionUnlock: false, pastedToken: true}}};
+                await page.dialog().querySelectorAll('button').find(b => b.textContent === 'Switch to mock').click();
+                await page.settle();
+                let prevented = false;
+                await page.switching().dispatchEvent({type: 'cancel', preventDefault() { prevented = true; }});
+                say([page.posted, page.switching().open, page.switching().textContent, prevented, page.parts().map(part => part[2])]);
+                // PAVE is down while it switches: that is not said as PAVE not answering, and the frame's polls wait.
+                const health = page.health;
+                await page.answer('down');
+                await page.fire('focus');
+                await page.answer({mode: 'live', startedAt: 's1', switchingTo: 'mock'});
+                say([page.notice(), page.health - health, page.loadedOn]);
+                await page.answer({mode: 'mock', startedAt: 's2', held: {productionUnlock: false, pastedToken: false}});
+                say([page.loadedOn, Object.keys(page.storage)]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"/#history\",\"#audit\"],\"\",\"#audit\",\"Now on live. The production unlock was dropped.\",[[\"MOCK\",\"false\",false],"
+                        + "[\"LIVE\",\"true\",false]]]",
+                "[\"Switch to mock?\",[\"PAVE restarts itself on mock. It takes a few seconds.\",\"The case on the Workbench is cleared.\","
+                        + "\"On mock, answers come from scenario files and nothing is sent.\",\"The pasted access token is dropped.\"]]",
+                "[[{\"mode\":\"mock\"}],true,\"Switching to mock...\",true,[true,true]]",
+                "[\"Now on live. The production unlock was dropped.\",0,[]]",
+                "[[\"/?pave-now=mock&pave-dropped=token#audit\"],[\"pave.tab\"]]");
+    }
+
+    /**
+     * The frame on a page left open: it sees a switch another page asked for and waits for it the
+     * same way; when nothing answers within the minute it says so and polls again; when PAVE is then
+     * found on the other mode, the page is loaded again onto its tab, never on its own address.
+     */
+    @Test
+    void theFrameOnAPageLeftOpenFollowsASwitchSaysWhenNothingCameBackAndNoticesTheOtherMode(@TempDir Path folder) throws Exception {
+        Files.writeString(folder.resolve("frame.js"), FRAME, StandardCharsets.UTF_8);
+        NodeRun run = StaticSources.runModule(folder, "the frame on a page left open", """
+                import {frame} from './frame.js';
+                const say = value => console.log(JSON.stringify(value));
+                const page = frame('/#workbench');
+                await page.answer({mode: 'mock', startedAt: 's1', held: {productionUnlock: true, pastedToken: false}});
+                await page.start();
+                say([page.replaced, page.notice(), page.parts()]);
+                // Another page asked for a switch: this one sees it under way and waits for it as well.
+                await page.fire('focus');
+                await page.answer({mode: 'mock', startedAt: 's1', switchingTo: 'live', held: {productionUnlock: true, pastedToken: false}});
+                say([Boolean(page.switching()), page.switching() && page.switching().textContent, page.parts().map(part => part[2])]);
+                const health = page.health;
+                await page.answer('down');
+                await page.fire('focus');
+                say([page.notice(), page.health - health]);
+                // Nothing answers within the minute.
+                for (let i = 0; i < 8 && page.switching(); i++) {
+                  await page.expire();
+                }
+                say([page.switching(), page.notice(), page.parts().map(part => part[2]), page.loadedOn]);
+                await page.drain({mode: 'mock', startedAt: 's1', held: {productionUnlock: true, pastedToken: false}});
+                // It comes back later on live, started by hand: the page is loaded again onto its tab and says so.
+                await page.fire('focus');
+                await page.answer({mode: 'live', startedAt: 's3', held: {productionUnlock: false, pastedToken: false}});
+                say(page.loadedOn);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[],\"\",[[\"MOCK\",\"true\",false],[\"LIVE\",\"false\",false]]]",
+                "[true,\"Switching to live...\",[true,true]]",
+                "[\"\",0]",
+                "[null,\"PAVE did not come back. Look at its console, then start it again.\",[false,false],[]]",
+                "[\"/?pave-now=live&pave-dropped=unlock#workbench\"]");
+    }
+
+    /** The frame: no plain reload on a change of mode, which kept a case's address. */
+    @Test
+    void theFrameNeverReloadsItsOwnAddressAndHasThePlaceOfTheControl() throws IOException {
         String app = StaticSources.withoutComments(StaticSources.script("app.js"));
         assertThat(app).doesNotContain("location.reload(");
-        assertThat(app).contains("window.location.replace(noticedAddress(");
-        assertThat(app).contains("window.location.replace(returnAddress(");
-        assertThat(app).contains("window.history.replaceState(null, '', window.location.pathname + window.location.hash)");
         assertThat(StaticSources.read("index.html")).contains("<div class=\"mode-switch\" id=\"profile\" hidden></div>");
     }
+
+    /**
+     * A stand-in for the window around app.js, written beside the scripts as frame.js: an address, a
+     * history, storage, listeners, timers on a clock the script moves, and a server whose answers to
+     * GET /api/mode the script hands out one at a time, so a question can stay open as on a PAVE
+     * that is stopping. The three views are replaced by ones that only name themselves.
+     */
+    private static final String FRAME = """
+            // A stand-in for the window around app.js: an address, a history, storage, listeners, timers on a
+            // clock the script moves, and a server whose answers to GET /api/mode the script hands out one by one.
+            import './browser.js';
+            import {el} from './js/dom.js';
+            import fs from 'node:fs';
+
+            for (const view of ['workbench', 'audit', 'configuration']) {
+              fs.writeFileSync('./js/' + view + '.js', "export function mount(root) { root.textContent = 'view " + view + "'; return {}; }");
+            }
+
+            export function frame(address) {
+              const url = new URL(address, 'http://localhost');
+              const listeners = {};
+              const long = [];
+              const t = {now: 0};
+              const page = {replaced: [], loadedOn: [], storage: {}, health: 0, posted: []};
+              const place = to => {
+                const next = new URL(to, 'http://localhost' + window.location.pathname + window.location.search);
+                window.location.pathname = next.pathname;
+                window.location.search = next.search;
+                window.location.hash = next.hash;
+              };
+              globalThis.window = {
+                location: {pathname: url.pathname, search: url.search, hash: url.hash, replace: to => page.loadedOn.push(to)},
+                history: {replaceState: (s, title, to) => { page.replaced.push(to); place(to); }, pushState: (s, title, to) => place(to)},
+                localStorage: {getItem: k => (k in page.storage ? page.storage[k] : null), setItem: (k, v) => { page.storage[k] = String(v); }},
+                addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+                setInterval: () => 0,
+                // A pause of a second or less passes at once; a longer one only when the script lets time go.
+                setTimeout: (fn, millis) => {
+                  const due = t.now + millis;
+                  if (millis <= 1000) {
+                    setTimeout(() => { t.now = Math.max(t.now, due); fn(); }, 1);
+                  } else {
+                    long.push({due, fn});
+                  }
+                  return 0;
+                },
+                scrollTo: () => {}
+              };
+              Date.now = () => t.now;
+              document.hidden = false;
+              document.title = '';
+              document.addEventListener = (type, fn) => { (listeners['document:' + type] = listeners['document:' + type] || []).push(fn); };
+              const nav = el('nav', {id: 'tabs'}, ['workbench', 'audit', 'configuration'].map(tab => el('a', {class: 'tabs__tab', 'data-tab': tab}, tab)));
+              document.body.append(el('header', {id: 'topbar'}, el('span', {id: 'tool-name'}), nav, el('span', {id: 'audit-count'}),
+                el('select', {id: 'environment'}), el('span', {id: 'kind'}), el('div', {class: 'mode-switch', id: 'profile', hidden: true}),
+                el('span', {id: 'sign-in'}), el('span', {id: 'stamp'})),
+                el('div', {id: 'line-environment'}), el('div', {id: 'line-ledger'}), el('div', {id: 'line-files'}), el('div', {id: 'line-notice'}),
+                el('p', {id: 'frame-news'}), el('main', {id: 'main'}));
+              const waiting = [];
+              const ready = [];
+              const reply = answer => answer === 'down' ? Promise.reject(new TypeError('Failed to fetch'))
+                : Promise.resolve({ok: answer.status < 300, status: answer.status, text: async () => JSON.stringify(answer.body)});
+              globalThis.fetch = (address, request) => {
+                if (address === '/api/runs/health') {
+                  page.health += 1;
+                  return reply({status: 200, body: {enabled: true, writable: true, runsToday: 0}});
+                }
+                if (address === '/api/config/environments') {
+                  return reply({status: 200, body: {environments: []}});
+                }
+                if (address === '/api/mode' && request.method === 'POST') {
+                  page.posted.push(JSON.parse(request.body));
+                  return reply(page.postAnswer);
+                }
+                if (address === '/api/mode') {
+                  if (ready.length > 0) {
+                    return reply(ready.shift());
+                  }
+                  return new Promise(resolve => waiting.push(resolve)).then(reply);
+                }
+                return reply({status: 404, body: {kind: 'NOT_FOUND', title: 'No such address.'}});
+              };
+              const settle = () => new Promise(resolve => setTimeout(resolve, 30));
+              return Object.assign(page, {
+                settle,
+                /** The next GET /api/mode is answered so: a view of /api/mode, or 'down' for no answer at all. */
+                answer(answer) {
+                  const given = answer === 'down' ? 'down' : {status: 200, body: answer};
+                  if (waiting.length > 0) {
+                    waiting.shift()(given);
+                  } else {
+                    ready.push(given);
+                  }
+                  return settle();
+                },
+                /** Every question still open gets this answer. */
+                drain(answer) {
+                  while (waiting.length > 0) {
+                    waiting.shift()({status: 200, body: answer});
+                  }
+                  return settle();
+                },
+                /** Time goes on until every longer pause has passed. */
+                async expire() {
+                  for (const timer of long.splice(0).sort((a, b) => a.due - b.due)) {
+                    t.now = Math.max(t.now, timer.due);
+                    timer.fn();
+                  }
+                  await settle();
+                },
+                fire(type) {
+                  for (const fn of listeners[type] || []) {
+                    fn({type});
+                  }
+                  return settle();
+                },
+                notice: () => document.getElementById('line-notice').textContent.replace('Dismiss this notice', ''),
+                parts: () => document.getElementById('profile').querySelectorAll('button').map(b => [b.textContent, b.getAttribute('aria-pressed'), Boolean(b.disabled)]),
+                switching: () => document.querySelector('dialog.modal--switching'),
+                dialog: () => document.querySelector('dialog.modal'),
+                start: () => import('./js/app.js').then(settle)
+              });
+            }
+            """;
 }
