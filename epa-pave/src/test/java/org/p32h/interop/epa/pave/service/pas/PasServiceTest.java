@@ -63,6 +63,7 @@ import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
@@ -1553,5 +1554,22 @@ class PasServiceTest {
         gateway.failing(blockedWrite());
         assertThat(service().previewSubmit(complete, null).toComplete()).isNull();
         assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aProviderNamedByTheVendorsOwnIdNeedsNoNpiAndTheRequestNamesItsPractitionerByThatId() {
+        PasSubmitRequest request = submission("P32H-PAS-APPROVED")
+                .provider(ProviderDetail.builder().lastName("Provider").vendorPractitionerId("P124").build()).build();
+        JsonNode bundle = sentBundle(service().runSubmit(request, RunOrigin.manual(), null));
+        assertThat(bundle.at("/entry/3/resource/resourceType").asString()).isEqualTo("Practitioner");
+        assertThat(bundle.at("/entry/3/resource/id").asString()).isEqualTo("P124");
+        assertThat(service().previewInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM)
+                .provider(ProviderDetail.builder().vendorPractitionerId("P124").build()).build(), null).body()).contains("\"P124\"");
+        // Neither an NPI nor a vendor id: refused at the NPI, with the sentence that names both.
+        assertThatThrownBy(() -> service().previewSubmit(submission("P32H-PAS-APPROVED").provider(ProviderDetail.builder().lastName("Provider")
+                .build()).build(), null)).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                .contains(new FieldError("provider.npi", RunInputs.NPI_OR_VENDOR_ID)));
+        assertInvalidSubmit(service(), submission("P32H-PAS-APPROVED").provider(ProviderDetail.builder().vendorPractitionerId("P 124").build())
+                .build(), "provider.vendorPractitionerId");
     }
 }

@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.Npi;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import java.math.BigDecimal;
 import java.util.List;
@@ -63,25 +64,11 @@ final class PasCardChecks {
             return;
         }
         if (Texts.present(provider.npi())) {
-            String problem = Npi.problem(provider.npi());
-            inputs.require(problem == null, "servicingProvider.npi", problem);
+            String npiProblem = Npi.problem(provider.npi());
+            inputs.require(npiProblem == null, "servicingProvider.npi", npiProblem);
         }
-        String vendorId = Texts.trimToNull(provider.vendorPractitionerId());
-        inputs.require(vendorId == null || resourceId(vendorId), "servicingProvider.vendorPractitionerId",
-                "A vendor practitioner id is up to 64 letters, digits, hyphens and dots, as a FHIR resource id is.");
-    }
-
-    private static boolean resourceId(String text) {
-        if (text.length() > 64) {
-            return false;
-        }
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '.')) {
-                return false;
-            }
-        }
-        return true;
+        String problem = CaseResources.vendorIdProblem("A vendor practitioner id", provider.vendorPractitionerId());
+        inputs.require(problem == null, "servicingProvider.vendorPractitionerId", problem);
     }
 
     private static void closed(RunInputs inputs, String field, String value, List<PasOptions.Option> list, String what) {

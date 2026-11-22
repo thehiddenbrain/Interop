@@ -518,7 +518,8 @@ public class PasService {
         RunInputs inputs = shared(request);
         claimIdShape(inputs, "claimId", request.claimId());
         if (!RunSupport.ownBody(request)) {
-            inputs.member(request.member()).provider(request.provider()).codes(request.procedureCodes());
+            // An NPI, or the vendor's own practitioner id with the NPI then optional (R-40).
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider()).codes(request.procedureCodes());
             // The card's fields go into the built request only, so a body of the tester's own is not refused for them.
             PasCardChecks.check(request, inputs);
         }
@@ -538,7 +539,7 @@ public class PasService {
         if (!RunSupport.ownBody(request)) {
             inputs.require(claimId(request, false) != null, "claimId",
                     "Enter the claim id of the submission to ask about, or start the inquiry from a submission.");
-            inputs.member(request.member()).provider(request.provider());
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider());
             // The codes are optional for an inquiry. When they are given, none may be blank.
             for (int i = 0; i < request.procedureCodes().size(); i++) {
                 CodeInput code = request.procedureCodes().get(i);
@@ -557,8 +558,8 @@ public class PasService {
             if (request.member() != null && Texts.present(request.member().memberId())) {
                 inputs.member(request.member());
             }
-            if (request.provider() != null && Texts.present(request.provider().npi())) {
-                inputs.provider(request.provider());
+            if (request.provider() != null && (Texts.present(request.provider().npi()) || Texts.present(request.provider().vendorPractitionerId()))) {
+                inputs.providerByNpiOrVendorId(request.provider());
             }
         }
         claimIdShape(inputs, "carry." + NextStepView.CARRY_CLAIM_ID, first(request, NextStepView.CARRY_CLAIM_ID));

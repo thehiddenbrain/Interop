@@ -693,22 +693,17 @@ final class PasResources {
         }
         return concept;
     }
-    /**
-     * The Patient's resource id: the vendor patient id when one was given, else this tool's own
-     * (R-40). Never a form of the member ID, which is an identifier and not an id.
-     */
+    /** The Patient's resource id, chosen where CRD and DTR choose it, so a chained run names one patient throughout (R-40). */
     static String patientId(MemberDetail member) {
-        String vendor = member == null ? null : Texts.trimToNull(member.vendorPatientId());
-        return vendor == null ? CaseResources.PATIENT_ID : vendor;
+        return CaseResources.patientId(member);
     }
 
     static String patientRef(MemberDetail member) {
         return "Patient/" + patientId(member);
     }
 
-    /** The requesting Practitioner's resource id: the vendor practitioner id when one was given, else this tool's own (R-40). */
+    /** The requesting Practitioner's resource id, chosen where CRD and DTR choose it, so DTR's answers name the same author (R-40). */
     static String practitionerId(ProviderDetail provider) {
-        String vendor = provider == null ? null : Texts.trimToNull(provider.vendorPractitionerId());
-        return vendor == null ? CaseResources.PRACTITIONER_ID : vendor;
+        return CaseResources.practitionerId(provider);
     }
 }
