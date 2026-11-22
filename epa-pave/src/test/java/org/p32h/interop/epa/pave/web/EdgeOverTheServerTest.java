@@ -261,7 +261,8 @@ class EdgeOverTheServerTest {
         // decides first, and nothing is read.
         String boundary = "edge-lazy";
         byte[] body = RawHttp.multipart(boundary, "file", "cases.csv", filled(26 * MB));
-        assertThat(RawHttp.send(port, RawHttp.multipartHead("/api/mode", port, boundary, body.length), body).status()).isEqualTo(405);
+        // An address that takes GET only: /api/mode takes a POST since the switch between mock and live.
+        assertThat(RawHttp.send(port, RawHttp.multipartHead("/api/runs/health", port, boundary, body.length), body).status()).isEqualTo(405);
         assertThat(RawHttp.send(port, RawHttp.multipartHead("/api/no-such-endpoint", port, boundary, body.length), body).status())
                 .isEqualTo(404);
     }
@@ -400,7 +401,8 @@ class EdgeOverTheServerTest {
 
     @Test
     void aMethodTheRequestMadeUpIsNotRepeated() throws IOException {
-        Answer method = RawHttp.get(port, "S123456789 /api/mode HTTP/1.1", host());
+        // An address that takes GET only: /api/mode takes a POST since the switch between mock and live.
+        Answer method = RawHttp.get(port, "S123456789 /api/runs/health HTTP/1.1", host());
         assertThat(method.status()).isEqualTo(405);
         assertThat(method.title()).isEqualTo("This endpoint does not accept that method.");
         assertThat(method.json().get("action").asString()).isEqualTo("Use GET.");

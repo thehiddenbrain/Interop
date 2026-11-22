@@ -42,7 +42,7 @@ const CLIENT_AUTHENTICATION = [
     {value: 'BODY', words: 'In the form body'}
 ];
 
-const PROFILE_WORDS = {mock: 'Mock, chosen when PAVE starts', live: 'Live, chosen when PAVE starts'};
+const PROFILE_WORDS = {mock: 'Mock. Switch it in the top bar.', live: 'Live. Switch it in the top bar.'};
 
 const encode = encodeURIComponent;
 

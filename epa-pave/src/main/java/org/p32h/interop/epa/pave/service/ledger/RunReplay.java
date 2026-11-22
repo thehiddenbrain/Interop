@@ -152,6 +152,22 @@ public class RunReplay {
      * clock. Null means the days the runs' own timestamps name, as without it.
      */
     public ReplayReport replay(LocalDate from, LocalDate to, List<String> runIds, java.time.ZoneId zone) {
+        running.incrementAndGet();
+        try {
+            return replayCounted(from, to, runIds, zone);
+        } finally {
+            running.decrementAndGet();
+        }
+    }
+
+    /** True while a replay is sending: a switch of mode would cut it short, so the switch waits for this to be false. */
+    public boolean running() {
+        return running.get() > 0;
+    }
+
+    private final java.util.concurrent.atomic.AtomicInteger running = new java.util.concurrent.atomic.AtomicInteger();
+
+    private ReplayReport replayCounted(LocalDate from, LocalDate to, List<String> runIds, java.time.ZoneId zone) {
         List<String> ids = distinctIds(runIds);
         boolean ranged = from != null || to != null;
         if (!ranged && ids.isEmpty()) {

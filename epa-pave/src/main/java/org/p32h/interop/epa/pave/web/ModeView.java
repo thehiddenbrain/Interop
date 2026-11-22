@@ -30,25 +30,54 @@ import org.p32h.interop.epa.pave.service.config.WriteAccess;
  * @param signIn      how PAVE signs in to the active environment's service now, for the chip beside
  *                    the mode (plan 7.5). Absent on mock, where nothing signs in, so the top bar
  *                    shows no chip there
- * @param startedAt   the instant this PAVE process started, as ISO-8601 UTC, the same on every
- *                    answer for the life of the process and never moved by a change of the
- *                    configuration. The epoch moves at every start, so a page tells a restart
- *                    (both moved) from a change made in another window (the epoch alone) by it (I-13)
+ * @param startedAt   the instant the start of PAVE that answers began, as ISO-8601 UTC: the start
+ *                    of the process, or of the latest switch between mock and live made on screen,
+ *                    which restarts PAVE in place. The same on every answer of one start and never
+ *                    moved by a change of the configuration. The epoch moves at every start, so a
+ *                    page tells a restart (both moved) from a change made in another window (the
+ *                    epoch alone) by it (I-13)
+ * @param held        what this browser session holds that a switch of mode drops, for the switch's
+ *                    dialog to say before it asks. Absent where no session was read
+ * @param switchingTo the mode a switch under way goes to. Absent when none is under way, which is
+ *                    every answer but the few in the moment before PAVE closes for a switch
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
-                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn, String startedAt) {
+                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn, String startedAt,
+                       Held held, String switchingTo) {
+
+    /** Without what is held and without a switch under way. */
+    public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
+                    WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn, String startedAt) {
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, signIn, startedAt, null, null);
+    }
+
+    /** The same answer, naming the mode a switch now under way goes to. */
+    public ModeView switching(String to) {
+        return new ModeView(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, signIn,
+                startedAt, held, to);
+    }
+
+    /**
+     * What a switch of mode drops for this browser session, since nothing in memory outlives a
+     * start: the production unlock, and the access token pasted for the active environment.
+     *
+     * @param productionUnlock true when this browser session holds a production unlock
+     * @param pastedToken      true when a pasted access token is held (live only; on mock none can be)
+     */
+    public record Held(boolean productionUnlock, boolean pastedToken) {
+    }
 
     /** Without the instant of the start. */
     public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
                     WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn) {
-        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, signIn, null);
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, signIn, null, null, null);
     }
 
     /** Without a sign-in state, as on mock. */
     public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
                     WriteAccess writeAccess, String bindAddress, String bindNote, Build build) {
-        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, null, null);
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, null, null, null, null);
     }
 
     /**

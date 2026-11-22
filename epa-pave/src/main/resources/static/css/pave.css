@@ -704,6 +704,97 @@ input[type="radio"] {
     color: var(--white);
 }
 
+/* The switch between mock and live, in place of the profile badge: the part in force is the badge
+   as it was, the other a quiet button beside it, so the bar still reads MOCK or LIVE at a glance. */
+.mode-switch {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0;
+}
+
+/* The two parts read as one control: the quiet part sits against the part in force. */
+.mode-switch__part + .mode-switch__part {
+    margin-left: 2px;
+}
+
+.mode-switch__part {
+    padding: 0 7px;
+    cursor: pointer;
+}
+
+.mode-switch__part[aria-pressed="true"] {
+    cursor: default;
+}
+
+.mode-switch__other {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 7px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-control);
+    background: transparent;
+    color: var(--ink-soft);
+    font: 600 var(--text-xs)/1 var(--font-body);
+    white-space: nowrap;
+}
+
+.mode-switch__other:hover:not(:disabled) {
+    border-style: solid;
+    border-color: var(--ink-soft);
+    color: var(--ink-strong);
+}
+
+.mode-switch__part:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 2px;
+}
+
+.mode-switch__part:disabled {
+    cursor: wait;
+}
+
+.topbar--prod .mode-switch__other {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.topbar--prod .mode-switch__other:hover:not(:disabled) {
+    border-color: var(--white);
+    color: var(--white);
+}
+
+.topbar--prod .mode-switch__part:focus-visible {
+    outline-color: var(--white);
+}
+
+.mode-switch__words {
+    display: grid;
+    gap: var(--s-2);
+}
+
+.mode-switch__refusal:empty {
+    display: none;
+}
+
+.mode-switch__refusal {
+    color: var(--fail-ink);
+}
+
+.modal.modal--small {
+    width: min(560px, calc(100vw - 48px));
+}
+
+.modal.modal--switching {
+    width: min(420px, calc(100vw - 48px));
+}
+
+.mode-switch__switching {
+    font-size: var(--text-md);
+    font-weight: 600;
+}
+
 /* ---------- workbench layout ---------- */
 
 .workbench {
@@ -2166,10 +2257,12 @@ input[type="radio"] {
     }
 
     /* The chooser names the environment in force, so the sign-in chip, whose words its title
-       holds, gives way first (live-config-7): two names that share a prefix stay told apart. */
+       holds, gives way first (live-config-7): two names that share a prefix stay told apart. Down
+       to its first word or so, since the switch between mock and live took the room the profile
+       badge alone left free. */
     .topbar__signin {
         flex-shrink: 8;
-        min-width: 80px;
+        min-width: 48px;
         max-width: 96px;
     }
 }

@@ -342,6 +342,18 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         return views;
     }
 
+    /** True while a suite runs: a switch of mode would cut it short, so the switch waits for this to be false. */
+    public boolean running() {
+        synchronized (lock) {
+            for (Run run : runs.values()) {
+                if (run.state == SuiteState.RUNNING) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     /** Asks a running suite to stop after the case it is on. A run that has ended is returned as it is. */
     public SuiteRunView stop(String suiteRunId) {
         Run run = find(suiteRunId);

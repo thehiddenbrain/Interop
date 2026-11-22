@@ -59,13 +59,14 @@ entry.
 | D-294 | Saved lists of test members and providers | Member data kept on purpose, on the operator's leave, within the bounds of D-298 |
 | D-295 | Uploads, the classes on disk, the build stamp and the run scripts | The likeliest cause of the operator's failed uploads now has its line and its action. Seen in the real STS 5.4.0 and under Wine, not on Windows |
 | D-296 | Audit: the runs, one run and replay | Journeys, Suites and a run's request and answer from the trail are release 2 |
-| D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile |
+| D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile. **Later (D-304): a start follows the launcher, and the top bar switches a running PAVE by a restart in place** |
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
 | D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test, six of which the recheck of the final build saw closed on `22478b8`; what the rechecks left was corrected in a second round, except what `PROGRESS.md` lists as open (features-8 among them, I-28a being withdrawn); each left open is an open line of `PROGRESS.md`. The recheck of the final build found four more, corrected in a third round (D-300). Nothing was checked on Windows itself or against the vendor's service |
 | D-300 | Submit is back on Da Vinci PAS 2.0.1: the guide is the environment's request shape "PAS guide", 2.0.1 unless it chooses 2.2.1; the third round of corrections; the code handed over is `6e1bff3`, at 16:00 UTC | The operator said twice that the payer uses 2.0.1; the integrator should have put that against their answer naming 2.2.1 and did not. **No second agent rechecked the change or the third round**, and nothing was sent to the vendor's service. Two X12 value sets of PAS 2.0.1 were not settled |
 | D-301 | Release 2: the trail, Audit's request and answer, Journeys and Suites, a reload that redraws the case, lookups set up on screen, answers from the case, Forget, the store's lock and its damaged files, the Advanced Trail page | Built on release 1's candidate before its corrections (A2c, B5, B4b, C2c, D3, D6, E4, F4, G3, G4, H4, I4). The trail keeps member data on disk within D-298's bounds and never a secret. The sweep of old place names was not made |
 | D-302 | Release 1, its corrections and the PAS 2.0.1 decision merged into release 2 by one agent (`86d4807`) | Every place both sides changed was settled one way, said in this entry; a whole build and one walk on mock held it |
 | D-303 | The one check of release 2, its five findings, their corrections (`c31ae00`), and the limit: no recheck | **Release 2 was closed with five agents and no second check of the corrections**, to keep spending low. It rests on its tests, its whole build and one independent look. Nothing ran on Windows or against the vendor's service |
+| D-304 | Mock and live switch on screen: the top bar restarts PAVE in place, in the same process, on the other profile | The operator asked for it after release 2. The mode is still the Spring profile, so what holds by construction on live holds after a switch; a switch drops the production unlock and a pasted token, clears the Workbench's case, and is not remembered over a real start. Seen in the real STS 5.4.0 on Linux and on the Windows Java under Wine; **not on a Windows workstation** |
 | D-305 | A correction after release 2: the sign-in is read from the collection's token request and from wider variable names, several candidates are offered as buttons, an empty value is said; a refused sign-in says what the token endpoint said and names the setting (`80962e5`, `c0f9cf1`, `27e3a96`, `b7a1770`) | On the operator's first run against the vendor's UAT the files filled no sign-in and a refused sign-in said only "HTTP 401". The scripts of a collection are still never read. The service's words are shown made safe and never logged. Seen on live against the stand-in and a token endpoint of the builder's own, not against the vendor's service |
 | D-306 | A second correction after release 2: what a collection's requests state about members, providers and procedure codes goes into the saved lists, on the tester's tick; procedure codes a third list, picked in the Service card; a saved member may hold a vendor patient id alone (`babb793`, `fdce17b`, `85b8834`, `76743d4`, merged as `165bbd2`) | The operator asked for it after the first real run. It stays inside D-298's bounds: the box is the purpose, and the stored collection already holds every value. Only what a request sends is read, nothing is guessed, the log holds counts only, nothing goes to the ledger. Seen on mock and on live against the stand-in, not with the vendor's files |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
@@ -7690,6 +7691,9 @@ procedure codes are a third list.
   to be set on screen and take effect at once, mock on or off among it (D-281). The integrator kept mock
   and live chosen at start against that part of the requirement, for the cost and the guarantee above.
 - **Later.** Ask the operator to confirm it, after they have used the new screens.
+Later: D-304. The operator asked for the switch after release 2. A start still follows the launcher;
+while PAVE runs, the top bar switches it by restarting it in place on the other profile, so the
+guarantee held by construction stays and no router was built.
 
 **D-298. The saved lists and the trail bend two rules the specification wrote.**
 - **The rules.** Section 15: no member data is persisted. Section 16: the ledger never holds the raw
@@ -8188,6 +8192,113 @@ round of corrections; the code handed over.**
   Eclipse compiler check at `c31ae00`: 0 errors. The gates of section 0 before the hand-over (two whole
   builds from clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on
   the commit that carries these records, after them; their result is reported with the hand-over.
+
+### The switch between mock and live, after release 2
+
+**D-304. Mock and live switch on screen: PAVE restarts itself in place on the other profile.**
+- **What was asked.** After release 2 the operator wrote that mock and live should be switched easily
+  on screen, without a stop and a start. D-297 had kept them chosen at start against the requirement
+  D-281 recorded; this answers it.
+- **Decided** (the integrator; built in `f9774a5`, `3275e82`, `2c3c1b5` and `5e07f4c` on top of release 2's
+  `777fd1e`). The top bar's `MOCK` / `LIVE` badge becomes one control of two parts; the part in force
+  keeps the badge's look and title, the other is a quiet button. Pressed, it asks once ("Switch to
+  live?"), then `POST /api/mode` restarts PAVE in place: the running Spring context is closed and a
+  new one started in the same process on the other profile. One class, `PaveStart`, builds the
+  application for the first start and for every start after a switch, with the main class named, so
+  the banner and "Started PaveApplication in ..." stay as they are. The arguments are the original
+  ones in order, every form of `spring.profiles.active` taken out (any case, dashes, underscores, an
+  index, with or without a value) and `--spring.profiles.active=<mode>` added last; a profile given as a
+  system property or as `SPRING_PROFILES_ACTIVE` loses to it. The port, `config-store.directory` and
+  `tracking.directory` given at start are the same after the switch. The restart runs on a thread of
+  its own, `pave-mode-switch`, not a daemon, with the class loader `main` ran in and the handler of
+  D-278; the 202 answer is written and flushed before that thread exists. Closing is the tool's
+  ordinary stop: a call still out gets its 30 seconds and its ledger line.
+- **Why the client is not chosen at run time.** A flag read by every client would turn what holds by
+  construction (on live the mock beans do not exist, D-188; no scenario can answer on live; a live
+  call that fails is never answered from mock; what only mock offers is absent on live) into a check
+  at run time in every client and every reader of the mode, the day after the release was checked.
+  The mode stays the Spring profile and every bean stays bound to it; `epa.mode` follows the profile
+  and `StartupChecks` still refuses a start where they disagree. The cost D-297 gave (35 to 50
+  agent-hours for a router) was the cost of that other design.
+- **What a switch clears and drops.** Everything in memory ends with the old context, as at any
+  restart: a production unlock (an unlock still never outlives a restart, and the guardrail's
+  sentences are unchanged), a pasted token, the HTTP sessions, suite results held in memory. What is
+  on disk is let go and taken again: the configuration store's lock, the ledger, the trail, Tomcat's
+  folder, the port. `ClassesOnDisk` and `UncaughtFailures` are installed once per process, so "files
+  changed on disk since it started" counts from the process start. The page loads again on
+  `?pave-now=<mode>[&pave-dropped=unlock,token]#<tab>`: the tab alone, so the Workbench opens on a new
+  empty case; the start reads the two parameters once and takes them out of the address before any
+  view writes it. No storage key was added (the only one is still `pave.tab`). `GET /api/mode` gains
+  `held {productionUnlock, pastedToken}`, always present, and `switchingTo` while a switch is under
+  way; its `startedAt` is now the instant of the latest start, a switch included (I-13). A page left
+  open that sees the mode change loads its tab with the same line, where it used to reload its own
+  address, which could carry a journey id.
+- **What a tester reads.** The dialog: "PAVE restarts itself on live. It takes a few seconds.", "The
+  case on the Workbench is cleared.", to mock also "On mock, answers come from scenario files and
+  nothing is sent.", and when held "The production unlock of this browser session is dropped." or "The
+  pasted access token is dropped."; buttons "Cancel" and "Switch to live". While it switches, a modal
+  that takes no input and ignores Escape: "Switching to live...". After: "Now on live.", with "The
+  production unlock was dropped." or "The pasted access token was dropped." when one was. Changed: the
+  environment form's profile, "Mock. Switch it in the top bar." and "Live. Switch it in the top bar."
+  (was "..., chosen when PAVE starts"), and the action of the pasted token's refusal on mock, "Switch to
+  live in the top bar to use a pasted token." `StartupChecks`' console sentences for a start that
+  failed were left as they were: no switch can be offered there.
+- **When it is refused**, in the shared error shape and with nothing restarted: 422 "PAVE did not
+  switch." with mode "Choose mock or live." for a mode that is neither; 409 "PAVE is already on
+  <mode>."; "PAVE is already switching to <mode>." (two POSTs at once make one restart: a claim is
+  held for the length of a switch); "A suite is still running, so PAVE did not switch."; "Runs are
+  still being replayed, so PAVE did not switch." (a counter around a replay); "PAVE's files changed on
+  disk since it started, so it cannot switch in place: a switch loads no class anew." with "Stop PAVE
+  and start it again."; and "This copy of PAVE was not started by its own main class, so it cannot
+  switch itself." The endpoint sits behind the same guards as every other request (another site,
+  another host name, a body that is not JSON, an unknown property).
+- **When the wanted mode cannot start.** PAVE starts again on the mode it had and logs "PAVE could not
+  start on <to>, so it starts again on <from>."; the page says "PAVE could not start on mock and is back
+  on live. Its console says why." If that start fails too, it logs "PAVE could not start on <to> nor
+  again on <from>, so it stops. Start it again by hand." and the process ends. PAVE's own code logs no
+  message of an exception; Spring reports the failed start as at any start (D-278). When nothing
+  answers within a minute the page says "PAVE did not come back. Look at its console, then start it
+  again."
+- **Not remembered.** A real start follows the launcher: `./run.sh` and no profile are mock, `./run.sh
+  live` and STS's Profile field are live. The mode chosen on screen lasts until PAVE stops. Not part
+  of this: remembering it, running mock and live at once in one process, a property to forbid the
+  switch, any change to what mock or live do.
+- **What holds it.** `PaveStartTest` (every form of the profile argument, the system property and the
+  environment variable losing, the fallback, the end when neither starts, one claim at a time);
+  `ModeSwitchInPlaceTest` (the real application started as `main` starts it, on a free port with
+  folders of its own, switched to live and back, the refusals, a mock-only endpoint saying so on live,
+  a setting saved after the switch, the fallback; the context closed and the port free at the end);
+  `ModeControllerTest` (the 202 written before the restart, each refusal word for word, `held`);
+  `ModeSwitchFrontendTest` (the words, the control, the dialog, the wait, the address after a switch,
+  and since `c17b525` the frame itself, `app.js`, run in Node). The older tests that held a sentence
+  now hold the new one, each with its reason; `RegexStackGuardTest`, `RecursionGuardTest`,
+  `DeepAnswerStackTest` and the storage rule of `StaticFrontendTest` are untouched.
+- **The check and its close.** One agent that built none of it checked `5e07f4c` on the jar on Linux,
+  in the real STS 5.4.0 under a virtual display and on the Windows Java under Wine, and found no fault
+  on screen and two gaps in the tests, both minor, both corrected by the agent of these records: the
+  frame's part of the switch (`app.js`: the waiting state, no "not answering" notice and no poll of its
+  own while PAVE switches, the line read from the address before a view writes it, a page left open
+  following a switch) was held only by the text of the file; two tests now run it in Node against a
+  stand-in window and server, and fail when the guard against the "not answering" notice or the poll
+  is taken out (`c17b525`). The in-place test checked that the store's `.lock` file exists, which it does
+  after its holder lets it go; it now reads the system's list of locks where there is one (Linux) and
+  fails when the lock is not held after the switch, seen failing with the lock left untaken
+  (`954f796`). Found while closing: that test could take an answer from the new start still carrying
+  `switchingTo`, since the new start serves before the switch gives its claim back, and failed now and
+  then; it now waits for an answer without it. The page already waits the same way.
+- **Seen, and not seen.** Seen by the builder, the check and the closing agent as
+  [How the switch was checked](README.md#how-the-switch-was-checked) says: both ways from every kind of
+  start, forty and thirty switches on one process with one lock held and no growing number of threads
+(37 before and 39 after forty; 53 before and 49 after thirty), simultaneous
+  POSTs, the fallback, the drops, a slow call finishing across a switch, a second page, the frozen
+  process; the Boot Dashboard keeping the process as running across switches and its Stop ending it.
+  Not seen: a Windows workstation; STS on Windows; the Dashboard's Restart right after a switch; a
+  start from the Profile field followed by a switch; "PAVE is already switching" in a second page's
+  dialog (seen with simultaneous POSTs over the API).
+- **The build.** The gates of section 0 are run by the integrator on the commit that carries these
+  records, after them; their result is reported with the hand-over.
+
+### Corrections after the first run against the vendor's service, after release 2
 
 **D-305. A correction after release 2: the sign-in from the files, and a refused sign-in that says why.**
 - **What happened.** Release 2 (`777fd1e`) was handed over, and the operator ran it against the vendor's

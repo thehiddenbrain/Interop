@@ -113,7 +113,8 @@ class EnvironmentSettingsTest {
         JsonNode view = json(mvc(restarted).perform(get("/api/config/environments/" + id + "/settings")).andReturn().getResponse());
         assertThat(view.get("kind").stringValue()).isEqualTo("sandbox");
         assertThat(view.get("active").booleanValue()).isFalse();
-        assertThat(view.get("profile").get("words").stringValue()).isEqualTo("Mock, chosen when PAVE starts");
+        // The mode is no longer chosen only at start: the words point at the switch in the top bar.
+        assertThat(view.get("profile").get("words").stringValue()).isEqualTo("Mock. Switch it in the top bar.");
         assertThat(view.get("export").get("fileName").stringValue()).isEqualTo("sandbox.json");
         assertThat(view.get("signIn").get("method").stringValue()).isEqualTo("CLIENT_CREDENTIALS");
         assertThat(view.get("signIn").get("clientSecret").get("reference").stringValue()).isEqualTo("{{env:PAVE_ONYX_CLIENT_SECRET}}");

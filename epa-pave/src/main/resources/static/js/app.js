@@ -10,6 +10,8 @@ import {call, watch, restarted} from './api.js';
 import {el, clear, fill, button, chip} from './dom.js';
 import {UNREACHABLE_LINE, PAGE_FAULT_LINE, notJsonLine, setFilesChanged} from './fault.js';
 import {useEpoch} from './words.js';
+import {drawControl, askToSwitch, showSwitching, waitForStart, heldOf, returnAddress, noticedAddress, readReturn, carriesReturn,
+    arrivedWords, NO_COMEBACK} from './mode-switch.js';
 
 // The one thing this tool keeps in browser storage: which tab was open. It holds no member data,
 // and StaticFrontendTest fails the build if any script stores under another key.
@@ -49,7 +51,9 @@ const state = {
     showing: 0,               // counts view changes, so a view that loads late is not drawn over a newer one
     announced: undefined,     // what was last said about the environment; undefined until the first drawing
     busy: {},                 // the poll of each address that is on its way, so polls never pile up
-    again: {}                 // a poll asked for while one was on its way, run when it ends
+    again: {},                // a poll asked for while one was on its way, run when it ends
+    switching: null,          // {to} while PAVE restarts itself on the other mode; the page then takes no other input
+    choosing: false           // the question before a switch is being asked
 };
 
 const listeners = {mode: new Set(), config: new Set(), writes: new Set()};
@@ -106,6 +110,12 @@ export const app = {
 /* ---------- start ---------- */
 
 async function start() {
+    // What the address says of a switch that just reloaded this page is read once and taken out of
+    // it, before any view writes the address, so a reload later says nothing of it again.
+    const switched = readReturn(window.location.search);
+    if (carriesReturn(window.location.search)) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    }
     // A defect of this page must not leave a tester looking at a screen that silently stopped half
     // way. The detail stays in the browser console: an error message can quote what it handled.
     window.addEventListener('error', () => say(PAGE_FAULT_LINE, 'fault', 'page'));
@@ -115,6 +125,9 @@ async function start() {
     wireTabs();
     wireChooser();
     await Promise.race([poll('/api/mode'), pause(FIRST_ANSWER_WAIT_MILLIS)]);
+    if (switched && state.mode && (state.mode.mode === 'mock' || state.mode.mode === 'live')) {
+        say(arrivedWords(switched.wanted, state.mode.mode, switched.held), switched.wanted === state.mode.mode ? 'plain' : 'fault', 'switch');
+    }
     poll('/api/runs/health');
     poll('/api/config/environments');
     show(routeOf(window.location.hash), false);
@@ -133,6 +146,10 @@ async function start() {
 }
 
 function tick() {
+    if (state.switching) {
+        // The switch asks for itself whether the new start answers.
+        return;
+    }
     poll('/api/mode');
     poll('/api/runs/health');
 }
@@ -190,6 +207,11 @@ function poll(path) {
  */
 function heard({method, path, answer}) {
     const kind = !answer.ok && answer.error ? answer.error.kind : null;
+    if (state.switching) {
+        // PAVE is stopping and starting again on purpose: no answer, or the server's own page while
+        // it stops, is what a switch looks like, and the page already says it is switching.
+        return;
+    }
     if (kind === 'UNREACHABLE') {
         if (state.answering) {
             state.answering = false;
@@ -235,10 +257,20 @@ function heard({method, path, answer}) {
 
 function received(next) {
     const before = state.mode;
+    if (state.switching) {
+        return;
+    }
     if (before && before.mode !== next.mode) {
-        // PAVE was started again on the other profile. Everything this page drew belongs to the
-        // profile it was drawn for, and a view must never keep what exists on mock only on live.
-        window.location.reload();
+        // PAVE was switched, or started again, on the other profile, from another page or by hand.
+        // Everything this page drew belongs to the profile it was drawn for, and a view must never
+        // keep what exists on mock only on live, so the page is loaded again onto its tab, with a
+        // new empty case on the Workbench, and says what changed.
+        window.location.replace(noticedAddress(window.location.pathname, currentTab(), next.mode, heldOf(before)));
+        return;
+    }
+    if (before && typeof next.switchingTo === 'string' && next.switchingTo !== '' && next.switchingTo !== next.mode) {
+        // Another page asked for a switch that is under way: this page waits for it as the one that asked.
+        followSwitch(next, next.switchingTo, heldOf(next));
         return;
     }
     if (before && JSON.stringify(before) === JSON.stringify(next)) {
@@ -318,15 +350,8 @@ function drawFrame() {
     kind.className = environment ? 'badge badge--' + environment.kind : 'badge';
     kind.textContent = environment ? environment.kind : '';
 
-    const profile = document.getElementById('profile');
-    const mock = mode.mode === 'mock';
-    const live = mode.mode === 'live';
-    profile.hidden = false;
-    profile.className = mock ? 'badge badge--mock' : live ? 'badge badge--live' : 'badge';
-    // The server's own word when it is neither: a profile this page does not know is not called live.
-    profile.textContent = mock ? 'MOCK' : live ? 'LIVE' : String(mode.mode);
-    profile.title = mock ? 'Mock profile: scenarios answer and nothing leaves this machine.'
-        : live ? 'Live profile: calls go to the active environment\'s service.' : '';
+    // MOCK or LIVE as the badge was, and the other as a quiet button that switches PAVE to it.
+    drawControl(document.getElementById('profile'), mode, {onChoose: chooseMode, busy: Boolean(state.switching) || state.choosing, prod});
 
     // How calls sign in, in the server's words. Before the server says it, nothing is drawn for it.
     const signIn = mode.signIn && typeof mode.signIn === 'object' && mode.signIn.short ? mode.signIn : null;
@@ -433,6 +458,53 @@ function wireChooser() {
         drawChooser();
         await Promise.all([poll('/api/mode'), poll('/api/config/environments')]);
     });
+}
+
+/* ---------- the switch between mock and live ---------- */
+
+function currentTab() {
+    return state.view ? state.view.tab : (canonical([rememberedTab() || '']) || ['workbench'])[0];
+}
+
+/** The tester pressed the other part of the control: ask first, with what this session holds read afresh. */
+async function chooseMode(to) {
+    if (state.switching || state.choosing) {
+        return;
+    }
+    state.choosing = true;
+    let held = heldOf(state.mode);
+    try {
+        const fresh = await call('GET', '/api/mode');
+        if (fresh.ok && fresh.data && typeof fresh.data === 'object') {
+            held = heldOf(fresh.data);
+        }
+    } finally {
+        state.choosing = false;
+    }
+    askToSwitch(to, held, {call, onAccepted: answer => followSwitch(answer, to, heldOf(answer))});
+}
+
+/**
+ * Waits for the start a switch makes, with the page saying so and taking no other input. Once the
+ * new start answers, the page is loaded again onto its tab; when nothing answers within a minute,
+ * the page says so and goes back to its ordinary polling.
+ */
+async function followSwitch(before, to, held) {
+    if (state.switching) {
+        return;
+    }
+    state.switching = {to};
+    drawFrame();
+    const shown = showSwitching(to);
+    const result = await waitForStart(before, to, {call, pause, now: () => Date.now()});
+    if (result.outcome === 'arrived' || result.outcome === 'back') {
+        window.location.replace(returnAddress(window.location.pathname, currentTab(), to, held));
+        return;
+    }
+    shown.close();
+    state.switching = null;
+    drawFrame();
+    say(NO_COMEBACK, 'fault', 'switch');
 }
 
 /* ---------- the lines under the top bar ---------- */

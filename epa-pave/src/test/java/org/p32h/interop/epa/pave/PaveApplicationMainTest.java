@@ -33,6 +33,8 @@ class PaveApplicationMainTest {
             assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(UncaughtFailures.HANDLER);
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(found);
+            // main remembers its arguments for a switch of mode; the tests after this one start nothing through it.
+            PaveStart.reset();
         }
     }
 }

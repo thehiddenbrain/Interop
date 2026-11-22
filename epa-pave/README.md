@@ -57,6 +57,24 @@ that:
 Seen on live against the stand-in and a token endpoint on a loopback port, never against the vendor's
 service (D-305).
 
+**Mock and live switch on screen, added after release 2.** In the top bar, `MOCK` and `LIVE` are one
+control: the mode in force looks as the badge did, the other is a quiet button. Press the other one,
+read "Switch to live?" (or "Switch to mock?") and press "Switch to live": PAVE restarts itself in
+place on the other mode, in the same process, on the same port, with the same folders and arguments.
+The page says "Switching to live..." and, a few seconds later, "Now on live." on the tab it was on.
+The case on the Workbench is cleared. A production unlock of this browser session and a pasted access
+token are dropped; the dialog says so first and the line after ("The production unlock was
+dropped."). The switch is refused, and nothing restarts, while a suite runs, while runs are replayed,
+while another switch is under way, and after PAVE's files changed on disk since it started (then stop
+PAVE and start it again). If the other mode cannot start (a damaged scenario file stops mock, for one),
+PAVE starts again on the mode it had and the page says "PAVE could not start on mock and is back on
+live. Its console says why."; if nothing answers within a minute, "PAVE did not come back. Look at its
+console, then start it again." **A real start still follows the launcher**: `./run.sh` is mock,
+`./run.sh live` and `live` in STS's Profile field are live. **The mode chosen on screen is not
+remembered**: it lasts until PAVE stops. The switch is commits `f9774a5` to `954f796` on top of release
+2 (`777fd1e`); this README and the records were committed after them. See [Mock and live](#mock-and-live),
+D-304 and [How the switch was checked](#how-the-switch-was-checked).
+
 **Release 2 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
 ledger) is the one PAVE had. Release 1 was handed over on 2026-11-22 at 16:00 UTC. Release 2 adds to
@@ -143,8 +161,9 @@ Status, and the strip is the top bar.
 
 **Before you rely on it**: nothing here has been run against the vendor's service or on the
 operator's Windows workstation; see [Before you rely on it](#before-you-rely-on-it). How it was
-checked: [How release 1 was checked](#how-release-1-was-checked) and
-[How release 2 was checked](#how-release-2-was-checked).
+checked: [How release 1 was checked](#how-release-1-was-checked),
+[How release 2 was checked](#how-release-2-was-checked) and
+[How the switch was checked](#how-the-switch-was-checked).
 
 ## Start here
 
@@ -189,7 +208,8 @@ holds `"build":{"version":"1.0.0","time":...}`. `"mode":"mock"` is what to check
 
 **6. Open `http://localhost:8057/`.** Correct output: a top bar with `Point32Health` `PAVE`, the
 tabs Workbench, Audit (with today's count of runs) and Configuration, "No environment active", a
-yellow `MOCK` badge and the build's day and time. Go on with
+yellow `MOCK` beside a quiet `LIVE` (the switch, see [Mock and live](#mock-and-live)) and the build's
+day and time. Go on with
 [Your first case on mock](#your-first-case-on-mock). To stop PAVE, press Ctrl+C in its terminal;
 a call still out gets up to 30 seconds to answer, so that its ledger line is written.
 
@@ -203,8 +223,9 @@ started, which can cause this. Stop PAVE and start it again, then try once more.
 while PAVE restarts shows what the new start holds and says only "PAVE was started again." Both
 were seen in the real STS 5.4.0, with `19ddf8e` imported and started from the Boot Dashboard.
 
-**One copy of PAVE per configuration store and ledger folder.** To run mock and live side by side,
-give the second copy folders and a port of its own:
+**One copy of PAVE per configuration store and ledger folder.** The switch in the top bar changes the
+mode of one copy. To run mock and live at the same time, side by side, give the second copy folders
+and a port of its own:
 
 ```
 ./run.sh live --config-store.directory=config-store-live --tracking.directory=run-history-live --server.port=8058
@@ -787,17 +808,40 @@ The receiver does not authenticate its caller and has never been called by a rea
 | | Mock (the default) | Live |
 | --- | --- | --- |
 | Start with | `./run.sh` (`run.cmd`) | `./run.sh live` (`run.cmd live`) |
+| Switch to it while PAVE runs | `MOCK` in the top bar | `LIVE` in the top bar |
 | Answers come from | scenario files in `src/main/resources/scenarios/` | the services of the active environment |
 | Members and providers | synthetic fixtures in `src/main/resources/fixtures/`, and the saved test lists | the configured lookups, the saved test lists, or typed by hand |
 | Needs | nothing | an environment, its credentials, network access |
 | Ledger records the member ID | only a `P32H-` sentinel or an `S` and nine or ten digits; anything else as on live | no: a salted token and the last four characters, unless configured |
 | Mock members and "Mock scenario" | yes | no: a forced outcome against a real service would be a result that did not come from it |
 
-**Mock and live are chosen when PAVE starts**, never on screen: the top bar's `MOCK` or `LIVE`
-badge says which runs, and so does `GET /api/mode`. Switching is a restart. The tool refuses to
-start when `epa.mode` and the Spring profile disagree, nothing on live can play a scenario, and a
-live call that fails is never answered from mock. The environment form shows the profile as a
-fact, "Mock, chosen when PAVE starts" or "Live, chosen when PAVE starts".
+**Both ways: the launcher for the start, the switch after.** A start follows the launcher: no
+profile is mock, `live` is live. While PAVE runs, the other part of the top bar's control switches it:
+PAVE closes its Spring context and starts it again in the same process on the other profile, on the
+same port, with the same arguments and folders (D-304). The part in force says which runs, and so does
+`GET /api/mode`. The mode is still the Spring profile, so what holds on a live start holds after a
+switch to live: nothing on live can play a scenario, and a live call that fails is never answered from
+mock. The tool refuses to start when `epa.mode` and the Spring profile disagree. The environment form
+shows the profile as "Mock. Switch it in the top bar." or "Live. Switch it in the top bar.".
+
+**What a switch clears and drops.** The page loads again onto the tab it was on; on the Workbench that
+is a new empty case. Everything PAVE holds in memory ends with the old context, as at any restart: a
+production unlock, a pasted access token, the browser session, suite results held in memory. What is
+on disk stays: the configuration store, the saved lists, the ledger and the trail. A page left open in
+another window notices the new mode and loads again onto its tab with the same line. **The mode is not
+remembered**: the next real start follows the launcher again.
+
+**When it is refused**, in the dialog, in the server's words, with nothing restarted: "PAVE is already
+on live."; "A suite is still running, so PAVE did not switch." (stop it in Audit > Suites, or wait);
+"Runs are still being replayed, so PAVE did not switch."; "PAVE is already switching to mock."; and
+"PAVE's files changed on disk since it started, so it cannot switch in place: a switch loads no class
+anew." (stop PAVE and start it again). A copy started some other way than its own main class (a test,
+for one) cannot switch itself and says so.
+
+**When the other mode cannot start**, PAVE starts again on the mode it had, and the page says "PAVE
+could not start on mock and is back on live. Its console says why."; the console holds Spring's own
+account of the failed start. If that start fails too, PAVE logs "PAVE could not start on mock nor
+again on live, so it stops. Start it again by hand." and the process ends.
 
 **Every scenario is synthetic.** Sentinel member IDs select the mock scenario: `P32H-PA-REQ`
 answers "prior authorization required", `P32H-NO-AUTH` "not required", `P32H-EMPTY` no
@@ -988,7 +1032,8 @@ normal answer.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/mode` | Name, version, port, mode, target, active environment, epoch, write access, the receiver's note, and the build (`build {version, time, changedOnDisk}`) |
+| GET | `/api/mode` | Name, version, port, mode, target, active environment, epoch, write access, the receiver's note, the build (`build {version, time, changedOnDisk}`), `startedAt` (the latest start, a switch included), `held {productionUnlock, pastedToken}` (what a switch would drop), and `switchingTo` while a switch is under way |
+| POST | `/api/mode` | Switch to the other mode (`{"mode":"live"}` or `{"mode":"mock"}`): 202 with what `GET` answers and `switchingTo`, then PAVE restarts itself; 422 for a mode that is neither, 409 when refused (see [Mock and live](#mock-and-live)) |
 | GET | `/api/vocabulary` | The short words, tones and button names the screens look up |
 | POST | `/api/config/environments` | Upload a Postman environment (multipart: `file`, `kind`, optional `acknowledgeNotProd`; or JSON: `{fileName, text, kind, acknowledgeNotProd}`) |
 | POST | `/api/config/environments/draft` | "Fill the form from these files": what the form can be filled with (`{environmentExport, collectionExport, forId}`, each export `{fileName, text}`); stores nothing |
@@ -1288,7 +1333,9 @@ cause" and read the cause:
   Project, Clean..., Gradle, Refresh Gradle Project, start again.
 - `OutOfMemoryError`: "Start PAVE with -Xmx512m or more."
 
-**6. The live profile, or another port.** Run, Run Configurations, Spring Boot App,
+**6. The live profile, or another port.** To switch a running PAVE between mock and live, use the
+control in the top bar: it needs none of what follows, and the launch configuration is not changed.
+To **start** on live: Run, Run Configurations, Spring Boot App,
 `PaveApplication`: `live` in the Profile field of the Spring Boot tab, Apply, Run. **That writes
 the profile into the tracked file `PaveApplication.launch`**: do not commit it; clearing the field
 and Apply puts it back. Or start from a terminal with `./run.sh live` (`run.cmd live`), which
@@ -1343,8 +1390,10 @@ open item, the worst first, with the entry that gives the reason.
   provider directory.
 - **No person has used the rebuilt screens**; they were built and looked at by agents, on mock and
   on live against a stand-in only.
-- **Mock and live are chosen at start**; switching them on screen was not built (the operator is to
-  be asked after using the new screens).
+- **The switch between mock and live has not been seen on a Windows workstation.** It was seen in the
+  real STS 5.4.0 on Linux and on the Windows Java under Wine
+  ([How the switch was checked](#how-the-switch-was-checked)). The mode it chooses is not remembered
+  over a real start.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.
@@ -1459,6 +1508,41 @@ release 2 rests on its tests, its whole build and that one independent look. Not
 Windows or against the vendor's service. What stays open is in [This release](#this-release) and
 [Limitations](#limitations); what was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
+## How the switch was checked
+
+**By its builder**, on the jar on Linux: switches both ways over the API and in Chromium at 1440 by
+900 and 1024 by 768, from no profile, from `--spring.profiles.active=live`, from
+`SPRING_PROFILES_ACTIVE` and from `-Dspring.profiles.active`, each landing on the mode asked; the
+port, the store folder and the ledger folder kept; forty switches on one process, with 37 threads
+before and 39 after; three POSTs at once making one restart; the start that falls back after a damaged scenario
+file; the refusals for a running suite, a running replay and changed files, each in the dialog; a pasted token and a
+production unlock dropped and said; a frozen process shown as "PAVE did not come back".
+
+**By an independent check** (an agent that built none of it), on the jar on Linux: the control's
+accessible name and keyboard order at 1440 and 1024, Escape and Cancel sending nothing, a second page
+redrawn with "Now on live.", the pasted token and the production unlock dropped and never written to
+the log, the ledger or the trail, live after a switch answering as live (no scenario, nothing from
+mock), a call 8 seconds slow finishing with its ledger line across a switch, thirty switches on one
+process, six POSTs at once making one restart, the fallback on screen, and the guards (another site,
+`text/plain`, an unknown property). **In the real STS 5.4.0 on Linux** under a virtual display: started
+from the Boot Dashboard, switched to live and back on screen while the Dashboard kept the process as
+running, then Stop from the Dashboard ended it and freed the port, also right after a switch. **On the
+Windows Java that STS carries, under Wine**: five switches, an environment saved after each, a ledger
+line after the two on mock (the three on live were refused before sending for a missing address, which
+writes no ledger line). It found two gaps in the tests, no fault on screen: the frame's part of the
+switch was held only by the text of `app.js`, and the in-place test's check of the store's lock could
+not fail.
+
+**By the agent that closed it**: both gaps corrected, each test seen failing without what it holds
+(`c17b525`, `954f796`); on the jar on Linux, a switch to live at 1440 by 900 with a second page, and back
+to mock at 1024 by 768 with the process frozen for a minute ("PAVE did not come back...", then "Now on
+mock." once it went on).
+
+**Not seen by anyone**: a Windows workstation; STS on Windows; STS's Restart button right after a
+switch; a start from STS's Profile field set to live followed by a switch; "PAVE is already
+switching" in the dialog of a second page (seen with three and six simultaneous POSTs, held by tests).
+The independent check did not try the refusal while runs are replayed; only the builder saw it.
+
 ## What this README was checked against
 
 Brought up to the release candidate on 2026-11-22: commit `7fc32c8` of the integration branch, cut
@@ -1504,3 +1588,10 @@ in an uploaded file, Lookups and test lists, Endpoints, Limitations) were brough
 endpoint added was found in its controller there. They were not walked in a browser for this README;
 what they say was seen is what the builder's report names. The gates are run by the integrator on the
 commit that carries this README, after it was written; their result is reported with the hand-over.
+
+For the switch, the parts that changed (This release, Start here, Mock and live, Endpoints, STS step 6,
+Limitations, How the switch was checked) were brought to the code of `954f796`: every sentence they
+quote from a screen or the server was searched in `src/main` at that head, and `POST /api/mode` was
+found in `ModeController`. What they say was seen is what the builder's report, the independent check
+and the closing agent's own walk name. The gates of section 0 are run by the integrator on the commit
+that carries this README; their result is reported with the hand-over.

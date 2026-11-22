@@ -58,7 +58,8 @@ class ConfigFrontendTest {
             const settle = async () => { for (let i = 0; i < 20; i++) { await tick(); } };
             const view = (extra) => Object.assign({
                 id: 'pave-sample-sandbox', name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true, acknowledgedNotProd: false,
-                profile: {mode: 'live', words: 'Live, chosen when PAVE starts'},
+                // The server's words since the switch in the top bar: the mode is no longer chosen only at start.
+                profile: {mode: 'live', words: 'Live. Switch it in the top bar.'},
                 signIn: {method: 'CLIENT_CREDENTIALS', tokenUrl: '{{tokenUrl}}', clientId: '{{clientId}}', scope: '',
                     clientAuthentication: 'BASIC', clientSecret: {set: true, reference: '{{env:PAVE_ONYX_CLIENT_SECRET}}'},
                     bearerToken: {set: true}, inForceWords: 'Client credentials, this environment'},

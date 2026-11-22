@@ -279,8 +279,8 @@ public class ConfigService {
         SettingsViews.ExportView export = new SettingsViews.ExportView(environment.originalFileName(), environment.uploadedAt(),
                 shown.variables());
         boolean mock = EpaProperties.MOCK.equals(epa.mode());
-        SettingsViews.ProfileView profile = new SettingsViews.ProfileView(epa.mode(), mock ? "Mock, chosen when PAVE starts"
-                : "Live, chosen when PAVE starts");
+        SettingsViews.ProfileView profile = new SettingsViews.ProfileView(epa.mode(), mock ? "Mock. Switch it in the top bar."
+                : "Live. Switch it in the top bar.");
 
         Timeouts application = gateway.protocolTimeouts();
         SettingsViews.TimeoutsView timeouts = new SettingsViews.TimeoutsView(settings.timeouts().connectMs(), settings.timeouts().readMs(),
