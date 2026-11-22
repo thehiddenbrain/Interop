@@ -294,6 +294,14 @@
     overflow-wrap: anywhere;
 }
 
+/* A response table's cells wrap inside the fold, so a long meaning or url is read, not cut at the
+   fold's edge (critic-2); the column heads stay on one line and the wrapper scrolls only past that. */
+.detail .table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}
+
 /* The response detail's parts (detail.js, batch H). */
 .detail {
     display: grid;
@@ -490,4 +498,15 @@ td .notes {
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
+}
+
+/* A question its conditions turn off is quieter than the asked ones, yet still takes an answer (I-36). */
+.question--off .field__label {
+    color: var(--ink-soft);
+    font-weight: 400;
+}
+
+.question--off .input,
+.question--off .select {
+    border-style: dashed;
 }

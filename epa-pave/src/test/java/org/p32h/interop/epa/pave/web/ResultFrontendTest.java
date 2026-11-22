@@ -85,7 +85,8 @@ class ResultFrontendTest {
                 "[\"https://h.example.invalid/p\",\"https://h.example.invalid/p\",\"https://h.example.invalid/p\"]",
                 "[true,\" (2500 characters; Copy copies them whole)\"]",
                 "true",
-                "[\"Not returned (1)\",\"Why\",\"Wire trafficrequest and response JSON\"]",
+                // The panel says its one sentence after the first as a line, not in a Why fold (I-34).
+                "[\"Not returned (1)\",\"Wire trafficrequest and response JSON\"]",
                 "\"HTTP 200MOCK150 msUnverifiedSent as S123456789, rule: packedOpen in Audit\"",
                 "[true,true,true]",
                 "[\"Continue to the questionnaire\",\"START_DTR\"]",
