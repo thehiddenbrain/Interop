@@ -61,7 +61,7 @@ entry.
 | D-296 | Audit: the runs, one run and replay | Journeys, Suites and a run's request and answer from the trail are release 2 |
 | D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile |
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
-| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test and not yet seen on a running jar; what the rechecks left was corrected in a second round and seen by its correctors, all but the narrowing of the token url rule, which was withdrawn (I-28a); each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
+| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test, six of which the recheck of the final build saw closed on `22478b8`; what the rechecks left was corrected in a second round, except what `PROGRESS.md` lists as open (features-8 among them, I-28a being withdrawn); each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -7166,10 +7166,10 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   chip "Matched to this submission", from this case's notifications only, the others in a closed fold (I-16,
   I-18); the focus kept after "Run check"; the fields of the case column at 1024 (wb-mock-1, look-7). Seen
   on `19ddf8e`: the top bar at 1024 on live with nothing overlapping (live-config-2, live-content-3
-  on `19ddf8e`; look-1 on `e5d0972`). In the code at `19ddf8e` with their tests, and not seen on a running jar since: the
-  Status step's headline "A notification arrived for this submission." (wbm3-1, `NotificationReceiverTest`)
+  on `19ddf8e`; look-1 on `e5d0972`). In the code at `19ddf8e` with their tests: the
+  Status step's headline "A notification arrived for this submission." (wbm3-1, `NotificationReceiverTest`),
   and "The flow ends here: nothing further to send." where a result ends the flow (critic-9,
-  `CrdVerdictsTest`, `PasVerdictsTest`). Corrected in the second round (`98f79d4`) and seen by its corrector on its own jar at 1440 and 1024: once the
+  `CrdVerdictsTest`, `PasVerdictsTest`), both seen closed on `22478b8` by the recheck of the final build. Corrected in the second round (`98f79d4`) and seen by its corrector on its own jar at 1440 and 1024: once the
   response is complete, step 2 has one filled button, "Continue to Submit", and one "Why" fold (wb-mock-4,
   wbm3-4, I-6, look-10). Left for time by the sorter and corrected all the same, seen on
   `e5d0972`: no scroll after "+" adds a code
@@ -7207,7 +7207,8 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   wbm3-3, look-5); the open "Response detail" within its fold, its sentences wrapped (wb-mock-2); a fact's
   display shown only when it adds words (I-14); an answer that is not JSON said once, under the top bar
   (critic-7). Corrected in the second round and seen by its corrector on its own jar at 1440 and 1024: the tables of
-  "Response detail" wrap their cells inside the fold (critic-2, look-2; `24a815b`), and after a CDS
+  "Response detail" wrap their cells inside the fold (critic-2, look-2; `24a815b`; at 1024 the same rule breaks "questionnaire" mid-word in the Element
+  column, critic-k3-1, open), and after a CDS
   service's refusal on live the card shows what the service said, the issues it sent, and the server's
   line on what to change above "Open Configuration" (look-3; `f6c851c`). Left for time by the sorter and corrected all the same, seen on
   `e5d0972`: a refusal box has the rule and
@@ -7310,10 +7311,11 @@ at once; and the Configuration pages.**
   (features-3); "Open Configuration" opens Sign-in of the active environment after a failed sign-in and
   Addresses after an answer that points at the address (I-32, live-config-4); a refused upload or import is
   one plain line (AU-5). Seen on `e5d0972`: the options "As PAVE was started" and "Choose a kind" (I-15),
-  and In force now saying "No environment is active." once (look-19). The readiness sentence for an
+  and In force now saying "No environment is active." once (look-19); the recheck of the final build found
+  it regressed on `22478b8`, the sentence 14 times on mock (open, D-299). The readiness sentence for an
   operation with no address, "No address for <the operation's short words>. Type one under Addresses of the
-  environment in Configuration.", is in the code at `19ddf8e` with `ReadinessWordsTest` and not seen on a
-  running jar since (look-14). Left for time by the
+  environment in Configuration.", is in the code at `19ddf8e` with `ReadinessWordsTest` and was seen on a
+  running jar of `22478b8` by the recheck of the final build (look-14). Left for time by the
   sorter and corrected all the same, seen on `e5d0972`: the line of an empty store spans the grid (look-18),
   and a file is chosen with a "Choose file" button (look-11). Corrected in the second round and seen by its corrector on its own jar
   (`rebuild/r1/close2/config-audit/shots/`): a refused form in Configuration, Advanced and Audit names each
@@ -7706,8 +7708,9 @@ reader's verification per area; every confirmed finding is one line of `rebuild/
 integrator's decisions on what the checks left to them are `rebuild/r1/INTEGRATOR_R1.md` (I-1 to I-34,
 and, on the three findings the integrator added on the candidate, I-35, integrator-1 and integrator-2;
 after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a was withdrawn at 13:25 UTC).
-  The second round's reports are `rebuild/r1/close2/reports/`; its third corrector wrote none, and its
-  commits and screenshots (`rebuild/r1/close2/config-audit/shots/`) are its evidence. The correctors' reports are
+  The second round's reports, one per corrector, are `correct-workbench.json`, `correct-server.json` and
+  `correct-config-audit.json` in `rebuild/r1/close2/reports/`; the third's screenshots are
+  `rebuild/r1/close2/config-audit/shots/`. The correctors' reports are
 `rebuild/r1/close1/reports/`; the rechecks `cont51/` to `cont53/` and `rebuild/r1/recheck2/`.
 - **Who checked, and on what.** Agents that built none of the rebuild, on merged jars before the
   release candidate; in each area a first agent looked and a second saw each finding again or refuted
@@ -7815,11 +7818,11 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
   `e5d0972`, which held the screen corrections only (`cont51`); the guardrail and the secrets (`cont52`),
   Audit and uploads and every feature (`cont53`), live configuration and what live sends, and the real STS
   5.4.0 (`rebuild/r1/recheck2/`), on `19ddf8e`. Every finding corrected in that round was seen closed except
-  those corrected again in the second round (below), and these, corrected with a test and not seen on a
-  running jar since, their screen halves seen on `e5d0972` before the server halves were merged: the
-  readiness words of the Workbench (critic-3, look-14), the sample code E0470 (critic-4, wb-mock-9), the
-  end of a flow (critic-9), the Status step's headline (wbm3-1), and the integrator's three findings
-  (integrator-1, integrator-2, integrator-3). A second, short round, in commits from 12:52 to 13:14 UTC
+  those corrected again in the second round (below), and these, corrected with a test, their screen halves seen on `e5d0972` before the server halves were
+  merged: the readiness words of the Workbench (critic-3, look-14), the sample code E0470 (critic-4,
+  wb-mock-9), the end of a flow (critic-9) and the Status step's headline (wbm3-1), seen closed on a
+  running jar of `22478b8` by the recheck of the final build (below); and the integrator's three findings
+  (integrator-1, integrator-2, integrator-3), not seen on a running jar. A second, short round, in commits from 12:52 to 13:14 UTC
   by three correctors (the Workbench; the server; Configuration and Audit), corrected what the rechecks
   left, each with a test that failed without it where the reports say so, and each seen by its corrector
   on its own jar: the tables of "Response detail" wrap inside the fold (critic-2, look-2); after a service's
@@ -7832,19 +7835,40 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
   an extension called a folder (AU-4); the environment's name at 1024 (live-config-7); each field named
   in a refused form's panel (live-config-8, I-3); the refusal panel of the environment form kept in view
   (look-guardrail-8); the refusal of a token url whose production environment was removed saying so, with
-  the ways out (features-8, `185b5be`); and the test line the Eclipse compiler rejected (STS-3, `1772d37`).
+  the ways out (features-8, `185b5be`). The test line the Eclipse compiler rejected (STS-3, `1772d37`) is not
+  seen on a jar: its corrector checked it with the Eclipse batch compiler, and so did the integrator's
+  check over every source set of `22478b8`.
   The narrowing of the token url rule (I-28a) was not made and was withdrawn. The three branches were
   merged at 13:23 UTC into `22478b8`, the commit whose code is handed over; these records were committed
-  after it. Of the recheck of the final build, when this was written, only the check of features-8 had
-  reported: on `22478b8` a sandbox after its production copy was removed is still not signed in, and the
-  refusal ends with the note that the production environment is no longer stored and the way out by hand
-  (`rebuild/r1/recheck3/features/`); the rest of the recheck had not reported. The integrator builds
+  after it. Of the recheck of the final build (round k3 of `findings.jsonl`), when this was written, the features
+  area (`rebuild/r1/recheck3/features/`), the Workbench-and-look area (`rebuild/r1/recheck3/critic/`) and
+  the Workbench-on-mock area (`rebuild/r1/recheck3/wb-mock/`) had reported. On `22478b8` they saw closed: features-8 as decided (a sandbox after its production copy was
+  removed is still not signed in, and the refusal ends with the note that the production environment is
+  no longer stored and the way out by hand); the tables of "Response detail" inside the fold at 1440 and
+  1024 (critic-2, look-2); the readiness words (critic-3, look-14); the sample code E0470 (critic-4, wb-mock-9); the end
+  of a flow (critic-9); the Status step's headline (wbm3-1); one filled button on each step (wb-mock-4,
+  wbm3-4); the line on what to change after a service's refusal on live (look-3); the muted
+  question that waits on another answer and takes typing (look-9, wbm3-9); one Complete button, one "Why" fold and the headline
+  naming the question (look-10); a refusal cleared by "Start a new case" (critic-k1-1); and the native
+  date inputs as decided (look-12). They found four open: on mock, Configuration > Advanced > In force now
+  says "No environment is active." 14 times (look-19, regressed, major); at 1024 the Element column of the
+  "Response detail" table breaks "questionnaire" mid-word (critic-k3-1, new, minor); the README at
+  `22478b8` has no "This release" section (features-9, minor); a run refused for a missing member ID names
+  that field in the panel without its label (wb-mock-10, minor). The live configuration area had not reported when this was written; the other items of the second round had
+  not been seen again by an agent that wrote no correction. The integrator builds
   `22478b8` whole twice and once from a fresh clone: TO-FILL-COUNTS.
 - **Left open, each an open line of `PROGRESS.md` with what a tester does.** An environment saved as prod by
   mistake on the same host as a working sandbox, and then removed, stops that sandbox from signing in,
   reads included, until its remembered addresses are forgotten (features-8, I-28 as built); the refusal
   says the production environment is no longer stored and gives the way out by hand, and release 2 brings
-  the "Forget this production address" button. Dates show in the browser's
+  the "Forget this production address" button. On mock, Configuration > Advanced > In force now says "No
+  environment is active." 14 times, in Ready to send? and in every operation row (look-19, regressed on
+  `22478b8`, major): read it once and ignore the repeats. At 1024 the Element column of the "Response detail"
+  table breaks "questionnaire" mid-word as "questionnair / e" (critic-k3-1, minor): read the two lines as
+  one word. The README at `22478b8` has no "This release" section and no line on the slip above
+  (features-9, minor); the README committed after `22478b8` on the branch `release1-readme` has both. On step 1 of the Workbench, a run refused for a missing member ID lists "Enter a member ID." in the
+  panel without its label (wb-mock-10, minor): the field is Member ID in the case column.
+  Dates show in the browser's
   own form beside ISO dates elsewhere; the value sent is the ISO date (look-12, no change in release 1).
   With `-Dpave.classes.load-at-start=false` the advice after a rebuild under a running PAVE misses two ways
   a missing class shows (hunts-1, hunts-2, I-9; release 2); the default start meets neither. After
@@ -7860,7 +7884,8 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
   pull, restart PAVE before replaying. The browser's own console line for a planned refusal (wb-mock-5,
   live-config-6, I-7, I-33) and M6 at five typed values (live-config-3, I-31) are by decision. The six minor
   findings the sorter left for time (critic-8, critic-10, critic-11, look-11, look-17, look-18) were
-  corrected all the same and seen closed on `e5d0972`. The README says what secrets-1 asked: a client secret
+  corrected all the same and seen closed on `e5d0972`. The README committed after `22478b8` (branch `release1-readme`) says what secrets-1 asked; the README at
+  `22478b8` does not: a client secret
   or bearer token typed in the environment form is kept as typed in `config-store/store.json` (owner-only)
   unless it is typed as `{{env:PAVE_NAME}}`; the first saved setting makes the store version 2 after one
   copy to `store.json.before-v2`; an older build refuses a version 2 store; going back means stopping PAVE

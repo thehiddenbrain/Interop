@@ -43,9 +43,9 @@ the release branch from 11:57 to 12:45 UTC; their work was merged without confli
 wrote no correction checked it again (D-299). A second, short round of three correctors corrected what those rechecks left,
 in commits from 12:52 to 13:14 UTC, each seen by its corrector on its own jar; it was merged at 13:23 UTC
 into `22478b8` (`22478b8164e1184622013b71a758b35a435f2043`), the commit whose code is handed over, which
-the branch of these records merges; these records were committed after it. Of the recheck of the final
-build, only the check of features-8 had reported when this was written: on `22478b8` it saw the refusal
-with the no-longer-stored note and the way out by hand, the sandbox still not signed in (D-299). The Eclipse compiler STS 5.4.0 brings finds 0 errors over
+the branch of these records merges; these records were committed after it. D-299 says what the recheck of the final
+build had reported when this was written: on `22478b8` it saw features-8 as decided and fifteen corrected
+items closed, and found look-19 regressed and critic-k3-1, features-9 and wb-mock-10 open (open lines below). The Eclipse compiler STS 5.4.0 brings finds 0 errors over
 every source set of `22478b8` (`rebuild/r1/ecj-22478b8/ecj.txt`). The top bar shows the day and time
 (UTC) the running build was made. The integrator's two whole builds of `22478b8` and its build from a
 fresh clone gave TO-FILL-COUNTS.
@@ -146,7 +146,7 @@ Each line can be read alone. The detail of each is in the entry named.
      (`e318758`, merged in `19ddf8e`) and are held by `TokenUrlAndEscapeGuardrailTest` (the token url at
      save in 13 spellings; the look's 21 refused spellings and five escaped forms of `$`) and
      `TokenUrlAtSendingTest` (nothing is sent to such a token url, whatever the store holds); the recheck of
-     the guardrail on `19ddf8e` saw both refused and every earlier spelling still refused (D-299). 
+     the guardrail on `19ddf8e` saw both refused and every earlier spelling still refused (D-299).
    - **After a slip, a sandbox cannot sign in** (features-8, major). The token url rule refuses a token
      url that is, or lies beneath, any address a production environment (stored or remembered) calls. An
      environment saved as prod by mistake on the same host as a working sandbox, and then removed, stops
@@ -171,13 +171,13 @@ Each line can be read alone. The detail of each is in the entry named.
      Submit head off kind prod (wbm3-2 and look-4 on `e5d0972`, live-content-5 on `19ddf8e`) and the link
      "Production writes" drawn purple on purple (look-guardrail-2, on `19ddf8e`; D-299).
    - The other confirmed findings were corrected in the first round and seen closed by the rechecks (D-299),
-     except those corrected again in the second round (below), and these, corrected with a test and not
-     seen on a running jar since (their screen halves were seen on `e5d0972`, before the server halves
-     were merged): the readiness words of the Workbench (critic-3, look-14), the sample code E0470 on the
-     list for every line of business (critic-4, wb-mock-9), "The flow ends here: nothing further to send."
-     (critic-9), the Status step's headline "A notification arrived for this submission." (wbm3-1).
-     Corrected in the second round, each seen by its corrector on its own jar and not yet by an
-     independent recheck: the tables of "Response detail" wrap inside the fold (critic-2, look-2,
+     except those corrected again in the second round (below), and these, corrected with a test (their
+     screen halves were seen on `e5d0972`, before the server halves were merged): the readiness words of
+     the Workbench (critic-3, look-14), the sample code E0470 on the list for every line of business
+     (critic-4, wb-mock-9), "The flow ends here: nothing further to send." (critic-9) and the Status step's
+     headline "A notification arrived for this submission." (wbm3-1), seen closed on a running jar of
+     `22478b8` by the recheck of the final build.
+     Corrected in the second round, each seen by its corrector on its own jar: the tables of "Response detail" wrap inside the fold (critic-2, look-2,
      `24a815b`); after a CDS service's refusal on live the card says what to change above "Open
      Configuration" (look-3, `f6c851c`); step 2 has one filled button and one "Why" fold once the response
      is complete (wb-mock-4, wbm3-4, I-6, look-10, `98f79d4`); a question that waits on another answer is
@@ -189,9 +189,18 @@ Each line can be read alone. The detail of each is in the entry named.
      "<name> is a folder. Choose the exported file inside it." (AU-4, `24a815b`); the environment chooser
      names the environment at 1024 (live-config-7, `cfe8940`); a refused form names each field in its
      panel by its label (live-config-8, I-3, `1af5d3f`); the refusal panel of the environment form stays
-     in view (look-guardrail-8, `178deb1`); the test line the Eclipse compiler rejected, which made STS
-     ask before every start (STS-3, `1772d37`).
-   - Left open, each with what a tester does: dates show in the browser's own form (for example
+     in view (look-guardrail-8, `178deb1`). The test line the Eclipse compiler rejected, which made STS
+     ask before every start, was corrected too (STS-3, `1772d37`) and checked with the Eclipse batch
+     compiler, by its corrector and by the integrator over every source set of `22478b8`, not on a jar.
+   - Left open, each with what a tester does: on mock, Configuration > Advanced > In force now says "No
+     environment is active." 14 times, in Ready to send? and in every operation row (look-19, major, regressed on
+     `22478b8`, found by the recheck of the final build): read it once and ignore the repeats. At 1024 the
+     Element column of the "Response detail" table breaks "questionnaire" mid-word as "questionnair / e"
+     (critic-k3-1, minor, found by the same recheck): read the two lines as one word. The README at
+     `22478b8` has no "This release" section and no line on the slip of features-8 (features-9, minor); the
+     README committed after `22478b8` on the branch `release1-readme` has both. On step 1 of the Workbench a
+     run refused for a missing member ID lists "Enter a member ID." in the panel without its label
+     (wb-mock-10, minor, found by the same recheck): the field is Member ID in the case column. Dates show in the browser's own form (for example
      01/10/2026) beside ISO dates elsewhere; the value sent is the ISO date (look-12). A replay sent again
      from Audit that fails does not carry the line that PAVE's files changed on disk; after a pull, restart
      PAVE before replaying (the Audit part of I-12, not done). Configuration's mapping note and raw-send
@@ -206,7 +215,8 @@ Each line can be read alone. The detail of each is in the entry named.
      I-7, I-33), M6 at 5 typed values (live-config-3, I-31), the guardrail's sentences still naming the
      Config tab and the PAS tab (look-guardrail-6, I-30): in a production refusal "the Config tab" means
      Configuration (Production writes for the unlock) and "the PAS tab" means Workbench step 3 (Submit) or step 4 (Status) for a subscription.
-   - The README says what secrets-1 asked: a client secret or bearer token typed in the environment form is
+   - The README committed after `22478b8` (branch `release1-readme`) says what secrets-1 asked; the
+     README at `22478b8` does not: a client secret or bearer token typed in the environment form is
      kept as typed in `config-store/store.json` (owner-only) unless it is typed as `{{env:PAVE_NAME}}`; the
      first saved setting makes the store version 2 after one copy to `store.json.before-v2`; an older build
      refuses a version 2 store; going back means stopping PAVE and renaming the copy back (D-289).
