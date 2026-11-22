@@ -17,15 +17,17 @@ import {call} from './api.js';
 import {el, button, firstSentence, fill, clear} from './dom.js';
 import {vocabulary} from './words.js';
 import {remember} from './session-runs.js';
-import {resultCard} from './result.js';
+import {resultCard, ledgerCard} from './result.js';
+import {errorPanel} from './fault.js';
 import {fillFromAnswer, maskedLine} from './masks.js';
-import {caseField, caseKey, onCaseChange, optionValue} from './wb-case.js';
+import {caseField, caseKey, onCaseChange, optionValue, MARKS} from './wb-case.js';
 import {createMemberCard} from './wb-member.js';
 import {createProviderCard} from './wb-provider.js';
 import {createServiceCard} from './wb-service.js';
 import {createStepper} from './wb-stepper.js';
-import {createJourney, stepOfAction, stepOfOperation, statusCarry, STEPS} from './wb-journey.js';
+import {createJourney, stepOfAction, stepOfOperation, statusCarry, readBack, caseFromLedger, NOT_KEPT_LINE, STEPS} from './wb-journey.js';
 import {optionsToggle} from './wb-run.js';
+import {createRunValues} from './wb-values.js';
 import * as crdStep from './wb-crd.js';
 import * as statusStep from './wb-status.js';
 // Not used by the Workbench itself. The step modules that read a chosen file (attachments in
@@ -53,12 +55,7 @@ export function mount(root, route) {
         built = build();
     }
     root.append(built.node);
-    // A chain named in the address is redrawn from the trail in a later slice (A2c). Until then an
-    // address that names a chain this page does not hold is put back to the plain Workbench, so it
-    // never claims a journey that is not on screen.
-    if (route && route.length > 0 && route[0] !== built.journey.knownChain()) {
-        window.history.replaceState(null, '', '#workbench');
-    }
+    built.follow(route);
     const offs = [
         app.on('mode', () => built.refresh()),
         app.on('config', () => built.reload())
@@ -66,7 +63,9 @@ export function mount(root, route) {
     built.refresh();
     built.reload();
     return {
-        update() {},
+        update(next) {
+            built.follow(next);
+        },
         unmount() {
             for (const off of offs) {
                 off();
@@ -110,6 +109,8 @@ function build() {
 
     const bannerText = el('p', {class: 'banner__case'});
     const banner = el('div', {class: 'banner'}, bannerText, button('Start a new case', () => newCase()));
+    // The one place a reload says how it went: reading back, a run the trail no longer keeps, or why it could not.
+    const readBackLine = el('div', {class: 'readback', 'aria-live': 'polite'});
     const stepper = createStepper(n => openStep(n, true));
 
     // The options of steps 2 to 4 belong to the case's journey, so they are built here and handed
@@ -137,7 +138,14 @@ function build() {
         panels[step.n] = el('section', {class: 'panel', id: 'step-panel-' + step.n, role: 'tabpanel', 'aria-labelledby': 'step-tab-' + step.n,
             hidden: step.n !== 1, tabindex: -1});
     }
-    const work = el('div', {class: 'work'}, banner, stepper.node, Object.values(panels));
+    // A result read back after a reload that the step's own module does not draw: drawn by the frame
+    // under the module's panel until the step has a result of its own, or the module draws it.
+    const restoredSlots = {};
+    for (const step of STEPS) {
+        restoredSlots[step.n] = el('div', {class: 'step-restored'});
+    }
+    const runValues = createRunValues({changed: () => null});
+    const work = el('div', {class: 'work'}, banner, readBackLine, stepper.node, runValues.node, Object.values(panels));
     const node = el('div', {class: 'workbench'}, caseColumn, work);
 
     function ctxFor(n) {
@@ -170,6 +178,9 @@ function build() {
             },
             placeErrors(fieldErrors) {
                 return placeErrors(fieldErrors, n);
+            },
+            needValues(fieldErrors, operation) {
+                return runValues.need(fieldErrors, operation);
             },
             go(step, how) {
                 openStep(step, true, how);
@@ -220,12 +231,19 @@ function build() {
         };
     }
 
-    /** A result arrived for step n. It updates that step's chip and never switches the view. */
-    function resulted(n, envelope) {
+    /**
+     * A result arrived for step n. It updates that step's chip and never switches the view. how.quiet:
+     * a result read back after a reload, which keeps the frame's drawing of it and reads the chain once at the end.
+     */
+    function resulted(n, envelope, how) {
         if (!envelope || typeof envelope !== 'object') {
             return;
         }
         const step = stepOfOperation(envelope.operation) || n;
+        const quiet = Boolean(how && how.quiet);
+        if (!quiet) {
+            clear(restoredSlots[step]);
+        }
         journey.resulted(step, envelope, caseKey(request()), app.epoch());
         remember(envelope);
         member.sentAs(envelope.wire && envelope.wire.memberId);
@@ -242,7 +260,9 @@ function build() {
             window.history.replaceState(null, '', '#workbench/' + encodeURIComponent(chainId));
         }
         drawStepper();
-        readChain();
+        if (!quiet) {
+            readChain();
+        }
     }
 
     /** Fills step 2's options from step 1's hand-over, through the check for a mask, marked "from step 1". */
@@ -296,18 +316,26 @@ function build() {
         if (module && typeof module.show === 'function') {
             guarded(() => module.show(how || {}));
         }
+        dropRestoredWhenDrawn(n);
         if (focus) {
             panels[n].focus({preventScroll: false});
         }
     }
 
-    /** The card of a result, with its next step wired to the step it leads to. */
-    function card(envelope) {
-        const kept = journey.result(stepOfOperation(envelope.operation) || 1);
+    /**
+     * The card of a result, with its next step wired to the step it leads to. how.readBack: a card the
+     * frame draws after a reload for a step whose module does not draw it; a next step inside that
+     * same step (answer the questions again) has nothing on screen to act on, so it is said in words.
+     */
+    function card(envelope, how) {
+        const own = stepOfOperation(envelope.operation) || 1;
+        const kept = journey.result(own);
+        const readBack = Boolean(how && how.readBack);
+        const sameStep = action => stepOfAction(action) === own;
         return resultCard(envelope, {
             context: 'workbench',
             stale: Boolean(kept && kept.epoch !== null && app.epoch() !== null && kept.epoch !== app.epoch()),
-            onNext: action => next(action),
+            onNext: readBack && envelope.nextStep && sameStep(envelope.nextStep.action) ? undefined : action => next(action),
             nextBlocked: action => {
                 const step = stepOfAction(action);
                 return step === null ? null : blocked(OPERATION_OF_STEP[step]) || (journey.offered(step) ? null : withdrawnWords(step));
@@ -347,7 +375,8 @@ function build() {
     function placeErrors(fieldErrors, n) {
         const placed = [];
         for (const each of Array.isArray(fieldErrors) ? fieldErrors : []) {
-            if (each && typeof each.field === 'string' && (showOption(n, each.field, each.message) || showField(each.field, each.message))) {
+            if (each && typeof each.field === 'string' && (runValues.show(each.field, each.message) || showOption(n, each.field, each.message)
+                || showField(each.field, each.message))) {
                 placed.push(each.field);
             }
         }
@@ -429,6 +458,18 @@ function build() {
 
     /** "Start a new case": clears the case, every step's result, the journey and the chain id in the address. */
     function newCase() {
+        reading += 1;
+        clearCase();
+        if (window.location.hash.startsWith('#workbench')) {
+            window.history.replaceState(null, '', '#workbench');
+        }
+        openStep(1, true);
+    }
+
+    /** Every field of the case, every step's result and the journey forgotten; the address is the caller's. */
+    function clearCase() {
+        clear(readBackLine);
+        runValues.clear();
         member.clear();
         provider.clear();
         service.clear();
@@ -438,10 +479,8 @@ function build() {
             }
         }
         journey.reset();
-        if (window.location.hash.startsWith('#workbench')) {
-            window.history.replaceState(null, '', '#workbench');
-        }
         for (const step of STEPS) {
+            clear(restoredSlots[step.n]);
             const module = modules[step.n];
             if (module && typeof module.reset === 'function') {
                 guarded(() => module.reset());
@@ -449,11 +488,143 @@ function build() {
         }
         drawBanner();
         drawStepper();
-        openStep(1, true);
         for (const module of Object.values(modules)) {
             if (module && typeof module.caseChanged === 'function') {
                 guarded(() => module.caseChanged());
             }
+        }
+    }
+
+    /* ---------- the reload and "Load into the Workbench" (R-38) ---------- */
+
+    // The latest address wins: a read back still on its way when another is asked for, or when
+    // "Start a new case" is pressed, is dropped when it arrives.
+    let reading = 0;
+
+    /**
+     * The address after #workbench: [chainId] after a reload, ['load', runId] from Audit's "Load
+     * into the Workbench". Nothing to do for the plain Workbench or the chain already on screen.
+     */
+    function follow(route) {
+        const parts = Array.isArray(route) ? route : [];
+        if (parts[0] === 'load' && parts[1]) {
+            restore({runId: parts[1]});
+        } else if (parts[0] && parts[0] !== 'load' && parts[0] !== journey.knownChain()) {
+            restore({chainId: parts[0]});
+        }
+    }
+
+    /** Reads the case and every step's result back from the chain, the trail and the ledger, and draws them. */
+    async function restore(target) {
+        reading += 1;
+        const mine = reading;
+        fill(readBackLine, el('p', {class: 'small muted', role: 'status'}, 'Reading the journey back from the ledger and the trail.'));
+        const back = await readBack(target, call);
+        const words = await vocabulary();
+        if (mine !== reading) {
+            return;
+        }
+        if (!back.ok) {
+            fill(readBackLine, errorPanel(back.error || {kind: 'NOT_FOUND', title: 'The journey could not be read back.'}));
+            if (window.location.hash.startsWith('#workbench')) {
+                window.history.replaceState(null, '', '#workbench');
+            }
+            return;
+        }
+        clearCase();
+        restoreCase(back);
+        let furthest = 1;
+        const order = [1, 2, 3].map(String).concat(['inquiry', 'subscription']
+            .filter(slot => back.runs[slot]).sort((a, b) => String(back.runs[a].at || '').localeCompare(String(back.runs[b].at || ''))));
+        for (const slot of order) {
+            const run = back.runs[slot];
+            if (!run) {
+                continue;
+            }
+            furthest = Math.max(furthest, run.step);
+            if (run.envelope) {
+                resulted(run.step, run.envelope, {quiet: true});
+                // A completed questionnaire handed Submit its response; read back, the frame hands it on again, as step 2 did.
+                const next = run.envelope.nextStep;
+                if (run.step === 2 && next && next.action === 'START_PAS' && next.carry && Object.keys(next.carry).length > 0) {
+                    handOn(3, next.carry);
+                }
+                const module = modules[run.step];
+                if (module && typeof module.restored === 'function') {
+                    guarded(() => module.restored(run.envelope, {at: run.at}));
+                } else {
+                    restoredSlots[run.step].append(card(run.envelope, {readBack: true}));
+                }
+            } else {
+                // The trail's own sentence says why this step shows its ledger line, not its result.
+                restoredSlots[run.step].append(el('p', {class: 'small readback__line'}, run.line || NOT_KEPT_LINE),
+                    ledgerCard(run.record || {runId: run.runId}, words));
+            }
+        }
+        for (const step of STEPS) {
+            if (restoredSlots[step.n].firstChild && !restoredSlots[step.n].isConnected) {
+                panels[step.n].append(restoredSlots[step.n]);
+            }
+        }
+        journey.setChainId(back.chainId);
+        journey.setChain(back.chain);
+        if (window.location.hash.startsWith('#workbench')) {
+            window.history.replaceState(null, '', '#workbench/' + encodeURIComponent(back.chainId));
+        }
+        // The line speaks of the case only when the case itself came from a ledger line; a run not
+        // kept beside a case the trail kept says so at its own step.
+        fill(readBackLine, back.theCase && back.theCase.from === 'ledger' ? el('p', {class: 'small readback__line'}, NOT_KEPT_LINE) : null);
+        drawBanner();
+        drawStepper();
+        openStep(furthest, true);
+        for (const module of Object.values(modules)) {
+            if (module && typeof module.caseChanged === 'function') {
+                guarded(() => module.caseChanged());
+            }
+        }
+    }
+
+    /** The case of the newest run the trail keeps, as it was posted; else the fields the ledger line kept. */
+    function restoreCase(back) {
+        const found = back.theCase;
+        if (!found) {
+            return;
+        }
+        const posted = found.from === 'trail' ? found.entry.case || {} : caseFromLedger(found.record);
+        const mark = found.from === 'trail' ? MARKS.TRAIL : MARKS.LEDGER;
+        member.restore(posted.member, posted.memberOverrides, mark);
+        provider.restore(posted.provider, posted.providerOverrides, posted.servicingProvider, mark);
+        service.restore(posted, mark);
+        // A step's own options as that step's run posted them; the scenario only on mock, where it exists.
+        const postedBy = n => {
+            const run = n === 4 ? back.runs.inquiry : back.runs[n];
+            return run && run.entry && run.entry.case ? run.entry.case : null;
+        };
+        for (const n of [2, 3, 4]) {
+            const own = postedBy(n);
+            if (!own) {
+                continue;
+            }
+            for (const [name, control] of Object.entries(options[n])) {
+                if (typeof own[name] === 'string' && own[name] !== '') {
+                    control.set(own[name], mark);
+                }
+            }
+            if (app.isMock() && typeof own.scenarioId === 'string' && own.scenarioId !== '') {
+                scenarioFields[n].set(own.scenarioId, mark);
+            }
+        }
+    }
+
+    /** A result the frame drew after a reload goes once the step's module draws a result of its own. */
+    function dropRestoredWhenDrawn(n) {
+        const slot = restoredSlots[n];
+        if (!slot.firstChild) {
+            return;
+        }
+        const own = Array.from(panels[n].querySelectorAll('.result')).some(card => !slot.contains(card));
+        if (own) {
+            clear(slot);
         }
     }
 
@@ -533,6 +704,7 @@ function build() {
     return {
         node,
         journey,
+        follow,
         /** The profile or the words may have changed: draw what depends on them. */
         refresh() {
             member.drawPicker();

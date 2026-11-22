@@ -12,7 +12,10 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
  * its fault report and a run NOT recorded are never inside a closed fold; the address called after a
  * failure never shows its query, which can carry a member ID; a long JSON string is cut on screen and
  * copied whole; the chips, the next step's button and its action come from the server's words; the
- * line about a masked reading stands under the headline and above the facts.
+ * line about a masked reading stands under the headline and above the facts. A service fault is drawn
+ * inside its card (prototype 05a): its headline and what the service said once each, every issue on
+ * its own line, no second framed box; a CDS refusal's summary and detail are what the service said,
+ * never from an answer the wire says was masked.
  */
 class ResultFrontendTest {
 
@@ -40,8 +43,8 @@ class ResultFrontendTest {
                 const card = resultCard(failed, {context: 'workbench', onNext: () => null});
                 document.body.append(card);
                 await tick();
-                // No error and no NOT recorded run inside a fold.
-                const panel = card.querySelector('.error-panel');
+                // No error and no NOT recorded run inside a fold. A fault of the service or its environment is drawn inside the card itself (prototype 05a).
+                const panel = card.querySelector('.error-panel') || card.querySelector('.verdict');
                 const ledger = card.querySelector('.result__not-recorded');
                 say([Boolean(panel), inClosedFold(panel), Boolean(ledger), inClosedFold(ledger), ledger.textContent]);
                 say(panel.textContent.includes('Cause, as the server log names it:') && panel.textContent.includes('ref-1'));
@@ -90,5 +93,52 @@ class ResultFrontendTest {
                 "[true,true,true]",
                 "[\"Continue to the questionnaire\",\"START_DTR\"]",
                 "false");
+    }
+
+    /** A played HTTP 500, a CDS refusal with summary and detail, the same masked, and a fault of this tool, run. */
+    @Test
+    void aServiceFaultIsOneCardAndACdsRefusalSaysWhatTheServiceSaid(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "a service fault in its card", """
+                import './browser.js';
+                import {resultCard, faultInCard} from './js/result.js';
+                const say = value => console.log(JSON.stringify(value));
+                globalThis.fetch = async () => ({ok: true, status: 200, text: async () => JSON.stringify({})});
+                const value = text => ({presence: 'VALUE', value: text});
+                // A service fault is one card: the headline once, the service's sentence once, each issue on its line, no second framed box.
+                const err500 = {runId: 'run-1', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'SCENARIO',
+                  verdict: {headline: 'The service failed (HTTP 500).', tone: 'FAULT'},
+                  nextStep: {action: 'CHECK_ENVIRONMENT', headline: 'Next, had this been a real service: check the environment, then send again.'},
+                  error: {kind: 'VENDOR_ERROR', heading: 'A failure played by a mock scenario, not a fault in the environment', title: 'The service failed with HTTP 500.',
+                    action: 'Nothing left this machine.', httpStatus: 500,
+                    issues: [{severity: value('error'), code: value('exception'), diagnostics: value('An unexpected error occurred.'), detailsText: value('An unexpected error occurred.')},
+                      {severity: value('warning'), code: value('processing'), diagnostics: value('Second issue.'), expression: [value('Claim.item[0]')]}]}};
+                const card = resultCard(err500, {context: 'workbench'});
+                const text = card.textContent;
+                say([faultInCard(err500), card.querySelectorAll('.verdict').length, card.querySelectorAll('.error-panel').length,
+                  text.split('The service failed').length - 1, text.split('An unexpected error occurred.').length - 1, card.querySelectorAll('.issue-line').length]);
+                say(card.querySelectorAll('.issue-line').map(line => line.textContent));
+                // A CDS service's refusal: its summary and detail, left among the fields returned, are what the service said.
+                const refused = {runId: 'run-2', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'SERVICE',
+                  verdict: {headline: 'The service did not accept the request as sent (HTTP 400).', tone: 'STOP'},
+                  error: {kind: 'VENDOR_REJECTED', title: 'Refused.', issues: []},
+                  additionalFields: [{path: 'summary', presence: 'VALUE', value: 'invalid hook request', kind: 'FIELD'},
+                    {path: 'detail', presence: 'VALUE', value: 'context.draftOrders.type is not allowed', kind: 'FIELD'}],
+                  wire: {response: {status: 400}}};
+                say(resultCard(refused, {context: 'workbench'}).querySelectorAll('.service-said').map(line => line.textContent));
+                // Never from an answer the wire says was masked; and a fault of this tool keeps its own panel and report.
+                refused.wire.response.maskedPlaces = 1;
+                say(resultCard(refused, {context: 'workbench'}).querySelectorAll('.service-said').length);
+                const tool = {runId: 'run-3', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', verdict: {headline: 'This tool failed.'},
+                  error: {kind: 'INTERNAL', title: 'This tool hit an internal error.', reference: 'ref-1', cause: 'java.lang.IllegalStateException'}};
+                say([faultInCard(tool), resultCard(tool, {context: 'workbench'}).querySelectorAll('.error-panel').length]);
+
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[true,1,0,1,1,2]",
+                "[\"error exception \",\"warning processing Second issue. Claim.item[0]\"]",
+                "[\"Service said: invalid hook request: context.draftOrders.type is not allowed\"]",
+                "0",
+                "[false,1]");
     }
 }
