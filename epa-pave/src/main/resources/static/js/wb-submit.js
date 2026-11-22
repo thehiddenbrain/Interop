@@ -23,6 +23,24 @@ const QUIET_MS = 500;
 // A gap chip shows the start of the server's line; the whole line is its title.
 const GAP_WORDS = 40;
 
+/**
+ * A step option through ctx.option (as wb-dtr.js reads one; each step module loads on its own). Should reading it fail in the Workbench itself, the value is read
+ * from the step's own options row, where the tester typed it, so a defect there neither stops the
+ * step nor drops what was typed.
+ */
+function optionOf(ctx, name) {
+    try {
+        return ctx.option(name);
+    } catch (defect) {
+        const row = typeof ctx.optionsRow === 'function' ? ctx.optionsRow() : null;
+        const field = row ? row.querySelector('[data-case-field="' + name + '"] input, [data-case-field="' + name + '"] select') : null;
+        if (field) {
+            return String(field.value || '').trim();
+        }
+        throw defect;
+    }
+}
+
 /** The number of questions a QuestionnaireResponse (JSON text) holds an answer for, walked without recursion; null when it cannot be read. */
 export function answerCount(json) {
     let response;
@@ -156,9 +174,9 @@ export function mount(root, ctx) {
     function own() {
         return {
             expected: expect.value,
-            claimId: ctx.option('claimId'),
+            claimId: optionOf(ctx, 'claimId'),
             mock: ctx.isMock(),
-            scenarioId: ctx.isMock() ? ctx.option('scenarioId') : '',
+            scenarioId: ctx.isMock() ? optionOf(ctx, 'scenarioId') : '',
             includeResponse: include.checked
         };
     }

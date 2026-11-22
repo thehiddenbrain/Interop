@@ -29,16 +29,36 @@ import {wireFold} from './result.js';
 import {responseDetail, detailHint} from './detail.js';
 import {flatItems, heldByLinkId, questionField, itemLine, formChips, linkIdOf} from './wb-dtr-items.js';
 
-// The panel's buttons carry the words of the next actions they take (plan 7.4), so a next step and
-// its button are one name.
-const LOOP = 'Send answers and get the next question';
-const RESPOND = 'Complete the response';
+// The form's button carries the server's words for the next action it takes (plan 7.4, the
+// vocabulary's nextActions), so a next step and its button are one name. Until the vocabulary has
+// answered, it says what it does in words of this page's own.
+const LOOP_ACTION = 'ANSWER_NEXT_QUESTION';
+const RESPOND_ACTION = 'SUBMIT_RESPONSE';
+const UNTIL_WORDS = {ANSWER_NEXT_QUESTION: 'Send the answers', SUBMIT_RESPONSE: 'Put the response together'};
 const WITHDRAWN = 'Complete the response again before Submit.';
 const SMART = 'There is no SMART launch here and no patient record: answers come from the case where a question asks for it, '
     + 'and you type the rest.';
 
 // A questionnaire url is cut on the handed-on line; the whole url is its title.
 const URL_SHOWN = 60;
+
+/**
+ * A step option through ctx.option. Should reading it fail in the Workbench itself, the value is read
+ * from the step's own options row, where the tester typed it, so a defect there neither stops the
+ * step nor drops what was typed.
+ */
+function optionOf(ctx, name) {
+    try {
+        return ctx.option(name);
+    } catch (defect) {
+        const row = typeof ctx.optionsRow === 'function' ? ctx.optionsRow() : null;
+        const field = row ? row.querySelector('[data-case-field="' + name + '"] input, [data-case-field="' + name + '"] select') : null;
+        if (field) {
+            return String(field.value || '').trim();
+        }
+        throw defect;
+    }
+}
 
 /** The parts of ctx.request() every DTR call takes; the DTR requests are read strictly, so nothing else goes. */
 export function caseBody(request, own) {
@@ -270,6 +290,7 @@ export function mount(root, ctx) {
         optionsRow, readiness, handed, busy.node, refusal, packageSlot, work].filter(Boolean));
 
     let session = null;
+    let loaded = null;
     let fields = new Map();
     let handedOn = false;
     let stepButtons = [];
@@ -277,14 +298,24 @@ export function mount(root, ctx) {
     function own() {
         return {
             expected: expect.value,
-            questionnaireUrl: ctx.option('questionnaireUrl'),
-            coverageAssertionId: ctx.option('coverageAssertionId'),
+            questionnaireUrl: optionOf(ctx, 'questionnaireUrl'),
+            coverageAssertionId: optionOf(ctx, 'coverageAssertionId'),
             mock: ctx.isMock(),
-            scenarioId: ctx.isMock() ? ctx.option('scenarioId') : ''
+            scenarioId: ctx.isMock() ? optionOf(ctx, 'scenarioId') : ''
         };
     }
 
+    /** The button of a next action, in the server's words, or this page's own until they are read. */
+    function actionWords(action) {
+        const found = loaded && Array.isArray(loaded.nextActions) ? loaded.nextActions.find(each => each.code === action) : null;
+        return found && found.button ? found.button : UNTIL_WORDS[action];
+    }
+
     function drawWords(words) {
+        loaded = words || loaded;
+        for (const each of work.querySelectorAll('.dtr-send')) {
+            each.textContent = actionWords(each.getAttribute('data-action'));
+        }
         const before = expect.value;
         const outcomes = words && words.outcomes && Array.isArray(words.outcomes.DTR) ? words.outcomes.DTR : [];
         fill(expect, el('option', {value: ''}, 'Not set'),
@@ -466,8 +497,9 @@ export function mount(root, ctx) {
                 : 'This questionnaire holds no question.'));
         }
         const count = el('p', {class: 'small muted dtr-count', role: 'status'}, countLine(entry));
-        const send = el('button', {type: 'button', class: 'btn btn--primary', on: {click: () => sendStep(entry, entry.loop ? 'loop' : 'respond')}},
-            entry.loop ? LOOP : RESPOND);
+        const action = entry.loop ? LOOP_ACTION : RESPOND_ACTION;
+        const send = el('button', {type: 'button', class: 'btn btn--primary dtr-send', 'data-action': action,
+            on: {click: () => sendStep(entry, entry.loop ? 'loop' : 'respond')}}, actionWords(action));
         const preview = entry.loop ? el('button', {type: 'button', class: 'btn', on: {click: () => previewLoop(entry)}}, 'Preview') : null;
         stepButtons = [send, preview].filter(Boolean);
         const blocked = entry.loop ? ctx.blocked('DTR_NEXT_QUESTION') : null;
@@ -511,7 +543,7 @@ export function mount(root, ctx) {
 
     async function sendStep(entry, kind) {
         const loop = kind === 'loop';
-        const mine = loop ? {...own(), wrap: ctx.option('nextQuestionShape')} : own();
+        const mine = loop ? {...own(), wrap: optionOf(ctx, 'nextQuestionShape')} : own();
         const body = {...caseBody(ctx.request(), mine), ...(loop ? loopPart(entry) : responsePart(entry))};
         if (Object.keys(session.carry).length > 0) {
             body.carry = session.carry;
@@ -552,7 +584,7 @@ export function mount(root, ctx) {
     }
 
     async function previewLoop(entry) {
-        const mine = {...own(), wrap: ctx.option('nextQuestionShape')};
+        const mine = {...own(), wrap: optionOf(ctx, 'nextQuestionShape')};
         const body = {...caseBody(ctx.request(), mine), ...loopPart(entry)};
         if (Object.keys(session.carry).length > 0) {
             body.carry = session.carry;

@@ -98,7 +98,8 @@ class QuestionnaireStepFrontendTest {
                     if (body) {
                         posted.push({path, body});
                     }
-                    const data = path === '/api/vocabulary' ? {outcomes: {DTR: []}, nextActions: [{code: 'START_PAS', button: 'Continue to Submit'}], answeredBy: []}
+                    const data = path === '/api/vocabulary' ? {outcomes: {DTR: []}, nextActions: [{code: 'START_PAS', button: 'Continue to Submit'},
+                        {code: 'SUBMIT_RESPONSE', button: 'Complete the response'}, {code: 'ANSWER_NEXT_QUESTION', button: 'Send answers and get the next question'}], answeredBy: []}
                         : answers.shift();
                     return {ok: true, status: 200, text: async () => JSON.stringify(data)};
                 };
