@@ -689,12 +689,13 @@ public class ConfigStore {
      * delete, is the mistake the write guardrail cannot recover from. Declaring it production is
      * the way through.
      *
-     * <p>When no environment that made the address production is stored any more, the refusal says
-     * that the address is remembered from a removed environment, and how to forget it. An
-     * environment uploaded as prod by a slip and then removed leaves its addresses refused for
-     * good, and the one way out the refusal used to give, pointing the variables at the sandbox,
-     * cannot work when they point there already (R-35). Nothing is forgotten here: the way out is
-     * the tester's own edit, made with PAVE stopped.
+     * <p>The refusal's sentence is the guardrail's and keeps its words whatever is stored (R-16).
+     * When no environment that made the address production is stored any more, its field note
+     * begins with that fact and a way out that works at that moment, then gives its old sentences
+     * unchanged (R-35). An environment uploaded as prod by a slip and then removed leaves its
+     * addresses refused for good, and the old note alone, pointing the variables at the sandbox,
+     * cannot help when they point there already. Nothing is forgotten here: the way out is the
+     * tester's own edit, made with PAVE stopped.
      */
     private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
@@ -715,41 +716,35 @@ public class ConfigStore {
         // reading of it is not an address the file holds.
         boolean several = owners.size() > 1;
         String production = "production environment" + (several ? "s " : " ") + named;
-        // An owner that is no longer stored is known only as a name the store remembers the address by.
-        boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
-        String fromRemoved = "remembered as production from the removed environment" + (several ? "s " : " ") + named;
-        String anAddressOf = removed ? "an address " + fromRemoved : "an address of the " + production;
         ProductionDestinations.Found shown = quoted;
         String said;
         if (shown == null) {
-            said = "one of its addresses is " + anAddressOf + ", or lies above or beneath one.";
+            said = "one of its addresses is an address of the " + production + ", or lies above or beneath one.";
         } else if (!shown.destination().readable() && shown.written() != null) {
             said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + quoted(shown.variable())
-                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is " + anAddressOf
-                    + ", or lies above or beneath one.";
+                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
+                    + production + ", or lies above or beneath one.";
         } else if (before.remembered().stream().anyMatch(known -> known.destination().everyPortAndPath()
                 && known.destination().covers(shown.destination()))) {
-            said = removed ? "its address " + oneLine(shown.destination().shown()) + " is on a host " + fromRemoved + ". "
-                    + (several ? "One of them" : "That environment") + " had an address this tool cannot read the way the HTTP client "
-                    + "reads it, so every port and every path of its host is taken as production."
-                    : "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
+            said = "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
                     + "production environment has an address this tool cannot read the way the HTTP client reads it, so every port and "
                     + "every path of its host is taken as production.";
         } else {
-            said = "its address " + oneLine(shown.destination().shown()) + " is " + anAddressOf + ", or lies above or beneath one.";
+            said = "its address " + oneLine(shown.destination().shown()) + " is an address of the " + production
+                    + ", or lies above or beneath one.";
         }
         String note = "An address that this installation knows as production stays production, even after its environment is deleted. "
                 + "If this environment is production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
                 + " service and upload it again.";
+        // An owner that is no longer stored is known only as a name the store remembers the address by.
+        boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
         if (removed) {
             // The store keeps no way to forget an address while it runs, so the way out is the
             // one that works: the remembered entries taken out of store.json while PAVE is stopped.
             String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
-            note = "If " + named + (several ? " were" : " was") + " uploaded as prod by mistake: stop PAVE, delete the entries whose "
-                    + "environment is " + entries + " from productionDestinations in " + directory.resolve(STATE_FILE) + ", start PAVE "
-                    + "again and upload this environment again. Otherwise the address stays production: if this environment is "
-                    + "production, upload it with the kind prod, and if it is not, point its variables at the " + kind.wire()
-                    + " service and upload it again.";
+            note = named + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was") + " uploaded as "
+                    + "prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
+                    + directory.resolve(STATE_FILE) + ", start PAVE again and upload this environment again. " + note;
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));
