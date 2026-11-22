@@ -35,6 +35,7 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-277 | The cause of an internal error was written where the operator did not look (D-275) | The first line of the log entry and the screen now name the chain of exception types, with a detail only for a few throwables the runtime or the IDE's compiler writes about the program itself (a narrow change to D-036), and one button copies the reference and the cause. Seen in a damaged copy of the jar on Linux, not on the operator's machine: **their cause is still not known**. A suite that stops and the notification receiver still gave the reference without the cause when it was written; both now name it (its "Later:") |
 | D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
 | D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and for longer texts (3,000 characters in the tests) every later reading of the store threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion the guard can see is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
+| D-280 | What the checks of the upload fix left was corrected, in three branches each built, checked on the real jar by an agent that wrote none of it, corrected and checked again, and merged | An answer is now masked wherever it repeats a secret the tool holds, carried or not; a verdict read from a mask says so under its headline; an id read from a header is masked; a mask fills no field and is never sent. **An older leak was found and closed:** a credential typed into the address to call back or a lookup url was shown in clear in "In force now" and on the PAS tab since those were built; whether a real one was ever shown is not known. A stop now waits up to 30 s for a call that is out and keeps its ledger line; a client that went away is one INFO line, not an unhandled exception; the unexplained answer was right and very slow on a very large store (open); a long name is quoted by its start and its length in every sentence (labels stay whole), and the slow pattern no longer sees a part over 128 characters. Seen on the jars of each branch against stand-ins on this machine; the merged head `6ab0e69` was built (3,093 tests), not run. **Not seen: Windows, the vendor's service** |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -1779,6 +1780,9 @@ received; until the server does it, the page masks them, D-196. The JSON number 
 received notification is masked with every secret the tool could have sent, D-215.)
 (A received notification says so too when a secret was too short to search for, D-247, item 4;
 done, D-254.)
+(Later, D-280: an answer is masked wherever it repeats a secret this tool holds for the configuration
+in force, whether or not the request carried it, by the same rule; the sentences now say "a secret
+this tool holds".)
 
 **D-163. Whether a failed call may have reached the service, and other words a result now chooses with care.**
 From the PAS follow-up.
@@ -2181,6 +2185,9 @@ From the PAS verification's V-01, in the form its finisher suggested, and the ve
   fields are still read from the body as received (D-196, D-200), and a secret sent back as a JSON
   number, anywhere.
   (Both covered since: D-205 for the raw send, D-202 for a JSON number.)
+- Later, D-280: the parsed body is masked wherever it repeats a secret this tool holds for the
+  configuration in force, not only one the request carried, and the sentences of the third bullet now
+  say "a secret this tool holds". A verdict read from such a mask says so under its headline.
 
 **D-180. A questionnaire the service completes with no item, in a package of several, is done.**
 Decided by the integrator after the fix wave (D-166). Its response is not handed to PAS, because DTR
@@ -2813,7 +2820,8 @@ From the CRD review's CMP-6, CMP-7, CMP-10 and CMP-12 and the protocol half of D
   repeats the caveat as its first entry; leaving it out is decided and not done (D-226).
 - A secret a service sends back as a JSON number is masked by the number's text as written, so the
   designed view agrees with the wire view, which finds the same digits in the body text. Unit tests
-  only.
+  only. (Later, D-280: the secrets searched for are every one this tool holds, not only those the
+  request carried.)
 - On the built jar a pasted request carrying a token was compared: the token was absent from the
   whole answer, the application log and the ledger file.
 - The earlier `CaseResources` builders nothing called (`patient()`, `coverage()`, the five-argument
@@ -2884,7 +2892,8 @@ From the frame review (FR-01, FR-03, FR-04, FR-07, FR-08, FR-11, FR-13, FR-16, F
   discovery, the DTR package and next question, the PAS submission and inquiry, a subscription, both
   lookups and the raw send) over the running server on live, for the bearer token, an API key header
   and a secret variable echoed in an unexpected field and as a property name. None is disabled and
-  all ten are clean. D-215 added a delivered notification to it.
+  all ten are clean. D-215 added a delivered notification to it. (Later, D-280: an answer is masked
+  for every secret this tool holds, carried or not.)
 - "Can this operation be sent" counts a placeholder in the url and in the headers of the mapped
   request (FR-03). On live such a header makes the row unavailable, with a sentence naming the
   placeholder and where to give it a value. On mock it goes in the row's note, which says a run is
@@ -6059,6 +6068,7 @@ left.**
   is shown unmasked on screen, in the returned fields and the wire view (D-179 masks only the secrets
   the request carried; neither the log nor the ledger holds it): recorded for the integrator, not
   changed. A third agent saw (1) and (2) fail when undone and nothing else break.
+  Later: D-280. Finding (4) is closed: an answer is masked wherever it repeats a secret the tool holds.
 - **Limits, said plainly.** The net, the guard in `SuiteService.close` and the net's own guard were
   never made to fire on the real jar, which cannot be made to fail there from outside; they are held
   by tests. The self-check, most of the code picker and the History list could not be broken by
@@ -6070,6 +6080,8 @@ left.**
 - **Left, seen while checking.** A shutdown during a suite interrupts the case being written, and
   the ledger then logs "A ledger write failed for <its file>: java.nio.channels.ClosedByInterruptException"
   (types only); that case's ledger line may be lost. Pre-existing, not changed. And finding (4) above.
+  Later: D-280. Both closed: a stop lets the call in flight finish within 30 s and the ledger write no
+  longer fails on an interrupt, so that line is kept; and finding (4), above.
 - **Tests.** 2,951 before this step, 2,962 after `d4b2023`, 2,965 at `ef069d9`, the last whole clean
   build, through the shared runner, with 0 failures, 0 errors and 2 skipped. The jar of `d4b2023` and
   of `ef069d9` is the same byte for byte (the last two commits change tests only).
@@ -6232,12 +6244,13 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     "password" gave one warning of 2,000,683 characters. A name longer than 60 characters is now quoted
     by its start and its length, "... (a name of 2000008 characters) ..." (`d7f9aba`); that warning is
     now under 800 characters (765 and 773 in two measurements, the file path differing). Field, header,
-    query and helper names only: see what is open.
+    query and helper names only: see what is open. (Later, D-280: every name a file supplies.)
   - *The inline strips were quadratic*: loops, above.
   - *`RunRecord.IDENTIFIER_OR_DATE` took over 5 s on 5,000,000 characters*: left. The corrector's
     reason, "only used on ledger text capped at 4,000 characters", was found untrue by the check that
     followed: it also runs on the parts of a questionnaire address a service supplies, which nothing
     caps (a 5,000,000-character address took 5.0 s and answered 200). A delay, no Error. Open.
+    (Later, D-280: a part over 128 characters is no longer handed to it.)
   - *The answer the browser receives is about twelve times the body the service sent*: a PAS answer
     with a 10 MB address gave a browser answer of 120,011,498 characters, a DTR one 80 MB, a plain 10
     MB PAS text 100 MB; with no Error at the default heap. **Left by the integrator**, with an open line:
@@ -6256,7 +6269,7 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     with its reason. No "internal error", no
     `StackOverflowError`. The environments of 100,000 or 200,000 variables took many minutes or gave no
     answer within the client's time (the time left out on purpose), and the builder's client giving up
-    on them left two "Unhandled exception" entries in the log (open, below).
+    on them left two "Unhandled exception" entries in the log (open, below; later, D-280: one INFO line).
   - *Big texts.* 1, 5 and 20 MB in a request body, a saved example, a header, a url, a script, an
     environment value and a dotted value, on Java 21 and Java 25, at the default stack, at 256 KB and
     with `-XX:TieredStopAtLevel=1`: every upload and read answered 200. **Limit:** that series ran on
@@ -6325,6 +6338,11 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
     warning still quotes the name of a request or of a saved example whole, however long (a
     1,000,000-character request name gave a warning of 1,000,696 characters); and
     `RunRecord.IDENTIFIER_OR_DATE` takes seconds on a questionnaire address of megabytes.
+    Later: D-280, for each of the four. The environment list was right and very slow on the store
+    left by the corpus uploads: an answer of about 32 MB in 488 to 637 s, and the script read a body its previous call had left: an open
+    performance item, no fault of the answer. A client that gives up is one INFO line. Every name a
+    file supplies is quoted by its start and its length when long. A part of an address over 128
+    characters is not handed to the pattern, and the address is not recorded.
   - Open, with no step yet: the answer the browser receives, about twelve times the service's body;
     the walks over an answer below a 512 KB stack.
 - **Nothing of this ran on Windows**, and the operator has not pulled it.
@@ -6334,4 +6352,411 @@ The reports, outputs and screenshots are in the integrator's scratch directory u
   BUILD SUCCESSFUL, 3,006 tests, 0 failures, 0 errors, 2 skipped; the jar's sha1 is
   `981a972d4ba3d7f0620e1a8e7973288e037093c5`. The integrator's final gates had not run on it when this
   was written.
+- The commits that record this change this file, `PROGRESS.md` and the README only.
+
+**D-280. What the checks of the upload fix left: a secret a service repeats, a stop while a call is
+out, a client that went away, long names, a slow pattern.**
+The reports are in the integrator's scratch directory under `cont26/`, `cont27/`, `cont28/` and
+`cont30/`, their outputs and screenshots under `el1/`, `el1b/`, `el1c/`, `el2/` and `el3/`, and the
+briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md`,
+`TASK_STOP_AND_GONE.md` and `TASK_LONG_NAMES.md`.
+- **Where it comes from.** D-278 left two things seen while checking: a secret a service repeats back
+  that the request did not carry was shown (its finding (4)), and a ledger line could be lost when the
+  tool was stopped while a suite's call was out. D-279 left four for the next step: an answer of
+  `GET /api/config/environments` a script could not read after 89 uploads; a client that gave up on a
+  slow answer logged as "Unhandled exception"; a credential warning that quoted the name of a request
+  or of a saved example whole; and `RunRecord.IDENTIFIER_OR_DATE` slow on a questionnaire address of
+  megabytes. **The integrator ordered all of them corrected**, in three branches built side by side
+  from `ba4661b`: `echo-secrets`, `stop-and-gone` and `long-names`. Each was built, checked on the
+  real jar by an agent that wrote none of it, corrected, and checked again by another agent that
+  wrote none of it. The first branch went through that twice more, for two further steps that its checks
+  called for. Every live check used a stand-in on a loopback port; nothing of this ran on Windows or
+  against the vendor's service.
+
+*1. A secret a service repeats back* (`echo-secrets`, `18a336c` to `14fc20f`, 25 commits)
+- **What was wrong, and since when.** An answer was masked only where it repeated a secret the
+  request had carried (D-162, D-179, D-202, D-205). A secret the tool holds but this call did not
+  send was not searched for: on live, a service that answered with the value of the client secret in
+  an error answer, to a call sent without sign-in, had it shown in the returned fields and the wire
+  view. On the jar of `ba4661b` against a stand-in that repeated everything, each answer of the API held
+  the client secret 6 to 11 times; the member lookup showed the provider lookup's key and the other way
+  round. The log, the ledger and the suite's CSV held none. It was so since masking was built; the
+  check of D-278's last step was the first to try a secret the request did not carry.
+- **Decided by the integrator** (point by point): (1) what comes back is masked wherever it repeats a
+  secret the tool holds for the configuration in force, carried or not, by the one rule the tool
+  already has for what is secret, and no second one; (2) the rule of the search is unchanged: the same
+  characters, also as JSON escapes, a value shorter than six characters not searched for and counted,
+  nothing judged by its look, an unset or blank variable masking nothing; (3) it holds everywhere a
+  sent secret was masked (every mapper, the wire view, the returned fields, the comparison, what the
+  ledger takes, a suite's rows and CSV, a notification); (4) holding these values puts them nowhere
+  new, and `SentSecrets` hands no value back; (5) every sentence that said "a secret the request
+  carried" says what is now the case; (6) the cost stays one pass whatever the number of secrets, and
+  no pattern or walk recurses with the length or depth of an answer.
+- **What the tool holds now**, from `ConfigStoreGateway.held` at the head: the secret variables of the
+  active environment, of the collection the request came from (of every collection uploaded, for a
+  call that comes from no collection, a lookup or an operation `application.yml` supplies, and for a
+  notification) and of `application.yml`, an operating system value one refers to included, with the
+  values given for this run in front of them; what the requests of those collections name or carry as
+  a secret: an operating system value written as `{{env:NAME}}`, a credential typed into a url, a
+  header that is a credential by its name, a credential in a body; the client secret the access
+  token is fetched with; the credentials of the address to call back (a secret variable, a query
+  parameter whose name reads as a credential, as written and decoded); the credentials of both lookups,
+  in their urls and their headers; and the access token held. A variable is secret by the resolver's
+  rule, the one the request side masks by. **Not held:** a value given for one run, outside that run
+  (an answer to another call that repeats it is shown); a value typed into a Postman authentication
+  helper rather than into a variable, a header, the url or the body, and a header Postman marks
+  disabled (read from the code); an unset or blank variable; a secret shorter than six characters,
+  counted and named in the note as before; a secret re-encoded (percent, base64, another case). A
+  notification's headers are not taken in or shown, so only its body is masked. The mock lookups answer
+  from fixtures and hold nothing; every other call on mock holds the same set as on live.
+- **What was built.** One walk over a text for every secret, along a tree of their characters with a
+  stack of its own (`18a336c`; the recursion `SentSecrets.endOfSecret` and its entry in
+  `RecursionGuardTest` went with it, which makes that guard stricter); each prepared call holds the
+  set above and every masking place reads it (`f10c267`); the notification takes the same set. Every
+  sentence that said "this request sent" or "the request carried" now says "this tool holds": the wire
+  view's "N places <where> are masked because they repeat a secret this tool holds.", the note "This
+  tool holds N secret(s) shorter than 6 characters.", the notes on a body that is not JSON, and the
+  lookup field's "This value repeats a secret this tool holds, which this tool masked, so it is not
+  what the service returned and is not offered for the case." The notification's note now ends "...
+  or a credential of the address to call back, of a lookup or of a request of a collection. What is
+  shown is therefore not exactly what was received."
+- **What the first check found, and what was done** (on the jar of `f10c267`, 15 placeholder secrets of
+  every kind the decision names, 7 forms of answer). Held: each named kind 0 times in every answer, the
+  ledger, the log and the CSV, where the old jar showed each 2 to 17 times; 15 of 15 answers to a stand-in
+  that repeats nothing as before. Found, each corrected with a test that fails without it: (1, major)
+  a lookup held no collection variable, so a lookup answer showed one 6 to 15 times: a call from no
+  collection now holds every uploaded collection (`7dc47ec`); (2) an `{{env:...}}` reference and a
+  literal header written into another request of the collection were not held: the requests of the
+  collection in force are now read for what they name or carry as a secret (`7dc47ec`); (3) a held secret
+  used as the name of a response header was shown: header names are masked like their values
+  (`4e30ae1`); (4) a held secret that is an ordinary word of an answer changed the verdict and nothing
+  said why: a sentence in the response note (`4af3add`), then the step below; (5) the tree walk was three
+  times slower than the old search on a hostile answer (22,670 ms against 7,541 ms for 2 MB against one
+  secret of 1,000 characters): failure links between its branches, built with a queue of its own, now
+  run wherever no backslash is near (`696e0b4`; that case 27 ms); (6) no test held the run values in
+  the set: one now does; and (7, major) the older leak below (`4872b40`).
+- **The older leak, said plainly.** A credential typed into the address to call back
+  (`onyx.subscription.callback-url`, say `?access_token=...`) or into a lookup url (`?api_key=...`) was
+  shown in clear in "In force now" (`GET /api/config/effective`, marked not secret) since the
+  configuration service was written (`9d080da`), and in the sentence of PAS Notifications "A
+  subscription this tool creates asks the service to call back <url>, from the setting
+  onyx.subscription.callback-url." since the PAS tab was built (`bbdeb2e`). The same on the jar of
+  `ba4661b`: this change did not cause it. The tool itself treated those values as credentials and
+  masked them in the Subscription it shows and in answers (D-179, D-215). No check before had seen it.
+  The reports do not say why; by reading, the settings row was marked secret by the name of the
+  setting alone, and the checks of these credentials looked at what a call sends and receives, not at
+  the settings list. Now the three url rows show the masked form, for example
+  `...?access_token=[secret access_token as typed]`, marked secret, and the PAS Notifications sentence
+  reads that row. **No screen or log of the operator's has been seen, so whether a real credential was
+  ever shown this way is not known.**
+- **What the second check found** (on the jar of `cc5f0a3`, five more kinds of held secret of its own):
+  every correction held, and 26 of 27 answers to the plain stand-in were as before, the difference being
+  the url rows that held a credential. Two minor findings, each the subject of a step of its own: the cost bound was
+  stated too narrowly, and the sentence that a value was read from a mask sat in the response detail,
+  below the fold at 1440 by 900, while the verdict above it said "No prior authorization matches this
+  inquiry." and "The environment answered normally."
+- **A verdict read from a mask.** Masking the parsed answer before any mapper reads it was decided and
+  stays, so no mapper output can carry a secret. The cost: when a held secret equals an ordinary word of
+  an answer (a variable typed secret with the value `Bundle`, `ClaimResponse` or `active`), the mapper
+  reads the mask and the verdict changes; with `Bundle` held, a PAS answer carrying a ClaimResponse
+  read "The service answered without a ClaimResponse, so there is no decision." **This was so before
+  for a secret the request carried** (the first check saw the same verdict on the old jar with the
+  value sent in a header); now it happens without the request using the variable. Decided
+  (`TASK_ECHO_VERDICT.md`): (1) wherever the tool draws a conclusion from an answer and a mask fell on a
+  value it is read by, or on the name of one, one line stands in the verdict, under its headline and
+  above its reasons, in view at 1440 by 900; the headline and its rules do not change and nothing is
+  guessed; (2) the next step does not build on the mask; (3) a suite row and History show it through
+  an existing list, with no new ledger field and no new CSV column; (4) the values a conclusion is
+  read by are found from the code, not from a list of names; (5) the cost is stated truly. Built
+  (`98e5a61`, `e67c003`): the line, a marked next step, and a finding kind `MASKED_READING` (group "About
+  how this tool read the response") that the suite row, the CSV's findings column and History show;
+  each reading (CRD, discovery, DTR, PAS, subscription, notification, both lookups) has its own list
+  of names, held by a test that reads that reading's sources. **What the tester reads, word for
+  word:** "Read from a mask, not from what the service sent: <value> was read as [secret <name>]. The
+  variable or setting the mask names holds a value that the answers of this service use as an
+  ordinary word, so the reading above may be wrong. Look at that value in the Config tab." and before
+  the next step "First settle the masked value the verdict names, in the Config tab. Until then, this
+  next step rests on the masked reading: " followed by the rules' own words. A folded notification
+  and the one-line notification summary carry "Read from a mask, not from what the service sent: open
+  the notification to see which value." On the DTR tab the line is repeated above "Still to do",
+  because a step scrolls the verdict out of view. The check of that step found three values the lists
+  missed, each read by `shown()` and then compared or carried, which its test pattern skipped: a
+  subscription's `id` (with it held, the create carried `[secret ...]` into the next step and the
+  Subscription id field, with no line), its `channel.endpoint` (a false "the service answered with
+  another address") and a CRD link's `appContext` (carried into the DTR launch); also the notification
+  line above the headline it qualifies, the DTR line out of view, a capital after the colon, and verdict
+  lines that printed sent values in clear (the same on the old jar). All corrected (`cd995ed` to
+  `0cb3c0b`): the lists gained `id`, `endpoint`, `appContext`, `preAuthRef`, `start`, `end` and
+  `readOnly`, and a test now places every name a reading shows as judged, with its reason, or as only
+  shown; the subscription verdict compares and says the sent address and id masked; a real difference
+  in the address is still reported (seen by the second check).
+- **The id from the `Location` header, said plainly.** When a subscription create gives its id only in
+  the `Location` (or `Content-Location`) header, the tool read it from the header unmasked since the
+  subscription service was written (`3954247`) and the PAS tab filled the Subscription id field with it
+  (`bbdeb2e`). Once answers were masked by held secrets, an id that repeats one was shown in clear in
+  the carried next step, in the detail and in the Subscription id field, while the wire view masked
+  the same header on the same screen and the verdict said "Its id is [secret X]." The second check of
+  the verdict step found it; the corrector before it had described it wrongly ("a mask there gives no
+  line"; there was no mask at all). It was so before this branch. And a mask could be carried into a
+  field: after a create whose id was read from a mask, the field held `[secret X]`, and Read
+  subscription refused it with the sentence about the form of an id. Decided (`TASK_ECHO_LOCATION.md`):
+  (1) every value the tool takes from a response header goes through the same mask as the body and
+  counts as a masked reading where a conclusion rests on it; (2) a mask is never put into a field and
+  never sent: the field stays empty with a line saying why, and a chain, suite or replay step that would
+  send one is refused with the reason and sends nothing; (3) the clear value is recovered from nowhere.
+  **The headers the code reads**, found by the builder and searched again by the check: the
+  `Location` and `Content-Location` of a create, and the charset a `Content-Type` names, which the note
+  on a body that cannot be decoded quotes ("The body is not valid [secret X], the charset its
+  Content-Type names."); no other (no `ETag`, retry hint or request id). The whole header is masked
+  first and the id taken from the masked value (`cc8eca8`, after the check found a secret covering more
+  than the id leaving the id in clear); when a mask hides where the id starts, the masks stand for the
+  id. **Now the field stays empty and reads beside it:** "Not filled in: the answer gave this value
+  masked, as [secret X], because it repeats a secret this tool holds. Type the value, or settle the
+  secret in the Config tab." The verdict reads "Its id is [secret X]." with the line "... id, from the
+  Location header, was read as [secret X]. ...", a marked next step and `MASKED_READING`.
+- **Every place a carried value fills a field or becomes part of a request**, before and now:
+  - The Subscription id field after a create: filled with whatever the answer gave, a mask included;
+    now not filled when it holds a mask, with the line above. The claim identifier an inquiry follows
+    (from a submission, a notification or a resubmission): filled unchecked; now through the same
+    check, though a claim id is the tool's own sent value and cannot carry a mask.
+  - What CRD hands DTR (questionnaire, coverage assertion id, app context, response reference, purpose)
+    and what DTR hands PAS (completed QuestionnaireResponses): posted as received; now a masked value is
+    dropped and named under "Handed on from": "Not handed on: the answer gave this value masked, as
+    [secret X], because it repeats a secret this tool holds, so it is not sent. Type the value on the
+    form, or settle the secret in the Config tab." The hand-over a DTR step posts back is stripped the
+    same way, the stripped values named beside "Still to do".
+  - On the server, every run request refuses a hand-over value holding a mask, under any key: before, a
+    suite chain passed the CRD and DTR hand-over straight on (the builder's test, run against the old
+    code, shows the package fetched for a masked address). Now: "<label>, handed on from the step before, was given masked, as [secret X],
+    because the answer it came from repeats a secret this tool holds. A mask is never sent, so this
+    step was not sent. Type the value on the form, or settle the secret in the Config tab." A suite row
+    reads, for example, "CRD order-sign was sent; DTR questionnaire package was not sent. carry.questionnaire: ...".
+    A key never sent (`dtrAppContext`) is refused too, by choice: which keys reach the wire depends on
+    the form, and the reason names the key.
+  - The DTR adaptive loop posted the Questionnaire and QuestionnaireResponse it held from a masked
+    package, so a mask went to `$next-question` (two masks on the wire, the same on the old jar); found
+    by the check of this step. Now the next question, its preview and the response step are refused
+    with field `questionnaire` or `questionnaireResponse`: "The questionnaire, handed on from the step
+    before, was given masked, as [secret X], because the answer it came from repeats a secret this tool
+    holds. A mask is never sent, so this step was not sent. Settle the secret in the Config tab, then
+    fetch the questionnaire package again." (and "The QuestionnaireResponse so far, ..." the same way),
+    and the tab says so above the buttons first: "What the next step would post holds a mask, [secret
+    X]: an answer this tool read repeats a secret this tool holds. A mask is never sent, so the next
+    step is refused and nothing goes out. Settle the secret in the Config tab, then fetch the
+    questionnaire package again."
+  - A mask typed into the subscription id or a claim id: before, the sentence about the form of an id;
+    now "This is not a subscription id but a mask, [secret X]: an answer gave the value masked because
+    it repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the
+    secret in the Config tab." (a claim id the same way).
+  - A replay sends no carried value, and a masked id is on its line as "(not recorded, N characters)",
+    before and now: all nine runs a check tried were not replayable.
+- **The cost of the search.** One pass over the answer whatever the number of secrets. Measured on the
+  classes of the jars, one machine: 2 MB with 1, 20 and 200 secrets held 30, 22 and 20 ms, 20 MB 199,
+  200 and 226 ms (the old search, as the first check measured it: 6, 74 and 702 ms; 50, 775 and
+  7,715 ms); a DTR package through the jar of `f10c267` about 0.13 to 0.18 s at 2 MB and 1.0 to 1.1 s
+  at 20 MB. **The true bound:** at a start
+  with a backslash at it or within the length of the longest secret after it, the old walk runs, at up
+  to the length of the longest secret per character; so wherever backslashes lie closer together than
+  that length, and the text repeats most of a long secret over and over, the cost is that of the old
+  search. Measured: an escaped backslash every 900 characters against one held secret of 1,000
+  characters, 2 MB 8.9 to 10.0 s, 8 MiB about 36 s, 20 MB about 90 s; against one of 2,000 characters
+  (as long as an access token can be) 8 MiB 73 to 77 s, 20 MB about 187 s. An ordinary answer of 8 MiB
+  or 20 MB with a backslash every 300 characters and no secret in it took 0.13 to 0.33 s. The client
+  reads an answer to its end (no cap); the receiver reads at most 8 MiB. The class comment of
+  `SentSecrets` says this. Making that case linear was not attempted, as decided, because it could not be
+  proved to mask exactly what the search masks. 600,000 random texts masked the same on the automaton
+  of `cc5f0a3` and on the tree walk of `f10c267` (the second check's own run); against the old
+  per-secret search, unit tests compare 3,000 texts each.
+- **What the proofs showed, each with its limit.** On the live profile against stand-ins of the
+  agents' own on 127.0.0.1, with placeholder secrets; jars of `f10c267`, `cc5f0a3`, `2a4f9d2`, `0cb3c0b`,
+  `130b2e8` and `14fc20f`, each identified by its checksum.
+  | Run | What it showed |
+  | --- | --- |
+  | Every call (CRD, discovery, DTR package and next question, PAS submit and inquire, the five subscription calls, both lookups, a raw send, a notification, a suite, History, export, replay, Config) against a stand-in that repeats every held kind in fields, names, escapes, headers, long and 2 MB texts, redirects, text and HTML | each held placeholder 0 times in every answer, the ledger, the log, the CSV and the page in Chromium; the old jar 2 to 17 times each |
+  | The same calls against a stand-in that repeats nothing | the answers as on the jar before each step once ids, times and salted tokens are taken out, apart from the url rows and the refusal sentences meant to change |
+  | Ordinary words held as secrets (`Bundle`, `ClaimResponse`, `active`, `complete`, an id, an address, an app context, an authorization number) | the line in the verdict, in view at 1440 by 900 (DTR next question: repeated above "Still to do"), the marked next step, `MASKED_READING` in a suite row, the CSV and History; the headline as before |
+  | A create with the id in `Location` only, then Read, Update and Delete from the screen | field empty with its line, a typed mask refused, the typed id sent with no mask in it |
+  | A CRD hand-over holding masks, through DTR to PAS, and a suite chain | masked values named as not handed on, the chain step refused, 0 masks in any request the stand-in received |
+  The hard rules were looked at each time: live offers no scenario or sample, the only browser storage
+  key is `pave.tab`, no secret or member placeholder in the log or the ledger, `smoke.py` ended "ALL
+  PROOFS HELD", and the three guard tests were not weakened. **Limits:** never the vendor's service,
+  nothing on Windows; the jar of the merged head was not run (its whole build was); the discovery screen
+  was not shot again after the verdict step's correction (its answer was among those compared); the
+  `preAuthRef` of a notification was run by the second check only.
+- **Left, each with why.** A run value is held only for its run (the tool holds nothing else of it). A
+  subscription id the tester typed is carried and shown as typed, and the PAS Notifications sentence
+  shows the configured address in clear where a part of it merely equals a held secret: both the
+  tester's or the installation's own values, recorded and left by decision (the ledger holds the typed
+  id 0 times). Answers a tester types in the DTR questionnaire are not checked for a mask: their own
+  words. The subscription's response note names masks in the body only; the `Location` reading is in
+  the verdict, the next step and the finding. Names are matched wherever they sit in an answer, so a
+  line can appear for a `start` that the decision does not read; it says "may be wrong". A raw send
+  draws no verdict and gets no line. The search's bound above stands.
+
+*2. A stop while a call is out* (`stop-and-gone`, `a20e64f` to `f9e269c`, then `f386962`)
+- **What was wrong, and since when.** `SuiteService.close` called `shutdownNow` at once, and
+  `JsonlRunLedger.append` wrote through a `FileChannel`, which an interrupt closes: the log said "A
+  ledger write failed for <file>: java.nio.channels.ClosedByInterruptException" and the line was lost.
+  Both since the suites (`df3adcd`) and the ledger (`2b5c2d4`) were written. Found first by
+  measuring on the old jar (SIGTERM, live, stand-ins answering after 20 s or never): a suite case
+  left no ledger file at all and the tool was gone in 0.4 s; a screen run with no answer left a
+  0-byte file, an empty reply, and an "Unhandled exception" entry; a screen run answered within the
+  grace kept its line. An interrupted call was also classed "unavailable".
+- **Decided** (point by point): (1) find out first what happens today, for a screen run and a suite
+  case; (2) a request that left the tool gets its ledger line whenever the tool is stopped in a way that
+  lets it run its stop: a suite case gets what a run on a request thread gets, within the bound the web
+  server gives a request in flight, then no further case starts, and only then is the thread
+  interrupted; (3) a ledger write does not fail because its thread was interrupted, the line is whole
+  or absent, and the flag is put back; (4) the line of a case the stop cut short says the truth in the
+  words the tool already has; (5) the stop always ends; (6) what a suite gathered in memory goes with
+  the stop, as before. The stop button of an IDE on Windows ends the process at once, so nothing the tool
+  does can help there (by reading; not seen).
+- **The bound, and where it comes from.** Spring Boot stops gracefully by default, and the web server
+  gives a request in flight `spring.lifecycle.timeout-per-shutdown-phase`, 30 seconds unless set;
+  `application.yml` sets neither that nor `server.shutdown` (read, and the log of the real jar says
+  "timeout of 30000ms"). `SuiteService.stopBound` takes that phase time; with `server.shutdown=immediate`
+  it takes the connect and read timeouts together, never more than 30 seconds. The bound runs from the
+  moment the stop begins (a listener of the closing context), beside the server's grace.
+- **What was built.** The ledger takes the interrupt flag down for the append, writes the line through a
+  `java.io` stream in append mode with a sync, and puts the flag back (`a20e64f`); later the check of the
+  file's last byte reads through `RandomAccessFile` too (`f386962`), because under a storm of interrupts
+  it added spare empty lines (2,650 for 3,000 records before, none after; no line was ever lost or
+  torn). An interrupted call is a timeout whose arrival is not known (`b514f76`). A suite starts no case
+  once the stop began, lets the case in flight finish within the bound, then interrupts it and waits at
+  most 5 s more (`4e80ae5`, `f9e269c`). Nothing thrown there reaches Spring (D-278 holds).
+- **What a stopped tool leaves now.** A call that answers within the bound keeps its ordinary line. A
+  call with no answer by then gets a line with outcome `TIMEOUT`, error type `TIMEOUT`, no HTTP status,
+  next action `CHECK_ENVIRONMENT`, unverified, which History shows as "The service did not answer in
+  time"; the run's own detail says "No answer had arrived when this tool was stopped, so whether the
+  service received the request is not known." Before, such a call was `UNAVAILABLE` ("The connection
+  to the service failed before an answer arrived. ..."). The log says, for a suite case, "A suite
+  case was still running when the time for the stop ran out (30 seconds). Its thread is interrupted."
+  and, if it still does not end, "The suite case did not end after its thread was interrupted. The tool
+  stops without waiting for it."
+- **What the runs showed** (the real jar, live, SIGTERM; the builder, then the check, then the second
+  check):
+  | Run | Before | After |
+  | --- | --- | --- |
+  | Screen run, answer after 20 s | gone in 18.5 to 18.6 s, line kept | the same |
+  | Screen run, no answer | gone in 30.5 to 30.6 s, 0-byte file, no line, three log entries | gone in 30.5 to 31.1 s, one `TIMEOUT` line, History shows it |
+  | Suite case, answer after 20 s | gone in 0.4 s, no ledger file | gone in 17.3 to 18.8 s, the line, no further case |
+  | Suite case, no answer | gone in 0.4 s, no ledger file | gone in 30.4 to 31.0 s, one `TIMEOUT` line |
+  The check added: SIGINT acts as SIGTERM; three signals in a row end at 31.0 s; 10 stops of a 200-case
+  chain suite on mock left every chain whole (the old jar twice left a chain with its CRD line only); 8
+  `kill -9` during a 300-case suite never left a torn line, and a half line put in by hand was counted
+  unreadable and the next line began on a line of its own. **Unit tests only:** a case that ignores the
+  interrupt for the 5 s after it, and an interrupt during the write itself.
+- **Left.** The stop button of an IDE on Windows, a `kill -9` or a power cut end the process without
+  its stop, and a call then out gets no line. A chain case in flight may still send its next step within
+  the bound, as a chain started from a screen would. What a suite gathered in memory (its rows, its CSV)
+  goes with the stop, as before.
+
+*3. A client that went away* (`stop-and-gone`, `dc7d728`, `0af7f2a`, `4f83dd8`)
+- **What was wrong.** A browser or client that closed the connection before the answer was written
+  (a page reloaded during a slow call, a script that gave up) was logged "Unhandled exception, reference
+  <id>: ...HttpMessageNotWritableException..." with frames, the entry the tool writes for a defect of its
+  own, since the one error handler was written (`30e513b`). Seen twice in D-279's stress.
+- **Decided:** such an end is one INFO line with the method and the route, never a query, body or
+  identifier, with the exception types and no reference; a failure to write that is not a client going
+  away keeps its entry under a reference; the test for "gone" is no wider than the server's own types;
+  the run itself still completes.
+- **Built.** `web/ClientGone` recognises only `ClientAbortException` and
+  `AsyncRequestNotUsableException` in the chain; the error handler, the outermost filter and the
+  server's error report use it. During a stop the server closes connections itself after its grace and
+  raises the same type, so `web/StopMark` marks the stop on the servlet context and the line changes.
+  **The two lines, word for word:** "The client closed the connection before the answer was written:
+  <METHOD> <route>, <exception types>" (for example `POST /api/crd`; a request no route matched reads
+  "(a request that matched no route of this tool)"), and while the tool is stopping "The connection
+  closed while this tool was stopping, before the answer was written: <METHOD> <route>, <exception
+  types>". During the 30 s grace a client that really leaves also gets the second wording, which does not
+  say who closed it.
+- **What the runs showed.** On the real jar, mock and live, a waiting call reset mid-wait and a large
+  answer cut after 64 KB each gave one INFO line, and the whole output held "Unhandled exception",
+  "Exception in thread", "Caused by:", a frame and the member placeholder 0 times; a quick call reset at
+  once gave no line before or after, its answer having reached the socket. The abandoned run kept its
+  ledger line. The check planted three real write defects in a copy: each kept its entry under a
+  reference. **Unit tests only:** the server's error report path (`JsonErrorReportValveTest`; 300
+  refused requests reset at once never made it fire on the jar) and the guard in `StopMark`. The
+  check's finding that `JsonlRunLedger.writeFully` was dead did not hold: the start's write check calls
+  it.
+- **The answer nobody explained.** On the store left by a new run of the corpus uploads (91 files,
+  without the three slowest; 80 answered 200), `GET /api/config/environments` was right and very
+  slow: 200, the documented shape, 23 or 24 environments, about 32 to 33 MB, in 527 to 637 s on the
+  builder's run and 488 s on the check's. The script's own time limit was 600 s, and its helper then read
+  the body file its previous call had left, which had no `environments`. On a fresh store the three
+  large environments of that corpus uploaded in 3.8 to 8.2 s each and the list took 8.4 to 9.5 s (4.5 MB);
+  the builder's first account, that those three environments alone take minutes, was corrected by the
+  check: the time grows with the whole store, because the view of every environment is built on each
+  call (outside the store's lock). **An open performance item, no fault of the answer.** With the three
+  slowest files of the corpus as well, every later upload waited behind one inside the store's lock
+  (D-279), and that run was stopped after about 18 minutes.
+
+*4. Long names* (`long-names`, `055decb`, `a8e2b0f`, `4a02252`, `de883a5`, `87f4a6e`, `5d35ce2`, `38ac780`)
+- **What was wrong, and since when.** D-279 shortened field, header, query and helper names in the
+  credential warning (`d7f9aba`); every other name a file supplies was quoted whole in the sentences of
+  an upload, since those sentences were written (the credential warnings since `00e6e48`): a request name
+  of 1,000,000 characters gave a warning of 1,000,705 characters and an upload answer of 2 MB.
+- **Decided:** every name a file supplies that a sentence quotes back is quoted by its start and its
+  length when long, in the words D-279 used; a name shown as the tester's own label may stay whole if
+  the page still works with 100,000 characters, looked at in a browser; ordinary names read exactly as
+  before.
+- **Built, and corrected.** One rule (`postman/Names`, and `named()` in the page): a name is quoted
+  whole unless its first 60 characters and "... (a name of N characters)" are shorter, so names up to
+  89 characters read as before; N counts characters, not UTF-16 units, and a character is never split.
+  Used in every sentence of both uploads, the readiness list, "In force now", the write refusals, the
+  page's own sentences, headings and labels for screen readers. The check found (major) that the
+  strip and the production banner now shortened the name while the unlock refusal says "Type it
+  exactly as the environment strip shows it" (typing what the strip showed was refused): the strip and
+  the banners show the whole name again, at any length, in a box that wraps and then scrolls, and the
+  guardrail's words are unchanged (`a8e2b0f`; a 75-character name unlocked, typed as shown); (major)
+  "The url still needs a value for {{...}}" quoted a placeholder whole (`4a02252`); a 61-character name
+  grew to 89 (`de883a5`); the production addresses repeated the name (`87f4a6e`); the suite's note
+  "... can create or change something on the far side in <environment>." (`5d35ce2`). The unlock panel's
+  bold name made the page 967,572 px wide below 1181 px, on the old jar too (`38ac780`).
+- **Proofs.** On the jar, 1,000,000-character names: the request warning 1,000,705 to 799 characters,
+  the answer 2,001,672 to 1,001,766; the example name's warning 1,000,515 to 609. 136 corpus uploads and
+  their lists and details read word for word as on the old jar (before the corrections; after them the
+  sample files gave the same 6 answers). In Chromium at 100,000 characters the page stayed 1,440 px wide.
+- **Left.** Names given as labels stay whole: a 1,000,000-character request or collection name is in
+  the upload answer once (about 1 MB), and at 100,000 characters a row is tens of thousands of pixels
+  tall; a production name of 200,000 characters pushes the work area down to 438 of 900 px, and at
+  1000 px wide puts the unlock field about 112,000 px down. The run ledger's `targetSource` keeps the
+  request name whole.
+
+*5. The slow pattern* (`long-names`, `5980bb9`, `4fd5a8a`)
+- **What was wrong.** `RunRecord.IDENTIFIER_OR_DATE` ran on every part of a questionnaire address a
+  service supplies, which nothing cuts, since questionnaire addresses were judged for the ledger
+  (`050f7de`): a 5,000,000-character part made a DTR package take 5.1 s and wrote a ledger line of
+  5,000,833 characters. D-279's corrector had left it on a reason found untrue.
+- **Decided:** no pattern takes a time a tester would notice on a text a service or file supplies at 5
+  MB; a part longer than anything the pattern is meant to recognise is not handed to it; look for the
+  same shape elsewhere; recognition unchanged.
+- **Built.** The longest thing it recognises is an identifier of 128 characters (a date is at most 18),
+  so a part longer than 128 is not handed to the pattern and the address is written "(not recorded, N
+  characters)". All 168 patterns run at five million characters: only this one passed 1 s; every other
+  input of it is cut first (at 64, 60, 20, 80 or 128). `RegexStackGuardTest` was not given the
+  five-million bound (that sweep took 786 s against its 245 s); `QuestionnaireAddressPartTest` holds the
+  case. Measured on live: 5.1 to 1.0 s for `0-`, 3.1 to 0.9 s for `Jan` (the check: 4.5 to 7.8 s before,
+  1.1 to 1.6 s after); the ledger line 830 characters.
+- **Left.** **History no longer keeps an ordinary questionnaire address with a part of 129 characters or
+  more**, which it kept before, whole (84 of 50,000 seeded addresses widened, none lost). A 5 MB
+  address split into short parts by `/` still writes a 5 MB ledger line and takes 3.3 to 3.6 s on old and
+  new jars alike, which is not this pattern; it sits with D-279's open item on the size of the browser
+  answer.
+
+*The merges and the build*
+- Four merges into `final`, on top of `0b7e534`, none with a textual conflict and nothing settled by
+  hand: `stop-and-gone` at `4f83dd8` (`83c37f7`), `long-names` at `38ac780` (`e1a4eec`), `echo-secrets` at
+  `0cb3c0b` (`1ac0458`) and, after the step of `TASK_ECHO_LOCATION.md` was built and checked twice,
+  `echo-secrets` again at `14fc20f` (`6ab0e69`). After each of the first two merges the guard tests
+  (`RegexStackGuardTest`, `RecursionGuardTest`, `DeepAnswerStackTest`, `RewrittenPatternsTest`,
+  `HouseStyleTest`) passed on the merged code; at `1ac0458` the whole build passed (3,082 tests, 0
+  failures, 0 errors, 2 skipped); at `6ab0e69` the guard tests passed again, then the whole build.
+- **Tests.** 3,006 at `ba4661b`. The last whole build of each branch: `stop-and-gone` 3,024 at `4f83dd8`,
+  `long-names` 3,016 at `38ac780`, `echo-secrets` 3,065 at `14fc20f`. The merged head `6ab0e69`, through the
+  shared runner: BUILD SUCCESSFUL in 9m 53s, 3,093 tests, 0 failures, 0 errors, 2 skipped; the jar's
+  sha1 is `17f77be1588da9a4d61a42dd3c056cee989407fd`. The integrator's final gates (two builds from clean,
+  a fresh clone, the start, the handover proofs) last passed on `e70af34` and had not run on this head
+  when this was written.
+- Nothing of this ran on Windows, and the operator has not said whether they pulled the upload fix.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
