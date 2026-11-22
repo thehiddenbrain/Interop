@@ -284,8 +284,9 @@ function ledgerLine(envelope) {
 /**
  * The next step: a primary button named by the vocabulary when its action has one and the caller
  * can act on it; otherwise the server's headline, whole when short, else its first sentence. After
- * a failure the headline is also the line above the button (look-3): it says what to change there,
- * which the button's name alone does not.
+ * a service's failure the headline is also the line above the button (look-3): it says what to
+ * change there, which the button's name alone does not. Any other error has its own panel, whose
+ * action says it already.
  */
 function nextStep(envelope, settings, words) {
     const step = envelope.nextStep;
@@ -301,7 +302,7 @@ function nextStep(envelope, settings, words) {
         const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
         const go = button(action.button, () => settings.onNext(step.action, envelope),
             {primary: true, disabled: Boolean(blocked), title: blocked || null});
-        return envelope.error && line ? [line, go] : [go];
+        return serviceFailure(envelope.error) && line ? [line, go] : [go];
     }
     return line ? [line] : [];
 }

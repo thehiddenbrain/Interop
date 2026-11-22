@@ -138,6 +138,19 @@ function namedFields(fieldErrors, labelOf) {
     return el('ul', {class: 'notes error-fields'}, items);
 }
 
+/**
+ * What the action says after its first sentence: one sentence more is a second, quieter line, read
+ * without a click (I-34: "If the url is right, the sign-in service may be down: try again later.");
+ * more than that goes in a closed Why.
+ */
+function restOfAction(rest) {
+    if (!rest) {
+        return null;
+    }
+    return firstSentence(rest)[1] === '' ? el('p', {class: 'small muted action-rest'}, rest)
+        : fold({summary: 'Why', inline: true, body: el('p', null, rest)});
+}
+
 function panel(frame, heading, title, action, status, named) {
     const [first, rest] = firstSentence(action);
     return el('div', {class: 'verdict verdict--' + frame + ' error-panel'},
@@ -145,7 +158,7 @@ function panel(frame, heading, title, action, status, named) {
         el('p', {class: 'verdict__headline'}, title || null),
         named || null,
         first ? el('p', {class: 'muted'}, first) : null,
-        rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null,
+        restOfAction(rest),
         filesChangedNote());
 }
 
