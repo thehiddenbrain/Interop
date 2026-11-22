@@ -288,6 +288,20 @@ public class ConfigStoreGateway implements OperationGateway {
         return signIn == null ? null : signIn.method();
     }
 
+    /**
+     * Resolved as {@link #resolvedSignIn} resolves it for a call, without the run's values; with no
+     * call at hand there is no request to name its collection, so the only collection uploaded is
+     * read and, with several, none, as the held secrets do, rather than one picked at random.
+     */
+    @Override
+    public SignInSettings activeSignIn() {
+        ConfigSnapshot snapshot = store.snapshot();
+        StoredEnvironment active = snapshot.active();
+        SignInSettings signIn = active == null ? null : active.settings().signIn();
+        List<StoredCollection> collections = snapshot.collections();
+        return resolvedSignIn(snapshot, signIn, collections.size() == 1 ? collections.get(0) : null);
+    }
+
     @Override
     public Timeouts vendorTimeouts() {
         return timeoutsFor(store.snapshot().active(), EpaOperation.CRD_ORDER_SIGN);

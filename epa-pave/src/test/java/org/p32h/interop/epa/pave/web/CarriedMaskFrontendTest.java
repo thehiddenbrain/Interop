@@ -46,8 +46,13 @@ class CarriedMaskFrontendTest {
     @Test
     void everyFieldAnAnswerFillsGoesThroughTheCheckForAMask() throws IOException {
         String workbench = StaticSources.script("workbench.js");
-        assertThat(workbench).contains("if (fillFromAnswer(claim, Array.isArray(carry.claimId) ? carry.claimId[0] : carry.claimId)) {")
+        // Step 4's Claim id is filled in wb-status.js, through the same check (StatusFrontendTest runs it with a mask).
+        assertThat(workbench).contains("statusStep.fillClaimFrom(options[4].claimId, carry);")
                 .contains("if (fillFromAnswer(control, value)) {");
+        String status = StaticSources.script("wb-status.js");
+        assertThat(status).contains("if (fillFromAnswer(control, value)) {\n        control.set(control.input.value, FROM_STEP_3);");
+        Matcher statusDirect = Pattern.compile("control\\.set\\((?!control\\.input\\.value)").matcher(status);
+        assertThat(statusDirect.find()).as("the Claim id set directly from an answer").isFalse();
         // No option field of a step is set straight from a value an answer handed on.
         Matcher direct = Pattern.compile("options\\[\\d]\\.\\w+\\.set\\(|claim\\.set\\((?!claim\\.input\\.value)").matcher(workbench);
         assertThat(direct.find()).as("a field set directly from an answer").isFalse();

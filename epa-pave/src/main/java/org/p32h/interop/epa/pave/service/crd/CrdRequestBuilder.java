@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.client.crd.SentOrder;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.RequestShape;
 import org.p32h.interop.epa.pave.model.RequestShapes;
@@ -79,6 +80,17 @@ public final class CrdRequestBuilder {
      * @param shapes the request shapes of the call, each with where its value came from
      */
     public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes) {
+        return build(request, hookInstance, variables, shapes, MemberIdRule.PACKED);
+    }
+
+    /**
+     * As {@link #build(CrdRunRequest, String, Function, RequestShapes)}, with the member ID in the
+     * form the call's member ID rule gives (R-10).
+     *
+     * @param rule the call's member ID rule; null reads as packed
+     */
+    public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes,
+                       MemberIdRule rule) {
         List<String> notes = new ArrayList<>();
         List<SentOrder> orders = new ArrayList<>();
         List<CaseResources.Required> missing = new ArrayList<>();
@@ -151,8 +163,8 @@ public final class CrdRequestBuilder {
 
         if (prefetchSent) {
             ObjectNode prefetch = root.putObject("prefetch");
-            prefetch.set("patientBundle", collection(fhirServer, resources.crdPatient(member, variables, notes, missing)));
-            prefetch.set("coverageBundle", collection(fhirServer, resources.crdCoverage(member, variables, notes, missing)));
+            prefetch.set("patientBundle", collection(fhirServer, resources.crdPatient(member, rule, variables, notes, missing)));
+            prefetch.set("coverageBundle", collection(fhirServer, resources.crdCoverage(member, rule, variables, notes, missing)));
             CaseResources.Provider named = CaseResources.crdProvider(provider, notes, missing);
             if (named.practitioner() != null) {
                 prefetch.set("practitionerBundle", collection(fhirServer, named.practitioner()));
