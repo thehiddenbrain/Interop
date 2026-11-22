@@ -15,12 +15,11 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 **Release 1 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
-ledger) is the one PAVE had. The top bar shows the build's day and time in UTC; the same time is
-`build.time` in `GET /api/mode`.
+ledger) is the one PAVE had.
 Release 1 is handed over on 2026-11-22 at 15:00 UTC: the code of commit `22478b8` of the release
 branch, the release candidate `7fc32c8` with two rounds of corrections; this README and the records
 were committed after it. The top bar of a running build shows the day and time (UTC) that build
-was made.
+was made; the same time is `build.time` in `GET /api/mode`.
 
 What release 1 holds:
 
@@ -95,10 +94,15 @@ for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip 
   01/10/2026); the value sent is the ISO date whatever it shows.
 - On live, answers are not filled from the case in release 1: type the questionnaire's dates (on
   the stand-in, the member's date of birth and the date of service) in step 2 yourself.
-- A sandbox on the same host as an environment saved as prod by mistake and then removed cannot
-  sign in, reads included: the refusal says that production environment "is no longer stored";
+- A sandbox whose token url is, or lies beneath, an address of an environment saved as prod by
+  mistake and then removed (on the same host, for example) cannot sign in, reads included: the refusal says that production environment "is no longer stored";
   stop PAVE, delete its entries from `productionDestinations` in `store.json` and start again (see
   [A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
+- On mock with no environment active, Configuration > Advanced > In force now says "No
+  environment is active." once in each operation row and three times in "Ready to send?" (the
+  recheck of the final build found it again on `22478b8`).
+- At 1024 pixels the Element column of a response's detail table can break a word in two (seen by
+  the recheck of the final build on `22478b8`).
 - A red `Failed to load resource: ... 422` line in the browser console after a refused form is
   expected: the page shows the refusal.
 
@@ -328,14 +332,16 @@ again; the upload refusal's field note says the same.
 A send refused for this reason says so under the guardrail's sentence, names the environment the
 address was remembered from and gives the same way out, and Configuration > Production writes and
 `GET /api/mode` say that writes to that address are blocked (seen again on the jar of `19ddf8e`).
+
 **A sandbox that cannot sign in after a slip.** An environment saved as prod by mistake on the same
 host as a working sandbox, and then removed, stops that sandbox from signing in, reads included,
 when the sandbox's token url is, or lies beneath, an address remembered from it. The refusal says
 "Nothing was sent: the token url, at <address>, is an address of the production environment ...",
 then that the environment "is no longer stored, so this tool no longer knows the token url it
-signed in with", and gives the two ways out: store it again, or, if it was stored as prod by
-mistake, stop PAVE, delete its entries from `productionDestinations` in `store.json` (the refusal
+signed in with", and gives the two ways out: store it again (this helps only when the sandbox signs in at
+that environment's own token url), or, if it was stored as prod by mistake, stop PAVE, delete its entries from `productionDestinations` in `store.json` (the refusal
 names the file) and start PAVE again. The recheck of the final build saw this on `22478b8`.
+
 From release 2 a button on Configuration > Production writes does it, for an address whose
 environment is no longer stored.
 
@@ -474,8 +480,9 @@ A PAS submit against production creates a real prior authorization request again
   lies beneath, any address a production environment (stored or remembered) calls, reads included,
   is refused at its field (`signIn.tokenUrl`) at save and never sent to. A token url that a stored
   production environment itself signs in with stays allowed. So where a production environment's
-  address is the root of a host, no other environment can sign in on that host; after a slip this
-  stops a sandbox, see
+  address is the root of a host, no other environment can sign in on that host, unless at the token
+  url the stored production environment itself signs in with; after a slip this stops a sandbox,
+  see
   [A production address remembered by mistake](#a-production-address-remembered-by-mistake).
 - **An address is compared as a server reads it**: each percent-escape of its path decoded once,
   so `%24submit` is `$submit`; an address that still holds a `%` after that is refused ("An address
@@ -1198,8 +1205,10 @@ open item, the worst first, with the entry that gives the reason.
   at start), the first internal error within about 10 seconds after the IDE rebuilt the classes
   can ask you to report it instead of saying to restart, and the top bar's environment list can
   fail. Stop PAVE and start it again. Release 2 corrects it.
-- **A sandbox that shares a host with a production environment removed after a slip** cannot sign
-  in until the remembered address is forgotten by hand; release 2 brings the button
+- **A sandbox whose token url is, or lies beneath, an address of a production environment removed
+  after a slip** (on the same host, for example) cannot sign in until the remembered address is
+  forgotten by hand (or the production environment is stored again, when the token url is its
+  own); release 2 brings the button
   ([A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
 - **A replay from Audit that fails just after a pull** does not add the files-changed line: stop
   PAVE and start it again, then replay once more.
@@ -1221,15 +1230,20 @@ withdrawn before the hand-over, so that rule stays as built).
 Four correctors then corrected the confirmed findings and the decisions (11:57 to 12:45 UTC), and
 agents that wrote no correction looked again on the jar of `19ddf8e` (the Workbench's screens on
 that of `e5d0972`): the guardrail, secrets, Audit and uploads, configuration and what is sent on
-live, and the real STS 5.4.0. A second, short round corrected what they left, each corrector looking at its
-corrections on the running tool, among them a folder named like a file now told it is a folder, the
+live, and the real STS 5.4.0. A second, short round corrected most of what they left, each corrector looking at its
+corrections on the running tool (`correct-workbench.json`, `correct-server.json`,
+`correct-config-audit.json`), among them a folder named like a file now told it is a folder, the
 environment's whole name at 1024 pixels, and a refused environment save that names each field in
-its panel and keeps that panel in view. The Eclipse compiler STS 5.4.0 brings, run by the
+its panel and keeps that panel in view; what it left on purpose is said below. The Eclipse compiler STS 5.4.0 brings, run by the
 integrator over every source set of `22478b8`, found 0 errors. The recheck of the final build had
-reported only on the guardrail when this was written: on `22478b8` a sandbox that shared its token
-url with a production copy saved, made active and removed again stayed not signed in, and the
-refusal ended with the note and the way out quoted in
-[A production address remembered by mistake](#a-production-address-remembered-by-mistake). What stays open on
+reported, when this was written, on three things. On the guardrail: on `22478b8` a sandbox that
+shared its token url with a production copy saved, made active and removed again stayed not signed
+in, and the refusal ended with the note and the way out quoted in
+[A production address remembered by mistake](#a-production-address-remembered-by-mistake). On the
+README as it stood at `22478b8`, before this README was committed: it had no This release section.
+On the Workbench's screens and words on mock and live: what it looked at again was as corrected,
+except two minor faults said in [This release](#this-release) (In force now saying "No environment
+is active." in every row, a regression; a word broken in two at 1024 pixels). What stays open on
 purpose is in [This release](#this-release) and [Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
@@ -1246,7 +1260,10 @@ screen was searched in `src/main/resources/static` at that head, or, where the s
 the server's code. In the last pass, on `19ddf8e` (the candidate with the first round of
 corrections), every sentence this README quotes from a screen in the parts that changed was
 searched again in `src/main` at that head; those parts were not walked again in a browser, and
-what they say was seen is what the rechecks name. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
+what they say was seen is what the rechecks name. In the final touch, the sentences quoted in the
+parts that changed (the token url refusal and its no-longer-stored note) were searched in
+`src/main` at `22478b8`; those parts were not walked in a browser, and what they say was seen is
+what the correctors' reports and the recheck of the final build name. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
 README; the lines step 4 shows are those `run.sh` prints at that head.
 Whole builds: the candidate `7fc32c8`, 3,519 tests, 0 failures, 0 errors, 2 skipped; `19ddf8e`,
 after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped. The release
