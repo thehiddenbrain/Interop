@@ -201,7 +201,31 @@ public class ConfigStoreGateway implements OperationGateway {
         // service may repeat a secret of any one uploaded: each is held, as for a notification.
         return new IssuedCall(intent.operation(), plan.method(), plan.url(), plan.resolvedHeaders(), plan.environment(),
                 plan.target().requestName(), plan.target().scripted(), belongsTo, template -> shownAsWritten(resolve.apply(template).text(), template),
-                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection)));
+                plan.target().savedBody(), () -> held(snapshot, runValues, collection == null ? snapshot.collections() : List.of(collection)),
+                applicationTimeouts(intent.operation()));
+    }
+
+    /**
+     * The timeouts application.yml gives an operation: a lookup's own for a lookup, the protocol
+     * timeouts for everything else, as the clients have always built their connections.
+     */
+    private Timeouts applicationTimeouts(EpaOperation operation) {
+        if (operation == EpaOperation.MEMBER_LOOKUP) {
+            return Timeouts.application(lookup.member().connectTimeoutMs(), lookup.member().readTimeoutMs());
+        }
+        if (operation == EpaOperation.PROVIDER_LOOKUP) {
+            return Timeouts.application(lookup.provider().connectTimeoutMs(), lookup.provider().readTimeoutMs());
+        }
+        return Timeouts.of(onyx);
+    }
+
+    /** The longest of every timeout application.yml gives an outbound call: the lookups' may be set longer than the protocols'. */
+    @Override
+    public Timeouts activeTimeouts() {
+        int connect = Math.max(onyx.connectTimeoutMs(),
+                Math.max(lookup.member().connectTimeoutMs(), lookup.provider().connectTimeoutMs()));
+        int read = Math.max(onyx.readTimeoutMs(), Math.max(lookup.member().readTimeoutMs(), lookup.provider().readTimeoutMs()));
+        return Timeouts.application(connect, read);
     }
 
     /**
