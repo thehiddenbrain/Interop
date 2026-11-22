@@ -144,8 +144,10 @@ class WorkbenchRecheckFrontendTest {
     @Test
     void theSignInChipGivesWayBeforeTheEnvironmentChooser() throws Exception {
         // At 1100 px and under the chooser keeps the room to name the environment in force (live-config-7).
+        // The chip may now go down to 48 px: the switch between mock and live, in place of the profile
+        // badge, is some 60 px wider, and without that the chooser and its kind badge overlapped it at 1024 px.
         String css = StaticSources.withoutComments(StaticSources.read("css/pave.css"));
         String narrow = css.substring(css.indexOf("@media (max-width: 1100px)"));
-        assertThat(StaticSources.body(narrow, ".topbar__signin {")).contains("flex-shrink: 8;", "min-width: 80px;", "max-width: 96px;");
+        assertThat(StaticSources.body(narrow, ".topbar__signin {")).contains("flex-shrink: 8;", "min-width: 48px;", "max-width: 96px;");
     }
 }
