@@ -125,3 +125,10 @@
 .config-add {
     justify-self: start;
 }
+
+/* A table cell that holds a sentence (a reason, a note) wraps instead of running off the side. */
+.config-wrap,
+.modal .table td:last-child {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}

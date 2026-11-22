@@ -732,10 +732,22 @@ export function createEditor(options) {
         for (const warning of Array.isArray(draft.warnings) ? draft.warnings : []) {
             lines.push(el('p', {class: 'config-file-line'}, warning));
         }
-        const operations = Array.isArray(draft.operations) ? draft.operations : [];
-        if (operations.length > 0) {
-            lines.push(el('div', {class: 'env-card__ops'}, operations.map(operation =>
-                chip(operation.short || operation.label || operation.operation, {title: operation.requestName || null}))));
+        // One chip per short label: the subscription operations share one, and the line stays short.
+        const chips = new Map();
+        for (const operation of Array.isArray(draft.operations) ? draft.operations : []) {
+            const words = operation.short || operation.shortLabel || operation.label || operation.operation;
+            const titles = chips.get(words) || [];
+            if (operation.requestName && !titles.includes(operation.requestName)) {
+                titles.push(operation.requestName);
+            }
+            chips.set(words, titles);
+        }
+        if (chips.size > 0) {
+            lines.push(el('div', {class: 'env-card__ops'}, Array.from(chips, ([words, titles]) =>
+                chip(words, {title: titles.length > 0 ? titles.join(', ') : null}))));
+        }
+        if (draft.signIn && draft.signIn.from) {
+            lines.push(el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from + '.'));
         }
         // Fill what the files hold, then draw the form again around it, so every hint says where a value came from.
         const signIn = draft.signIn || null;
