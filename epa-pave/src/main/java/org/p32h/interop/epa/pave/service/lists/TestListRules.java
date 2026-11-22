@@ -21,6 +21,7 @@ final class TestListRules {
 
     private static final int MAX_MEMBER_ID = 30;
     private static final int MAX_RESOURCE_ID = 64;
+    static final int MAX_CODE = 40;
 
     private TestListRules() {
     }
@@ -78,13 +79,27 @@ final class TestListRules {
         if (value == null) {
             return;
         }
-        boolean fits = value.length() <= MAX_RESOURCE_ID;
+        if (!fitsResourceId(value)) {
+            errors.add(new FieldError(field, "The vendor's " + what + " id is letters, digits, - and . only, at most 64 characters."));
+        }
+    }
+
+    /** True when the text is what a FHIR resource id may be: letters, digits, - and . only, 1 to 64 of them. */
+    static boolean fitsResourceId(String value) {
+        boolean fits = value != null && !value.isEmpty() && value.length() <= MAX_RESOURCE_ID;
         for (int i = 0; fits && i < value.length(); i++) {
             char c = value.charAt(i);
             fits = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.';
         }
-        if (!fits) {
-            errors.add(new FieldError(field, "The vendor's " + what + " id is letters, digits, - and . only, at most 64 characters."));
+        return fits;
+    }
+
+    /** True when the text can be a procedure code: 1 to 40 characters, none of them white space. */
+    static boolean fitsCode(String value) {
+        boolean fits = value != null && !value.isEmpty() && value.length() <= MAX_CODE;
+        for (int i = 0; fits && i < value.length(); i++) {
+            fits = !Character.isWhitespace(value.charAt(i));
         }
+        return fits;
     }
 }
