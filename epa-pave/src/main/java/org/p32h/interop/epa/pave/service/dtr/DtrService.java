@@ -151,7 +151,7 @@ public class DtrService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            sent = builder.buildPackage(request, reads);
+            sent = builder.buildPackage(request, reads, call.memberIdRule());
             body = reads.body(sent.json());
             requestNotes.addAll(packageNotes(sent));
         }
@@ -192,18 +192,19 @@ public class DtrService {
     public RequestPreview previewPackage(DtrPackageRequest request, ProdUnlock unlock) {
         validatePackage(request);
         EpaOperation operation = EpaOperation.DTR_QUESTIONNAIRE_PACKAGE;
-        MemberIdForms shown = shownMemberId(request);
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            // No call carries a rule: the active environment's is the one it would have gone by.
+            return RequestPreview.blocked(operation, refusal, CaseResources.memberIdForms(request.member(), gateway.memberIdRule()));
         }
+        MemberIdForms shown = CaseResources.memberIdForms(request.member(), call.memberIdRule());
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), shown);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
-        DtrRequestBuilder.Package built = builder.buildPackage(request, reads);
+        DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule());
         return RequestPreview.of(operation, call, reads.shown(built.json()), packageNotes(built), shown);
     }
 
@@ -470,7 +471,8 @@ public class DtrService {
                 .additionalFields(read.reading().additionalFields())
                 // A next-question request names the member by a local reference and carries no member ID,
                 // so its wire view does not show one as sent.
-                .wire(exchange.wire(operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE ? shownMemberId(request) : null))
+                .wire(exchange.wire(operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE
+                        ? CaseResources.memberIdForms(request.member(), call.memberIdRule()) : null))
                 .error(read.error())
                 .ledger(receipt)
                 .timing(read.timing())
@@ -510,13 +512,9 @@ public class DtrService {
                 .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
+    /** A mock scenario is chosen by the packed form, so a sentinel picks its scenario under every rule. */
     private static MockSelection selection(RunRequest request) {
         return MockSelection.of(request.scenarioId(), RunSupport.memberId(request).sent(), RunSupport.npi(request));
-    }
-
-    private static MemberIdForms shownMemberId(RunRequest request) {
-        MemberIdForms memberId = RunSupport.memberId(request);
-        return memberId.typed().isEmpty() ? null : memberId;
     }
 
     /**
