@@ -232,4 +232,12 @@ public interface OperationGateway {
     default Timeouts activeTimeouts() {
         return Timeouts.APPLICATION;
     }
+
+    /**
+     * The member ID rule of the active environment: its own when it states one, else packed. For
+     * what is shown before any call is prepared, such as the form a member ID will be sent in.
+     */
+    default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
+        return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
+    }
 }

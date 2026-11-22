@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
+import org.p32h.interop.epa.pave.model.RequestShape;
+import org.p32h.interop.epa.pave.model.RequestShapes;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * The contract every batch builds against for the settings a call carries (plan 9.2, D1c): what a
@@ -32,6 +37,10 @@ class CallSettingsContractTest {
         assertThat(crd.timeouts().readFrom()).isEqualTo("application.yml");
         // No environment states a sign-in yet, so onyx.auth decides, as before.
         assertThat(crd.signIn()).isNull();
+        // Packed is what the vendor's sandbox requires and what this tool always sent.
+        assertThat(crd.memberIdRule()).isEqualTo(MemberIdRule.PACKED);
+        assertThat(crd.shapes()).isEqualTo(RequestShapes.DEFAULTS);
+        assertThat(config.gateway.memberIdRule()).isEqualTo(MemberIdRule.PACKED);
 
         PreparedCall member = config.gateway.prepare(CallIntent.of(EpaOperation.MEMBER_LOOKUP));
         assertThat(member.timeouts()).isEqualTo(Timeouts.application(1500, 2500));
@@ -117,5 +126,27 @@ class CallSettingsContractTest {
         assertThat(SignInSettings.Method.parse(null)).isNull();
         assertThat(SignInSettings.ClientAuthentication.parse("body")).isEqualTo(SignInSettings.ClientAuthentication.BODY);
         assertThat(SignInSettings.ClientAuthentication.parse("header")).isNull();
+    }
+
+    @Test
+    void environmentSettingsThatStateNothingAreEmptyAndNeverPrintAValue() {
+        assertThat(EnvironmentSettings.none().empty()).isTrue();
+        assertThat(EnvironmentSettings.none().timeouts()).isEqualTo(Timeouts.notStated());
+        assertThat(EnvironmentSettings.none().addresses()).isEmpty();
+
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("payerName", "Placeholder Payer");
+        values.put("fhirServer", "https://fhir.vendor.example.invalid");
+        EnvironmentSettings stated = new EnvironmentSettings(
+                SignInSettings.bearerToken("placeholder-bearer-token-value"),
+                new Timeouts(null, 60000, null, Timeouts.FROM_ENVIRONMENT),
+                Map.of(EpaOperation.PAS_SUBMIT, "https://user:placeholder-password@vendor.example.invalid/fhir/Claim/$submit"),
+                MemberIdRule.SPACED, Map.of(RequestShape.CRD_DRAFT_ORDERS_TYPE, RequestShape.LEFT_OUT), values);
+
+        assertThat(stated.empty()).isFalse();
+        assertThat(stated.values().keySet()).containsExactly("payerName", "fhirServer");
+        assertThat(stated.toString())
+                .contains("PAS_SUBMIT", "SPACED", "CRD_DRAFT_ORDERS_TYPE", "payerName")
+                .doesNotContain("placeholder-bearer-token-value", "placeholder-password", "Placeholder Payer", "vendor.example.invalid");
     }
 }
