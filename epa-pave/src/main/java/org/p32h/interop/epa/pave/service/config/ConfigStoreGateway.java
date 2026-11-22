@@ -137,6 +137,14 @@ public class ConfigStoreGateway implements OperationGateway {
         if (intent.expectedEpoch() != null && intent.expectedEpoch() != snapshot.epoch()) {
             throw ConfigurationChangedException.sinceTheScreenWasDrawn();
         }
+        StoredEnvironment active = snapshot.active();
+        if (active != null && active.settingsProblem() != null) {
+            // The environment states settings this tool cannot read. Sending as if it stated none
+            // would guess at its sign-in and its addresses, so nothing is sent until they are saved again.
+            throw new BadInputException("Nothing was sent: the settings of the active environment \"" + Names.shown(active.name())
+                    + "\" cannot be read (" + active.settingsProblem() + ").", "Open the environment in Configuration > Environments and "
+                    + "save its settings again.");
+        }
         CallPlan plan = plan(snapshot, intent);
         // Whatever the environment and the method: a server in front of a service may decode an
         // encoded separator before it reads the path, and this tool cannot know whether it does.
@@ -376,6 +384,78 @@ public class ConfigStoreGateway implements OperationGateway {
      */
     public Resolution resolution(String template) {
         return resolver.resolve(template, layers(store.snapshot(), Map.of(), null, Map.of()));
+    }
+
+    /**
+     * Where an operation goes under an environment, as if that environment were active (plan 5.4):
+     * the address it types, else the first collection request mapped to the operation, else
+     * application.yml. Shown with secrets masked and nothing sent.
+     *
+     * @param template    the url as configured, a credential typed into it masked
+     * @param display     the url with what resolved filled in, secrets masked, and what did not left as written
+     * @param source      THIS_ENVIRONMENT, COLLECTION, APPLICATION_YML, DERIVED or NOT_SET
+     * @param sourceLabel the source in words
+     * @param resolved    true when every placeholder has a value
+     * @param unresolved  the placeholders that have none
+     * @param savedBody   the raw body of the collection request it comes from, or null: the evidence a shape is read from (R-37)
+     * @param requestName the name of that request, or null
+     */
+    record AddressInForce(String template, String display, String source, String sourceLabel, boolean resolved, List<String> unresolved,
+                          String savedBody, String requestName) {
+
+        /** Prints the source only: a url can hold credentials, a body member data. */
+        @Override
+        public String toString() {
+            return "AddressInForce[" + source + "]";
+        }
+    }
+
+    AddressInForce addressInForce(ConfigSnapshot snapshot, StoredEnvironment environment, EpaOperation operation) {
+        String typed = environment == null ? null : environment.settings().addresses().get(operation);
+        if (typed != null) {
+            String template = operation == EpaOperation.SUBSCRIPTION_CREATE ? Texts.withoutTrailing(typed, "/") + operation.fallbackPath() : typed;
+            return shownAddress(snapshot, environment, null, template, "THIS_ENVIRONMENT", "typed here", null, null);
+        }
+        Target target = target(snapshot, CallIntent.of(operation));
+        if (!target.configured()) {
+            return new AddressInForce(null, null, "NOT_SET", "not set", false, List.of(), null, null);
+        }
+        return switch (target.source()) {
+            case REQUEST -> shownAddress(snapshot, environment, target.collection(), target.template(), "COLLECTION",
+                    "collection request \"" + target.request().request().quotedName() + "\"", target.savedBody(), target.requestName());
+            case FALLBACK -> shownAddress(snapshot, environment, null, target.template(), "APPLICATION_YML", "application.yml", null, null);
+            default -> shownAddress(snapshot, environment, null, target.template(), "DERIVED", target.described(), null, null);
+        };
+    }
+
+    private AddressInForce shownAddress(ConfigSnapshot snapshot, StoredEnvironment environment, StoredCollection collection, String template,
+                                        String source, String sourceLabel, String savedBody, String requestName) {
+        LiteralCredentials.Marked marked = LiteralCredentials.inUrl(template);
+        Resolution resolution = resolver.resolve(marked.template(), marked.before(layersUnder(environment, collection)));
+        return new AddressInForce(marked.shown(), resolution.shown(), source, sourceLabel, resolution.complete(), resolution.unresolved(),
+                savedBody, requestName);
+    }
+
+    /** A template resolved through the layers a call under this environment would see, with no values for a run and no collection. */
+    Resolution resolutionUnder(StoredEnvironment environment, String template) {
+        return resolver.resolve(template, layersUnder(environment, null));
+    }
+
+    private List<VariableLayer> layersUnder(StoredEnvironment environment, StoredCollection collection) {
+        List<VariableLayer> layers = new ArrayList<>();
+        if (environment != null) {
+            layers.add(VariableLayer.environment(environment.name(), environment.content().inForce()));
+        }
+        if (collection != null) {
+            layers.add(VariableLayer.collection(collection.name(), collection.content().inForce()));
+        }
+        layers.add(VariableLayer.applicationYml(onyx.variables()));
+        return layers;
+    }
+
+    /** The timeouts application.yml gives the vendor's calls, both present: what an environment's own timeouts fall back to. */
+    Timeouts protocolTimeouts() {
+        return Timeouts.of(onyx);
     }
 
     /** Whatever holds the access token, asked when an answer or a notification is masked. Absent in tests that build the gateway alone. */

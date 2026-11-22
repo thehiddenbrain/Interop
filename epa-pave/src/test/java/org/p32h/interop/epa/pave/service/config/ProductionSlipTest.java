@@ -18,10 +18,11 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * An environment uploaded as prod by a slip of the mouse, and removed, leaves its addresses
- * production for good (files hunt, failure 2). The refusal of a later sandbox or uat upload says
- * so in true words (R-35): the address is remembered from a removed environment, and the way to
- * forget it, should the prod upload have been the mistake, is given in full and works. While an
- * environment that made the address production is still stored, the refusal keeps its words.
+ * production for good (files hunt, failure 2). The refusal of a later sandbox or uat upload keeps
+ * the guardrail's sentence word for word (R-16); its field note says the environment is no longer
+ * stored and gives the way to forget the address, should the prod upload have been the mistake,
+ * in full, and the way works (R-35). While an environment that made the address production is
+ * still stored, the note keeps its words too.
  */
 class ProductionSlipTest {
 
@@ -64,16 +65,17 @@ class ProductionSlipTest {
 
         for (EnvironmentKind kind : new EnvironmentKind[] {EnvironmentKind.SANDBOX, EnvironmentKind.UAT}) {
             assertThatThrownBy(() -> upload(restarted, SLIPPED, ADDRESS, kind)).isInstanceOfSatisfying(ValidationException.class, e -> {
+                // The sentence as it was at round 2's head: the guardrail's words never change.
                 assertThat(e).hasMessage("This environment was declared as " + kind.wire() + ", and its address " + ADDRESS + " is an "
-                        + "address remembered as production from the removed environment \"" + SLIPPED + "\", or lies above or beneath "
-                        + "one. It was not stored.");
+                        + "address of the production environment \"" + SLIPPED + "\", or lies above or beneath one. It was not stored.");
                 assertThat(e.fieldErrors()).singleElement().satisfies(note -> {
                     assertThat(note.field()).isEqualTo("kind");
-                    assertThat(note.message()).isEqualTo("If \"" + SLIPPED + "\" was uploaded as prod by mistake: stop PAVE, delete the "
-                            + "entries whose environment is \"" + SLIPPED + "\" from productionDestinations in "
+                    assertThat(note.message()).isEqualTo("\"" + SLIPPED + "\" is no longer stored. If it was uploaded as prod by mistake, "
+                            + "stop PAVE, delete the entries whose environment is \"" + SLIPPED + "\" from productionDestinations in "
                             + directory.resolve(ConfigStore.STATE_FILE) + ", start PAVE again and upload this environment again. "
-                            + "Otherwise the address stays production: if this environment is production, upload it with the kind prod, "
-                            + "and if it is not, point its variables at the " + kind.wire() + " service and upload it again.");
+                            + "An address that this installation knows as production stays production, even after its environment is "
+                            + "deleted. If this environment is production, upload it with the kind prod. If it is not, point its "
+                            + "variables at the " + kind.wire() + " service and upload it again.");
                 });
             });
         }
@@ -128,11 +130,12 @@ class ProductionSlipTest {
 
         assertThatThrownBy(() -> upload(fixture, "Vendor Sandbox Copy", ADDRESS, EnvironmentKind.SANDBOX))
                 .isInstanceOfSatisfying(ValidationException.class, e -> {
-                    assertThat(e.getMessage()).contains("is an address remembered as production from the removed environments "
-                            + "\"Payer Live A\" and \"Payer Live B\", or lies above or beneath one.");
-                    assertThat(e.fieldErrors().get(0).message()).startsWith("If \"Payer Live A\" and \"Payer Live B\" were uploaded as prod "
-                            + "by mistake: stop PAVE, delete the entries whose environment is \"Payer Live A\" or \"Payer Live B\" from "
-                            + "productionDestinations in ");
+                    assertThat(e.getMessage()).contains("is an address of the production environments \"Payer Live A\" and "
+                            + "\"Payer Live B\", or lies above or beneath one.").doesNotContain("removed");
+                    assertThat(e.fieldErrors().get(0).message()).startsWith("\"Payer Live A\" and \"Payer Live B\" are no longer stored. "
+                            + "If they were uploaded as prod by mistake, stop PAVE, delete the entries whose environment is "
+                            + "\"Payer Live A\" or \"Payer Live B\" from productionDestinations in ")
+                            .endsWith("If it is not, point its variables at the sandbox service and upload it again.");
                 });
     }
 }

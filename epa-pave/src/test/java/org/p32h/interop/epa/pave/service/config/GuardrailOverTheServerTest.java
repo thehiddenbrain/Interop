@@ -197,8 +197,9 @@ class GuardrailOverTheServerTest {
         HttpResponse<String> relabelled = upload("/api/config/environments", "live2.json", environment("vendor-live-two", liveTwo),
                 "kind", "sandbox", "acknowledgeNotProd", "true");
         assertThat(relabelled.statusCode()).isEqualTo(422);
-        // R-35: no longer stored, it is named as the removed environment the address is remembered from.
-        assertThat(relabelled.body()).contains("is an address remembered as production from the removed environment \\\"vendor-live-two\\\"");
+        // R-16: the refusal keeps the guardrail's words; R-35: its note says the environment is no longer stored.
+        assertThat(relabelled.body()).contains("is an address of the production environment \\\"vendor-live-two\\\"")
+                .contains("\\\"vendor-live-two\\\" is no longer stored.");
         assertThat(json("GET", "/api/config/environments", null, null).body()).contains("\"productionDestinations\"")
                 .contains("{\"environment\":\"vendor-live-two\",\"destination\":\"" + liveTwo + "\",\"stored\":false}");
 
