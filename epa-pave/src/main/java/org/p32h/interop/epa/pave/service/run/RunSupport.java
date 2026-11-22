@@ -15,6 +15,7 @@ import org.p32h.interop.epa.pave.model.FindingKind;
 import org.p32h.interop.epa.pave.model.IssueView;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -34,6 +35,7 @@ import org.p32h.interop.epa.pave.model.WireView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.config.Timeouts;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import java.time.Clock;
@@ -73,6 +75,44 @@ public class RunSupport {
         this.onyx = onyx;
         this.ledger = ledger;
         this.clock = clock;
+    }
+
+    /** The gateway, asked for the active environment's settings where no call is at hand. Absent in tests that build this alone. */
+    private volatile ObjectProvider<org.p32h.interop.epa.pave.service.config.OperationGateway> gateway;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void gateway(ObjectProvider<org.p32h.interop.epa.pave.service.config.OperationGateway> gateway) {
+        this.gateway = gateway;
+    }
+
+    private org.p32h.interop.epa.pave.service.config.OperationGateway gatewayOrNull() {
+        ObjectProvider<org.p32h.interop.epa.pave.service.config.OperationGateway> provider = gateway;
+        return provider == null ? null : provider.getIfAvailable();
+    }
+
+    /** The member ID rule of the active environment, for a run that never became a call. Packed when nothing says otherwise. */
+    private MemberIdRule activeRule() {
+        org.p32h.interop.epa.pave.service.config.OperationGateway known = gatewayOrNull();
+        MemberIdRule rule = known == null ? null : known.memberIdRule();
+        return rule == null ? MemberIdRule.PACKED : rule;
+    }
+
+    /**
+     * The timeouts a call to the vendor's services is given now, for the words about a timeout
+     * when the call is not at hand: the active environment's where it states them, else
+     * application.yml's.
+     */
+    private Timeouts vendorTimeouts() {
+        org.p32h.interop.epa.pave.service.config.OperationGateway known = gatewayOrNull();
+        Timeouts timeouts = known == null ? null : known.vendorTimeouts();
+        return timeouts == null ? Timeouts.of(onyx) : timeouts.over(Timeouts.of(onyx));
+    }
+
+    /** The member ID of a request as typed and as the rule sends it, or null when the request names none: the wire view's line. */
+    private static MemberIdForms wireMemberId(RunRequest request, MemberIdRule rule) {
+        String typed = request.member() == null ? null : request.member().memberId();
+        MemberIdForms forms = MemberIds.forms(typed, rule == null ? MemberIdRule.PACKED : rule);
+        return forms.typed().isEmpty() ? null : forms;
     }
 
     public EpaProperties epa() {
@@ -271,7 +311,8 @@ public class RunSupport {
                 .nextAction(action).build();
         LedgerReceipt receipt = record(record);
         ResolvedUrl target = refusal.target();
-        MemberIdForms memberId = memberId(request);
+        // Nothing was sent, so no call carries a rule: the active environment's is the one it would have gone by.
+        MemberIdForms memberId = wireMemberId(request, activeRule());
         WireRequest attempted = new WireRequest(refusal.method(), target == null ? null : target.display(),
                 target == null ? null : target.template(), List.of(), null, false,
                 "Blocked by the production guardrail. Nothing left this machine.");
@@ -286,7 +327,7 @@ public class RunSupport {
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.BLOCKED,
                         "Nothing was sent, so there is nothing to compare with what was expected."))
                 .nextStep(NextStepView.of(action, headline(action, refusal), stepReason(action, operation)))
-                .wire(new WireView(attempted, null, memberId.typed().isEmpty() ? null : memberId))
+                .wire(new WireView(attempted, null, memberId))
                 .error(ErrorView.of(ErrorKind.BLOCKED, refusal.getMessage() + " Nothing was sent.", refusal.action()))
                 .ledger(receipt)
                 .build();
@@ -377,7 +418,7 @@ public class RunSupport {
         RunRecord record = draft.outcome(RunOutcome.NOT_SIGNED_IN).errorType(exchange.failureType()).result(TestResult.UNVERIFIED)
                 .nextAction(step.action()).build();
         LedgerReceipt receipt = record(record);
-        MemberIdForms memberId = memberId(request);
+        MemberIdForms memberId = wireMemberId(request, call.memberIdRule());
         return RunEnvelope.<D>builder()
                 .runId(record.runId())
                 .chainId(record.chainId())
@@ -391,8 +432,8 @@ public class RunSupport {
                 .expectation(Expectations.notCompared(request.expected(), RunOutcome.NOT_SIGNED_IN,
                         "Nothing was sent, so there is nothing to compare with what was expected."))
                 .nextStep(step)
-                .wire(new WireView(exchange.request(), null, memberId.typed().isEmpty() ? null : memberId))
-                .error(notSignedInError(exchange))
+                .wire(new WireView(exchange.request(), null, memberId))
+                .error(notSignedInError(exchange, call.signIn() != null))
                 .ledger(receipt)
                 .build();
     }
@@ -416,14 +457,22 @@ public class RunSupport {
 
     /** The error panel of a call that was not signed in for: the tester's settings, or the token endpoint. */
     private static ErrorView notSignedInError(VendorExchange exchange) {
+        return notSignedInError(exchange, false);
+    }
+
+    /** @param environmentSignIn true when the call signed in as its environment's settings state, not by onyx.auth */
+    private static ErrorView notSignedInError(VendorExchange exchange, boolean environmentSignIn) {
         String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
         if (exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT) {
             // UNREACHABLE is the panel's kind for an environment to report; the heading and the detail say it was the token endpoint.
             return ErrorView.of(ErrorKind.UNREACHABLE, detail, "Note the time and the run id and report it to the people who look after "
                     + "the token endpoint. Try again later.").withHeading("Not sent: the token endpoint gave no access token");
         }
-        return ErrorView.of(ErrorKind.CONFIGURATION, detail, "Check onyx.auth.token-url, onyx.auth.client-id and "
-                + "onyx.auth.client-secret, and the variables of the active environment they name.")
+        return ErrorView.of(ErrorKind.CONFIGURATION, detail, environmentSignIn
+                        ? "Check the sign-in of the active environment in Configuration > Environments: its token url, client id and "
+                        + "client secret, or its bearer token, and the variables they name."
+                        : "Check onyx.auth.token-url, onyx.auth.client-id and onyx.auth.client-secret, and the variables of the active "
+                        + "environment they name.")
                 .withHeading("Not sent: this tool could not sign in");
     }
 
@@ -433,11 +482,27 @@ public class RunSupport {
      * own Authorization header, or one a value for one run gave one, is not said to have had none.
      */
     public boolean sentWithoutSignIn(VendorExchange exchange) {
-        if (onyx.auth().enabled() || exchange == null || exchange.request() == null || !exchange.request().sent()) {
+        if (signsIn() || exchange == null || exchange.request() == null || !exchange.request().sent()) {
             return false;
         }
         return exchange.request().headers() == null || exchange.request().headers().stream()
                 .noneMatch(header -> header != null && "Authorization".equalsIgnoreCase(Texts.orElse(header.name(), "").strip()));
+    }
+
+    /**
+     * Whether calls sign in now: as the active environment's settings state it when they state a
+     * method (an environment that signs in is never said to send without sign-in), else as
+     * onyx.auth says.
+     */
+    private boolean signsIn() {
+        org.p32h.interop.epa.pave.service.config.SignInSettings.Method stated = statedSignIn();
+        return stated == null ? onyx.auth().enabled() : stated != org.p32h.interop.epa.pave.service.config.SignInSettings.Method.NONE;
+    }
+
+    /** The sign-in method the active environment states, or null when it states none or the gateway is not at hand. */
+    private org.p32h.interop.epa.pave.service.config.SignInSettings.Method statedSignIn() {
+        org.p32h.interop.epa.pave.service.config.OperationGateway known = gatewayOrNull();
+        return known == null ? null : known.activeSignInMethod();
     }
 
     /**
@@ -473,6 +538,11 @@ public class RunSupport {
         if (step == null || status == null || (status != 401 && status != 403) || !sentWithoutSignIn(exchange)) {
             return step;
         }
+        if (statedSignIn() != null) {
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: choose the environment's sign-in, then send again.",
+                    "This tool sent no Authorization header: the active environment's sign-in is None and the request carried none of its "
+                            + "own. Its sign-in is chosen in Configuration > Environments.", step.carry(), step.carryLabels());
+        }
         return new NextStepView(NextAction.OPEN_CONFIG, "Next: switch signing in on, then send again.",
                 "This tool sent no Authorization header: signing in is off and the request carried none of its own. Ready to send, on "
                         + "the Config tab, gives the start-up arguments that switch it on.", step.carry(), step.carryLabels());
@@ -501,7 +571,7 @@ public class RunSupport {
         log.error("A run failed inside this tool after the service was called, reference {}: {}", reference, Faults.describe(error));
         RunRecord record = draft.outcome(RunOutcome.TOOL_ERROR).result(TestResult.UNVERIFIED).nextAction(NextAction.REVIEW).build();
         LedgerReceipt receipt = record(record);
-        MemberIdForms memberId = memberId(request);
+        MemberIdForms memberId = wireMemberId(request, call.memberIdRule());
         List<String> supporting = new ArrayList<>();
         String scenario = scenarioLine(exchange);
         if (scenario != null) {
@@ -523,7 +593,7 @@ public class RunSupport {
                 .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the response as received, below, and report the reference and the cause.",
                         "This is a defect in this tool, not a finding about the service, the member or the code."))
                 .additionalFields(exchange.bodyFields())
-                .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
+                .wire(exchange.wire(memberId))
                 .error(ErrorView.of(ErrorKind.INTERNAL, "This tool hit an internal error after the service had been called.",
                                 Faults.REPORT_ACTION + " The request was sent: do not assume it had no effect.")
                         .withReference(reference).withCause(Faults.cause(error)).withHttpStatus(exchange.httpStatus()))
@@ -614,7 +684,27 @@ public class RunSupport {
      * @param issues the issues of an OperationOutcome the service returned, or empty
      */
     public ErrorView faultView(VendorExchange exchange, List<IssueView> issues) {
+        return faultView(exchange, issues, vendorTimeouts());
+    }
+
+    /**
+     * As {@link #faultView(VendorExchange, List)}, with a timeout worded from the read timeout the
+     * call itself was given (R-28), which a save may have changed since the gateway was last asked.
+     */
+    public ErrorView faultView(VendorExchange exchange, List<IssueView> issues, PreparedCall call) {
+        return faultView(exchange, issues, call == null ? vendorTimeouts() : call.timeouts().over(Timeouts.of(onyx)));
+    }
+
+    /** Where the read timeout in force comes from and is changed, in words that fit inside brackets. */
+    private static String readTimeoutFrom(Timeouts timeouts) {
+        return Timeouts.FROM_ENVIRONMENT.equals(timeouts.readFrom())
+                ? "the read timeout this environment states in Configuration > Environments"
+                : "onyx.read-timeout-ms";
+    }
+
+    private ErrorView faultView(VendorExchange exchange, List<IssueView> issues, Timeouts timeouts) {
         OnyxFailureType failure = exchange.failureType();
+        int readMs = timeouts.readOr(onyx.readTimeoutMs());
         String status = exchange.httpStatus() == null ? "" : " with HTTP " + exchange.httpStatus();
         int code = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         ErrorView view = switch (failure) {
@@ -623,7 +713,11 @@ public class RunSupport {
             // the tester's next move differs for each, so the advice follows the status.
             case BAD_REQUEST -> ErrorView.of(ErrorKind.VENDOR_REJECTED, "The service did not accept the request as sent, answering"
                             + status + ".",
-                    (code == 401 || code == 403) && sentWithoutSignIn(exchange)
+                    (code == 401 || code == 403) && sentWithoutSignIn(exchange) && statedSignIn() != null
+                            ? "This tool sent no Authorization header: the active environment's sign-in is None and the request carried "
+                            + "none of its own. Choose its sign-in in Configuration > Environments. The request that was sent is in the "
+                            + "wire view."
+                            : (code == 401 || code == 403) && sentWithoutSignIn(exchange)
                             ? "This tool sent no Authorization header: signing in is off (onyx.auth.enabled is false) and the request "
                             + "carried none of its own. Ready to send, on the Config tab, says how to switch signing in on. The request "
                             + "that was sent is in the wire view."
@@ -649,11 +743,12 @@ public class RunSupport {
                     // played: the verdict and the next step speak only of what a real timeout would mean.
                     ? ErrorView.of(ErrorKind.TIMEOUT, "A mock scenario played a timeout. Nothing was sent and no environment failed: "
                             + "the response time shown, " + exchange.elapsedMillis() + " ms, is the scenario's own delay.",
-                    "Had this been a real service, this tool would have waited up to " + onyx.readTimeoutMs() + " ms for an answer "
-                            + "(onyx.read-timeout-ms) before giving up. The next step says what a tester would do then.")
+                    "Had this been a real service, this tool would have waited up to " + readMs + " ms for an answer "
+                            + "(" + readTimeoutFrom(timeouts) + ") before giving up. The next step says what a tester would do then.")
                     .withHeading(PLAYED_TIMEOUT_HEADING)
                     : ErrorView.of(ErrorKind.TIMEOUT,
-                    "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + onyx.readTimeoutMs() + " ms") + ".",
+                    "No response arrived within the read timeout" + (epa.mock() ? "" : " of " + readMs + " ms (" + readTimeoutFrom(timeouts)
+                            + ")") + ".",
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,
                     Texts.orElse(exchange.failureDetail(), "The service could not be reached."),

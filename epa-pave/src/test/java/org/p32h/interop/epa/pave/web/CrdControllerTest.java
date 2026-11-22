@@ -304,7 +304,7 @@ class CrdControllerTest {
         assertThat(answer.get("comparable").asBoolean()).isTrue();
         assertThat(answer.has("whyNot")).isFalse();
         // authoredOn, which this tool now writes as the moment it builds the request (CRD 2.0.1), differs on every call.
-        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the "
+        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 36 places: 27 in how the request is built, 2 in the "
                 + "case they describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
         assertThat(answer.get("hook").asString()).isEqualTo("order-sign");
         // Both texts, each as indented JSON.
@@ -314,14 +314,14 @@ class CrdControllerTest {
         assertThat(answer.get("counts")).hasSize(5);
         assertThat(answer.at("/counts/0/group").asString()).isEqualTo("BUILD");
         assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
-        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
+        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(27);
         assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
         // The caveat is said once, as its own component, and not again among the notes.
         assertThat(answer.at("/caveat").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
                 + "the service expects");
         assertThat(answer.get("notes").toString()).doesNotContain("This comparison shows where the two requests differ");
         // One difference, in full.
-        assertThat(answer.get("differences")).hasSize(34);
+        assertThat(answer.get("differences")).hasSize(36);
         JsonNode first = answer.at("/differences/0");
         assertThat(first.get("path").asString()).isEqualTo("hookInstance");
         assertThat(first.get("kind").asString()).isEqualTo("DIFFERENT_VALUE");

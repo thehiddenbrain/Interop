@@ -10,7 +10,25 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
+import org.p32h.interop.epa.pave.model.ExpectationView;
+import org.p32h.interop.epa.pave.model.LedgerReceipt;
+import org.p32h.interop.epa.pave.model.LookupField;
+import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.MemberLookupResult;
+import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.ProviderLookupResult;
+import org.p32h.interop.epa.pave.model.ResolvedUrl;
+import org.p32h.interop.epa.pave.model.RunEnvelope;
+import org.p32h.interop.epa.pave.model.ScenarioSummary;
+import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
+import org.p32h.interop.epa.pave.model.pas.NotificationList;
+import org.p32h.interop.epa.pave.model.pas.NotificationView;
+import org.p32h.interop.epa.pave.model.pas.PasDecision;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.model.ErrorView;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.IssueView;
@@ -86,7 +104,63 @@ class StaticServerWordsTest {
             new Read("fault.js", "issue.location", IssueView.class, "location"),
             new Read("fault.js", "issue.locationPresence", IssueView.class, "locationPresence"),
             new Read("fault.js", "value.presence", Shown.class, "presence"),
-            new Read("fault.js", "value.value", Shown.class, "value"));
+            new Read("fault.js", "value.value", Shown.class, "value"),
+            new Read("result.js", "verdict.headline", VerdictView.class, "headline"),
+            new Read("result.js", "verdict.maskedReading", VerdictView.class, "maskedReading"),
+            new Read("result.js", "verdict.supporting", VerdictView.class, "supporting"),
+            new Read("result.js", "envelope.answeredBy", RunEnvelope.class, "answeredBy"),
+            new Read("result.js", "envelope.determination", RunEnvelope.class, "determination"),
+            new Read("result.js", "envelope.additionalFields", RunEnvelope.class, "additionalFields"),
+            new Read("result.js", "expectation.expectedLabel", ExpectationView.class, "expectedLabel"),
+            new Read("result.js", "expectation.explanation", ExpectationView.class, "explanation"),
+            new Read("result.js", "timing.slow", Timing.class, "slow"),
+            new Read("result.js", "ledger.recorded", LedgerReceipt.class, "recorded"),
+            new Read("result.js", "ledger.message", LedgerReceipt.class, "message"),
+            new Read("result.js", "step.headline", NextStepView.class, "headline"),
+            new Read("result.js", "step.reason", NextStepView.class, "reason"),
+            new Read("result.js", "forms.sent", MemberIdForms.class, "sent"),
+            new Read("result.js", "forms.rule", MemberIdForms.class, "rule"),
+            new Read("result.js", "forms.note", MemberIdForms.class, "note"),
+            new Read("result.js", "row.display", DeterminationRow.class, "display"),
+            new Read("result.js", "row.recognised", DeterminationRow.class, "recognised"),
+            new Read("result.js", "coverage.delegatedVendor", CoverageInformationView.class, "delegatedVendor"),
+            new Read("result.js", "decision.procedureCode", PasDecision.class, "procedureCode"),
+            new Read("result.js", "decision.outcome", PasDecision.class, "outcome"),
+            new Read("wb-lookup.js", "answer.statusLabel", MemberLookupResult.class, "statusLabel"),
+            new Read("wb-lookup.js", "answer.statusLabel", ProviderLookupResult.class, "statusLabel"),
+            new Read("wb-lookup.js", "answer.attention", MemberLookupResult.class, "attention"),
+            new Read("wb-lookup.js", "answer.maskedReading", MemberLookupResult.class, "maskedReading"),
+            new Read("wb-lookup.js", "field.sourceField", LookupField.class, "sourceField"),
+            new Read("wb-member.js", "answer.memberId", MemberLookupResult.class, "memberId"),
+            new Read("wb-member.js", "scenario.sentinelMemberId", ScenarioSummary.class, "sentinelMemberId"),
+            new Read("wb-member.js", "scenario.sampleCase", ScenarioSummary.class, "sampleCase"),
+            new Read("wb-preview.js", "preview.blocked", RequestPreview.class, "blocked"),
+            new Read("wb-preview.js", "preview.notes", RequestPreview.class, "notes"),
+            new Read("wb-preview.js", "preview.toComplete", RequestPreview.class, "toComplete"),
+            new Read("wb-preview.js", "url.unresolved", ResolvedUrl.class, "unresolved"),
+            new Read("wb-preview.js", "url.source", ResolvedUrl.class, "source"),
+            new Read("app.js", "mode.build.version", ModeView.Build.class, "version"),
+            new Read("app.js", "mode.build.time", ModeView.Build.class, "time"),
+            new Read("app.js", "mode.build.changedOnDisk", ModeView.Build.class, "changedOnDisk"),
+            new Read("app.js", "mode.build", ModeView.class, "build"),
+            new Read("wb-status.js", "mode.bindAddress", ModeView.class, "bindAddress"),
+            new Read("wb-status.js", "mode.bindNote", ModeView.class, "bindNote"),
+            new Read("wb-status.js", "answer.data.latest", NotificationList.class, "latest"),
+            new Read("wb-status.js", "got.notifications", NotificationList.class, "notifications"),
+            new Read("wb-status.js", "got.held", NotificationList.class, "held"),
+            new Read("wb-status.js", "counts.received", NotificationList.class, "received"),
+            new Read("wb-status.js", "item.receivedAt", NotificationView.class, "receivedAt"),
+            new Read("wb-status.js", "item.correlatedRunId", NotificationView.class, "correlatedRunId"),
+            new Read("wb-status.js", "item.faultReference", NotificationView.class, "faultReference"),
+            new Read("wb-status.js", "item.faultCause", NotificationView.class, "faultCause"),
+            new Read("wb-status.js", "item.payload", NotificationView.class, "payload"),
+            new Read("wb-status.js", "item.bytesReceived", NotificationView.class, "bytesReceived"),
+            new Read("wb-status.js", "item.verdict", NotificationView.class, "verdict"),
+            new Read("wb-status.js", "item.nextStep", NotificationView.class, "nextStep"),
+            new Read("wb-status.js", "newest.id", NotificationView.class, "id"),
+            new Read("wb-status.js", "envelope.protocol", RunEnvelope.class, "protocol"),
+            new Read("wb-status.js", "envelope.ledger", RunEnvelope.class, "ledger"),
+            new Read("wb-status.js", "step.carry", NextStepView.class, "carry"));
 
     /** A copy the page kept of the server's words, which the server now serves: where to look, the pattern that finds it, and why it must not come back. */
     private record Copy(String script, String pattern, String why) {

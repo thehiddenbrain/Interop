@@ -121,4 +121,13 @@ public sealed interface PreparedCall permits IssuedCall {
     default org.p32h.interop.epa.pave.model.RequestShapes shapes() {
         return org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
     }
+
+    /**
+     * The callback url the environment's settings type (R-42), as a template for {@link #resolve},
+     * standing in for {@code onyx.subscription.callback-url} under that environment. Null when it
+     * types none, and then application.yml's applies.
+     */
+    default String callbackUrl() {
+        return null;
+    }
 }

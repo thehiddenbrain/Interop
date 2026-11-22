@@ -1,0 +1,9 @@
+{
+	"id": "00000000-0000-4000-8000-000000000001",
+	"name": "Vendor Sandbox (placeholder)",
+	"values": [
+		{"key": "baseUrl", "value": "https://sandbox.vendor.example.invalid/fhir/r4", "type": "default", "enabled": true},
+		{"key": "city", "value": "PRUEFUNG", "type": "default", "enabled": true}
+	],
+	"_postman_variable_scope": "environment"
+}

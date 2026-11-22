@@ -3,10 +3,13 @@ package org.p32h.interop.epa.pave.web;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Locale;
 import java.util.Set;
+import org.p32h.interop.epa.pave.client.support.OnyxTokenService;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.error.ClassesOnDisk;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,17 +27,39 @@ public class ModeController {
     private final EpaProperties epa;
     private final OperationGateway gateway;
     private final Environment environment;
+    /** Present on live only: on mock nothing signs in, and the answer then carries no sign-in state. */
+    private final ObjectProvider<OnyxTokenService> tokens;
 
+    /** Without a token service, as on mock. */
     public ModeController(EpaProperties epa, OperationGateway gateway, Environment environment) {
+        this(epa, gateway, environment, null);
+    }
+
+    @Autowired
+    public ModeController(EpaProperties epa, OperationGateway gateway, Environment environment, ObjectProvider<OnyxTokenService> tokens) {
         this.epa = epa;
         this.gateway = gateway;
         this.environment = environment;
+        this.tokens = tokens;
     }
 
     @GetMapping
     public ModeView mode(HttpServletRequest http) {
         return new ModeView(epa.name(), epa.version(), port(), epa.mode(), epa.target(), gateway.activeEnvironment(), gateway.epoch(),
-                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()), build());
+                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()), build(), signIn());
+    }
+
+    /**
+     * The sign-in state under the active environment's own sign-in, read from the store on every
+     * poll rather than from the last call, so a save shows at once. Asks no token endpoint: every
+     * tab polls this. Null on mock.
+     */
+    private ModeView.SignIn signIn() {
+        OnyxTokenService service = tokens == null ? null : tokens.getIfAvailable();
+        if (service == null) {
+            return null;
+        }
+        return ModeView.SignIn.of(service.state(gateway.activeSignIn()));
     }
 
     /** The running build, read from what it runs from on every poll, so a rebuild under it is said within one look. */

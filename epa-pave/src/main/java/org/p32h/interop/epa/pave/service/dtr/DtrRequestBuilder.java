@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ResolvedText;
@@ -13,9 +14,10 @@ import org.p32h.interop.epa.pave.model.dtr.QuestionRef;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson.Item;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
-import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -111,7 +113,7 @@ public final class DtrRequestBuilder {
         }
 
         boolean namesAProvider() {
-            return provider != null && Texts.present(provider.npi());
+            return provider != null && (Texts.present(provider.npi()) || Texts.present(provider.vendorPractitionerId()));
         }
 
         boolean namesAMember() {
@@ -126,6 +128,17 @@ public final class DtrRequestBuilder {
     }
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
+
+    /**
+     * The profile a package request declares. The request the vendor accepted declared it, the same
+     * vendor refused an inquiry for a missing profile, and the request this tool builds meets it.
+     */
+    public static final String PROFILE_PACKAGE_INPUT = "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-qpackage-input-parameters";
+
+    /** The time a response is authored, in whole seconds UTC, the form the vendor's validator took for its instants. */
+    static String authored(Clock clock) {
+        return Instant.now(clock).truncatedTo(ChronoUnit.SECONDS).toString();
+    }
 
     /**
      * Why the Patient of a package request is built to a CRD profile that DTR does not apply to it,
@@ -187,19 +200,30 @@ public final class DtrRequestBuilder {
      * @param variables resolves a placeholder name to its value, or to an unresolved result
      */
     public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables) {
+        return buildPackage(request, variables, MemberIdRule.PACKED);
+    }
+
+    /**
+     * As {@link #buildPackage(DtrPackageRequest, Function)}, with the member ID in the form the
+     * call's member ID rule gives (R-10).
+     *
+     * @param rule the call's member ID rule; null reads as packed
+     */
+    public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables, MemberIdRule rule) {
         List<String> notes = new ArrayList<>();
         Map<String, List<String>> carry = request.carry();
         MemberDetail member = request.member();
 
         ObjectNode root = JSON.objectNode();
         root.put("resourceType", "Parameters");
+        root.putObject("meta").putArray("profile").add(PROFILE_PACKAGE_INPUT);
         ArrayNode parameters = root.putArray("parameter");
         // The coverage CRD sent, in the form CRD 2.0.1 profile-coverage gives it, which DTR 2.0.1 requires of this parameter. What
         // that profile requires and nobody supplied is counted and explained by DtrProfileCheck on the JSON that goes out, so the
         // builder's own sentences about those requirements would say it a second time and are left out.
         List<String> coverageNotes = new ArrayList<>();
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource",
-                resources.crdCoverage(member, variables, coverageNotes, new ArrayList<>()));
+                resources.crdCoverage(member, rule, variables, coverageNotes, new ArrayList<>()));
         notes.addAll(withoutRequirements(coverageNotes));
 
         List<CodeInput> codes = codes(request);
@@ -230,15 +254,29 @@ public final class DtrRequestBuilder {
         String authoredOn = resources.now();
         String hcpcs = CaseResources.orderHcpcsSystem(variables);
         boolean hcpcsSent = false;
+        Map<String, List<JsonNode>> coverageInformation = coverageInformation(carry);
+        List<String> carriedTo = new ArrayList<>();
         for (int position = 1; position <= codes.size(); position++) {
             if (chosen.isEmpty() || chosen.contains(position)) {
                 CodeInput code = codes.get(position - 1);
-                ObjectNode order = resources.serviceRequest(CaseResources.serviceRequestId(position), code, member, request.dateOfService(),
-                        authoredOn, hcpcs, notes);
+                ObjectNode order = resources.serviceRequest(CaseResources.serviceRequestId(position), code, member, request.provider(),
+                        request.dateOfService(), authoredOn, hcpcs, notes);
                 hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
+                List<JsonNode> extensions = coverageInformation.getOrDefault(CaseResources.serviceRequestRef(position),
+                        coverageInformation.getOrDefault(CaseResources.serviceRequestId(position), List.of()));
+                if (!extensions.isEmpty()) {
+                    ArrayNode on = order.putArray("extension");
+                    extensions.forEach(extension -> on.add(extension.deepCopy()));
+                    carriedTo.add(CaseResources.serviceRequestRef(position));
+                }
                 parameters.addObject().put("name", OnyxDtrConventions.PARAM_ORDER).set("resource", order);
                 sentCodes.add(code.code().strip());
             }
+        }
+        notes.addAll(coverageInformationNotes(coverageInformation, carriedTo));
+        String quantities = CaseResources.quantityNote(codes);
+        if (quantities != null) {
+            notes.add(quantities);
         }
         if (!sentCodes.isEmpty()) {
             notes.add(CaseResources.authoredOnNote(authoredOn));
@@ -264,7 +302,7 @@ public final class DtrRequestBuilder {
         List<String> patientNotes = new ArrayList<>();
         List<CaseResources.Required> notSupplied = new ArrayList<>();
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource",
-                resources.crdPatient(member, variables, patientNotes, notSupplied));
+                resources.crdPatient(member, rule, variables, patientNotes, notSupplied));
         notes.add(patientNote(notSupplied));
         String gender = member.gender();
         if (Texts.present(gender) && notSupplied.stream().anyMatch(required -> required.element().equals("Patient.gender"))) {
@@ -272,8 +310,13 @@ public final class DtrRequestBuilder {
                     + "so none was sent.");
         }
         notes.addAll(withoutRequirements(patientNotes));
-        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole());
+        notes.add(CaseResources.patientIdNote(member, false));
+        parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitionerRole(request.provider()));
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", CaseResources.practitioner(request.provider()));
+        String practitionerNote = CaseResources.practitionerIdNote(request.provider(), false);
+        if (practitionerNote != null) {
+            notes.add(practitionerNote);
+        }
 
         for (String canonical : canonicals) {
             parameters.addObject().put("name", OnyxDtrConventions.PARAM_QUESTIONNAIRE).put("valueCanonical", canonical);
@@ -304,6 +347,51 @@ public final class DtrRequestBuilder {
                     + "SMART launch. The questionnaire is asked for through the questionnaire package operation.");
         }
         return new Package(JsonSafe.pretty(root), notes, canonicals, codes.stream().map(code -> code.code().strip()).toList(), sentCodes);
+    }
+
+    /**
+     * The coverage-information extensions CRD handed on, by the order each was returned for, each
+     * exactly as received. A value that is not the JSON CRD writes under the key, or that names no
+     * order, is left out here and named by {@link #coverageInformationNotes}.
+     */
+    static Map<String, List<JsonNode>> coverageInformation(Map<String, List<String>> carry) {
+        Map<String, List<JsonNode>> byOrder = new LinkedHashMap<>();
+        for (String value : carried(carry, NextStepView.CARRY_COVERAGE_INFORMATION)) {
+            JsonSafe.Parsed parsed = JsonSafe.parse(value);
+            String order = parsed.ok() ? JsonSafe.presentText(parsed.node(), "order") : null;
+            JsonNode extension = parsed.ok() ? JsonSafe.child(parsed.node(), "extension") : null;
+            if (order == null || extension == null || !extension.isObject()) {
+                byOrder.computeIfAbsent("", key -> new ArrayList<>());
+                continue;
+            }
+            byOrder.computeIfAbsent(order, key -> new ArrayList<>()).add(extension);
+        }
+        return byOrder;
+    }
+
+    /** What happened to each coverage-information extension CRD handed on, one note for those carried and one for those not. */
+    private static List<String> coverageInformationNotes(Map<String, List<JsonNode>> byOrder, List<String> carriedTo) {
+        List<String> notes = new ArrayList<>();
+        if (!carriedTo.isEmpty()) {
+            notes.add((carriedTo.size() == 1 ? "The order " + carriedTo.get(0) + " carries" : "The orders " + String.join(", ", carriedTo)
+                    + " carry") + " the coverage-information extension CRD returned for " + (carriedTo.size() == 1 ? "it" : "each")
+                    + ", exactly as received, as the request the vendor accepted did.");
+        }
+        List<String> notCarried = new ArrayList<>();
+        for (String order : byOrder.keySet()) {
+            boolean sent = carriedTo.contains(order) || carriedTo.contains(order.startsWith("ServiceRequest/") ? order : "ServiceRequest/" + order);
+            if (!order.isEmpty() && !sent) {
+                notCarried.add(order);
+            }
+        }
+        if (!notCarried.isEmpty()) {
+            notes.add("CRD returned coverage information for " + String.join(", ", notCarried) + ", which this request does not send as an "
+                    + "order, so it was not carried.");
+        }
+        if (byOrder.containsKey("")) {
+            notes.add("Coverage information handed on from CRD could not be read as an order and an extension, so it was not carried.");
+        }
+        return notes;
     }
 
     /**
@@ -391,7 +479,7 @@ public final class DtrRequestBuilder {
             }
             stateUse(response, filler, notes);
             if (!response.has("authored")) {
-                response.put("authored", RunStamps.timestamp(clock));
+                response.put("authored", authored(clock));
                 notes.add("The response so far stated no time it was authored, so the time of this step was put on it.");
             }
         } else {
@@ -402,7 +490,7 @@ public final class DtrRequestBuilder {
             copied = true;
             response.put("status", OnyxDtrConventions.STATUS_IN_PROGRESS);
             subject(response, filler.member(), notes);
-            response.put("authored", RunStamps.timestamp(clock));
+            response.put("authored", authored(clock));
         }
         authorOf(response, filler, notes);
         JsonNode inside = QuestionnaireJson.containedQuestionnaire(response);
@@ -464,7 +552,7 @@ public final class DtrRequestBuilder {
         if (!response.has("subject")) {
             subject(response, member, notes);
         }
-        response.put("authored", RunStamps.timestamp(clock));
+        response.put("authored", authored(clock));
         authorOf(response, filler, notes);
         ArrayNode items = QuestionnaireJson.buildItems(evaluated.roots(), withOrigins(posted, filler, notes),
                 QuestionnaireJson.responseItems(posted.response()), evaluated::include);
@@ -559,7 +647,8 @@ public final class DtrRequestBuilder {
                     if (!filler.namesAProvider()) {
                         throw new IllegalStateException("An answer would be marked as given by a person with no author to name.");
                     }
-                    answers.add(withOrigin((ObjectNode) answer, populated ? OnyxDtrConventions.ORIGIN_OVERRIDE : OnyxDtrConventions.ORIGIN_MANUAL));
+                    answers.add(withOrigin((ObjectNode) answer, populated ? OnyxDtrConventions.ORIGIN_OVERRIDE : OnyxDtrConventions.ORIGIN_MANUAL,
+                            filler.provider()));
                     marked = true;
                 } else {
                     answers.add(answer);
@@ -589,7 +678,7 @@ public final class DtrRequestBuilder {
         return true;
     }
 
-    private static ObjectNode withOrigin(ObjectNode answer, String source) {
+    private static ObjectNode withOrigin(ObjectNode answer, String source, ProviderDetail provider) {
         ObjectNode out = JSON.objectNode();
         ArrayNode extensions = out.putArray("extension");
         JsonSafe.elements(answer, "extension").forEach(extension -> extensions.add(extension.deepCopy()));
@@ -598,7 +687,7 @@ public final class DtrRequestBuilder {
         parts.addObject().put("url", "source").put("valueCode", source);
         // The Practitioner resource has this id in every request this tool builds. The NPI itself is not put here.
         parts.addObject().put("url", "author").putArray("extension").addObject().put("url", "practitioner")
-                .putObject("valueReference").put("reference", CaseResources.PRACTITIONER_REF);
+                .putObject("valueReference").put("reference", CaseResources.practitionerRef(provider));
         origin.put("url", OnyxDtrConventions.EXT_INFORMATION_ORIGIN);
         JsonSafe.properties(answer).forEach(property -> {
             if (!"extension".equals(property.getKey())) {
@@ -672,7 +761,7 @@ public final class DtrRequestBuilder {
         if (response.has("author") || !filler.namesAProvider()) {
             return;
         }
-        response.putObject("author").put("reference", CaseResources.PRACTITIONER_REF);
+        response.putObject("author").put("reference", CaseResources.practitionerRef(filler.provider()));
         notes.add("The provider on the form is named as the author of the response, by the id this tool gives the Practitioner in every "
                 + "request.");
     }
@@ -763,7 +852,7 @@ public final class DtrRequestBuilder {
     private static void subject(ObjectNode response, MemberDetail member, List<String> notes) {
         if (member != null && Texts.present(member.memberId())) {
             // The local id the Patient resource has in every request this tool builds. The member ID itself is not put here.
-            response.putObject("subject").put("reference", CaseResources.PATIENT_REF);
+            response.putObject("subject").put("reference", CaseResources.patientRef(member));
         } else {
             notes.add("The response names no subject, because the request names no member.");
         }

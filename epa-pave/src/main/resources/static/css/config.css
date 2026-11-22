@@ -1,4 +1,134 @@
 /*
- * Configuration's own classes, prefixed .config-, beside the shared components of pave.css. Empty
- * until Configuration is built (batch C of the plan).
+ * Configuration's own classes, prefixed .config-, beside the shared components of pave.css. The
+ * pages of batch I use them too and add no stylesheet of their own.
  */
+
+.config-page {
+    min-width: 0;
+}
+
+.config-page__body {
+    display: grid;
+    gap: var(--s-4);
+    min-width: 0;
+}
+
+/* Advanced holds a list of its own, drawn under its item and set in one step. */
+.config-subnav-list {
+    display: grid;
+    gap: 2px;
+    margin: 2px 0 var(--s-2) var(--s-3);
+    padding-left: var(--s-2);
+    border-left: 1px solid var(--line);
+}
+
+.config-subnav-list__item {
+    font-size: var(--text-sm);
+}
+
+.config-status:empty {
+    display: none;
+}
+
+.config-status {
+    margin-bottom: var(--s-3);
+}
+
+.config-said p {
+    font-weight: 600;
+}
+
+.config-said .notes {
+    margin-top: var(--s-2);
+}
+
+.config-card-line {
+    color: var(--ink-soft);
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+}
+
+.config-warning {
+    padding-left: var(--s-3);
+    border-left: 3px solid var(--action-ink);
+}
+
+.config-modal .modal__body {
+    gap: var(--s-4);
+}
+
+.config-form {
+    display: grid;
+    gap: var(--s-4);
+    min-width: 0;
+}
+
+.config-form__banner:empty {
+    display: none;
+}
+
+.config-file {
+    width: 100%;
+    min-width: 0;
+    font-size: var(--text-sm);
+}
+
+.config-file-lines:empty {
+    display: none;
+}
+
+.config-file-lines {
+    display: grid;
+    gap: var(--s-2);
+    font-size: var(--text-sm);
+}
+
+.config-file-line {
+    overflow-wrap: anywhere;
+}
+
+.config-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    font-size: var(--text-sm);
+}
+
+.config-fact {
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+}
+
+.config-in-force {
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+}
+
+.config-values,
+.config-addresses {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.config-value-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+    gap: var(--s-3);
+    align-items: end;
+}
+
+.config-modal .fold {
+    min-width: 0;
+}
+
+.config-add {
+    justify-self: start;
+}
+
+/* A table cell that holds a sentence (a reason, a note) wraps instead of running off the side. */
+.config-wrap,
+.modal .table td:last-child {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}

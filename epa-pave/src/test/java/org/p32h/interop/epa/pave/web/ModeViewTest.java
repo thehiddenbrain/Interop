@@ -17,12 +17,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.client.support.OnyxAccessTestFactory;
+import org.p32h.interop.epa.pave.client.support.OnyxTokenService;
 import org.p32h.interop.epa.pave.config.EpaProperties;
+import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.service.error.ClassesOnDisk;
 import org.p32h.interop.epa.pave.testsupport.FakeGateway;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -87,6 +92,55 @@ class ModeViewTest {
         JsonNode build = mode().get("build");
         assertThat(build.get("changedOnDisk").booleanValue()).isTrue();
         assertThat(build.get("time").stringValue()).isEqualTo("2026-11-22T05:00:00Z");
+    }
+
+    @Test
+    void onMockTheAnswerCarriesNoSignInSoTheBarShowsNoChip() throws Exception {
+        assertThat(mode().has("signIn")).isFalse();
+    }
+
+    /** The answer on live, with a token service that has asked nobody yet. */
+    private static JsonNode liveMode(OnyxTokenService tokens) throws Exception {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("onyxTokenService", tokens);
+        return JsonSafe.parse(TestMvc.standalone(new ModeController(EpaProperties.of(Map.of("mode", "live")), FakeGateway.unconfigured(),
+                new MockEnvironment(), beans.getBeanProvider(OnyxTokenService.class))).perform(get("/api/mode")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).node();
+    }
+
+    private static OnyxTokenService tokens(Map<String, String> onyx) {
+        // No request reaches this client: the state is read without asking a token endpoint.
+        return OnyxAccessTestFactory.tokens(OnyxProperties.of(onyx), FakeGateway.unconfigured(), RestClient.create(),
+                Clock.fixed(Instant.parse("2026-11-22T06:00:00Z"), ZoneOffset.UTC));
+    }
+
+    @Test
+    void onLiveTheSignInIsServedAsStateShortAndDetail() throws Exception {
+        JsonNode off = liveMode(tokens(Map.of())).get("signIn");
+        assertThat(off.get("state").stringValue()).isEqualTo("NONE");
+        assertThat(off.get("short").stringValue()).isEqualTo("No sign-in needed");
+        assertThat(off.get("detail").stringValue()).isEqualTo("This environment states no sign-in, and onyx.auth in application.yml is "
+                + "switched off, so calls go without a token.");
+        assertThat(off.has("code")).isFalse();
+        assertThat(off.has("shortWords")).isFalse();
+
+        JsonNode first = liveMode(tokens(Map.of("auth.enabled", "true", "auth.token-url", "https://auth.example.invalid/token",
+                "auth.client-id", "placeholder-client", "auth.client-secret", "placeholder-client-secret"))).get("signIn");
+        assertThat(first.get("state").stringValue()).isEqualTo("FIRST_CALL");
+        assertThat(first.get("short").stringValue()).isEqualTo("Signs in on first call");
+        assertThat(first.toString()).doesNotContain("placeholder-client-secret");
+    }
+
+    @Test
+    void aPastedTokenIsSaidAsSuchAndNeverShown() throws Exception {
+        OnyxTokenService tokens = tokens(Map.of());
+        tokens.paste("placeholder-pasted-token", "Placeholder Sandbox");
+
+        JsonNode signIn = liveMode(tokens).get("signIn");
+
+        assertThat(signIn.get("state").stringValue()).isEqualTo("PASTED");
+        assertThat(signIn.get("short").stringValue()).isEqualTo("Using your pasted token");
+        assertThat(signIn.toString()).doesNotContain("placeholder-pasted-token");
     }
 
     /** A clock the test moves, so the ten seconds between two looks at the folder pass without waiting. */
