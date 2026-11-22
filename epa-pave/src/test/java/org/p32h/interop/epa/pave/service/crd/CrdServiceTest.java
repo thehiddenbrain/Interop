@@ -813,7 +813,7 @@ class CrdServiceTest {
         assertThat(result.wire().memberId().sent()).isEqualTo("S1234567801");
         assertThat(result.wire().memberId().changed()).isTrue();
         JsonNode sent = JsonSafe.parse(result.wire().request().body()).node();
-        assertThat(sent.at("/prefetch/patient/identifier/0/value").asString()).isEqualTo("S1234567801");
+        assertThat(sent.at("/prefetch/patientBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo("S1234567801");
         assertThat(result.wire().request().body()).doesNotContain("S12345678   01");
         assertThat(ledger.only().memberId()).isEqualTo("S1234567801");
         // An unspaced id goes through the same path unchanged.

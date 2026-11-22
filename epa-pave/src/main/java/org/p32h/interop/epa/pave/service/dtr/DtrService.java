@@ -25,6 +25,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.TrackedJson;
@@ -545,7 +546,7 @@ public class DtrService {
             // copies are optional. Whatever the form does hold is still checked.
             optionalCase(inputs, request);
         } else {
-            inputs.member(request.member()).provider(request.provider());
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider());
             if (!request.procedureCodes().isEmpty()) {
                 inputs.codes(request.procedureCodes());
             } else {
@@ -640,14 +641,19 @@ public class DtrService {
      */
     private static void authorNamed(RunInputs inputs, DtrAnswers.Posted posted, RunRequest request) {
         if (posted.errors().isEmpty() && DtrRequestBuilder.marksAnAnswer(posted)) {
-            inputs.require(request.provider() != null && Texts.present(request.provider().npi()), "provider.npi", AUTHOR_NEEDED);
+            inputs.require(namesAProvider(request.provider()), "provider.npi", AUTHOR_NEEDED);
         }
+    }
+
+    /** True when the form names the provider by an NPI or by a vendor practitioner id (R-40). */
+    static boolean namesAProvider(ProviderDetail provider) {
+        return provider != null && (Texts.present(provider.npi()) || Texts.present(provider.vendorPractitionerId()));
     }
 
     /** Why a step that adds an answer with no provider is refused. */
     static final String AUTHOR_NEEDED = "An answer given in this step is marked as given by a person, and DTR 2.0.1 then requires the "
             + "answer to name its author (invariant dtrx-1 of the information-origin extension). This tool names the provider on the form "
-            + "as the author, so give the provider's NPI. An answer posted as a FHIR answer that already carries its own information-origin "
+            + "as the author, so give the provider's NPI or vendor practitioner id. An answer posted as a FHIR answer that already carries its own information-origin "
             + "extension is sent as written.";
 
     /** The notes of a package request this tool built: what it leaves out that DTR 2.0.1 requires first, then the builder's own. */
@@ -672,8 +678,8 @@ public class DtrService {
         if (request.member() != null && Texts.present(request.member().memberId())) {
             inputs.member(request.member());
         }
-        if (request.provider() != null && Texts.present(request.provider().npi())) {
-            inputs.provider(request.provider());
+        if (namesAProvider(request.provider())) {
+            inputs.providerByNpiOrVendorId(request.provider());
         }
         List<CodeInput> codes = request.procedureCodes() == null ? List.of() : request.procedureCodes();
         for (int i = 0; i < codes.size(); i++) {

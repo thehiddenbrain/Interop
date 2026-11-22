@@ -5,6 +5,8 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
+import org.p32h.interop.epa.pave.model.RequestShape;
+import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
@@ -66,12 +68,24 @@ public final class CrdRequestBuilder {
      * @param variables    resolves a placeholder name to its value, or to an unresolved result
      */
     public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables) {
+        return build(request, hookInstance, variables, RequestShapes.DEFAULTS);
+    }
+
+    /**
+     * The request in the shape the vendor's sandbox accepted (R-37): the prefetch as five named
+     * Bundles of type collection, a fullUrl on every entry, userId and every requester the
+     * Practitioner, and context.draftOrders with or without its type as the shapes say.
+     *
+     * @param shapes the request shapes of the call, each with where its value came from
+     */
+    public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes) {
         List<String> notes = new ArrayList<>();
         List<SentOrder> orders = new ArrayList<>();
         List<CaseResources.Required> missing = new ArrayList<>();
         String hook = hook(request);
         MemberDetail member = request.member();
         ProviderDetail provider = request.provider();
+        RequestShapes shaped = shapes == null ? RequestShapes.DEFAULTS : shapes;
 
         ObjectNode root = JSON.objectNode();
         root.put("hook", hook);
@@ -88,13 +102,22 @@ public final class CrdRequestBuilder {
         }
 
         ObjectNode context = root.putObject("context");
-        context.put("userId", CaseResources.PRACTITIONER_ROLE_REF);
-        context.put("patientId", CaseResources.PATIENT_ID);
+        context.put("userId", CaseResources.requesterRef(provider));
+        context.put("patientId", CaseResources.patientId(member));
+        notes.add(CaseResources.patientIdNote(member, true));
+        String practitionerNote = CaseResources.practitionerIdNote(provider, true);
+        if (practitionerNote != null) {
+            notes.add(practitionerNote);
+        }
 
         ObjectNode bundle = JSON.objectNode();
         bundle.put("resourceType", "Bundle");
-        bundle.put("type", "collection");
+        boolean typeLeftOut = shaped.leftOut(RequestShape.CRD_DRAFT_ORDERS_TYPE);
+        if (!typeLeftOut) {
+            bundle.put("type", "collection");
+        }
         ArrayNode entries = bundle.putArray("entry");
+        List<ObjectNode> sentOrders = new ArrayList<>();
         ArrayNode selections = JSON.arrayNode();
         String authoredOn = resources.now();
         String hcpcs = CaseResources.orderHcpcsSystem(variables);
@@ -102,9 +125,10 @@ public final class CrdRequestBuilder {
         int position = 1;
         for (CodeInput code : request.procedureCodes()) {
             String id = CaseResources.serviceRequestId(position);
-            ObjectNode order = resources.serviceRequest(id, code, member, request.dateOfService(), authoredOn, hcpcs, notes);
+            ObjectNode order = resources.serviceRequest(id, code, member, provider, request.dateOfService(), authoredOn, hcpcs, notes);
             hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
-            entries.addObject().set("resource", order);
+            CaseResources.entry(entries, order, fhirServer);
+            sentOrders.add(order);
             selections.add(CaseResources.serviceRequestRef(position));
             orders.add(new SentOrder(CaseResources.serviceRequestRef(position), code.code().strip()));
             position++;
@@ -115,25 +139,44 @@ public final class CrdRequestBuilder {
         if (hcpcsSent) {
             notes.add(CaseResources.hcpcsNote(hcpcs));
         }
-        if (CrdRunRequest.ORDER_SELECT.equals(hook)) {
+        String quantities = CaseResources.quantityNote(request.procedureCodes());
+        if (quantities != null) {
+            notes.add(quantities);
+        }
+        if (CrdRunRequest.ORDER_SELECT.equals(hook) && !selections.isEmpty()) {
             context.set("selections", selections);
         }
         context.set("draftOrders", bundle);
+        notes.add(draftOrdersNote(shaped.choice(RequestShape.CRD_DRAFT_ORDERS_TYPE)));
 
         if (prefetchSent) {
             ObjectNode prefetch = root.putObject("prefetch");
-            prefetch.set("patient", resources.crdPatient(member, variables, notes, missing));
-            prefetch.set("coverage", resources.crdCoverage(member, variables, notes, missing));
+            prefetch.set("patientBundle", collection(fhirServer, resources.crdPatient(member, variables, notes, missing)));
+            prefetch.set("coverageBundle", collection(fhirServer, resources.crdCoverage(member, variables, notes, missing)));
             CaseResources.Provider named = CaseResources.crdProvider(provider, notes, missing);
-            prefetch.set("practitionerRole", named.role());
             if (named.practitioner() != null) {
-                prefetch.set("practitioner", named.practitioner());
+                prefetch.set("practitionerBundle", collection(fhirServer, named.practitioner()));
             } else {
-                prefetch.set("organization", named.organization());
+                prefetch.set("organizationBundle", collection(fhirServer, named.organization()));
             }
-            notes.add("The prefetch keys patient, coverage, practitionerRole and " + (named.practitioner() != null ? "practitioner" : "organization")
-                    + " are this tool's own choice. The keys the live service declares are not known: compare them with its discovery "
-                    + "response.");
+            prefetch.set("practitionerRoleBundle", collection(fhirServer, named.role()));
+            ObjectNode serviceRequests = collection(fhirServer);
+            for (ObjectNode order : sentOrders) {
+                CaseResources.entry((ArrayNode) serviceRequests.get("entry"), order.deepCopy(), fhirServer);
+            }
+            if (sentOrders.isEmpty()) {
+                // No empty array leaves this tool: the vendor's validator refused one each time.
+                serviceRequests.remove("entry");
+            }
+            prefetch.set("serviceRequestBundle", serviceRequests);
+            notes.add(named.practitioner() != null
+                    ? "The prefetch was sent as the named Bundles patientBundle, coverageBundle, practitionerBundle, practitionerRoleBundle "
+                            + "and serviceRequestBundle, each of type collection, as the vendor's sandbox accepted them. The keys the live "
+                            + "service declares are in its discovery response."
+                    : "The prefetch was sent as the named Bundles patientBundle, coverageBundle, organizationBundle, practitionerRoleBundle "
+                            + "and serviceRequestBundle, each of type collection. organizationBundle stands in place of practitionerBundle, "
+                            + "because the provider is known by an organization name only. The keys the live service declares are in its "
+                            + "discovery response.");
         } else if (fhirServer != null) {
             notes.add("No prefetch was sent, because the form said to leave it out. The Patient, Coverage and provider resources, and "
                     + "what " + CaseResources.CRD_VERSION + " requires of them, are then the service's to fetch from the fhirServer sent.");
@@ -142,6 +185,7 @@ public final class CrdRequestBuilder {
                     + CaseResources.VAR_FHIR_SERVER + " is not set. This request gives the service no way to read the Patient, the "
                     + "Coverage or the provider.");
         }
+        notes.add(CaseResources.fullUrlNote(fhirServer));
         if (!missing.isEmpty()) {
             // First, so a refusal by the service is read beside it and not taken for a fault of the service.
             notes.add(0, "This request leaves out " + missing.size() + (missing.size() == 1 ? " element" : " elements") + " that the "
@@ -149,6 +193,39 @@ public final class CrdRequestBuilder {
                     + ". It goes all the same. The notes below say which, and what would supply each.");
         }
         return new Built(JsonSafe.pretty(root), notes, orders, missing);
+    }
+
+    /** A Bundle of type collection holding the resources given, each with its fullUrl. */
+    private static ObjectNode collection(String fhirServer, ObjectNode... resources) {
+        ObjectNode bundle = JSON.objectNode();
+        bundle.put("resourceType", "Bundle");
+        bundle.put("type", "collection");
+        ArrayNode entries = bundle.putArray("entry");
+        for (ObjectNode resource : resources) {
+            CaseResources.entry(entries, resource, fhirServer);
+        }
+        return bundle;
+    }
+
+    /**
+     * The request note that says whether context.draftOrders went with its type, and where that
+     * choice came from, so a refusal for it is read beside the setting that decided it.
+     */
+    static String draftOrdersNote(RequestShapes.Choice choice) {
+        boolean leftOut = RequestShape.LEFT_OUT.equals(choice.value());
+        String from = switch (choice.from()) {
+            case RequestShapes.FROM_ENVIRONMENT -> "from this environment";
+            case RequestShapes.FROM_SAMPLE -> "from the collection's sample"
+                    + (Texts.present(choice.requestName()) ? " (the request \"" + choice.requestName() + "\")" : "");
+            default -> "default";
+        };
+        if (leftOut) {
+            return "draftOrders type: Left out, " + from + ". context.draftOrders was sent without type, as the vendor's sandbox accepted "
+                    + "it; FHIR requires Bundle.type, so a service that follows FHIR may refuse it.";
+        }
+        return "draftOrders type: Sent, " + from + ". context.draftOrders was sent with type collection, as FHIR requires. The vendor's "
+                + "sandbox refused context.draftOrders.type with HTTP 400; Left out is set for an environment in Configuration > "
+                + "Environments.";
     }
 
     /** The hook name this request is for. Blank means order-sign. */
