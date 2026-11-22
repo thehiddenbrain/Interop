@@ -4,410 +4,218 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**The head** is `6ab0e69` on the branch `final`, with the commit that adds these records. It holds
-`0b7e534` (the records of the upload fix, which is what the branch `epa-pave` on the remote holds) and
-four merges on top of it, none with a textual conflict and nothing settled by hand, of three branches
-built side by side from `ba4661b` to correct what the checks of the upload fix left (D-280):
-`stop-and-gone` at `4f83dd8` (merge `83c37f7`): a stop of the tool lets a call that is out finish, up
-to 30 seconds, and keeps its ledger line, and a client that went away is one INFO line, not an
-unhandled exception; `long-names` at `38ac780` (merge `e1a4eec`): a long name from an uploaded file is
-quoted by its start and its length, and the slow pattern no longer sees a long part of an address;
-and `echo-secrets` at `0cb3c0b` (merge `1ac0458`) and again at `14fc20f` (merge `6ab0e69`): an answer is
-masked wherever it repeats a secret the tool holds, carried or not, a verdict read from a mask says so,
-an id read from a header is masked, and a mask fills no field and is never sent; on the way an older
-leak was closed, a credential typed into the address to call back or a lookup url shown in clear in
-"In force now" and on the PAS tab. After each of the first two merges and at `6ab0e69` the guard tests
-(`RegexStackGuardTest`, `RecursionGuardTest`, `DeepAnswerStackTest`, `RewrittenPatternsTest`,
-`HouseStyleTest`) passed on the merged code, and at `1ac0458` the whole build (3,082 tests, 0 failures,
-0 errors, 2 skipped). **The last whole build** is that of `6ab0e69`, through the shared runner: BUILD
-SUCCESSFUL in 9m 53s, 3,093 tests, 0 failures, 0 errors, 2 skipped (counts from `build/test-results`);
-the jar's sha1 is `17f77be1588da9a4d61a42dd3c056cee989407fd`. The last whole build of each branch:
-`echo-secrets` 3,065 at `14fc20f`, `stop-and-gone` 3,024 at `4f83dd8`, `long-names` 3,016 at `38ac780`,
-each with 0 failures, 0 errors and 2 skipped. The jar of the merged head was not run; each branch was
-seen on its own jar, against stand-ins on a loopback port, and nothing of it on Windows. These records
-reach `epa-pave` when the integrator pushes them.
+**This is release 1 of the rebuild of the screens** (D-281, D-285). After the operator called the
+screens unusable, the integrator had them rebuilt on the model of the operator's own tool, keeping
+PAVE's server: one top bar, three tabs (Workbench, Audit, Configuration), the Workbench a case column
+and four steps (Coverage check, Questionnaire, Submit, Status), a result made of chips, one headline,
+a few facts and closed folds, environments configured on screen, saved test members and providers,
+Submit after Da Vinci PAS 2.2.1, the request shapes the vendor's sandbox accepted. It reaches the
+operator in two releases on 2026-11-22: release 1, merged until 12:30 UTC and handed over at 15:00
+UTC; release 2, merged until 19:30 UTC and handed over at 22:00 UTC. Each is handed over only after
+its checks and an independent look. Hours here are UTC.
 
-`ba4661b`, below it, is the merge of two lines that both start at `e70af34` (the records of D-275 and
-their check, on the code of `8463174`). One is the screen round, whose head is `963d5b0`: the first round of screen changes and the
-internal error that names its cause (D-276, D-277): `2590656` to `99a939c` built the letters A to K of
-the plan, `734ec23` to `8b05c4b`, `5a3ca4b` to `a6aadc6` and `87dee6f` corrected what the walk, the
-audit and the checks found, and `56c3e64`, `4fb199f`, `e0f3333`, `425e16a` and `6a6fe2f` made the cause
-of an internal error named on the screen and on the first line of the log entry; then `22a41bc` to
-`253928e` gave the stop of a suite and the notification receiver's verdict their cause (D-277,
-"Later:"), and `cbffaf1` to `ef069d9` closed every path found by which the message of an exception
-could reach the log while the tool runs, after a check found the suite's thread printing one (D-278;
-the first correction is `7cbc0f8`); a start that fails is still Spring's own report, with its
-messages, by decision, and two narrow paths are named in D-278's limits. The other is **the upload
-fix** (D-279), `5c8d06e` to `4456ea5`, thirteen commits: a long text in a Postman file no longer
-breaks the upload or the store, no pattern of the main code recurses with the length of its input,
-an upload stores nothing until every check that can fail has run, a file or an answer nested past the
-500 levels the parser reads is refused or reported with that reason, a DTR questionnaire whose
-enableWhen conditions form a chain of thousands no longer throws, and two guard tests hold the
-patterns and the recursions of the main code. No file conflicted in the merge; the guard's list of
-inline patterns was brought up to the merged code in the merge commit (D-279). **The last whole
-build** of that merge, through the shared runner (`clean build`), gave 3006 tests, 0 failures, 0
-errors, 2 skipped, BUILD SUCCESSFUL. At `e70af34` there were 2872 tests; the screen round ended at
-2965 (`ef069d9`; on the way 2896, 2908, 2909, 2916, 2930, 2937 at `6a6fe2f`, 2946, 2951 and 2962), the
-upload fix at 2913 (2896 at `583ccbe`), each with 0 failures, 0 errors and 2 skipped. **The
-integrator's gates** (two builds from clean, a fresh clone, the start, the handover proofs) last
-passed on `e70af34`; they are due on the new head `6ab0e69`, after these records, and had not run when
-this was written. The rest of this section
-describes the line up to `e70af34`, from `902e0d9` on.
+<!-- R1-FACT: the head of the release candidate, its branch, and the slices it holds; replace the
+paragraph below with them -->
+**The head when this was drafted** is `4d0858a` on the integration branch `rebuild/main`; the branch
+of these records adds the two record commits of D-280 (merge `c20c4cf`). It starts from `79a7c25`, the head of the second round of changes to the
+old screens (D-282; whole build 3,188 tests, 0 failures, 0 errors, 2 skipped), and holds these slices,
+each merged by the merger with a quick gate of the guard and static tests: A1 (the frame of the new
+screens, `1d0c4c0`), D0 (the store's write failures and the run scripts, `00f1578`), F1 (member ID
+rules, request shapes and vendor ids in the model, `e89ea5f`), E1 (the Submit fields and `GET
+/api/pas/options`, `17db802`), B3a (the error after the classes changed on disk or the heap ran out,
+and the store's problems of this computer, `53b1403`), I5 (run scripts that find a Java 21, `b31df8a`),
+C1 (saved test lists on the server, `ba28020`), F5 (the shape evidence in the collection's sample,
+`9b48b30`), D1c (every call carries its settings, `db03ae8`), H0 (the response detail, `a55bb2d`), E2
+(the PAS 2.2.1 request, `1dcefb0`), B1 (short words and tones, `2ff19d4`), G5 (sign-in per call, the
+retry after a 401, the pasted token, `00c2c13`) and D1a (environment settings in `store.json` version 2,
+`de91bee`). **The Workbench, Audit and Configuration are still one-line stubs at this head**: their
+slices were not merged when this was drafted (the list is under "Open", line 3).
 
-This describes revision `902e0d9` on branch `epa-pave`, which is on the remote, before the commit that
-adds these records. The integrator built the line at this content through the shared build wrapper
-(`gw clean build`): 2870 tests, 0 failures, 0 errors, 2 skipped, "No house style violations.", BUILD
-SUCCESSFUL in 4m 31s. The two skipped tests need a folder that cannot be written
-(`ConfigStoreTest.aDirectoryThatCannotBeWrittenFailsAtStartupNamingThePath`,
-`JsonlRunLedgerTest.startupFailsWhenTheDirectoryIsReadOnly`), which a build running as root cannot
-make; the same refusals are covered by tests that did run. The integrator's last gates ran on the
-commit that held the records of that revision, and their result is in the pull request description,
-part 2 (D-267). What the head holds since `902e0d9`, and its later build, follow below.
+**The last whole build** of the integration branch was that of `3d84250` (the second sweep, finished
+08:32 UTC): BUILD SUCCESSFUL in 9m 57s, 315 classes, 3,318 tests, 0 failures, 0 errors, 2 skipped (the
+two that need a folder that cannot be written, which a build running as root cannot make); the jar's
+sha1 is `87b863ba194ccf7c0e29776555d1866b8fd55f6c`. The first sweep, of `1dcefb0`, gave 3,253 tests, 0
+failures, 0 errors, 2 skipped. D1a was merged after the second sweep; its builder's whole build before
+the merge was green but for the two tests the merger then changed (`4d0858a`).
+<!-- R1-FACT: the last whole build of the release candidate (head, counts, duration, jar sha1) -->
+<!-- R1-FACT: the checks of release 1
+and what they left, from their reports -->
 
-It holds `428eff5` and, merged since: the records and README pass that settled the lines marked for the
-four closing tasks (`final-touch` at `c4bc498`, D-253 to D-259), and **the four last fixes**, one for
-each part of the last independent check that found a blocker or a major: completeness on screen
-(`last-render` at `fff3bd0`), the walkthrough (`last-uat` at `10108d4`), the ledger (`last-ledger` at
-`54f9912`, merged by hand at `60876fa`) and the guardrail (`last-guardrail`, content at `49ae839`,
-merged at `7df9718`, its last commit `ca716a1` at `902e0d9`); and one test the integrator corrected
-(`6b7abba`, D-267). **The last fixes have been checked by nobody but their authors, and no check
-follows them** (D-268). `428eff5` holds the line of `e1d37dc` (the fix wave, the leftover tasks, the
-five tabs joined into one tool, the server work for the screens, the fixes for the second run of V2,
-V3 and V4, the last server task and screens pass, and the fixes for V5, V7 and the walkthrough) and the
-four closing tasks (D-253 to D-256).
+**The entries.** D-281 records the operator's verdict, what was found about the Config error and the
+uploads, and their four answers; D-282 the second round of the old screens, built, closed and
+replaced, and what of it stays in the code; D-283 the member's name a suite row's case id could carry
+into the ledger, a gap in a hard rule found by its close; D-284 the other older faults that close
+found; D-285 how the rebuild was planned and built, with its limits; D-286 to D-297 the decisions of
+the rebuild by area (the frame and the Workbench, the result, short words, environment settings and
+the store's version 2, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists,
+uploads and run scripts, Audit, mock and live); D-298 how the saved lists and the trail bend two rules
+of the specification. Older entries whose rule or contract the rebuild changed carry a "Later:" line;
+the file's head says once that the old screens are gone. The commit that records this changes this
+file and `DECISIONS.md` only.
 
-The decisions of the fix wave are D-140 to D-175, those of the leftover tasks and the frontend D-176 to
-D-201, those of the join, the server work for the screens and the second audits D-202 to D-228, those
-of the last server task, the last screens pass, the last audits and the checks of the fixes D-229 to
-D-252, those of the four closing tasks D-253 to D-259, and those of the last check, the last fixes and
-how the checking ended D-260 to D-268. D-269 records what the operator replied to the four questions of
-D-227 after the pull request was opened, and D-270 the operator's later word that the tool is to be run
-as a real service one day, with what an independent check of that entry found; the commits that record
-them change this file, `DECISIONS.md` and the README only, and no code. D-271 records the operator's
-question whether the tool was ready to load into STS, the first answer that was wrong in part, the
-code change it led to and what an emulation of STS showed, with what an independent check of that
-entry and the README's STS section found. D-272 records the two runs of the real STS that followed,
-on Linux with Spring Tools 5.4.0, and the change made between them, with what an independent check
-of that entry and the README's STS section found. D-273 records what the operator met when they let
-STS clone the repository on a Windows workstation, what they were told and how it held up, and four
-more runs of the real STS on Linux on `d089e65` (the Git import wizard, the wrong folder on purpose,
-the operator's state rebuilt, and a machine with no JDK 21 and then no network, both simulated), with
-what an independent check of that entry and the README's STS section found; each commit that records
-it changes this file, `DECISIONS.md` and the README only. D-274 records the change to the build that
-followed: where Gradle finds no JDK 21 the build now uses the Java that runs Gradle, with what was
-seen of it from a terminal and in the real STS (on `6201644`, and on `6eddce8`, whose code was that of
-the head before the screen changes of D-276 and D-277; STS has not been run on the code since) and what a review found. The integrator first wrote that entry and its lines in the README
-alone (`6eddce8`); two independent checks of them followed, and their findings, checked against the
-outputs and screenshots, and the last run of STS are in them now. D-275 records the first session on
-a Windows workstation, the operator's, on the code of `f82e32e`: an upload that fails there with an
-internal error whose cause is not known, the operator's verdict on the tool, what was tried on the
-build machine (on Linux, and on a Windows Java under Wine), and the removal of a Linux-only argument
-from the shared launch file (`8463174`), with two runs on that commit. D-276 records the first round
-of screen changes made after the operator's verdict without waiting for their answer: how it was
-looked for, planned, attacked, built, walked, audited, corrected and checked, what a tester now sees,
-where the builders left the plan, what the checks saw of the hard rules and what is left. D-277
-records that an internal error now names its cause on the screen and on the first line of the log
-entry, a narrow change to D-036, with what the tests and a damaged copy of the jar showed, and in its
-"Later:" the stop of a suite and the notification verdict that now name it too. D-278 records that
-the Java runtime could print the message of an exception into the log around `Faults` since suites
-were built, and how every thread of the tool was closed against it, with what the tests and copies of
-the jar with a class removed showed and what is left. D-279 records the upload that threw on a long
-text in a Postman file, the theory it replaced (the compiler of the IDE), the fix, what two attacks on
-it found and what was corrected, what the proofs showed, what is still not confirmed and what is left. D-280 records what
-the checks of the upload fix left and how it was closed: a secret a service repeats that the request
-did not carry, with an older leak found on the way, a verdict read from a mask, an id read from a
-header and a mask carried into a field or a request; a ledger line lost at a stop; a client that went
-away; the environment list nobody had explained; long names; and a slow pattern.
-
-**The code handed over is no longer `902e0d9` alone.** Since then the head has gained the documents of
-D-269 and D-270, which change this file, `DECISIONS.md` and the README only, the code changes of
-D-276, D-277, D-278, D-279 and D-280 (above), and before them three code changes:
-`05acbf7` (D-271, merged at `a5040bd`), in which every controller argument names itself and
-`HandlerArgumentNamesTest` holds that; `ace5914` (D-272, merged at `5923b3f`), which changes
-tests and adds one launch file, `PaveApplication.launch`, and no main code; and `6201644` with
-`647b102` (D-274, merged at `370b2ec`), which change `build.gradle` and the two lines of one note in
-`run.sh` and in `run.cmd` (neither script has been run since; `run.sh` was only parsed), and no main
-code and no test. The whole build of
-`05acbf7` through the shared wrapper (`gw clean build`): 2872 tests, 0 failures, 0 errors, 2
-skipped, BUILD SUCCESSFUL. The whole build of `ace5914` the same way: 2872 tests, 0 failures, 0
-errors, 2 skipped (the two that need a folder that cannot be written), BUILD SUCCESSFUL. The whole
-build of `647b102` the same way, with the machine's JDK 21 present: the same counts, BUILD
-SUCCESSFUL; and the whole build of `6201644` with the JDK 21 present and again with it hidden, on a
-Java 25 (a simulation): the same counts (D-274). With the JDK 21 hidden, `647b102` was built with
-`classes` only. Since then `8463174` (D-275) removed one line, the virtual machine argument
-`-Djava.security.egd=file:/dev/./urandom`, from `PaveApplication.launch`, and changed no code; no
-whole build was run on it. At `e70af34` the code was that of `647b102` with that launch file; since then the code has changed
-with D-276, D-277, D-278, D-279 and D-280 (the head, above), whose last whole build is that of `6ab0e69`;
-the integrator's gates, which last passed on `e70af34`, run after this file, and their result is in
-the pull request description.
-
-**What was seen on a Windows Java under Wine** (D-275). Nothing ran on Windows itself on the build
-machine. An agent ran the tool on the Java 25 for Windows that Spring Tools 5.4.0 for Windows
-carries, under Wine 9.0 on Linux. On `f82e32e` it started from the jar and from classes STS had
-compiled on Linux, about 60 uploads gave 200 or a 422 that said why, the two handover proofs held,
-and no Error appeared. On `8463174` it made six starts from those classes, with and without the
-argument below, and on one start without it both uploads answered 200 and the proofs held. A Windows Java under Wine is not Windows: file permissions, antivirus and the
-real network stack were not exercised, and Wine itself needed two workarounds. That run found the
-launch file's argument, which made every start about 8 to 9 s slower there (13.25 to 14.85 s with it
-against 4.73 to 5.89 s without it, three starts each on `8463174`). The real STS 5.4.0 on Linux then
-started the tool from the changed file with no dialog, and uploads against that STS-started tool
-answered 200.
+**Before the rebuild.** The line up to `6ab0e69`, the head handed over before the rebuild, is
+described by D-269 to D-280 and by the sections below from "Gates, first" on, which are kept as they
+stood: they speak of the old five tabs, which no longer exist (D-286, D-289, D-296), and of the builds
+and gates of that line. What of them is still open at this revision is in the list that follows.
 
 ### Open at the revision handed over, the worst first
 
-Each line can be read alone. The detail of each is further down and in the entry named. "Fixed by
-its author only" means one agent made the change, saw its own test fail without it, and nobody else
-has looked.
+Each line can be read alone. The detail of each is in the entry named. "Not merged" means the slice
+was not in the head when this was drafted. <!-- R1-FACT: bring every "Not merged" up to the release
+candidate -->
 
-1. **On the one real workstation that has run the tool, uploading an environment or a collection
-   failed with an internal error** (D-275). The operator's Windows workstation, started from STS on the
-   code of `f82e32e`: the log line shows a `java.lang.Error` thrown while the upload ran, and the part
-   of the entry that names its cause was not in what they pasted. The operator has been asked for the
-   rest of the log entry, the Problems view of the project and their files; no answer yet.
-   **A defect that produces that very log entry was found and corrected** (D-279): a collection
-   holding one quoted text of about 1,300 characters or more in a request body or a saved example
-   (an encoded attachment, a saved response, a token) threw `StackOverflowError` in the scan for
-   credentials, after the collection had been stored, and for longer texts (3,000 characters in the tests)
-   every later reading of the store threw again, after a restart too. The sample files hold no text that long, which is why no earlier
-   attempt met it. **Whether it was the operator's failure is not confirmed.** It is the only way
-   anyone has made the tool write that entry at default settings, but after a shorter long text was
-   stored the sample files still uploaded, so "every upload fails" follows only for longer texts,
-   through the Config tab reloading the stored list after each upload (read from the tab's script,
-   not watched on the old version), or from the operator's own files.
-   The other theory, the compiler of the IDE, was tested and refuted, except that a project STS starts
-   with compile errors gives the same entry. **What would confirm it:** the line of the operator's log
-   entry after " <- caused by ", or the cause the screen now names (D-277). For the operator, once this version is on the
-   branch of their clone: pull, start again (the Config tab opens again on the store the old version
-   left, seen on the jar of `4456ea5` before the screen changes were merged, and may list one copy of
-   the collection for each collection name inside the files tried: delete the extras on the Config
-   tab, Collections and mapping, `Remove` on the row, then confirm), upload again, and if an internal error still appears press `Copy reference and cause` and
-   send what it copies. Nothing of this ran on Windows, and the operator has not said whether they
-   pulled it (it is on the branch `epa-pave`). Until the
-   uploads work there, nothing can be configured for the live profile on that workstation: the
-   vendor's environment and collection reach the tool only by these uploads.
-2. **The operator's verdict after that first session**, the only judgement of the tool by the person
-   it was built for: "the whole UI and app sucks", and not what the effort spent on it should have
-   produced (D-275). No particulars yet; the integrator asked for the three worst things. **Built in
-   answer, without waiting** (D-276): an independent look at the screens by agents, then a first
-   round of changes, walked, audited, corrected and checked by agents in a browser: one click gives a
-   case that can be sent on mock, a good run no longer looks wrong, the form opens with what a send
-   needs and a refusal lists and leads to each field, DTR questions come first, a result is ordered
-   and folded, Config opens with "Ready to send?", a failed call names its address and cause. **The
-   operator has not seen it, nor the page of the ten worst; no person has used it.** Left of the
-   look: a result still about three window heights; the DTR rule paragraph above the questions;
-   History not tying a journey together and cut off at 1024 pixels; a form lost on reload, by rule;
-   the readiness list not naming the values the vendor's file lacks; no sign-in built from the
-   vendor's token request.
-3. **The last fixes are checked by nobody but their authors, and no check follows them** (D-268). Four
-   fixes (ledger, completeness on screen, walkthrough, guardrail) changed what keeps member data out of
-   the ledger, what keeps writes from reaching production, and what the screens say. Each of the three
-   rounds of checking before them found something real, and in each the round before had broken
-   something. One merge (`60876fa`, `RunRecord.codeEntry`) was joined by hand and checked only by the
-   build. After the merges nobody opened a browser on `902e0d9`: the two proofs were run by the
-   integrator through the API on mock, and the screens were last looked at by the four fixers, each on
-   its own branch. The screen changes of D-276 were later walked in a browser by agents, who also saw
-   the hard rules hold (secrets masked, storage, the production block and its words); that was no
-   check of the last fixes themselves.
-4. **Nothing has been observed against the vendor's service.** Every live check used a stand-in on a
-   loopback port. The operator says the vendor's sandbox follows 2.0.1, the version the tool is held
-   to; that has not been observed. Of the four questions put to the operator (D-227), two are answered
-   and two stand as they were (D-269). The lookups have never met the
-   real member API or provider directory, and the token request's HTTP Basic is an assumption (D-233).
-5. **Not fit to be run as a shared or production service as delivered.** The operator has said the tool
-   will be productionized one day, which is read here as running it that way (D-270). The tool has no
-   sign-in, serves plain http, keeps secrets in plain text on disk, records no user, sends a request
-   wherever an upload says, and is one copy on one machine; it keeps listening on this machine only, and
-   is not to be opened to the network before a sign-in exists. The README, "Before PAVE is run as a
-   shared or production service", lists what must exist first; none of it is built.
-6. **The guardrail, what it still lets through or cannot see.** A production environment refused at
+1. **Nothing has been seen on the one real workstation that has run the tool, or against the vendor's
+   service.** Every live check of the rebuild, as of every earlier step, used a stand-in on a loopback
+   port; nothing ran on Windows itself; no person has used the new screens. On the operator's
+   workstation the first tab they opened showed the internal error and three uploads in a row failed
+   (D-281). The Config error is the fault D-279 corrected, in a build that predates the fix; the
+   likeliest cause of the uploads is the IDE rebuilding the classes under a running PAVE after a pull,
+   next a run script starting an old jar; neither was seen there. Both now have their answer in the
+   code (D-295: the action "PAVE's classes changed on disk while it was running, as the IDE does when
+   it rebuilds the project. Stop PAVE and start it again.", and scripts that build before every start
+   and say which jar and Java they start). Whether the operator pulled any of it, and the cause their
+   log entry names, are not known. The operator says the vendor's sandbox follows 2.0.1 for CRD and
+   DTR (D-269), not observed; that Submit should follow PAS 2.2.1 is their answer (D-293). The lookups
+   have never met the real member API or a provider directory, and how the vendor wants the client to
+   sign in is an assumption (D-233, D-290).
+2. **The operator has not seen the rebuild, nor the two rounds of changes before it** (D-276, D-282).
+   Their verdict (D-281) is the only judgement of the tool by the person it was built for, and they
+   have said nothing about what was built in answer.
+3. **What the release 1 floor holds that was not merged when this was drafted**, each a slice of the
+   queue's table:
+   - the Workbench: the case column, step 1 and the result card (A2a), step 4 Status (A2b), the
+     questionnaire step (H1), the Submit step with attachments (H2);
+   - Configuration: the router and Environments with its form (C2a), Collections, Production writes,
+     In force now and Access token (I1), Test members and Test providers (I2);
+   - Audit: the runs, one run and replay (B4a);
+   - the environment's settings used by every call at once, the uploads posted as JSON (D1b);
+   - the vendor's request shapes in the CRD and DTR requests (F2a), read at run time (F3), and the
+     Postman files refused for the true reason (F6);
+   - Submit after PAS 2.2.1 end to end, the member ID rule and the vendor ids in it (E3);
+   - the draft that fills the environment form from the exports (G2).
+   Release 1 also takes, if merged by 12:30 UTC: `/api/mode`'s sign-in state (D5), the next step for a
+   400 naming `draftOrders.type` and the typed questionnaire address held to the member-name check
+   (F2b), and the Advanced tools (I3: Send as written, Try a value, Check this installation, CDS
+   discovery, the request comparison). <!-- R1-FACT: which of these are in the release candidate; a
+   floor slice not merged by 12:30 holds the release -->
+4. **What release 1 does not hold and release 2 will** (handed over at 22:00 UTC), each in one line:
+   - the trail of the last 500 requests and responses, secrets masked (B5), and what reads it: a run's
+     request and answer in Audit with Copy and Download (B4b), Advanced, Trail (I4);
+   - a reload that keeps the case and every step's result, and "Load into the Workbench" (A2c); until
+     then a reload clears the Workbench, by rule nothing being kept in the browser;
+   - values for one run on the step that was refused for them (A2c); until then the environment's
+     values;
+   - the member and provider lookups configured on screen, GET or POST with a body template, with
+     "Test the lookup" (D3, F4, C2c); until then `lookup.member` and `lookup.provider` in
+     `application.yml`, and typing by hand;
+   - questionnaire answers filled from the case (E4, H4);
+   - Journeys and Suites in Audit (B4b, G4), and the suites' Postman fix with the repeated case id of
+     D-283 (G3);
+   - the store's remaining repairs (D6, I4): a stored file that cannot be read listed instead of
+     refusing the start, a lock against a second copy on one store, "Forget this production address";
+   - the place names in server sentences brought up to the new screens (R-16): until then some
+     server sentences still name the Config, CRD, DTR, PAS and History tabs; the guardrail's
+     sentences never change;
+   - the Advanced tools, if I3 misses release 1.
+5. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
+   provider lookup they use (none is known; the provider lookup's own contract stays later until they
+   give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
+   has seen; whether the vendor's client secrets shown in the photographs of their earlier sessions were
+   changed since (from the reading of those sessions; nothing of them is copied here); whether mock and
+   live should be switched at run time once they have used the screens (D-297); and the questions
+   D-269 left: the NPI's first digit, a sample request from the vendor.
+6. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
+   check follows them** (D-268). Four fixes (ledger, completeness on screen, walkthrough, guardrail)
+   changed what keeps member data out of the ledger and what keeps writes from reaching production.
+   Their screen parts went with the old screens; their server parts stand.
+7. **Not fit to be run as a shared or production service as delivered** (D-270). No sign-in, plain
+   http, secrets in plain text on disk, no record of who did what, one copy on one machine; it keeps
+   listening on this machine only and is not to be opened to the network before a sign-in exists. The
+   saved test lists (D-294) add member data the store keeps, on the operator's leave. The README,
+   "Before PAVE is run as a shared or production service", lists what must exist first; none of it is
+   built.
+8. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
    production environment's. On production's server a sandbox whose base path holds `%00`, `%20` or
-   `%2e`, or a production base path holding `%2F`, is warned about and not refused; this matters behind a
-   server that decodes such bytes. Not proven: IPv6, explicit default ports on the wire, hosts other than
-   loopback, a real front server, proxies and redirects, another DNS name for a production host, a
-   collection variable supplying a production address on the jar (D-145, D-225, D-265).
-7. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
+   `%2e`, or a production base path holding `%2F`, is warned about and not refused. Not proven: IPv6,
+   explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
+   redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses among the
+   production checks come with D1b. An address remembered from a removed production environment is
+   forgotten only by hand in `store.json` until release 2 (D-295).
+9. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
-   identifiers only, not names or dates, and is read as typed when one of its placeholders has no value
-   or is filled from a collection variable (D-262). A suite expectation that holds a date of birth or a
-   name and is also malformed is repeated in the results file. A supplied identifier of 64 hex
-   characters or shaped like a UUID is kept in clear whatever its digits. A note added later on a token
-   line cannot be checked for a name or a date of birth. Lines the first ledger fix wrote as "not
-   recorded" under a ClaimResponse or subscription id cannot be matched. The configuration store keeps
-   uploads as uploaded (D-213), secrets and the installation salt sit in plain text in `config-store/`
-   (D-234), and the wire view carries member data.
-8. **What a tester meets on screen that is wrong or gives nothing to do** (D-257, D-266):
-   - discovering the CDS services on the CRD tab is refused when text is left in the procedure code
-     box, although discovery sends nothing of the case; the sentence says which box to clear;
-   - the next step still says only that the tool cannot say what should happen next for CRD
-     documentation required that cannot be acted on, authorization not stated, an unrecognised code and
-     mixed decisions, for DTR, and for a request sent as it is;
-   - History's run view, in its "What next" row, and the chain view show a PAS run with no decision as "Look at the
-     response detail. The tool cannot say what should happen next.", where the PAS tab gives two lines;
-   - on mock, the next step of a played HTTP 500, a played unreachable service and the DTR package played
-     malformed still says to check the environment or to report a defect in the service, though its
-     heading and action say nothing left the machine; a mock member lookup that plays a timeout is headed
-     as a fault in the environment (G2-7);
-   - the label of the CRD outcome for an answer that is not what the operation returns still speaks of a
-     body that could not be read, in "Happened", History and a chain, also for an OperationOutcome at
-     HTTP 200;
-   - with an earlier-version production environment active whose address cannot be read, the Config tab
-     offers an unlock that is always refused (G2-6);
-   - a replay of a run id that does not exist answers with the general action;
-   - History, a suite row and a chain say nothing of fields the tool did not interpret (F8);
-   - the subscription mock and the sample notification write a scenario body out again, so one that
-     repeats a key loses its earlier values on mock with nothing on screen saying so;
-   - the server heading of a refused form says nothing of what to do; the CRD finding title for a
-     sub-extension reads the same for null and empty; a subscription's headers have no presence of their
-     own; "read the response detail below" is shown in the replay panel and the chain view, where nothing
-     is below; the repeated-key detail says "the value shown above" for a key not drawn; the action of a
-     "not configured" error does not fit a url that is not valid as filled.
-9. **Who answered, and what History can tell apart.** A notification posted to the receiver by hand
-   while the tool runs on mock is recorded as answered by a mock scenario; lines written between
-   `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two responses
-   were completed from one package, nothing says which the PAS submission carried (D-181).
-10. **What the build cannot see.** Behaviour on screen has no test in the build: the drawing of the
-   presences is held by tests that read the script's text (NEW-6), and six tests run a piece of a
-   screen's script with Node (the code box refusal and `withoutReference` among them) and are skipped
-   where no `node` is on the path. A test that searched a line holding
-   random tokens failed by chance once in about a hundred builds and was corrected (`6b7abba`); a build
-   green twice does not prove no other such test is left. No test holds that a replay on mock uses the
-   rewritten scenario sentence.
-11. **The fixtures and the style gate, given no fix after the last check.** Fixtures: a CRD note for
-   `crd-04` chosen by hand does not say the DTR sentinel came from the body; the DTR sentinel note says
-   CRD answers documentation required whatever the file says; two descriptions slip past the
-   old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the CRD
-   mapping; the run note of a PAS file chosen by a mapping entry that is no CRD sentinel still says the
-   ID "answers for the same case". Style gate (D-258): a non-ASCII file name crashes it under a POSIX
-   locale and the failed build shows the last run's "No house style violations."; several dash-like,
-   quote-like and invisible characters and entities are not refused; a text file with a binary extension
-   or an early NUL byte is skipped unread; a second, weaker copy of the tracking rule; invented surnames
-   and 16 files of empty banners remain. The gate does not read commit messages or the pull request
-   description.
-12. **Never run or never tried.** `run.cmd` (nobody has run it, on Windows or anywhere); STS beyond what was seen. The real
-   Spring Tools 5.4.0 on Linux imported the project with its defaults and started it on mock from the
-   Boot Dashboard and with Run As, on `e70a873` and on `ace5914`; on `e70a873` it also started it on
-   live through the launch dialog and ran five test classes, three of them again on `ace5914` (D-272).
-   Not seen: Windows, a real tester at a real workstation with a corporate proxy or mirror, the
-   screens in a browser after a start from STS (apart from the Config tab's two uploads on `8463174`,
-   D-275), the live profile against a service, the whole test
-   suite from the IDE, and STS on a release other than 5.4.0 (the README, "STS (Spring Tools for
-   Eclipse)"). On `d089e65` (D-273) the real STS 5.4.0 on Linux also cloned the repository from
-   GitHub with its Git import wizard, whose own choices are the wrong branch and the other
-   application; was given the top folder of a clone, which gave the error naming
-   `gradle-8.9-bin.zip` (Gradle 8.9 on STS's Java 25, not the network); was put in the state that
-   wizard leaves and got the tool running from there, with Close Project and Delete each seen; and,
-   simulated, had no JDK 21 (the import leaves a project that cannot start, "Cannot find a Java
-   installation ... languageVersion=21") and then no network. Since D-274 the same simulation
-   gives a project that starts on the Java 25 that STS brings, both proofs holding: seen on
-   `6201644`, and on `6eddce8`, whose code was that of the head before the screen changes of D-276 and D-277 (STS has not
-   been run on the code since), both for a project imported before
-   the change and then brought up to date with Team, Pull and one Gradle, Refresh Gradle Project, and
-   for the operator's own path (the top folder as a Maven project, then the Git Repositories import
-   of `epa-pave`), both on clones whose origin was a local copy with its commits already fetched, so
-   no fetch from GitHub and no clone made by STS was part of it; not on Windows and not on a real
-   workstation without a JDK 21. The reports and
-   screenshots are in the integrator's scratch directory under `cont13/`, `sts-git/`, `sts-wrong/`,
-   `sts-two/` and `sts-nojdk/`, and for D-274 under `cont14/`, `jdk-fallback/`, `jdk-review/`,
-   `sts-after-nojdk/`, `sts-after-jdk21/` and `sts-final/`. **One Windows workstation has reported**, the operator's: the clone listed under Git
-   Repositories with no project, the 8.9 error with its cause cut off, two clones, the last page of
-   the Git wizard offering only the top folder, and that folder imported as a Maven project with
-   `epa-pave` a plain folder inside it. It has since run there, started from STS, and an upload fails
-   (line 1, D-275). A Windows Java under Wine ran the tool, the uploads and the proofs without that
-   error (D-275). Not seen: Windows beyond the operator's reports, the fetch of new commits from GitHub in STS, a credential prompt, a corporate proxy, a machine with a Java 17 and no 21 in
-   the IDE, `run.sh` and `run.cmd` since D-274.
-   Also never tried: a mirror with credentials and a token server; a screen reader,
-   contrast, 200% zoom and phone width; many states listed below under the screens as never drawn.
-   Of D-276 and D-277, not seen by anyone: the operator looking at them, a person using them,
-   Windows, a real service on live, the per-session unlock (the installation's floor forbids it),
-   the Postman sign-in helper sentence on screen, G and H at 1024 by 768, the History replay view of
-   a cause and an internal error answered by the outermost filter in a browser, a suite row of a case
-   that failed alone other than with an answer rewritten by the browser script, and the next step of
-   a run this tool failed to read after its call ("... and report the reference and the cause.").
-13. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
+   identifiers only, and as typed when a placeholder has no value or is filled from a collection variable
+   (D-262). A suite expectation that holds a date of birth or a name and is also malformed is repeated
+   in the results file. A supplied identifier of 64 hex characters or shaped like a UUID is kept in clear.
+   A note added later on a token line cannot be checked for a name or a date of birth. Closed since: a
+   member's name in a suite row's case id (D-283). Still open from that close: a repeated case id on mock
+   (release 2, G3), a typed DTR questionnaire address (F2b), a chain row whose expectation cannot be read,
+   and a live run with the lookup off, where no name is known to compare. The configuration store keeps
+   uploads as uploaded (D-213), the saved test lists by design (D-294), secrets and the installation salt
+   in plain text in `config-store/` (D-234), and the wire view carries member data.
+10. **Server sentences of the old screens that a new screen may still show** (D-257, D-266). The items
+    that described the old tabs went with them. The second round closed the next steps of played
+    faults, of an answer the tool cannot act on and the CRD label of an answer that is not a CDS Hooks
+    response (D-282). Left on the server: a replay of a run id that does not exist answers with the
+    general action; the subscription mock and the sample notification write a scenario body out again,
+    so one that repeats a key loses its earlier values on mock with nothing saying so; the heading of a
+    refused form says nothing of what to do; the CRD finding title for a sub-extension reads the same for
+    null and empty; a subscription's headers have no presence of their own; the repeated-key detail
+    says "the value shown above" for a key not drawn; the action of a "not configured" error does not
+    fit a url that is not valid as filled. None was looked at on the new screens when this was drafted.
+11. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
+    while the tool runs on mock is recorded as answered by a mock scenario; lines written between
+    `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two
+    responses were completed from one package, nothing says which the PAS submission carried (D-181).
+12. **What the build cannot see.** No test drives a browser: the new screens are held by Java tests that
+    read the scripts as text and run pieces of them under Node, skipped where no `node` is on the path.
+    The tests of the old screens were deleted with them (24, of which 12 are to be written again for the
+    new ones, D-282). A build green twice does not prove that no test passes by chance.
+13. **The fixtures and the style gate, given no fix after the last check of the line before.** Fixtures:
+    a CRD note for `crd-04` chosen by hand does not say the DTR test member ID came from the body; the
+    DTR note says CRD answers documentation required whatever the file says; two descriptions slip past
+    the old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the
+    CRD mapping; the run note of a PAS file chosen by a mapping entry that is no CRD test member ID still
+    says the ID "answers for the same case". Style gate (D-258): a non-ASCII file name crashes it under
+    a POSIX locale; several dash-like, quote-like and invisible characters and entities are not
+    refused; a text file with a binary extension or an early NUL byte is skipped unread; invented
+    surnames and 16 files of empty banners remain. The gate does not read commit messages or the pull
+    request description.
+14. **Never run or never tried.** `run.cmd` on Windows: it ran under Wine's `cmd` (I5, with one
+    difference of quoting Wine needs), and a double-click start that finds no Java closes its window
+    before its message can be read. STS has not been run on the code of the rebuild; the real Spring
+    Tools 5.4.0 on Linux ran the line before it (D-272 to D-274). A Windows Java under Wine ran the line
+    before it (D-275) and parts of the rebuild (D0's read-only and in-use cases, I5). Also never tried:
+    a mirror with credentials and a token server, a screen reader, contrast, 200% zoom and phone width.
+    <!-- R1-FACT: what the checks of release 1 ran on Wine and in STS -->
+15. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
-    the tool has no sign-in.
-14. **What the last two steps left** (D-277, "Later:", and D-278).
-   - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
-     made to fire on the real jar; tests hold them, each seen to fail without its guard.
-   - Closed since (D-280): a service answer that echoes a secret the request did not carry is masked
-     like one it carried; a stop while a suite's case is out keeps that case's ledger line.
-   - A failure inside one of `ApiExceptionHandler`'s own methods is kept out of the log only by the
-     logger level of Spring's handler resolver, and named nowhere. A `VirtualMachineError` in the
-     server's error report would reach the server's own log with its frames.
-   - A start that fails quotes the configuration field at fault, so a member ID written into the name
-     of the active environment, a stored file name or a mock scenario's `behavior` field would be
-     printed there. Left as Spring reports it, by decision (D-278).
-   - The self-check, most of the code picker and the History list could not be tried with a class
-     removed: the copy did not start.
-15. **What the upload fix left** (D-279).
-   - **The four it named as open are settled** (D-280): the environment list a script could not
-     read was right and very slow (line 16); a client that gives up is one INFO line; every name a file
-     supplies is quoted by its start and its length when long; and a part of a questionnaire address
-     over 128 characters is no longer handed to `RunRecord.IDENTIFIER_OR_DATE`.
-   - **The smallest supported thread stack is 512 KB.** A 64-bit Java gives 1 MB unless told
-     otherwise. Below 512 KB an answer nested close to 500 levels still throws `StackOverflowError`:
-     only the masking of returned secrets is a loop, the other walks over an answer take a frame per
-     level. `DeepAnswerStackTest` holds a 500-level CRD answer, DTR package, PAS answer and inquiry
-     answer at 512 KB; subscription, lookup and raw answers were not run that deep.
-   - The answer the browser receives is about twelve times the body the service sent (a 10 MB value
-     gave about 120 MB). No Error at the default heap; left, because cutting long values changes what
-     section 21 says the wire view shows, and needs a decision of its own.
-   - **Left on purpose:** resolving an environment takes time in the square of its variables, inside
-     the store's lock, so every other upload, activation and delete waits: 10,000 chained variables
-     about 7.4 s on an empty store (the old version the same), minutes with many collections stored;
-     100,000 chained 766 s and 775 s; 200,000 variables no answer in 1,800 s. No real export looks like
-     that. Also left: two file parts in one request (the first is taken, the second ignored without a
-     word); a part named `file` without a file name ("The part file is required."); the kind accepted
-     in any letter case; an `OutOfMemoryError` while the server reads files of 5 to 20 MB under a heap
-     forced to 64 or 96 MB (none at the default heap).
-   - Checked by tests only, not on the jar: that a view which fails while an upload is answered stores
-     nothing. Checked by reading, not by the guard: that nine patterns it runs with `matches()` only are
-     never used with `find()`. `RecursionGuardTest` does not see a recursion through a library type
-     held in a field. The 1, 5 and 20 MB texts and the live answers of 2 MB ran on the jar of
-     `583ccbe`, before the corrections; the commits of the fix were not built one by one.
-16. **What the step after the upload fix left** (D-280). Each part was built, checked on its own jar
-   by an agent that wrote none of it, corrected and checked again; the jar of the merged head
-   `6ab0e69` was built and not run. Every live check used a stand-in on a loopback port.
-   - **An older leak, closed, whose reach is not known.** A credential typed into the address to call
-     back or into a lookup url was shown in clear in "In force now" and in the PAS Notifications
-     sentence since those were built (`9d080da`, `bbdeb2e`). No screen or log of the operator's has
-     been seen, so whether a real credential was ever shown that way is not known.
-   - **A held secret that is an ordinary word of the answers changes what a verdict says.** The answer
-     is masked before it is read, so with `Bundle` or `active` held as a secret the verdict reads the
-     mask. The verdict now says so under its headline ("Read from a mask, not from what the service
-     sent: ...") and marks its next step; the headline itself is still the masked reading. It was so
-     before for a secret the request carried.
-   - **The environment list is slow on a very large store**: 200 with the documented answer, but 488
-     to 637 s for an answer of about 32 MB on the store a new run of a test corpus left, against 8 to 10 s on a fresh
-     store, because the view of every environment is built on each call. An open performance item,
-     no fault of the answer.
-   - **The cost of the secret search has a worst case**: wherever backslashes lie closer together than
-     the longest held secret and the answer repeats most of that secret, the old cost applies (2 MB
-     about 9 to 10 s, 20 MB about 90 s against a secret of 1,000 characters; 20 MB about 187 s against
-     2,000). An ordinary answer of 20 MB takes about a third of a second. The client reads an answer to
-     its end; not made linear, because it could not be proved to mask the same.
-   - Not masked or not checked, by decision: a value given for one run, outside that run; a value
-     typed into a Postman authentication helper or a header Postman disables; a subscription id the
-     tester typed (carried and shown as typed) and a part of the configured address to call back that
-     merely equals a held secret; answers typed into the DTR questionnaire; a notification's headers
-     (not taken in). The subscription's response note names masks of the body only.
-   - A hand-over holding a mask is refused under any key, also one never sent (`dtrAppContext`).
-   - **History no longer keeps an ordinary questionnaire address with a part of 129 characters or
-     more** ("(not recorded, N characters)"). A 5 MB address split by `/` into short parts still
-     writes a 5 MB ledger line and takes 3.3 to 3.6 s.
-   - Names given as labels stay whole: a 1,000,000-character name is in the upload answer once, and at
-     100,000 characters a row is tens of thousands of pixels tall; a production name of 200,000
-     characters takes 438 of 900 px of the frame.
-   - The stop button of an IDE on Windows ends the process at once (by reading), so a call then out
-     gets no ledger line; a chain case in flight may still send its next step within the 30 s. During
-     those 30 s a client that leaves is logged as "The connection closed while this tool was stopping".
-   - Unit tests only, not seen on the jar: the client-gone line of the server's error report, the guard
-     in `StopMark`, a suite case that ignores its interrupt, an interrupt during a ledger write. The
-     upload corpus was not run again after the corrections of the long names (the sample files were).
+    the tool has no sign-in of its own.
+16. **What the steps before the rebuild left on the server** (D-277 to D-280), unchanged by it.
+    - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
+      made to fire on the real jar; tests hold them. A failure inside one of `ApiExceptionHandler`'s own
+      methods is kept out of the log only by the logger level of Spring's handler resolver. A start that
+      fails quotes the configuration field at fault, by decision (D-278).
+    - The smallest supported thread stack is 512 KB. The answer the browser receives is about twelve
+      times the body the service sent. Resolving an environment takes time in the square of its
+      variables, inside the store's lock. Two file parts in one request: the first is taken, the second
+      ignored (D-279).
+    - A credential typed into the address to call back or a lookup url was shown in clear in "In force
+      now" and on the PAS tab before D-280 closed it; whether a real one was ever shown is not known. A
+      held secret that is an ordinary word of the answers changes what a verdict reads, and the verdict
+      says so. The environment list is slow on a very large store. The secret search has a worst case
+      (D-280).
+    - History, now Audit, no longer keeps an ordinary questionnaire address with a part of 129
+      characters or more. Names given as labels stay whole. The stop button of an IDE on Windows ends
+      the process at once, so a call then out gets no ledger line (D-280).
+17. **What the second round of the old screens left that the rebuild did not take** (D-282, D-284): a
+    token endpoint that sends a status line and then cuts the body reads "closed the connection without
+    answering"; the member and provider lookups keep their wording for a 401; on mock a note or a case id
+    that uses the scenario word a mock member is named after is refused as holding the member's last
+    name.
 
 ### Gates, first
 

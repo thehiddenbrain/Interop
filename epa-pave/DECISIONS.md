@@ -5,6 +5,13 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 
 "The build prompt" below means the document this tool was built from. Section numbers refer to it.
 
+**The old screens are gone.** Since the rebuild of the screens (D-281, D-285) the five tabs CRD, DTR,
+PAS, History and Config no longer exist: the Workbench and its four steps replace CRD, DTR and PAS
+(D-286), Audit replaces History (D-296), and Configuration replaces Config (D-289). An entry below that
+describes a tab, a button or a sentence of those tabs describes the screens as they were; it is not
+corrected one by one. Rules and contracts that the rebuild changed carry a "Later:" line under their
+entry.
+
 ## Things the operator should read first
 
 | Id | What | Why it matters |
@@ -36,6 +43,11 @@ section. Where two readings were possible, the one that is safer if wrong was ch
 | D-278 | The message of an exception could reach the log around the one place that writes failures: since suites were built, an `Error` during a suite was thrown on to a thread with no handler, and the Java runtime printed every message of it | Against the rule of D-036 and the rule that no member data is logged: a test put the placeholder member ID into the log that way. Whether a real run ever did is not known. While the tool runs, every thread found now ends a failure in one entry under a reference, with a net under the whole process; tests and copies of the jar with a class removed, path by path, saw no message reach the log on the paths that started. A start that fails is still Spring's report, with its messages, by decision, and two narrow paths are left (D-278, limits). Not proven on the real jar: the net and two guards, held by tests only |
 | D-279 | A long text in a Postman file broke the upload and then the store: a collection holding one quoted text of about 1,300 characters or more in a body or a saved example threw `StackOverflowError` after it was stored, and for longer texts (3,000 characters in the tests) every later reading of the store threw again, after a restart too | It is the only way anyone has made the tool write the log entry of D-275 at default settings. Corrected: no pattern of the main code recurses with the length of its input, and every recursion the guard can see is named with what bounds it (guard tests hold both), an upload stores nothing until every check has run, a store left by the old version opens, a file nested too deep is refused with that reason, and a DTR chain of thousands of enableWhen conditions no longer throws. The smallest supported thread stack is 512 KB. **Not confirmed as the operator's failure**: only their log line after "<- caused by", or the cause the screen now names, settles it. Nothing of it ran on Windows, and the operator has not pulled it |
 | D-280 | What the checks of the upload fix left was corrected, in three branches each built, checked on the real jar by an agent that wrote none of it, corrected and checked again, and merged | An answer is now masked wherever it repeats a secret the tool holds, carried or not; a verdict read from a mask says so under its headline; an id read from a header is masked; a mask fills no field and is never sent. **An older leak was found and closed:** a credential typed into the address to call back or a lookup url was shown in clear in "In force now" and on the PAS tab since those were built; whether a real one was ever shown is not known. A stop now waits up to 30 s for a call that is out and keeps its ledger line; a client that went away is one INFO line, not an unhandled exception; the unexplained answer was right and very slow on a very large store (open); a long name is quoted by its start and its length in every sentence (labels stay whole), and the slow pattern no longer sees a part over 128 characters. Seen on the jars of each branch against stand-ins on this machine; the merged head `6ab0e69` was built (3,093 tests), not run. **Not seen: Windows, the vendor's service** |
+| D-281 | The operator called the screens unusable and too wordy, the first tab they opened showed the internal error, and three uploads failed; they answered four questions the same day | Rebuild the screens on the model of their own tool, keeping PAVE's engine; saved test lists; Submit after PAS 2.2.1; a trail of the last 500 exchanges. The Config error is D-279's fault in the build they ran; the likeliest upload cause is the IDE rebuilding the classes under a running PAVE. **Nothing was seen on their workstation, and they have said nothing yet about the rebuild** |
+| D-282 to D-284 | A second round of changes to the old screens was built and closed, then replaced by the rebuild before it was handed over | Its server changes stay: a call that could not sign in is recorded as `NOT_SIGNED_IN`, replays can be left out of the run list, and more (D-282). Its close found a gap in a hard rule older than the round: **a member's name typed into a suite row's case id reached the ledger**, now refused; whether a real suite ever did so is not known (D-283) |
+| D-285 | How the rebuild was planned and built: two releases at fixed hours (15:00 and 22:00 UTC on 2026-11-22), nine builders, a queue and a merger | Every live check used a stand-in on a loopback port, never the vendor's service; nothing ran on Windows; no person has used the new screens. What release 1 holds and what waits for release 2 is first in `PROGRESS.md` |
+| D-286 to D-297 | The decisions of the rebuild, by area: the frame and the Workbench, the result, short words, environment settings and the store's second version, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists, uploads and run scripts, Audit, mock and live | **An older build refuses a store a newer one has written settings into** (D-289); going back needs one file renamed and loses those settings. Mock and live are still chosen at start (D-297) |
+| D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -249,6 +261,9 @@ literal, because it is not known.
 `tracking.salt-file`, `tracking.slow-threshold-ms`, `onyx.pas.attachment-mode`, `onyx.variables`,
 `lookup.member.headers`, `lookup.provider.headers`, the multipart upload limits and the session
 cookie name. Each is documented beside its default in `application.yml` or its properties record.
+Later: the rebuild adds `test-lists.enabled` (saved test lists, D-294) and `trail.enabled` and
+`trail.max-entries` (the trail, release 2, D-298), each documented beside its default in
+`application.yml`; `onyx.read-timeout-ms` now defaults to 120000 there (D-289).
 
 **D-031. `epa.target` switches no behaviour.**
 The prompt lists `onyx | nehen` and defines nothing that differs between them. The value is
@@ -853,6 +868,9 @@ and "no request leaves the machine for an asset" is enforced by the browser as w
 Static files are served `no-cache`, so a tester who edits one sees the edit on refresh.
 (Corrected by D-127, which marks every response `no-store`, and by D-150, which names the answers
 the server gives before any filter runs and which therefore carry fewer headers.)
+Later: D-298. Saved lists of test members and providers, entered on purpose in Configuration, are kept
+on disk on the operator's leave (test data only, never logged, never in the ledger, off by one setting);
+the rule otherwise stands, and this entry's no-store rule for the browser is unchanged.
 
 ## Requirements the operator added during the build
 
@@ -905,6 +923,8 @@ open item under D-130 and has three consequences.
 to D-142 and what each protocol now does is D-155 to D-166.)
 (Later: asked which version the vendor's sandbox follows, the operator answered 2.0.1 as well. It is
 the operator's statement, not an observation of the sandbox: D-269.)
+Later: D-293. Since the rebuild, on the operator's answer, Submit and the inquiry follow Da Vinci PAS
+2.2.1; CRD and DTR stay at 2.0.1, and the readers of PAS answers were written from 2.0.1.
 
 **D-137. The build prompt's CRD tables and CRD 2.0.1 disagree, and 2.0.1 decides.**
 The build prompt names "Da Vinci CRD v2.2.1" in three places and gives the value sets of the
@@ -1001,6 +1021,9 @@ of the file and the statement that nothing was changed, in place of a bare refer
 a url written `{id}` or `:id` that has no value is reported as it is written in the url, and no
 longer as a placeholder `{{id}}` to define in an environment, where it cannot be defined. The
 gateway's contract text now states the stricter rules its implementation applies.
+Later: D-295. A write the workstation refuses (a file marked read-only, a file another program holds
+open, a full disk) now names that cause and is headed "A problem with this computer's files", with no
+reference; any other failure keeps the sentence of this entry.
 
 
 **D-127. The request guard and the rule that nothing is stored hold for every request, not for addresses that start with `/api/`.**
@@ -1686,6 +1709,10 @@ From findings 04 to 07, 18, 22 and 23, DTR-05, and its verification.
   practitioner. Three tests outside the CRD files were changed by the CRD fix to follow the new
   request; the integrator accepted them at the merge (D-175, item 9).
 
+Later: D-291. CRD prefetch is sent as named Bundles of type collection, `organizationBundle` in place of
+`practitionerBundle` for an organization alone, and every entry carries an absolute `fullUrl`.
+<!-- R1-FACT: true only once F2a is merged; check CrdRequestBuilder at the release candidate -->
+
 ### PAS held to 2.0.1
 
 **D-158. PAS: what the bundle carries. Closes D-135.**
@@ -1709,6 +1736,10 @@ From PAS-02 to PAS-08, PAS-11, PAS-12, PAS-15, DTR-06, and the verification.
 - A code with no system at all, and each reference the bundle cannot resolve, is counted among what
   was left out. A code whose system the tester or the code list stated, but which lies outside the
   value set, gets a note only, because it was supplied.
+
+Later: D-293. The PAS bundle follows Da Vinci PAS 2.2.1 since the rebuild (E2): the elements 2.2.1
+requires that nobody supplied are named in the notes, and the request type, service type and
+certification type come from the Service card first.
 
 **D-159. PAS: how a decision is read.**
 From PAS-01, PAS-09, PAS-10, PAS-13, PAS-14, NOT-01, NOT-02, MOCK-01 to MOCK-03, and the verification.
@@ -1974,6 +2005,10 @@ From the comparison's report and its verification. D-119 says what it is for.
   assignment to codes is invented, and the README says so.
 - The README is written for the tool as delivered, with a "not checked" note at every sentence that
   could not be checked on its revision, such as the screens.
+
+Later: D-295. Both scripts now build the jar before every start and say which jar and which Java they
+start; `run.cmd` also looks for the Java STS brings. `run.cmd` has run under Wine's `cmd`, still never
+on Windows.
 
 **D-172. The three frontend parts finished on branches: what they decided.**
 The case (lookups, code picker, a request of the tester's own), the Config tab and the History tab
@@ -3170,6 +3205,10 @@ files' test was changed for that (D-228). Covered by `MemberDataUploadTest`, not
 code before the fix.
 (The upload's member data warnings are shown on the Config tab since D-230. More variable names are
 recognised since D-254.)
+Later: D-298. The saved test lists are a second place the configuration store keeps member data, on the
+operator's leave. And from D1b an export posted from the page is stored as the text the page decoded (a
+byte order mark dropped), not byte for byte (R-06). <!-- R1-FACT: the second sentence holds only once
+D1b is merged -->
 
 **D-214. Lock, from any browser, locks every session, and now a test fails if it stops.**
 From the guardrail audit's T1 (major), F-SCREEN (major) and m2 (minor). D-144's rule stands: a Lock
@@ -3640,6 +3679,8 @@ out again by its author and a named test failed, except line 7, which changed on
 Left by the task, each with its reason: whether a raw send's body source gets a label or only the
 sentence (a design choice, not decided by anybody since D-207); an `expect` outcome that contradicts
 its scenario body (D-224, it needs every mapper at load time).
+Later: D-282. `service/run/PlayedTimeouts` was renamed `PlayedFaults` by the second round of the old
+screens and now words every fault a mock scenario plays, refusals included, as a rehearsal.
 
 **D-230. The pass over the screens: a lock from another browser is seen at once, every free-text field carries one hint, and the warnings reach the screen.**
 From `TASK_SCREENS_FIX`, the screens half of D-226, on revision `5763c41`, by browser scripts on mock
@@ -3750,6 +3791,11 @@ one method to change for either is `OnyxTokenService.requestToken`, which its Ja
 to replace. Recorded as an assumption about the vendor; whether it holds is not known until the token
 service is reached, which has not happened (nothing has been observed against the vendor's service).
 The README's open items and the pull request draft are to say so (D-250).
+Later: D-290. An environment's own sign-in, set in Configuration, may state the client's authentication
+as "Basic header" or "In the form body"; `onyx.auth` keeps HTTP Basic. A 401 to a call signed in by
+client credentials now drops the token, signs in again and sends the call once more. Which the vendor
+wants is still not observed.
+<!-- R1-FACT: the environment's sign-in reaches a call only once D1b is merged; the retry holds for onyx.auth already (G5) -->
 
 **D-234. The installation salt is a secret.**
 From the honesty audit's F-SALT (major). On live, by default, the ledger replaces a member ID with an
@@ -5436,6 +5482,9 @@ bullets "The check of the first record" and "The second check" say.
   against the outputs and taken.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
 
+Later: D-295. The run scripts now pass over a Java older than 21 with a line saying why and look further
+(I5); they refuse to start only when no Java 21 or newer is found.
+
 **D-275. The first session on a Windows workstation: an upload that fails with an internal error,
 not yet explained, the operator's verdict, and a launch file without its Linux-only argument.**
 After D-274 the operator got the tool running on their own Windows workstation, started from STS, on
@@ -5774,6 +5823,12 @@ of it. The reports, outputs and screenshots are in the integrator's scratch dire
   corrected. The same "Next action" quote stands in `PROGRESS.md` (open line 8) and in an older entry
   above; they were left, because the check named neither.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
+
+Later: the screens this entry describes are gone (D-286 says what replaced each tab). "Use this case"
+and the scenario table are replaced on mock by a mock member picked by what it plays (D-286); "Signing
+in to the service: off" and the start-up arguments it named give way to a sign-in set per environment in
+Configuration (D-290). <!-- R1-FACT: the environment's sign-in at run time needs D1b; the picker needs
+A2a -->
 
 **D-277. An internal error of the tool names its cause, in the first line of the log entry and on
 the screen: a deliberate, narrow change to D-036.**
@@ -6760,3 +6815,672 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
   when this was written.
 - Nothing of this ran on Windows, and the operator has not said whether they pulled the upload fix.
 - The commits that record this change this file, `PROGRESS.md` and the README only.
+
+### The rebuild of the screens, release 1
+
+**D-281. The operator's verdict on the screens, what was found about the two failures they named,
+and the decision to rebuild the screens on the model of the operator's own tool.**
+The reports are in the integrator's scratch directory: what the operator said and asked for, as
+reported, in `TASK_REDESIGN.md`; the reproduction of the Config error in `cont36/`; the two hunts for
+the upload failures in `cont37/`; the reading of the operator's earlier sessions under
+`redesign/history/`.
+- **What was reported.** The operator ran the tool on their Windows workstation and sent photographs
+  of it beside a tool of their own that does the same job (CRD, DTR and PAS against the vendor's
+  sandbox), built by them in earlier chat sessions. In substance: the screens are not usable, far too
+  wordy, and do not feel like an application; the first tab they opened (Config, "In force now", on
+  mock with a collection stored) showed the internal error box; their last three uploads in a row
+  failed. This is reported, not seen. The photographs show real values (a client id, the vendor's
+  host names, test patients); none is copied into anything written here, and each is named only by
+  its kind.
+- **The operator's answers, given the same day (2026-11-22) to four questions.** (1) Rebuild the
+  screens on the model of their own tool, keeping PAVE's engine (its server, not their tool's code).
+  (2) Saved lists of test members and providers are wanted, for test data only. (3) Submit follows Da
+  Vinci PAS 2.2.1, as their own tool does. (4) A trail of the full requests and responses of the last
+  500 exchanges is wanted, secrets masked. They also asked, as requirements: the member and the
+  provider lookups plugged in through configuration on screen, with typing by hand where no endpoint
+  exists; everything the tool needs to call the vendor set on screen and used at once; an upload that
+  can never end in an internal error; one workflow from the coverage check through the questionnaire
+  to the submission, with or without attachments; and that their earlier sessions be read so that
+  nothing is missed or repeated.
+- **Who decided what.** The four answers and the requirements above are the operator's. Everything
+  else is the integrator's or the plan's: that the rebuild keeps mock and live chosen at start (D-297),
+  the decisions R-01 to R-44 of the plan and O1 to O11 of the integrator (D-285), and the two releases
+  at fixed hours. None of those was put to the operator before it was built.
+- **The Config error, reproduced.** The operator's store holds a collection with one long quoted text
+  in a body or a saved example. Every build before `0b7e534` throws `StackOverflowError` reading it
+  (the fault D-279 records): the collection was stored before the upload failed, and two of the three
+  reads the Config tab makes when it opens fail on every call after that. The photographs match the
+  code of `e70af34`, which reproduced both of them on a jar of that code; the build the operator ran
+  predates the fix. The head of `epa-pave` (`6ab0e69`) and the round 2 build (`076e965`) open that
+  same store with no error. The way out for the operator: stop PAVE, pull, start it again and reload
+  the page; nothing has to be deleted or uploaded again.
+- **The uploads, hunted twice.** One hunt tried files (about 5,270 uploads, 4,200 of them fuzzed), the
+  other the conditions of a workstation (a Windows Java under Wine, locked and read-only files, a
+  removed folder, small heaps and stacks, two copies on one folder, an IDE rebuilding the classes).
+  **On the fixed build (`076e965`) none of the 5,270 uploads ended in the internal error.** What still
+  failed, each a way the operator's three failures could have happened: the IDE rebuilding or
+  replacing the classes under a running tool after a pull, after which every upload answers the
+  internal error until a restart, with the operator's log entry frame for frame (the likeliest on a
+  workstation that runs the tool from STS); the run script starting whatever jar is already built, all
+  of them called 1.0.0, so that after a pull the old jar (which gives exactly the reported error and
+  leaves the store unreadable to it) could still be the one running; a file exported again over the
+  chosen one, which the page reported as a server it could not reach; an environment once uploaded as
+  prod by mistake, whose addresses then refused every sandbox upload of it; a store file marked
+  read-only or held open by another program, answered with advice about the folder. **Neither cause
+  was seen on the workstation itself**; which of them was the operator's is not known.
+- **What is still not known.** Nothing has been seen on the workstation since the photographs: not
+  whether the operator pulled, not their log entry's cause. The operator has said nothing yet about
+  the rebuild itself, which nobody but agents has used.
+
+**D-282. The second round of changes to the old screens: built, closed, and replaced before it was
+handed over; what of it stays in the code.**
+The plan is `UI_ROUND2_PLAN.md` in the integrator's scratch directory, the builders' reports
+`cont31/`, the closes `cont32/`, `cont34/` and `cont35/`, the integrator's decisions on the closes
+`TASK_UI2_CLOSE2.md` and `TASK_UI2_CLOSE3.md`, and what its last check left
+`redesign/round2-left.md`.
+- **Why it existed.** After the first round (D-276) the operator answered nothing: not on the page of
+  the ten worst, not on the round. Three looks by agents at the running tool on `0b7e534` (a first day
+  on mock, a first day on live against a stand-in, an open list) found the screens still long and
+  still saying things that were not the case. A plan of twelve letters (A to L, B in two halves) was
+  written from them, attacked by a sceptic and corrected; it named six questions only the operator
+  could answer, each with the default taken.
+- **What happened to it.** Three builders built it side by side from `1ac0458`; the integrator merged
+  the three batches (`268e8b6`, `c05f4c1`, `0bd1407`) and the masking step of D-280 (`e87c515`). Four
+  agents that built none of it looked at it (a journey on mock, History and suites, live against a
+  stand-in, the code against the plan and the hard rules); a corrector closed 39 of 45 findings in 28
+  commits; two checks followed, the integrator decided ten more corrections, then five, each checked
+  by agents that wrote none of it. Its head `79a7c25` was built whole: 3,188 tests, 0 failures, 0
+  errors, 2 skipped. **It was never handed over and never recorded**: the operator's verdict (D-281)
+  arrived during its last close, and the rebuild began from its head. The first commit of the
+  rebuild (A1, merged at `1d0c4c0`) deleted every script and stylesheet of the old screens (51 and 7)
+  and the 24 tests that read them. Every change the round made to a screen went with them.
+- **What stays in the code at the head, each with its contract change and every reader that had to
+  follow.** Checked in the source at the head:
+  1. *Replays in the run list.* `GET /api/runs` takes `replays` (`include` or `leave-out`; any other
+     word is refused), carried as the new last component `includeReplays` of `RunQuery`; absent means
+     the replays are listed, so the export, the replay and every caller that does not ask are as
+     before. Readers: `RunController`, the ledger's filter, `testsupport/InMemoryLedger`.
+  2. *A call the tool could not sign in for.* A new outcome `NOT_SIGNED_IN` ("Not sent: this tool could
+     not sign in", neutral, not the guardrail's purple) and two failure types, `NOT_SIGNED_IN` (the
+     tool's own sign-in settings, or the token endpoint refused the client) and `TOKEN_ENDPOINT_FAULT`
+     (the token endpoint could not be reached, timed out, failed or gave no usable token). Such a call
+     is recorded, as answered by nobody and not sent: the ledger line holds the outcome, `errorType`
+     the failure type's name, no HTTP status and no time; **no field was added to a line**, and an
+     older ledger reads as before. Readers that had to follow: `RunRecord` (reads it as not sent),
+     `VendorExchange` (one line, without which the new types threw at run time), `SuiteService` (a
+     count group of its own, `notSignedIn`, in the words of the outcome), `ProtocolCaseRunner`,
+     `SentRuns`, `RunReplay` (a replay status `not-signed-in`, "Not sent again"), `ChainService`.
+  3. *A token failure said as what it is.* "closed the connection without answering" only where the
+     type of the failure means a connection was open and ended (`ExchangeExecutor.closedWithoutAnswer`,
+     by exception type, never by message); a token url the tool cannot use is said to be one, naming
+     the setting and never its value: "Authentication is switched on but onyx.auth.token-url, as
+     configured, is not an address this tool can use: it must be an absolute http or https address
+     with a host, and a port from 1 to 65535 if it names one. The request was not sent."
+  4. *A 401 or 403 says what was sent.* Where the request as sent carried an Authorization header the
+     verdict and the error panel say the service did not accept the credentials this tool sent; where
+     it carried none, that none were sent (`RunSupport`, the four protocols alike).
+  5. *Played faults said as rehearsals.* `service/run/PlayedTimeouts` was renamed `PlayedFaults` and
+     covers every fault a mock scenario plays; its wording no longer sends a tester to fix an
+     environment that was never called.
+  6. *The step after a subscription on mock.* A new next action `DELIVER_SAMPLE_NOTIFICATION` (no new
+     field, no new column; the ledger line, the export CSV and the API's `nextStep.action` carry it
+     where `START_PAS` or `OPEN_CONFIG` stood). The rebuild gave it the words "In the Status step,
+     Deliver a sample for this submission." and the button "Deliver a sample" (D-288).
+  7. *An answer the tool cannot act on still gets an action* (letter L), the DTR steps that went right
+     are neutral rather than orange, an inquiry is told apart from its submission, and the CRD label of
+     an answer that is not a CDS Hooks response says so.
+  8. *What the close changed in the ledger's values and in `MemberInText`*: D-283 and D-284.
+- **The six questions, and what became of each.** (1) "Run as part of a chain" on when the page opens:
+  the rebuild makes it always on (R-17). (2) Replays left out of History unless asked: the rebuild's
+  Audit offers "Include replays", off by default <!-- R1-FACT: check in audit-runs.js at the release
+  candidate (B4a) -->. (3) A call that could not sign in recorded as `NOT_SIGNED_IN`: stays, item 2.
+  (4) Signing in from the uploaded environment without a restart, and its `callbackUrl`: the default
+  was no; the operator's later requirement that everything be set on screen and used at once overturns
+  it, as a setting the tester types (D-289, D-290), never a guess from a variable's name. (5) No "go
+  on to PAS" after an answer the tool cannot read: stays. (6) DTR steps that went right drawn neutral:
+  stays, in the server's tones.
+- **Limits.** Every look and check ran on mock and against stand-ins on loopback ports, never the
+  vendor's service, nothing on Windows; the operator never saw the round.
+
+**D-283. A member's name typed into the case id of a suite row reached the ledger: a gap in a hard
+rule, found by the close of the second round, and closed.**
+- **What was wrong, and since when.** The rule that the ledger holds no member data (section 15, and
+  D-217 for the texts a tester types) was applied to a suite row's note, tester reference and
+  expectation, never to its case id. A case id holding the member's last name ran, and the name went
+  into every ledger line of the case (`caseId`), the screen and the results CSV. The case id has been
+  kept on the line since suites were built (`df3adcd`); D-217 named the three texts it checked and not
+  this one, and no check before the second round's close had looked at it. A case id holding the row's
+  own member ID was not refused either.
+- **How it was found.** The second check of the round's close named it (`cont34/check2-code.json`,
+  third finding), and the check after it confirmed it on the jar of the round's base: a row with the
+  case id `row-Placeholder-Inactive` for the mock member `P32H-INACTIVE` previewed as runnable, ran and
+  passed, and its ledger line and the results CSV held the name.
+- **Decided by the integrator** (`TASK_UI2_CLOSE3.md`): every text a tester can type that a ledger line
+  or a results CSV keeps is held to the same check, in the run and in the preview alike, the refusal
+  naming the field in the words of the others; a case id that is exactly one of the tool's own bundled
+  case ids is its own vocabulary and never refused as a name; nothing else is exempt, and no pattern
+  decides it; the names of the mock members stay as they are.
+- **What was built** (`7c179ba`, then `b28be51`, `022b56f`, `24777b2`, `2f93224`, `79a7c25`).
+  `MemberInText.problemsInCaseId` with the label "The case id"; the runner checks it after the member
+  lookup on both profiles, the row is not valid, nothing is sent and no ledger line is written; the
+  preview checks it on mock against the looked-up member and on any profile against the row's own
+  member ID; a refused row is named `case-<n>` in the results; the bundled case ids are read from the
+  jar on either profile (`ScenarioRepository.bundledIds`). **The rule was not weakened**: the
+  exemption is a comparison with the tool's own list of case ids, and the tests hold both sides (a
+  case id holding the name is refused and kept neither in the ledger nor in the results; a bundled
+  case id is not refused), each seen to fail without its change.
+- **What is compared on live.** The name is known only once the run has looked the member up through
+  the live lookup; then the case id is checked against the found member's name, date of birth, member
+  ID, subscriber ID and address. The live preview compares the case id with the row's member ID only,
+  because nothing is looked up before sending. Proven on live by a unit test with live wiring, not on
+  a jar against a lookup stand-in.
+- **What is not known.** Whether any real suite ever carried a name in a case id: no ledger or results
+  file of the operator's has been seen.
+- **Left, recorded by the integrator.** A suite row that repeats the case id of a row refused for the
+  name keeps that id on mock when it has no member ID or names another member (the results CSV then
+  holds the name): decided, to be built in release 2 (G3). A typed DTR questionnaire address is not
+  held to the check, because the bundled addresses hold the word every mock surname is made from:
+  decided (an address exactly one of the bundled ones is exempt, every other is checked), to be built
+  with F2b <!-- R1-FACT: say whether F2b is merged in release 1 -->. A chain row whose expectation
+  cannot be read has its other texts checked, not its expectation; a note added later in History is
+  checked against the member ID only, since the line keeps no name; on live with the member lookup
+  off, no name is compared at all, because nothing is known to compare.
+
+**D-284. The other faults the second round's close found that were older than the round.**
+Each was found by an agent that built none of it, decided by the integrator
+(`TASK_UI2_CLOSE2.md` and `TASK_UI2_CLOSE3.md`), corrected with a test that fails without it, and seen
+on the jar on mock and, where it applies, on live against a stand-in.
+- **A suite row whose expectation is an outcome code was refused as the member's last name.** The mock
+  members are called `Placeholder-Inactive` and `Placeholder-Timeout`, and the check finds each part of
+  a surname as a whole word, so `COVERAGE_INACTIVE` and `TIMEOUT` matched; the preview had never looked
+  the member up, so it said the case could be run and the run then refused it. Older than the round:
+  the same on the jar without it. On the old
+  jar the 45 bundled cases previewed 45 runnable and ran 43 passed, 2 not valid. Now an expectation
+  that is exactly one of the tool's outcome codes is never refused as a name, and on mock the preview
+  looks the member up and applies the run's own check (`b311897`): 45 and 45.
+- **A PAS run named another run than the screen said it was handed on from.** The PAS submission's
+  ledger line named the questionnaire package fetch as the run it follows, while the PAS tab said
+  "Handed on from" the DTR response step, so History ended a journey in a dead end. Older than the
+  round. Now the value `correlation.correlatedRunId` of a PAS submission names the
+  DTR step whose result offered the way to PAS (`59bbfc1`). **No field was added; a ledger written
+  before reads and is drawn as it was recorded.** The other readers of that value (the inquiry, the
+  subscription calls and the notification take their run from the carry or the claim; a chain keeps
+  what was carried; a replay only quotes it) were checked and do not change.
+- **On mock a created subscription sent a first-day tester to a property of the tool**
+  (`onyx.subscription.callback-url`), and a read or a list then named an address of the scenario
+  file's own that the create had never sent. Now the step points to the sample notification, and the
+  scenario's read and list name no address of their own (`919b4c2`, `9c95626`, `fd5d409`).
+- **A 401 said "or none were sent" although the tool knew what it had sent**, and **a token failure
+  with no connection was called a closed connection**: D-282, items 3 and 4 (`e523cb0`, `7536395`,
+  `076e965`, `86bb224`).
+- **No test held that a played submission that did not reach the service hands on no claim
+  identifier**: one does now (`031ca41`).
+- Left, recorded by the integrator: a token endpoint that sends a status line and then cuts the body
+  reads "closed the connection without answering"; the steps of an adaptive questionnaire before the
+  last read that no run follows them (the package fetch lists every step); the member and provider
+  lookups keep their wording for a 401; on mock a note or a case id that uses the scenario word a mock
+  member is named after is refused as holding the member's last name.
+
+**D-285. How the rebuild was planned and built: the looks, the hunts, the earlier sessions, the plan,
+the integrator's decisions, the sceptic, two releases, nine builders and a merger, and the limits of
+all of it.**
+The plan is `REDESIGN_PLAN.md` in the integrator's scratch directory (the version before the sceptic
+beside it under `redesign/plan/`), the integrator's decisions `redesign/INTEGRATOR_DECISIONS.md`, the
+sceptic's attack and its settlement `cont41/attack.json` and `cont41/settle.json`, the first two
+slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md`, `MERGE_LOG.md`, one
+`.ready` file per slice, each batch's `notes.md`, the whole builds `queue/SWEEP.md`).
+- **What it was planned from.** The operator's photographs of their own tool (described by kind only),
+  their answers (D-281), a map of every feature of the old screens (104 of them, each given a place on
+  the new screens or dropped with a reason), a prototype of thirteen pages, the reproduction and the
+  two hunts (D-281), and the operator's earlier sessions, read by four agents: the things they asked
+  for again and again (a tool that runs the first time on their Windows workstation and is tested
+  before they get it; configuration on screen, at once; one case flowing from the coverage check to
+  the status with nothing retyped; members and providers to pick, not type; plain words with the JSON
+  folded away), the cycles that cost them rounds before (among them seven to nine rounds of HTTP 400
+  from the vendor's sandbox over request shapes, a token refused before its stated expiry, an inquiry
+  slower than 20 s), the request shapes the vendor's sandbox accepted, and the gaps of the first brief.
+- **The plan and the integrator's decisions.** The plan's decisions are R-01 to R-44; the integrator's
+  decisions O1 to O11 amend it and win where they differ: Submit after PAS 2.2.1 (O1), the trail (O2),
+  the vendor's accepted request shapes tonight, not later (O3), lookups by GET or POST with a body
+  template (O4), member ID rules (O5), questionnaire answers from the case (O6), every failure the two
+  hunts found (O7), what round 2 left (O8), a reload that keeps the case (O9), one retry after a 401
+  (O10), the yellow MOCK badge (O11). Stays later, by the integrator: mock and live switched at run
+  time (35 to 50 agent-hours), a second sign-in for Submit and Status, the provider lookup's own
+  contract (none is known).
+- **The sceptic and what the settlement changed.** An agent that wrote none of the plan attacked it
+  and found 22 things; all 22 held (one in part). The worst: it could not be built and checked by the
+  morning (one batch alone was 15.5 hours of serial work) and nothing smaller was defined; its own
+  words broke its own word limits on the first screen; on the first live call the operator's stored
+  setup would meet the vendor's first 400 again, the DTR package request lacked the profile the
+  accepted request declared, and values the calls need could not be set on screen; the tools the
+  operator asked to keep had been demoted or put off; loading the classes at start would make a pull
+  under a running tool silent; the Windows and STS checks were skipped although both can run here;
+  and an earlier slice had rewritten a sentence of the production guardrail. The settlement took each:
+  **two releases at fixed hours** (R-44), **nine builders instead of seven**, files moved between
+  owners so every chain of release 1 fits, the cuts in words measured, the stored collection's sample
+  taken as evidence for the request shape (D-291), the profile declared, values on screen (R-42), the
+  tools kept as MUST (R-17), the pasted token tonight (R-43), a notice when files change on disk
+  (R-24), the checks on Windows Java under Wine and the real STS under a virtual display, and the
+  guardrail's sentence put back word for word (R-16).
+- **Two releases.** Release 1: merges until 12:30 UTC, handed over at 15:00 UTC on 2026-11-22, after
+  its checks and an independent look: the new frame, the Workbench with its four steps, the result
+  card, Configuration with Environments (sign-in, addresses, values, timeouts, member ID rule, request
+  shapes), Collections, the test lists and their import, Production writes, In force now and Access
+  token with a pasted token, Audit's runs with replay, the vendor's accepted request shapes, PAS 2.2.1,
+  the token retry, the 120 s wait, and the upload and store fixes. Release 2: merges until 19:30 UTC,
+  handed over at 22:00 UTC the same day: the trail and what reads it, lookups configured on screen,
+  answers from the case, Journeys and Suites, the remaining store repairs, values for one run, and the
+  sweep of place names in server sentences. Release 2 adds to release 1 and is never its repair; a
+  release that is not ready is held and the operator told the new hour. What release 1 holds at its
+  candidate, and what it does not: `PROGRESS.md`.
+- **How it was built.** The first two slices, A1 (the shell of the new screens) and D0 (the store's
+  write failures and the run scripts), were built first and merged (`1d0c4c0`, `00f1578`). Then nine
+  batches (A to I) built side by side in worktrees of their own from `79a7c25`, each owning its files
+  outright (plan 9.5); a test file belongs to the batch that owns its class, and any other test a
+  change breaks is named by the builder and changed by the merger in the merge commit, never
+  weakened (R-41). They talked only through files in a queue folder: a builder writes `<slice>.ready`
+  (its commit, its whole build, how it showed the slice working, the words a tester sees); a merger
+  merges into `rebuild/main`, runs a quick gate of the guard and static tests, writes
+  `<slice>.merged`, and after each round runs one whole build (a "sweep") and smokes the jar. A slice
+  that waits for another may be built against the written contract but not merged before it.
+- **The limits of all of it.** Every live check runs against stand-ins on a loopback port (the strict
+  one, `standin2.js`, refuses what the vendor's sandbox refused, by the earlier sessions), never the
+  vendor's service. Nothing runs on Windows: the Windows Java under Wine and the real STS 5.4.0 under a
+  virtual display are what the checks of each release use, each only as far as their reports say
+  <!-- R1-FACT: what the checks of release 1 ran on Wine and in STS, from their reports -->. No person
+  has used the new screens.
+
+**D-286. The frame and the four-step journey of the Workbench.**
+- **What a tester met before.** Five tabs (CRD, DTR, PAS, History, Config), each a long form beside a
+  column of sentences, on mock a table of fourteen scenarios; a case followed from tab to tab.
+- **Decided.** One top bar and three tabs, Workbench, Audit and Configuration (R-01, R-20, O11); the
+  Workbench a case column (Member, Provider, Service) and four steps, Coverage check, Questionnaire,
+  Submit and Status, carried from one to the next with nothing retyped (R-22, R-27); on mock the
+  scenario is chosen by picking a mock member named by what it plays, not from a table; on live
+  nothing of that is built; a send button disabled while its call is out (R-26); buttons never bare
+  words (R-25); a reload that keeps the case (R-38, O9) is release 2, because it reads the trail.
+- **What a tester sees at the head of this branch.** The frame is merged (A1, `1d0c4c0`): the top bar
+  with the brand, the three tabs, the environment chooser by whole name, the kind badge, "MOCK" (a
+  yellow pill) or "LIVE", the build stamp (`/api/mode` names its build since D1a: version, time, and
+  whether files changed on disk), and the lines under the bar for production, UAT, the ledger alarm and
+  one notice at a time. The three tabs are still one-line stubs: "The Workbench is being rebuilt and
+  comes in a later merge.", "Audit is being rebuilt and comes in a later merge." and "Configuration is
+  being rebuilt and comes in a later merge." The old addresses (`#history`, `#config`, `#crd`, `#dtr`,
+  `#pas`) lead to the new tabs.
+- **Not merged when this was written: the Workbench itself and its steps** (A2a, the case column,
+  step 1 and the result; A2b, step 4; H1, the questionnaire step; H2, the Submit step).
+  <!-- R1-FACT: A2a, A2b, H1, H2: merged or not; the words of the case column, the stepper and the step
+  heads as the static files hold them; what was seen where; the tests and whether each was shown to
+  fail without its change --> A2a's builder declared it ready at 08:54 UTC, commit `49ef4e0`, its
+  whole build 3,353 tests, 0 failures, 0 errors, 2 skipped; it was not merged when this was drafted. By
+  the plan and the builders' notes: the case banner "Pick a member to
+  begin." and "Start a new case"; the steps' heads "Coverage check" CRD "Is prior authorization
+  required, and what is needed?", "Questionnaire" DTR "Answer the payer's questions.", "Submit" PAS
+  "Send the prior authorization request.", "Status" PAS "Ask for the decision, and follow
+  notifications."; "Continue to the questionnaire" opens step 2 and fetches at once, "Continue to
+  Submit" sends nothing, "Send inquiry" opens step 4 and sends the inquiry. Where a builder left the
+  plan (A2a's notes): the lookup's line is shown only when the status is not found, to hold the word
+  limit; fields a mock member filled carry no mark, the plan naming none; the steps 2 and 3 are loaded
+  only when shown. H1 posts only answers that differ from what the response holds, and withdraws
+  "Continue to Submit" while typed answers differ from the completed response. H2 shows what goes in
+  three lines of chips and asks the server what is missing before sending (D-293).
+- **What holds it.** The frame: `StaticFrontendTest` (22), `StaticJoinTest` (8), `SharedModulesFrontendTest`,
+  `FilesFrontendTest`, `FaultReportFrontendTest`, `ButtonNamesAndMarksTest`, `NoSentinelOnScreenTest`,
+  each a Java test that reads the scripts or runs a piece of them under Node; no test drives a browser.
+  A1's builder saw the frame in Chromium at 1024 and 1440 on mock and against a stand-in.
+
+**D-287. A result is chips, one headline, a few facts and one way on.**
+- **What a tester met before.** A result of about 2.7 window heights on CRD and 3.2 on PAS after the
+  first round (D-276), with dashed "not returned" boxes, the wire view and the findings in view.
+- **Decided.** In this order: a chip row ("HTTP <status>", who answered, the time, the test result,
+  "Sent as <sent>, rule: <rule>", "Open in Audit"); a card with the server's headline, the masked
+  reading under it when there is one, a table of facts (one row per determination, the code as a chip
+  in its tone, at most eight rows), "NOT recorded" with the ledger's sentence when the run was not
+  recorded, and the next step as one button named as the vocabulary names it; the error panel open
+  when there is one; then closed folds "Why", "Response detail", "Returned but not interpreted (n)"
+  and "Wire traffic" (plan 3.2, R-14, R-15). Nothing of section 20 is lost: what was in view is in a
+  fold, never gone.
+- **Merged: the response detail** (H0, `a55bb2d`), drawn by `detail.js` from the old CRD, DTR and PAS
+  detail onto the new helpers: cards, coverage, item decisions, questionnaires and subscriptions with
+  what was not returned ("not returned", "returned as null", "returned empty"); where the answer was
+  masked, the fields not interpreted are withheld in the page rather than shown beside a masked body;
+  every walk over nested items uses a stack of its own, never recursion. Held by
+  `DetailFrontendTest`. Its builder saw it at 1024 and 1440 fed with real mock answers; at 1024 the
+  page scrolled sideways until the frame's fold rule changes (asked of A).
+- **Not merged: the card itself** (`result.js`, A2a). <!-- R1-FACT: the card's words as `result.js`
+  holds them; what was measured (words on the first screen, the plan's gates M1 and M2); tests -->
+  A2a's builder measured, against answers of the contract's shape, 93 words on the first screen
+  fresh and 124 at 1440 (110 at 1024) with a member picked, under the plan's limits of 100 and 130.
+
+**D-288. Short words and tones, served once by the server.**
+- **What a tester met before.** Long labels, the colour of a step decided in the page, and each screen
+  holding words of its own beside the server's.
+- **Decided** (R-14, R-15; the batch B1, merged at `2ff19d4`). `GET /api/vocabulary` serves, once,
+  the four steps ("Coverage check", "Questionnaire", "Submit", "Status"), the step chips ("Next", "Not
+  needed", "Not run", "Answer the questions"), a short label of at most 24 characters for every
+  outcome of every protocol ("PA not required", "Not signed in", "Not a subscription" and the rest),
+  one button name per next action, the test result labels and the answered-by chips ("MOCK", "Nothing
+  sent", "Not sent"). Each determination row carries a tone from its code (`model/CodeTones`); each
+  scenario file carries a `short` naming what it plays; a questionnaire says "static form" or
+  "adaptive form". The chain view gains `steps[]` beside its `stages[]`, which stay as they were
+  (R-22): a subscription call and a notification belong to the Status step, and a step's line says
+  why it stands where it does ("Not needed: prior authorization is not required.", "Not reached:
+  <step> comes first.").
+- **Where the builder left the plan.** The subscription outcome for an answer that is not a
+  subscription is "Not a subscription", not the plan's "Unreadable answer", which another outcome of
+  the same protocol already used and the plan's own test of unique labels forbids; the vocabulary lists
+  only the answered-by values that have a chip; the step a sample notification belongs to is Status.
+- **Contract changes and their readers.** `OutcomeOption` and `NextActionOption` gain `short` and
+  `button` (absent where there is none); `DeterminationRow` gains `tone`; `ScenarioSummary` gains
+  `short`; the label of `DELIVER_SAMPLE_NOTIFICATION` and the headline after a mock subscription
+  changed (D-282, item 6). The merger changed three existing tests for it (`BrowserContractTest`,
+  `NextActionVocabularyTest`, `SubscriptionServiceTest`), none weakened (`239bde2`).
+- **What holds it.** `VocabularyControllerTest`, `OutcomeShortLabelsTest`, `DeterminationToneTest`,
+  `ScenarioShortLabelsTest`, `ChainStepsTest`, `QuestionnaireViewTest`, `SubscriptionVerdictsTest`.
+  Seen on the jar of the second sweep (`3d84250`) on mock: every outcome of every protocol with a
+  short label, 14 of 14 CRD scenarios with one, a CRD answer's rows in their tones, a chain of four
+  steps.
+
+**D-289. Environments carry settings edited on screen, stored in a second version of the store, used
+at once; and the Configuration pages.**
+- **What a tester met before.** Every address, the sign-in and the timeouts came from the uploaded
+  Postman files or from `application.yml`, read when the tool starts: changing the sign-in needed
+  start-up arguments and a restart (D-276, letter G).
+- **Decided** (R-02, R-04, R-05, R-09, R-28, R-42). Each environment carries settings: its sign-in,
+  an address per operation, values the requests read (the FHIR server, the payer, the PAS codes, the
+  address to call back), its timeouts, its member ID rule and its request shapes. Where a call goes,
+  in order: a collection request named for the run, the address typed for the operation, the first
+  collection request mapped to it, `application.yml`. A secret field is never returned: blank keeps
+  the stored value, a value that is wholly a reference is kept as that reference. The name of a stored
+  environment cannot be changed (the unlock and the remembered production addresses go by it).
+- **Merged: the record and the store** (D1c at `db03ae8`, D1a at `de91bee`). Every prepared call
+  carries its sign-in, timeouts, member ID rule and request shapes, with today's values as defaults.
+  `store.json` stays version 1 until a setting is first saved; then it is written as version 2, after
+  copying it once to `store.json.before-v2`. A version 1 store reads as no settings, so every call
+  behaves as before. `GET /api/config/environments/{id}/settings` and `POST
+  /api/config/environments/settings` read and save them, with the upload's checks (a kind change
+  included). Words a tester reads, from the source: "This looks like a secret. Put it in Sign-in, or
+  keep it in the Postman environment, where it is masked." for a value whose name reads as a secret;
+  "This url holds a credential. Put the credential in Sign-in, or refer to it as a {{placeholder}}."
+  for a typed address; and a warning, once, when a secret is stored as typed rather than as a
+  reference. An entry whose settings cannot be read leaves the environment loaded, keeps the entry as
+  stored, lists it among the store's problems, and refuses every call while that environment is
+  active rather than guess `onyx.auth` for it (D1a's decision). Held by `StoreVersionTest`,
+  `EnvironmentSettingsTest`, `SettingsSecretsTest`, `CallSettingsContractTest`.
+- **What an older build does with a version 2 store.** It refuses to start, with its existing words:
+  "The configuration store file <file> cannot be used: it was written by a later version of this
+  tool. Repair it, or move the directory <folder> aside to start with an empty store." Going back to
+  an older build means renaming `store.json.before-v2` to `store.json`, which loses the settings saved
+  since (R-05).
+- **Not merged: the settings at run time** (D1b): the typed address, the values as a layer between the
+  run's values and the export, the environment's sign-in and timeouts handed to each call, typed
+  addresses among the production checks, and uploads posted as JSON text. Until it is merged the
+  settings are stored and shown, and not used by a call. <!-- R1-FACT: D1b merged or not; if merged,
+  "used at once" as seen on the jar, the epoch, the tests -->
+- **Not merged: the Configuration pages** (C2a, the router and Environments with its form; I1,
+  Collections, Production writes, In force now and Access token; I2, the test lists' pages).
+  <!-- R1-FACT: C2a, I1, I2: merged or not; the words of each page as the static files hold them;
+  what was seen where --> By the builders' notes: a page whose module is not there says "This page
+  comes in the next release."; the Advanced tools (Send as written, Try a value, Check this
+  installation, CDS discovery, the request comparison) are I3, release 1 only if merged by 12:30 UTC
+  <!-- R1-FACT: I3 merged by the cut-off or not -->.
+- **Timeouts.** `application.yml` now waits 120000 ms for the vendor (`onyx.read-timeout-ms`; it was
+  15000, section 19's value) because the vendor's inquiry took longer than 20 s in the earlier
+  sessions; `tracking.slow-threshold-ms` is 15000, so the slow chip keeps its meaning; the connect
+  timeout stays 5000 and the lookups 3000 and 5000 (R-28; C1, merged). An environment may state its
+  own, from D1b.
+
+**D-290. Sign-in belongs to the environment; a token can be pasted for the session; a refused token
+is fetched again once.**
+- **What a tester met before.** Signing in was `onyx.auth` in `application.yml`, by HTTP Basic only
+  (D-233), off unless set at start; a token, once fetched, was cached until shortly before the
+  expiry it stated or a change of the configuration, and a 401 was shown as the service's answer.
+- **Decided** (R-03, R-43, O10). An environment states its sign-in: "Client credentials" (token url,
+  client id, client secret, scope, the client's authentication "Basic header" or "In the form body"),
+  "Bearer token", or "None"; when it states none, `onyx.auth` applies as before. A 401 from a service
+  signed in by client credentials drops the cached token, signs in again and sends the call once more;
+  a second 401 is the service's answer; a bearer token is never retried. A token pasted on Access token
+  is held in memory for the active environment only, used ahead of its sign-in for its own addresses,
+  never written to the store, a log, the ledger or the trail, masked when a service repeats it, dropped
+  on a 401, on any change of the configuration and when PAVE stops, and refused on mock.
+- **Merged** (G5 at `00c2c13`). `OnyxTokenService` signs in with the settings a call carries, caches
+  per token url and client id under the configuration epoch, and holds a pasted token; `POST` and
+  `DELETE /api/config/sign-in/token`. The wire view after a retry notes, from the source: "The first
+  attempt was refused with HTTP 401; PAVE signed in again and sent it once more." The sign-in states
+  served for the top bar's chip: "No sign-in needed", "Signs in on first call", "Signed in (renews
+  automatically)", "Access key configured", "Using your pasted token", "Sign-in failed", "No sign-in
+  on mock". The merger changed one existing test (`ReturnedSecretsTest`) to expect the token, the 401,
+  the token again and the 401 again, every masking assertion kept, now on the second answer
+  (`3d84250`). Held by `TokenSettingsTest`, `PastedTokenTest`, `TimeoutsPerCallTest`. **Seen** on the
+  jar of the second sweep, live against the stand-in on a loopback port: the stand-in refused the next
+  call's token, the tool fetched a second one and sent the call again, the headline was the answer's,
+  the Authorization header in the wire view was masked, and the client secret was 0 times in the log
+  and the run history.
+- **Not merged.** The environment's own sign-in handed to each call (D1b): until it is, every call
+  signs in by `onyx.auth`, now with the retry; `/api/mode`'s sign-in state for the chip (D5, release 1
+  only if merged by the cut-off); the Access token page (I1).
+  <!-- R1-FACT: D1b, D5, I1 merged or not; the Access token page's words -->
+- **Left.** How the vendor wants the client to sign in is still not observed (D-233); the form body is
+  now a choice, not a fact.
+
+**D-291. Requests take the shapes the vendor's sandbox accepted; the one that departs from FHIR is a
+setting.**
+- **What a tester met before.** The operator lost seven to nine rounds of HTTP 400 from the vendor's
+  sandbox in their earlier sessions over shapes PAVE still sent: prefetch keyed by type, `userId` as a
+  role, instants with fractions, no profile on the DTR package request, `draftOrders` with a `type`.
+- **Decided** (R-37, R-40, O3). Valid under the guides, so sent for every environment: an absolute
+  `fullUrl` on every entry (`<fhirServer>/<type>/<id>` when the FHIR server is set, else `urn:uuid:`);
+  CRD prefetch as named Bundles of type collection (`patientBundle`, `coverageBundle`,
+  `practitionerBundle`, `practitionerRoleBundle`, `serviceRequestBundle`, or `organizationBundle` for an
+  organization alone); `userId` and every requester `Practitioner/<id>` when the provider is a person;
+  no empty array or string; instants in whole seconds UTC; the inquiry Claim declaring
+  `profile-claim-inquiry`; the DTR package Parameters declaring the dtr-qpackage-input-parameters
+  profile and its order carrying the coverage information CRD returned. The vendor's own practitioner
+  and patient ids are sendable as resource ids. Departing from FHIR, so a setting of the environment:
+  "draftOrders type", "Sent (FHIR requires it)" by default or "Left out (this vendor refuses it)", with
+  the line "The vendor's sandbox refused context.draftOrders.type with HTTP 400; FHIR requires
+  Bundle.type." An environment that states nothing takes it, at run time, from the saved body of the
+  collection request its order-sign call came from: without `type` it is "Left out", marked "from the
+  collection's sample". That is the evidence O3 accepts, and it keeps the operator's stored setup from
+  meeting the vendor's first 400 again.
+- **Merged.** The model (F1, `e89ea5f`: `RequestShape`, `RequestShapes`, the vendor ids on the member
+  and the provider, the fax, the carried coverage information); the reading of the collection's sample
+  (F5, `9b48b30`: `VendorSamples`, the request a run would use for order-sign when it names none, never
+  an error sample). The words above are in `RequestShape` at the head.
+- **Not merged when this was written:** the CRD and DTR requests in those shapes (F2a), the shapes
+  read at run time (F3, waits for D1b), the Postman refusals for the true reason (F6), and the next
+  step for a 400 that names `draftOrders.type` (F2b, release 1 only if merged by the cut-off).
+  <!-- R1-FACT: F2a, F3, F6, F2b merged or not; the request as sent on the jar against the strict
+  stand-in; the tests the merger changed for F2a (DtrScenarioDeterminationTest, CrdControllerTest)
+  --> F2a's builder reports the live DTR package request passing the strict stand-in's profile check;
+  live CRD was not checked, because it needs the settings at run time.
+- **Left.** Whether the vendor accepts a `patientId` its FHIR server does not hold was not shown by
+  any earlier session; PAVE sends the vendor patient id when the tester gives one, else `patient-1`
+  with a note. The request comparison now meets the tool's named Bundles: a pasted search Bundle is
+  listed whole beside `coverageBundle` rather than compared resource by resource (F2a's builder;
+  `service/compare` has no owner tonight).
+
+**D-292. Member ID rules: packed, spaced and split, per environment.**
+- **What a tester met before.** One rule, every space removed. The vendor's sandbox wanted the packed
+  form; the operator's own tool offered the others, and the card form has spaces.
+- **Decided** (R-10, O5). Stored with the environment's settings, packed by default: "packed: spaces
+  removed before sending"; "spaced: nine characters, three spaces, then the last two, as on the card";
+  "split: the first nine characters of an 11-character ID". Under spaced and split an ID that is not
+  11 characters is sent packed, with the note "The <rule> rule applies to an 11-character ID; this one
+  has <n>, so it was sent packed." The rule decides what goes out in every CRD, DTR and PAS request of
+  that environment; **the ledger keeps the packed form as before**, so one member stays one key; no
+  form of a member ID is ever a resource id. The server names the rule wherever it names the ID
+  (`memberId {typed, sent, changed, rule, note}`).
+- **Merged.** The rule and the forms (F1, `e89ea5f`, held by `MemberIdRuleTest`); the member lookup's
+  answer names the rule (seen in the first sweep's smoke: `rule` packed, `changed` false).
+- **Not merged:** the rule applied in the requests (PAS in E3, CRD and DTR in F3, the rule handed to
+  each call in D1b) and "Sent as <sent>, rule: <rule>" on the Member card and every result (A2a).
+  <!-- R1-FACT: E3, F3, D1b, A2a merged or not; a non-packed rule seen in a request -->
+
+**D-293. Submit follows Da Vinci PAS 2.2.1, with the Service card fields it needs and files as
+attachments.**
+- **What a tester met before.** Submit followed PAS 2.0.1 (D-136, D-158); the operator's own tool and
+  the vendor's sample follow 2.2.1; a request lacked a provider phone or fax, a place of service per
+  item, the X12 types and the payer as insurer; an attachment was text or a url.
+- **Decided** (R-39, R-13, O1; the operator's answer 3). The 2.2.1 guide source is the source of truth.
+  Every item carries the request type and certification type, a service type and a place of service,
+  and a quantity when given; the Claim a level of service when chosen; the requesting role the
+  provider's phone and fax; a servicing provider, when chosen, a care team member of its own; the
+  payer is the insurer. A value comes from the Service card, else from the environment's values or
+  variables, else from today's rule, else it is left out and said so before sending. **Nothing blocks
+  sending**: an incomplete request is a negative test. Files of the tester's own (PDF, PNG, JPEG,
+  TIFF, GIF, plain text, Word), at most 5 MB each and 10 MB in all, go in the bundle as data. CRD and
+  DTR stay at 2.0.1 with the shapes of D-291.
+- **Merged** (E1 at `17db802`, E2 at `1dcefb0`). `GET /api/pas/options` serves the version "Da Vinci
+  PAS 2.2.1", the code lists of the Service card, the attachment kinds and the limits (5242880 and
+  10485760 bytes), the same on mock and live. The request is built to 2.2.1, its notes naming PAS
+  2.2.1 and US Core 7.0.0; from the source, for example: "This request goes out without <n> elements
+  PAS 2.2.1 requires, because nobody supplied them: <elements>. The service may refuse the request
+  for that alone."; "Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit provider
+  fields."; "The servicing provider is the claim's care team member 1, for the whole claim
+  (careTeamClaimScope true), in the role SJ, ...". Instants are whole seconds UTC; the inquiry Claim
+  declares its profile; a file is checked for its base64, its size and its kind. A bare mock
+  submission now lists 11 elements left out where it listed 5, because 2.2.1 requires more (the
+  identifier and trace number systems among them) and nothing is invented. Held by `Pas221SubmitTest`
+  (against a placeholder fixture), `PasInquiryProfileTest`, `PasAttachmentFilesTest`,
+  `PasOptionsControllerTest`, `PasNewFieldsReadingTest`, and the updated `PasRequestBuilderTest`,
+  `PasServiceTest`, `PasNotesTest`. Seen in the first sweep's smoke on mock: the options in order, a
+  preview naming PAS 2.2.1 four times and 2.0.1 never, a file of the wrong size refused.
+- **Where the builder left the plan.** A new optional value `itemTraceNumberSystem` (typed under
+  Values, "Another value") gives the item trace numbers the system 2.2.1 requires; no system is
+  invented. A size given without data is refused, not ignored. Kinds and the 5 MB rule apply to data
+  files only.
+- **Not merged:** the service around it (E3: what is missing said before sending, the codes checked,
+  the member ID rule, the vendor ids) and the Submit step on screen (H2).
+  <!-- R1-FACT: E3 and H2 merged or not; a submission with files seen on the jar; the finding title in
+  PasFindings ("PAS 2.0.1 requires" to "PAS 2.2.1 requires", asked of the integrator by E2) changed or
+  not --> At the head the finding that lists what was left out is still titled "The request left out
+  <n> elements PAS 2.0.1 requires", although its elements are those of 2.2.1: the file has no owner
+  tonight and its change waits for the integrator.
+
+**D-294. Saved lists of test members and providers.**
+- **What a tester met before.** Every member and provider typed again for every case; "no member data
+  is persisted" (section 15) forbade keeping any.
+- **Decided** (R-12, R-29, R-30; the operator's answer 2). Lists the tester enters on purpose in
+  Configuration, for sandbox test members and practitioners: at most 200 entries each, in
+  `<config-store>/test-lists/`, owner-only, never logged (counts only), never in the ledger, switched
+  off by one setting. A member carries a label naming what it plays, the member ID as on the card, the
+  names, date of birth, gender, line of business, plan, subscriber ID, coverage status and dates and
+  the vendor patient id; a provider a label, NPI, vendor practitioner id, names or organization,
+  specialty, phone, fax and a default place of service. Picking an entry fills the card, marked "from
+  saved list", and does not look the member up by itself. A CSV import shows what it will do before
+  it does it. Lists work on both profiles. How this bends the specification's rule: D-298.
+- **Merged** (C1 at `ba28020`). `/api/lists/members` and `/api/lists/providers`: list, add, change,
+  remove, `template.csv` (three placeholder rows) and `import` with a dry run (`dryRun` must be given;
+  absent is refused, never assumed). Words from the source: "Saved test lists are switched off on this
+  installation (test-lists.enabled)."; "This list holds 200 entries, the most it keeps."; a list file
+  that cannot be read is shown empty, never written over. Held by `TestListStoreTest`,
+  `TestListControllerTest`, `ApplicationYmlTest`. Seen in the first sweep's smoke on mock: the
+  template, a dry run of three rows that saved nothing, the import, a date of birth in another form
+  refused at its field, the folder `drwx------` and the file `-rw-------`, and the placeholder member
+  ID 0 times in the log and the run history.
+- **Not merged:** the pages Test members and Test providers (I2) and the pickers on the Member and
+  Provider cards (A2a). <!-- R1-FACT: I2 and A2a merged or not; the pages' words; a saved member
+  picked on the Workbench -->
+
+**D-295. Uploads, the classes on disk, the build stamp and the run scripts.**
+- **What a tester met before.** The failures of D-281: an upload answered the internal error after
+  the IDE rebuilt the classes; a store write refused by the workstation was called a fault of the
+  folder; a script started an old jar.
+- **Decided** (R-06, R-07, R-24, R-31 to R-36, O7). Every file is read inside a guard of its own: a
+  refusal is its plain line, any other failure "PAVE could not read this file. Type the values
+  instead." with the reference and the cause. Postman exports, lists and attachments are read in the
+  browser when the button is pressed, and the exports posted as JSON text (multipart kept for curl).
+  When PAVE runs from a classes folder, as STS runs it, it loads its classes at start and notices
+  files rebuilt under it. The store tells a problem of the workstation from a failure of the tool. The
+  run scripts build before every start and find a Java 21.
+- **Merged.** *The store* (D0, `00f1578`): a missing store folder is made again; a replace refused by
+  a lock is retried for about a second; the Windows read-only mark on the store's own file is cleared
+  once; otherwise, from the source, "The file <path> is marked read-only. Clear Read-only in its
+  Properties, then try again. Nothing was changed.", "The file <path> is in use by another program (a
+  sync or backup client, a virus scanner, an editor). Close it or wait, then try again. Nothing was
+  changed." or "The disk that holds <folder> is full. Free some space, then try again. Nothing was
+  changed."; a change that would leave `store.json` naming a file that is gone is refused ("The
+  configuration store folder <folder> changed while PAVE ran: ..."); `store.json` holds only ASCII. Seen
+  on the Windows Java under Wine for the read-only and the in-use cases, on Linux for the others.
+  *The errors* (B3a, `53b1403`): an internal error whose chain holds a `LinkageError` while a class file
+  is newer than the start gets the action "PAVE's classes changed on disk while it was running, as the
+  IDE does when it rebuilds the project. Stop PAVE and start it again."; an `OutOfMemoryError` "Start
+  PAVE with -Xmx512m or more."; a store write refused for a reason of this computer is headed "A
+  problem with this computer's files", with no reference; the error path asks whether the client went
+  away inside a guard, so that a missing class there counts as not gone and the failure is still logged
+  under a reference and answered (R-34, as B3a read it: logging first would have broken the one INFO
+  line for a client that left). Seen on the jar of the first sweep with a classes
+  folder whose upload classes were deleted under it: HTTP 500 with that action and the cause named.
+  *The run scripts* (D0, then I5 at `b31df8a`): both build the jar before every start and say which jar
+  and which Java they start ("Using Java <version> at <path>, named by PAVE_JAVA." and its other
+  sources); `run.cmd` also finds the Java STS brings when none is set or on the PATH; a Java older than
+  21 is passed over with a line saying why, and the search goes on. `run.cmd` ran under Wine's `cmd`
+  (with one difference of quoting Wine needs), never on Windows; `RunScriptsTest` reads both.
+  *The build stamp*: `/api/mode` names the build, its time and whether files changed on disk (D1a); the
+  log says at start whether PAVE runs from a jar or a classes folder and when it was built.
+- **Not merged:** the draft that fills the environment form from the exports (G2), the uploads posted
+  as JSON (D1b), the Postman refusals for the true reason (F6), the line under the top bar while files
+  changed on disk and the stamp's drawing (A2a). <!-- R1-FACT: G2, D1b, F6, A2a merged or not -->
+- **Left for release 2** (the plan's D6 and its other items): a stored file that cannot be read listed
+  instead of refusing the start, a lock against a second copy on one store, "Forget this production
+  address". Until then the refusal of an address remembered from a removed environment keeps its
+  sentence as at `79a7c25` (put back by D1a, R-16) and its field note gives the way out that works
+  today: stop PAVE, delete that environment's entries from `productionDestinations` in `store.json`,
+  start PAVE again.
+
+**D-296. Audit: the runs, one run, and replay.**
+- **What a tester met before.** History, with filters in the address, the runs of one journey not
+  tied together, cut off at 1024 pixels.
+- **Decided** (plan 3.3, R-17, R-20). Audit lists the runs with filters (from, to, step, test,
+  outcome, tester reference; more under a fold), opens a run by its id, replays the runs listed
+  oldest first, and keeps "Run again" and the note; the count of today's runs sits on the tab. The
+  request and answer from the trail, Journeys and Suites are release 2.
+- **Not merged when this was written** (B4a). <!-- R1-FACT: B4a merged or not; Audit's words as the
+  static files hold them; what was seen where; the tests --> By its builder's notes: the step filter
+  asks the server once per operation the step covers and merges the answers; the filters are kept in
+  the address; on mock a "Samples" filter; the sub-navigation is not drawn while Runs is the only
+  page. The server side it reads is merged: `GET /api/runs` with `replays` (D-282) and the vocabulary
+  (D-288), which B4a extends with the operations of each step.
+
+**D-297. Mock and live are still chosen when PAVE starts.**
+- **Decided** (R-01; the integrator: stays later). No switch at run time: it would cost 35 to 50
+  agent-hours and an attack, and replace a guarantee held by construction (on live the mock beans do
+  not exist, D-188) with a router that must be right on every call. The top bar says which runs:
+  "MOCK" or "LIVE", with the titles "Mock profile: scenarios answer and nothing leaves this machine."
+  and "Live profile: calls go to the active environment's service." (A1, merged). A change of profile
+  under an open page reloads it, so nothing mock-only stays on a live page (A1's builder). Saved lists
+  work on both profiles; the lookups on mock answer from the fixtures whatever is configured (R-29).
+- **What it costs the operator.** PAVE is started once per profile; the README says how to start the
+  other.
+- **Later.** Ask the operator after they have used the new screens.
+
+**D-298. The saved lists and the trail bend two rules the specification wrote.**
+- **The rules.** Section 15: no member data is persisted. Section 16: the ledger never holds the raw
+  request or response JSON.
+- **What the operator allowed, and nothing more.** Answer 2: saved lists of test members and
+  providers, for test data only. Answer 4: a trail of the full requests and responses of the last 500
+  exchanges, secrets masked. Nothing else of either rule moved: no list of recent members, no search
+  history, nothing a lookup returns is kept, nothing is filled in from a list on live unless the tester
+  picks it, and the ledger keeps its rule unchanged.
+- **The bounds of the lists, and what holds each.** Entered on purpose in Configuration, never filled
+  by the tool (a list changes only through its own endpoints, by what is posted;
+  `TestListControllerTest`); test data (nothing in the tool can tell a test member from a real one, so
+  this bound is the operator's statement and the setting below, not a check); owner-only files (`TestListStoreTest`; seen in the
+  smoke, `drwx------` and `-rw-------`); never logged, counts only (`TestListStoreTest`, and the
+  placeholder member ID 0 times in the log in the smoke); never in the ledger beyond what the ledger
+  keeps by its own settings (a run made from a picked entry is a run like any other); switched off by
+  `test-lists.enabled: false`, after which every change is refused and the list reads empty
+  (`TestListControllerTest`); never in `store.json`, a file of their own. The configuration store,
+  lists included, is never committed.
+- **The bounds of the trail.** A store of its own beside the ledger, never the ledger; owner-only; the
+  oldest removed past 500 entries or 256 MB; every secret masked by the code that masks the wire view;
+  member data kept, because it is what the vendor needs to see; nothing of it in a log line; switched
+  off by `trail.enabled: false`, emptied from Configuration. **It is release 2 (B5) and not in release
+  1**: `application.yml` already names `trail.enabled: true` and `trail.max-entries: 500`, which bind
+  to nothing until it is merged.
+- **Also bent, already recorded.** The configuration store keeps uploads as uploaded and can hold
+  member data a file contains (D-213); from D1b an export posted as text is kept as the text decoded,
+  not byte for byte (R-06).
+
+<!-- R1-FACT: the entry of the checks of release 1 and what they left goes here, from their reports -->
