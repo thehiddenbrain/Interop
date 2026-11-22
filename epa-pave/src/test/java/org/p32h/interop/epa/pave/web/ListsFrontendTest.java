@@ -185,7 +185,7 @@ class ListsFrontendTest {
             """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                "[\"members\",\"Test members\",[\"Add member\",\"Import CSV\",\"Edit\",\"Edit\"],[\"Approved kneeS123456789Test Member1980-01-31CommercialEdit\",\"PendedS123456788not givennot givennot givenEdit\"],\"/api/lists/members/template.csv\"]",
+                "[\"members\",\"Test members\",[\"Add member\",\"Import CSV\",\"Edit\",\"Edit\"],[\"Approved kneeS123456789not givenTest Member1980-01-31CommercialEdit\",\"PendedS123456788not givennot givennot givennot givenEdit\"],\"/api/lists/members/template.csv\"]",
                 "[\"add\",\"Add member\",\"||||||||||||\",[\"Close without saving\",\"Save member\"]]",
                 "[\"refused\",[{\"memberId\":\"S123456700\",\"dateOfBirth\":\"31/01/1980\"}],[\"Date of birthWrite the date of birth as yyyy-MM-dd, for example 1980-01-31.\"],2,true,\"dateOfBirth\"]",
                 "[\"added\",true,true,2]",

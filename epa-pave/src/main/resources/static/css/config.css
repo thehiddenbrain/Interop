@@ -201,3 +201,24 @@
 .config-chooser .btn {
     flex: none;
 }
+
+/* "Found in the collection" (cfg-found.js): one group a list, set apart so three short lists read as three. */
+.found {
+    display: grid;
+    gap: var(--s-3);
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--line);
+}
+
+.found[hidden] {
+    display: none;
+}
+
+.found__group {
+    display: grid;
+    gap: var(--s-1);
+}
+
+.found-result p {
+    overflow-wrap: anywhere;
+}

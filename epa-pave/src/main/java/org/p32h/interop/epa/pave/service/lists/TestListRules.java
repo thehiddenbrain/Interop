@@ -28,9 +28,12 @@ final class TestListRules {
 
     static List<FieldError> member(TestMemberInput member, LocalDate today) {
         List<FieldError> errors = new ArrayList<>();
-        if (member.memberId() == null) {
-            errors.add(new FieldError("memberId", "Enter the member ID as it is on the card."));
-        } else if (member.memberId().length() > MAX_MEMBER_ID) {
+        // A vendor patient id alone is enough: a collection often names its test patient only by
+        // the vendor's id, which is what a tester cannot guess, and the member ID is then typed in
+        // the Member card.
+        if (member.memberId() == null && member.vendorPatientId() == null) {
+            errors.add(new FieldError("memberId", "Enter the member ID as it is on the card, or the vendor patient id."));
+        } else if (member.memberId() != null && member.memberId().length() > MAX_MEMBER_ID) {
             errors.add(new FieldError("memberId", "A member ID is at most 30 characters. Check that nothing else was pasted with it."));
         }
         LocalDate born = date(errors, "dateOfBirth", "the date of birth", member.dateOfBirth());

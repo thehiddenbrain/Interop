@@ -107,7 +107,7 @@ class ConfigPagesFrontendTest {
             input.value = 'C:/fakepath/empty.json';
             await upload.click();
             await settle();
-            say(['unread', fake.sent.filter(each => each.key.startsWith('POST')).length === 2, text(root).includes('empty.json is empty.'), input.value]);
+            say(['unread', fake.sent.filter(each => each.key === 'POST /api/config/collections').length === 2, text(root).includes('empty.json is empty.'), input.value]);
 
             // A refusal of the file is one plain line, like the page's own (AU-5); while PAVE's files
             // changed on disk, the line under it says that this can be the cause (I-12).

@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.web;
 
 import org.p32h.interop.epa.pave.service.lists.CollectionIngest;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.Added;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.Found;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundRequest;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,5 +26,11 @@ public class FoundListsController {
     @PostMapping
     public Found found(@RequestBody FoundRequest request) {
         return ingest.found(request);
+    }
+
+    /** Adds what the collection states to the saved lists; an entry a list holds already is left as it is. */
+    @PostMapping("/add")
+    public Added add(@RequestBody FoundRequest request) {
+        return ingest.add(request);
     }
 }

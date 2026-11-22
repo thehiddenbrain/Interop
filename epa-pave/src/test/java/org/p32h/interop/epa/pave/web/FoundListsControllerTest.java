@@ -63,14 +63,15 @@ class FoundListsControllerTest {
                 + "{\"key\": \"client_secret\", \"value\": \"placeholder-client-secret\", \"type\": \"secret\", \"enabled\": true}]}";
     }
 
+    private TestListService lists;
+
     private MockMvc mvc(ConfigFixture fixture, boolean enabled) {
         TestListStore store = new TestListStore(ConfigStoreProperties.of(Map.of("directory", directory.resolve("lists").toString())),
                 TestMvc.mapper());
-        TestListService lists = new TestListService(TestListProperties.of(Map.of("enabled", String.valueOf(enabled))), store,
-                ConfigFixture.CLOCK);
+        lists = new TestListService(TestListProperties.of(Map.of("enabled", String.valueOf(enabled))), store, ConfigFixture.CLOCK);
         CollectionIngest ingest = new CollectionIngest(fixture.service::environments, lists,
                 new VariableResolver(name -> null, ConfigFixture.CLOCK, () -> "guid"));
-        return TestMvc.standalone(new FoundListsController(ingest));
+        return TestMvc.standalone(new FoundListsController(ingest), new TestListController(lists));
     }
 
     static String body(String collection, String environment, String forId, Boolean active) {
@@ -159,5 +160,76 @@ class FoundListsControllerTest {
         try (Stream<Path> walk = Files.walk(directory)) {
             assertThat(walk.anyMatch(path -> path.toString().contains("test-lists"))).isFalse();
         }
+    }
+
+    static final String PREFETCH_PATIENT = """
+            {"hook": "order-sign", "context": {"patientId": "pat-001", "userId": "Practitioner/prac-001"},
+             "prefetch": {"patient": {"resourceType": "Patient", "id": "pat-001", "identifier": [{"value": "S123456789"}],
+               "name": [{"given": ["Sample"], "family": "Placeholder-One"}], "birthDate": "1980-01-31"},
+              "practitioner": {"resourceType": "Practitioner", "id": "prac-001",
+               "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": "1234567893"}]}}}""";
+
+    static String twoRequests() {
+        return "{\"info\": {\"name\": \"Vendor sample\", \"schema\": \"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, "
+                + "\"item\": [{\"name\": \"Order sign\", \"request\": {\"method\": \"POST\", \"url\": \"https://x.invalid/cds-services/a\", "
+                + "\"body\": {\"mode\": \"raw\", \"raw\": " + JsonSafe.mapper().writeValueAsString(PREFETCH_PATIENT) + "}}}, "
+                + "{\"name\": \"Read second patient\", \"request\": {\"method\": \"GET\", \"url\": \"https://x.invalid/fhir/Patient/pat-002\"}}]}";
+    }
+
+    @Test
+    void addingPutsEachNewEntryInItsListLabelledWithItsRequestAndLeavesWhatIsThereAlready() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("store"));
+        MockMvc mvc = mvc(fixture, true);
+        // Typed by hand earlier, with the same member ID written with a space: left as it is.
+        mvc.perform(post("/api/lists/members").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"label\": \"Typed by hand\", \"memberId\": \"S123 456 789\"}")).andExpect(status().isOk());
+
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body(twoRequests(), null, null, null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.line").value("Added to the saved lists: 1 member, 1 provider. Already there: 1 member."))
+                .andExpect(jsonPath("$.members.added").value(1)).andExpect(jsonPath("$.members.already").value(1))
+                .andExpect(jsonPath("$.providers.added").value(1)).andExpect(jsonPath("$.notUsed", hasSize(0)));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/lists/members"))
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.members[0].label").value("Typed by hand")).andExpect(jsonPath("$.members[0].vendorPatientId").doesNotExist())
+                .andExpect(jsonPath("$.members[1].label").value("From Read second patient"))
+                .andExpect(jsonPath("$.members[1].vendorPatientId").value("pat-002")).andExpect(jsonPath("$.members[1].memberId").doesNotExist());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/lists/providers"))
+                .andExpect(jsonPath("$.providers[0].label").value("From Order sign")).andExpect(jsonPath("$.providers[0].npi").value("1234567893"))
+                .andExpect(jsonPath("$.providers[0].vendorPractitionerId").value("prac-001"));
+
+        // The same files again: everything is there already, nothing is added twice.
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body(twoRequests(), null, null, null)))
+                .andExpect(jsonPath("$.line").value("Nothing new was added to the saved lists. Already there: 2 members, 1 provider."));
+    }
+
+    @Test
+    void aFullListSaysHowManyDidNotFitAndSwitchedOffNothingIsAdded() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("store"));
+        MockMvc mvc = mvc(fixture, true);
+        for (int i = 0; i < 200; i++) {
+            lists.addMember(new org.p32h.interop.epa.pave.service.lists.TestMemberInput("Filler " + i, null, null, null, null, null, null,
+                    null, null, null, null, null, "filler-" + i));
+        }
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body(twoRequests(), null, null, null)))
+                .andExpect(jsonPath("$.line").value("Added to the saved lists: 1 provider. The members list is full (200 entries): 2 members "
+                        + "did not fit."))
+                .andExpect(jsonPath("$.members.full").value(2));
+
+        mvc(fixture, false).perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body(twoRequests(), null, null, null)))
+                .andExpect(jsonPath("$.enabled").value(false))
+                .andExpect(jsonPath("$.line").value("Saved test lists are switched off on this installation (test-lists.enabled)."))
+                .andExpect(jsonPath("$.members").doesNotExist());
+    }
+
+    @Test
+    void addingACollectionThatStatesNothingOrCannotBeReadAddsNothingAndSaysWhy() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory.resolve("store"));
+        MockMvc mvc = mvc(fixture, true);
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body(COLLECTION, null, null, null)))
+                .andExpect(jsonPath("$.line").value("Nothing to add to the saved lists was found in the collection."));
+        mvc.perform(post(FOUND + "/add").contentType(MediaType.APPLICATION_JSON).content(body("not json", null, null, null)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.line").value(startsWith("The collection was not read: ")));
+        assertThat(Files.exists(directory.resolve("lists"))).isFalse();
     }
 }

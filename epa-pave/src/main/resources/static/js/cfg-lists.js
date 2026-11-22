@@ -50,6 +50,8 @@ const LISTS = {
         columns: [
             {label: 'Label', value: entry => entry.label},
             {label: 'Member ID', value: entry => entry.memberId, mono: true},
+            // An entry read from a collection may hold the vendor's patient id alone.
+            {label: 'Vendor patient id', value: entry => entry.vendorPatientId, mono: true},
             {label: 'Name', value: entry => joined(entry.firstName, entry.lastName)},
             {label: 'Date of birth', value: entry => entry.dateOfBirth, mono: true},
             {label: 'Line of business', value: entry => entry.lineOfBusiness}
@@ -162,7 +164,7 @@ export function mount(root, route) {
                         ? (column.mono ? el('span', {class: 'mono'}, value) : value) : none('not given'));
                 }),
                 el('td', null, el('button', {type: 'button', class: 'btn btn--small',
-                    'aria-label': 'Edit ' + (entry.label || entry.memberId || entry.npi || entry.vendorPractitionerId || list.one),
+                    'aria-label': 'Edit ' + (entry.label || entry.memberId || entry.vendorPatientId || entry.npi || entry.vendorPractitionerId || list.one),
                     on: {click: () => edit(list, entry)}}, 'Edit')))))));
     }
 

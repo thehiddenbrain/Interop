@@ -288,7 +288,8 @@ class ConfigFrontendTest {
                 say([draft.path, draft.type, JSON.parse(draft.body)]);
                 await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
                 await settle();
-                const save = posted[1];
+                // The saved lists read the collection after Fill too (cfg-found.js); the save is found by its address.
+                const save = posted.find(each => each.path === '/api/config/environments/settings');
                 say([save.path, save.type, JSON.parse(save.body).collectionExport]);
                 // Refused by the server at the file's field: the input is let go, so the next press reads what is chosen again.
                 say([collectionBox.value, collectionBox.closest('.field').querySelector('.field__error').textContent]);

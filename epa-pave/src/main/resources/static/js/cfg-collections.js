@@ -12,6 +12,8 @@ import {el, fill, clear, chip, button, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
 import {pageHead, section, part, during, once, sentences, counted, day, none, fileRefusal, fileChooser, shownFile, filesChangedNote} from './cfg-parts.js';
+// The saved lists: what an uploaded collection states, added on the tester's word.
+import {createFoundPart} from './cfg-found.js';
 
 const UNMAPPED = 'UNMAPPED';
 
@@ -29,15 +31,18 @@ export function mount(root, route) {
     const outcome = el('div', {'aria-live': 'polite'});
     const status = el('div', {'aria-live': 'polite'});
     const table = el('div');
+    // Without the environment form, the active environment fills the collection's placeholders.
+    const found = createFoundPart({mode: 'button'});
 
     const page = section(
         pageHead('Collections', 'Postman collection exports: sample requests and their mapping.', fileChooser(file, 'Collection export'), upload, busy),
-        locks, outcome, status, table);
+        locks, outcome, found.node, status, table);
     root.append(page);
 
     async function send() {
         clear(outcome);
         clear(status);
+        found.clear();
         const read = await readText(file, {maxBytes: 20 * 1024 * 1024});
         shownFile(file);
         if (!read.ok) {
@@ -54,6 +59,7 @@ export function mount(root, route) {
         }
         fill(outcome, uploaded(answer.data || {}));
         await load();
+        await found.read({collectionExport: {fileName: read.fileName, text: read.text}, fromActiveEnvironment: true});
     }
 
     /** What the server read from the file, each sentence once. */
@@ -252,6 +258,7 @@ export function mount(root, route) {
         update() {},
         unmount() {
             gone = true;
+            found.clear();
             offs.forEach(off => off());
             page.remove();
         }

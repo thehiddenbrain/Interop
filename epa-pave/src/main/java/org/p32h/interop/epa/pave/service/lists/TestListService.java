@@ -14,10 +14,15 @@ import java.util.function.Function;
 import org.p32h.interop.epa.pave.config.TestListProperties;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.MemberIds;
+import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.TestListStore;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.Counts;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.Finds;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundMember;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundProvider;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRow;
@@ -49,11 +54,13 @@ public class TestListService {
      *
      * @param sameEntry   the field that two entries share when they are the same entry, or null
      *                    when they are different ones
+     * @param duplicate   the refusal of an entry that shares that field with a saved one, by the field
+     * @param twoEntries  the refusal of an imported row whose identifying fields belong to two saved entries
      */
     private record Kind<E extends TestListEntry, I>(String file, Class<E> type, String idPrefix, String what, List<String> columns,
             Function<Map<String, String>, I> input, BiFunction<I, String, E> withId, Function<E, Map<String, String>> values,
             Function<I, Map<String, String>> inputValues, Function<I, List<FieldError>> rules, BiFunction<Map<String, String>,
-            Map<String, String>, String> sameEntry, List<String> keyColumns, String duplicate) {
+            Map<String, String>, String> sameEntry, List<String> keyColumns, Function<String, String> duplicate, String twoEntries) {
     }
 
     private final TestListProperties properties;
@@ -68,18 +75,34 @@ public class TestListService {
         this.clock = clock;
         this.members = new Kind<>(TestListStore.MEMBERS, TestMember.class, "m-", "member", TestMember.COLUMNS, TestMemberInput::of,
                 TestMemberInput::withId, TestMember::values, input -> input.withId(null).values(),
-                input -> TestListRules.member(input, LocalDate.now(this.clock)), TestListService::sameMember, List.of("memberId"),
-                "A saved member has this member ID already. Edit that entry instead.");
+                input -> TestListRules.member(input, LocalDate.now(this.clock)), TestListService::sameMember,
+                List.of("memberId", "vendorPatientId"),
+                field -> "A saved member has this " + ("memberId".equals(field) ? "member ID" : "vendor patient id")
+                        + " already. Edit that entry instead.",
+                "Its member ID and its vendor patient id belong to two different saved members. Correct one of them.");
         this.providers = new Kind<>(TestListStore.PROVIDERS, TestProvider.class, "p-", "provider", TestProvider.COLUMNS,
                 TestProviderInput::of, TestProviderInput::withId, TestProvider::values, input -> input.withId(null).values(),
                 TestListRules::provider, TestListService::sameProvider, List.of("npi", "vendorPractitionerId"),
-                "A saved provider has this %s already. Edit that entry instead.");
+                field -> "A saved provider has this " + ("npi".equals(field) ? "NPI" : "vendor practitioner id")
+                        + " already. Edit that entry instead.",
+                "Its NPI and its vendor practitioner id belong to two different saved providers. Correct one of them.");
     }
 
+    /**
+     * The same member: the same member ID in its no-space form, or the same vendor patient id. The
+     * vendor's id counts since an entry may hold it alone (see {@link TestListRules#member}), and
+     * a second entry for the one patient of the vendor's server would only be a second name for it.
+     */
     private static String sameMember(Map<String, String> a, Map<String, String> b) {
         String one = a.get("memberId");
         String other = b.get("memberId");
-        return one != null && other != null && MemberIds.noSpace(one).equals(MemberIds.noSpace(other)) ? "memberId" : null;
+        if (one != null && other != null && MemberIds.noSpace(one).equals(MemberIds.noSpace(other))) {
+            return "memberId";
+        }
+        if (a.get("vendorPatientId") != null && a.get("vendorPatientId").equals(b.get("vendorPatientId"))) {
+            return "vendorPatientId";
+        }
+        return null;
     }
 
     private static String sameProvider(Map<String, String> a, Map<String, String> b) {
@@ -142,6 +165,99 @@ public class TestListService {
 
     public ImportResult importProviders(ImportRequest request) {
         return importRows(providers, request);
+    }
+
+    /**
+     * What adding the entries a collection states did, by list.
+     *
+     * @param notAdded each entry a list's rules refused, with the reason
+     */
+    public record FoundAdd(Counts members, Counts providers, Counts codes, List<String> notAdded) {
+
+        public FoundAdd {
+            notAdded = notAdded == null ? List.of() : List.copyOf(notAdded);
+        }
+
+        @Override
+        public String toString() {
+            return "FoundAdd[" + members + ", " + providers + ", " + codes + "]";
+        }
+    }
+
+    /**
+     * Adds what a collection states to the saved lists. An entry a list holds already (the same
+     * member ID or vendor patient id, NPI or vendor practitioner id) is left as it is; an entry
+     * that does not fit a full list is counted, never dropped in silence. Each entry is labelled
+     * with the request it was found in, so that it is told apart from one typed by hand.
+     */
+    public synchronized FoundAdd addFound(Finds finds) {
+        requireEnabled();
+        List<String> notAdded = new ArrayList<>();
+        List<TestMemberInput> memberInputs = new ArrayList<>();
+        List<String> memberFrom = new ArrayList<>();
+        for (FoundMember found : finds.members()) {
+            memberInputs.add(new TestMemberInput(label(found.from()), found.memberId(), found.firstName(), found.lastName(),
+                    found.dateOfBirth(), found.gender(), null, found.plan(), found.subscriberId(), found.coverageStatus(),
+                    found.coverageStart(), found.coverageEnd(), found.vendorPatientId()));
+            memberFrom.add(found.from());
+        }
+        List<TestProviderInput> providerInputs = new ArrayList<>();
+        List<String> providerFrom = new ArrayList<>();
+        for (FoundProvider found : finds.providers()) {
+            providerInputs.add(new TestProviderInput(label(found.from()), found.npi(), found.vendorPractitionerId(), found.firstName(),
+                    found.lastName(), null, null, null, null, null));
+            providerFrom.add(found.from());
+        }
+        Counts memberCounts = addAll(members, memberInputs, memberFrom, notAdded);
+        Counts providerCounts = addAll(providers, providerInputs, providerFrom, notAdded);
+        Counts codeCounts = new Counts(0, 0, 0, 0);
+        return new FoundAdd(memberCounts, providerCounts, codeCounts, notAdded);
+    }
+
+    /** The label of an entry found in a collection: where it came from, in the tester's list of labels. */
+    static String label(String from) {
+        return "From " + (Texts.present(from) ? from : "the collection");
+    }
+
+    private <E extends TestListEntry, I> Counts addAll(Kind<E, I> kind, List<I> inputs, List<String> from, List<String> notAdded) {
+        List<E> entries = current(kind);
+        int added = 0;
+        int already = 0;
+        int full = 0;
+        int refused = 0;
+        for (int i = 0; i < inputs.size(); i++) {
+            I input = inputs.get(i);
+            Map<String, String> values = kind.inputValues().apply(input);
+            boolean there = false;
+            for (E entry : entries) {
+                there = there || kind.sameEntry().apply(values, kind.values().apply(entry)) != null;
+            }
+            if (there) {
+                already++;
+                continue;
+            }
+            List<FieldError> errors = kind.rules().apply(input);
+            if (!errors.isEmpty()) {
+                List<String> reasons = new ArrayList<>();
+                errors.forEach(error -> reasons.add(error.message()));
+                notAdded.add("A " + kind.what() + " found in \"" + from.get(i) + "\" was not added: " + String.join(" ", reasons));
+                refused++;
+                continue;
+            }
+            if (entries.size() >= TestListRules.MAX_ENTRIES) {
+                full++;
+                continue;
+            }
+            entries.add(kind.withId().apply(input, newId(kind, entries)));
+            added++;
+        }
+        if (added > 0) {
+            store.write(kind.file(), entries);
+        }
+        // Counts only. Never an entry.
+        log.info("Test {} from a collection: {} added, {} there already, {} did not fit, {} refused", kind.what() + "s", added, already,
+                full, refused);
+        return new Counts(added, already, full, refused);
     }
 
     /** The members template: the header and three rows of placeholders, never a real member. */
@@ -259,8 +375,7 @@ public class TestListService {
         for (E entry : entries) {
             String field = entry.id().equals(exceptId) ? null : kind.sameEntry().apply(values, kind.values().apply(entry));
             if (field != null) {
-                String words = "npi".equals(field) ? "NPI" : "vendor practitioner id";
-                throw ValidationException.of(field, kind.duplicate().formatted(words));
+                throw ValidationException.of(field, kind.duplicate().apply(field));
             }
         }
     }
@@ -335,8 +450,7 @@ public class TestListService {
                 }
             }
             if (matches.size() > 1) {
-                rows.add(new ImportRow(row.line(), Status.REFUSED, label, "Its NPI and its vendor practitioner id belong to two "
-                        + "different saved providers. Correct one of them."));
+                rows.add(new ImportRow(row.line(), Status.REFUSED, label, kind.twoEntries()));
                 refused++;
                 continue;
             }
