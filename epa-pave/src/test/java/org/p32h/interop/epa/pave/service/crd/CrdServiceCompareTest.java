@@ -102,7 +102,7 @@ class CrdServiceCompareTest {
     void aComparisonSendsNothingRecordsNothingAndNeverAsksTheGatewayToPrepareACall() {
         RequestComparison comparison = service("mock").compare(CrdRunRequest.builder().rawBody(VENDOR).build());
         assertThat(comparison.comparable()).isTrue();
-        assertThat(comparison.differences()).hasSize(34);
+        assertThat(comparison.differences()).hasSize(36);
         assertNothingWasSentOrRecorded();
     }
 

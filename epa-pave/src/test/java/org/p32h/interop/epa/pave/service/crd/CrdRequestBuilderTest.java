@@ -47,7 +47,7 @@ class CrdRequestBuilderTest {
         assertThat(json.get("hook").asString()).isEqualTo("order-sign");
         assertThat(json.get("hookInstance").asString()).isEqualTo("hook-instance-1");
         assertThat(json.at("/context/patientId").asString()).isEqualTo("patient-1");
-        assertThat(json.at("/context/userId").asString()).isEqualTo("PractitionerRole/practitioner-role-1");
+        assertThat(json.at("/context/userId").asString()).isEqualTo("Practitioner/practitioner-1");
         assertThat(json.at("/context/draftOrders/resourceType").asString()).isEqualTo("Bundle");
         assertThat(json.at("/context/draftOrders/entry")).hasSize(2);
         // order-sign carries no selections. order-select does.
@@ -64,7 +64,7 @@ class CrdRequestBuilderTest {
         assertThat(first.at("/code/coding/0/display").asString()).isEqualTo("Sleep study, attended");
         assertThat(first.at("/code/coding/0/system").asString()).isEqualTo("http://www.ama-assn.org/go/cpt");
         assertThat(first.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        assertThat(first.at("/requester/reference").asString()).isEqualTo("PractitionerRole/practitioner-role-1");
+        assertThat(first.at("/requester/reference").asString()).isEqualTo("Practitioner/practitioner-1");
         assertThat(first.get("occurrenceDateTime").asString()).isEqualTo("2026-03-20");
         JsonNode second = json.at("/context/draftOrders/entry/1/resource");
         assertThat(second.get("id").asString()).isEqualTo("service-request-2");
@@ -76,7 +76,7 @@ class CrdRequestBuilderTest {
 
     @Test
     void theMemberBecomesAPatientWithTheNoSpaceMemberId() {
-        JsonNode patient = build(request().build(), NOTHING_SET).at("/prefetch/patient");
+        JsonNode patient = build(request().build(), NOTHING_SET).at("/prefetch/patientBundle/entry/0/resource");
         assertThat(patient.get("resourceType").asString()).isEqualTo("Patient");
         assertThat(patient.at("/identifier/0/value").asString()).isEqualTo("S1234567801");
         assertThat(patient.at("/identifier/0/type/coding/0/code").asString()).isEqualTo("MB");
@@ -89,9 +89,9 @@ class CrdRequestBuilderTest {
     @Test
     void theNpiBecomesAPractitionerRoleAndAPractitioner() {
         JsonNode json = build(request().build(), NOTHING_SET);
-        assertThat(json.at("/prefetch/practitionerRole/resourceType").asString()).isEqualTo("PractitionerRole");
-        assertThat(json.at("/prefetch/practitionerRole/practitioner/reference").asString()).isEqualTo("Practitioner/practitioner-1");
-        JsonNode practitioner = json.at("/prefetch/practitioner");
+        assertThat(json.at("/prefetch/practitionerRoleBundle/entry/0/resource/resourceType").asString()).isEqualTo("PractitionerRole");
+        assertThat(json.at("/prefetch/practitionerRoleBundle/entry/0/resource/practitioner/reference").asString()).isEqualTo("Practitioner/practitioner-1");
+        JsonNode practitioner = json.at("/prefetch/practitionerBundle/entry/0/resource");
         assertThat(practitioner.at("/identifier/0/system").asString()).isEqualTo("http://hl7.org/fhir/sid/us-npi");
         assertThat(practitioner.at("/identifier/0/value").asString()).isEqualTo("1234567893");
         assertThat(practitioner.at("/name/0/family").asString()).isEqualTo("Provider");
@@ -99,7 +99,7 @@ class CrdRequestBuilderTest {
 
     @Test
     void theCoverageCarriesOnlyWhatWasSupplied() {
-        JsonNode coverage = build(request().build(), NOTHING_SET).at("/prefetch/coverage");
+        JsonNode coverage = build(request().build(), NOTHING_SET).at("/prefetch/coverageBundle/entry/0/resource");
         assertThat(coverage.get("status").asString()).isEqualTo("active");
         assertThat(coverage.get("subscriberId").asString()).isEqualTo("SUB-PLACEHOLDER-1");
         assertThat(coverage.at("/identifier/0/value").asString()).isEqualTo("S1234567801");
@@ -115,13 +115,13 @@ class CrdRequestBuilderTest {
                 .provider(ProviderDetail.builder().npi("1234567893").build()).procedureCodes(List.of(CodeInput.of("95810"))).build();
         CrdRequestBuilder.Built built = new CrdRequestBuilder(null, CLOCK).build(bare, "h", NOTHING_SET);
         JsonNode json = JsonSafe.parse(built.json()).node();
-        JsonNode patient = json.at("/prefetch/patient");
+        JsonNode patient = json.at("/prefetch/patientBundle/entry/0/resource");
         assertThat(patient.has("name")).isFalse();
         assertThat(patient.has("birthDate")).isFalse();
         assertThat(patient.has("gender")).isFalse();
         // A coverage status that was not supplied is not "active". It is left out and the note says so.
-        assertThat(json.at("/prefetch/coverage").has("status")).isFalse();
-        assertThat(json.at("/prefetch/coverage").has("subscriberId")).isFalse();
+        assertThat(json.at("/prefetch/coverageBundle/entry/0/resource").has("status")).isFalse();
+        assertThat(json.at("/prefetch/coverageBundle/entry/0/resource").has("subscriberId")).isFalse();
         assertThat(json.at("/context/draftOrders/entry/0/resource").has("occurrenceDateTime")).isFalse();
         assertThat(json.has("fhirServer")).isFalse();
         // Rule 3 of the 2.0.1 work: the first note says how many required elements went out missing,
@@ -148,8 +148,8 @@ class CrdRequestBuilderTest {
         CrdRunRequest request = request().member(MemberDetail.builder().memberId("S123456789").coverageStatus("Termed").gender("X").build()).build();
         CrdRequestBuilder.Built built = new CrdRequestBuilder(null, CLOCK).build(request, "h", NOTHING_SET);
         JsonNode json = JsonSafe.parse(built.json()).node();
-        assertThat(json.at("/prefetch/coverage").has("status")).isFalse();
-        assertThat(json.at("/prefetch/patient").has("gender")).isFalse();
+        assertThat(json.at("/prefetch/coverageBundle/entry/0/resource").has("status")).isFalse();
+        assertThat(json.at("/prefetch/patientBundle/entry/0/resource").has("gender")).isFalse();
         assertThat(built.notes()).anySatisfy(n -> assertThat(n).contains("The coverage status \"Termed\" is not one this tool can map"));
         assertThat(built.notes()).anySatisfy(n -> assertThat(n).contains("The gender \"X\" is not one this tool can map"));
         assertThat(CaseResources.coverageStatus("ACTIVE")).isEqualTo("active");
@@ -168,9 +168,9 @@ class CrdRequestBuilderTest {
         CrdRequestBuilder.Built built = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", t -> gateway.resolve(t, Map.of()));
         JsonNode json = JsonSafe.parse(built.json()).node();
         assertThat(json.get("fhirServer").asString()).isEqualTo("https://ehr.example.invalid/fhir");
-        assertThat(json.at("/prefetch/patient/identifier/0/system").asString()).isEqualTo("https://example.org/p32h-placeholder/member-id");
-        assertThat(json.at("/prefetch/coverage/payor/0/display").asString()).isEqualTo("Placeholder payer");
-        assertThat(json.at("/prefetch/coverage/payor/0/identifier/value").asString()).isEqualTo("PAYER-PLACEHOLDER");
+        assertThat(json.at("/prefetch/patientBundle/entry/0/resource/identifier/0/system").asString()).isEqualTo("https://example.org/p32h-placeholder/member-id");
+        assertThat(json.at("/prefetch/coverageBundle/entry/0/resource/payor/0/display").asString()).isEqualTo("Placeholder payer");
+        assertThat(json.at("/prefetch/coverageBundle/entry/0/resource/payor/0/identifier/value").asString()).isEqualTo("PAYER-PLACEHOLDER");
         assertThat(built.notes()).noneMatch(n -> n.contains("fhirServer") || n.contains("identifier system") || n.contains("No payer"));
     }
 
@@ -320,7 +320,7 @@ class CrdRequestBuilderTest {
     void theMedicalRecordNumberComesFromItsVariablesAndTheMemberIdIsNeverSentAsOne() {
         // CRD201-04: CRD 2.0.1 profile-patient requires one identifier typed MR with a system and a value.
         CrdRequestBuilder.Built without = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", NOTHING_SET);
-        JsonNode identifiers = JsonSafe.parse(without.json()).node().at("/prefetch/patient/identifier");
+        JsonNode identifiers = JsonSafe.parse(without.json()).node().at("/prefetch/patientBundle/entry/0/resource/identifier");
         assertThat(identifiers).hasSize(1);
         assertThat(identifiers.at("/0/type/coding/0/code").asString()).isEqualTo("MB");
         assertThat(without.incomplete()).extracting(CaseResources.Required::line).contains("Patient.identifier:MRIdentifier (CRD 2.0.1 "
@@ -332,7 +332,7 @@ class CrdRequestBuilderTest {
         FakeGateway gateway = new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-1")
                 .variable("patientMrnSystem", "https://example.org/p32h-placeholder/mrn");
         CrdRequestBuilder.Built with = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", t -> gateway.resolve(t, Map.of()));
-        JsonNode mr = JsonSafe.parse(with.json()).node().at("/prefetch/patient/identifier/1");
+        JsonNode mr = JsonSafe.parse(with.json()).node().at("/prefetch/patientBundle/entry/0/resource/identifier/1");
         assertThat(mr.at("/type/coding/0/system").asString()).isEqualTo("http://terminology.hl7.org/CodeSystem/v2-0203");
         assertThat(mr.at("/type/coding/0/code").asString()).isEqualTo("MR");
         assertThat(mr.get("system").asString()).isEqualTo("https://example.org/p32h-placeholder/mrn");
@@ -342,7 +342,7 @@ class CrdRequestBuilderTest {
         // A number with no system is sent as supplied, and the missing system is named.
         FakeGateway half = new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-1");
         CrdRequestBuilder.Built partly = new CrdRequestBuilder(null, CLOCK).build(request().build(), "h", t -> half.resolve(t, Map.of()));
-        assertThat(JsonSafe.parse(partly.json()).node().at("/prefetch/patient/identifier/1").has("system")).isFalse();
+        assertThat(JsonSafe.parse(partly.json()).node().at("/prefetch/patientBundle/entry/0/resource/identifier/1").has("system")).isFalse();
         assertThat(partly.incomplete()).extracting(CaseResources.Required::element).contains("Patient.identifier:MRIdentifier.system");
     }
 
@@ -353,15 +353,15 @@ class CrdRequestBuilderTest {
                 .build();
         CrdRequestBuilder.Built built = new CrdRequestBuilder(null, CLOCK).build(request, "h", NOTHING_SET);
         JsonNode prefetch = JsonSafe.parse(built.json()).node().at("/prefetch");
-        assertThat(prefetch.has("practitioner")).isFalse();
-        assertThat(prefetch.at("/practitionerRole/organization/reference").asString()).isEqualTo("Organization/organization-1");
-        assertThat(prefetch.at("/practitionerRole").has("practitioner")).isFalse();
-        assertThat(prefetch.at("/organization/resourceType").asString()).isEqualTo("Organization");
-        assertThat(prefetch.at("/organization/identifier/0/system").asString()).isEqualTo("http://hl7.org/fhir/sid/us-npi");
-        assertThat(prefetch.at("/organization/identifier/0/value").asString()).isEqualTo("1234567893");
-        assertThat(prefetch.at("/organization/name").asString()).isEqualTo("Placeholder Clinic");
+        assertThat(prefetch.has("practitionerBundle")).isFalse();
+        assertThat(prefetch.at("/practitionerRoleBundle/entry/0/resource/organization/reference").asString()).isEqualTo("Organization/organization-1");
+        assertThat(prefetch.at("/practitionerRoleBundle/entry/0/resource").has("practitioner")).isFalse();
+        assertThat(prefetch.at("/organizationBundle/entry/0/resource/resourceType").asString()).isEqualTo("Organization");
+        assertThat(prefetch.at("/organizationBundle/entry/0/resource/identifier/0/system").asString()).isEqualTo("http://hl7.org/fhir/sid/us-npi");
+        assertThat(prefetch.at("/organizationBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo("1234567893");
+        assertThat(prefetch.at("/organizationBundle/entry/0/resource/name").asString()).isEqualTo("Placeholder Clinic");
         // Whether the record is active is not known, so it is not sent, and that is said.
-        assertThat(prefetch.at("/organization").has("active")).isFalse();
+        assertThat(prefetch.at("/organizationBundle/entry/0/resource").has("active")).isFalse();
         // The member of this form has no identifier systems, medical record number or payer, so those are listed as well.
         assertThat(built.incomplete()).extracting(CaseResources.Required::element).containsExactly("Patient.identifier.system (the member ID)",
                 "Patient.identifier:MRIdentifier", "Coverage.payor", "Organization.active");
@@ -382,7 +382,7 @@ class CrdRequestBuilderTest {
         assertThat(built.incomplete()).isEmpty();
         assertThat(built.notes()).noneMatch(n -> n.contains("profiles require") || n.startsWith("CRD 2.0.1 profile-"));
         // The coverage period comes from the lookup's dates.
-        JsonNode coverage = JsonSafe.parse(built.json()).node().at("/prefetch/coverage");
+        JsonNode coverage = JsonSafe.parse(built.json()).node().at("/prefetch/coverageBundle/entry/0/resource");
         assertThat(coverage.at("/period/start").asString()).isEqualTo("2026-01-01");
         assertThat(coverage.at("/period/end").asString()).isEqualTo("2026-12-31");
         assertThat(CrdService.incompleteRequest(built.incomplete())).isNull();

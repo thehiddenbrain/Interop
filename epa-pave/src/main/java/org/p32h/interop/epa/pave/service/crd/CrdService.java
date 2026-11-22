@@ -41,6 +41,7 @@ import org.p32h.interop.epa.pave.service.RunStamps;
 import org.p32h.interop.epa.pave.service.config.CallIntent;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
@@ -131,7 +132,7 @@ public class CrdService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads);
+            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
@@ -271,6 +272,15 @@ public class CrdService {
         return new NextStepView(next.action(), next.headline(), next.reason(), carry);
     }
 
+    /**
+     * The request shapes the call was prepared with: the environment's setting, or the evidence
+     * of the collection request the call came from, or the default, each with its source.
+     */
+    static RequestShapes shapes(PreparedCall call) {
+        RequestShapes shapes = call == null ? null : call.shapes();
+        return shapes == null ? RequestShapes.DEFAULTS : shapes;
+    }
+
     /** What the request would be, without sending it. Nothing is recorded. */
     public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
         validate(request);
@@ -294,7 +304,7 @@ public class CrdService {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads);
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call));
             body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");
@@ -371,11 +381,11 @@ public class CrdService {
             if (request.member() != null && Texts.present(request.member().memberId())) {
                 inputs.member(request.member());
             }
-            if (request.provider() != null && Texts.present(request.provider().npi())) {
-                inputs.provider(request.provider());
+            if (request.provider() != null && (Texts.present(request.provider().npi()) || Texts.present(request.provider().vendorPractitionerId()))) {
+                inputs.providerByNpiOrVendorId(request.provider());
             }
         } else {
-            inputs.member(request.member()).provider(request.provider()).codes(request.procedureCodes());
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider()).codes(request.procedureCodes());
         }
         inputs.date("dateOfService", request.dateOfService())
                 .expectation(request.expected(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
