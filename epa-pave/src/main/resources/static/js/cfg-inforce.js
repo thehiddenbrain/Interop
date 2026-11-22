@@ -4,8 +4,8 @@
 // production or not, what is active and uploaded, how many operations can be sent, whether calls
 // sign in, and which secrets have no value. Below that, where PAVE is pointed, the problems the
 // server sees, and operation by operation the address a run would go to and what stands in its
-// way, the settings of application.yml with secrets masked by the server, and the lookups in
-// force. A part is drawn only when the server's answer carries its field.
+// way, and the settings of application.yml with secrets masked by the server. A part is drawn
+// only when the server's answer carries its field.
 
 import {call} from './api.js';
 import {app} from './app.js';
@@ -18,6 +18,15 @@ function listed(names) {
     return names.length <= 1 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
 }
 
+/**
+ * The server's reason for the write state, less its first sentence when that only says again that
+ * no environment is active: "Ready to send?" and the Environment row have said it already.
+ */
+function withoutNoEnvironment(reason, environment) {
+    const said = 'No environment is active. ';
+    return !environment.active && reason.startsWith(said) ? reason.slice(said.length) : reason;
+}
+
 /** Draws the page into root. route: the parts of the address after #configuration. */
 export function mount(root, route) {
     let gone = false;
@@ -28,8 +37,9 @@ export function mount(root, route) {
     root.append(page);
 
     async function load() {
-        const [effective, environments, lookups] = await Promise.all([
-            call('GET', '/api/config/effective'), call('GET', '/api/config/environments'), call('GET', '/api/config/lookups')]);
+        // The lookups are among the operations of /api/config/effective: release 1 has no page of saved lookups to ask.
+        const [effective, environments] = await Promise.all([
+            call('GET', '/api/config/effective'), call('GET', '/api/config/environments')]);
         if (gone) {
             return;
         }
@@ -39,12 +49,12 @@ export function mount(root, route) {
         }
         const data = effective.data || {};
         const mode = app.mode() || {};
+        const ready = checklist(data, mode);
         fill(body,
-            checklist(data, mode),
-            pointed(data, mode, environments.ok ? environments.data : null),
+            ready,
+            pointed(data, mode, environments.ok ? environments.data : null, ready !== null),
             operationsPart(data),
-            settingsPart(data),
-            lookups.ok ? lookupsPart(lookups.data) : null);
+            settingsPart(data));
     }
 
     /* ---------- ready to send? ---------- */
@@ -106,7 +116,8 @@ export function mount(root, route) {
 
     /* ---------- where PAVE is pointed ---------- */
 
-    function pointed(data, mode, environments) {
+    /** saidAbove: "Ready to send?" was drawn and already says production and the environment, which are not said again. */
+    function pointed(data, mode, environments, saidAbove) {
         const access = mode.writeAccess || data.writeAccess || {};
         const environment = mode.environment || data.environment || {};
         const active = environments && Array.isArray(environments.environments)
@@ -119,10 +130,10 @@ export function mount(root, route) {
                     ? 'mock. Scenario files answer in place of the service and nothing is sent. The production guardrail applies as on live.'
                     : String(mode.mode || data.mode || '')},
                 mode.target ? {key: 'Target', value: mode.target} : null,
-                {key: 'Environment', value: environment.active ? el('span', {class: 'environment-name'}, environment.name) : none('none is active')},
-                {key: 'Production', value: productionWords(access, environment)},
+                saidAbove ? null : {key: 'Environment', value: environment.active ? el('span', {class: 'environment-name'}, environment.name) : none('none is active')},
+                saidAbove ? null : {key: 'Production', value: productionWords(access, environment)},
                 access.reason ? {key: 'Can PAVE change anything there now', value: [el('strong', null,
-                    access.writesAllowed === true ? 'Writes are not blocked. ' : 'Writes are blocked. '), access.reason]} : null,
+                    access.writesAllowed === true ? 'Writes are not blocked. ' : 'Writes are blocked. '), withoutNoEnvironment(access.reason, environment)]} : null,
                 data.storeDirectory ? {key: 'The configuration store', value: el('span', {class: 'mono'}, data.storeDirectory)} : null
             ]),
             problems.length > 0 ? el('div', {class: 'verdict verdict--fault', role: 'alert'},
@@ -141,12 +152,14 @@ export function mount(root, route) {
         }
         const signIn = data.readiness ? data.readiness.signIn : null;
         // Facts rather than a wide table: an address and its source are long, and they wrap here.
-        return part('Where each operation goes', kv(rows.map(row => ({
+        // The address and its source share a line and the state follows as one line, so a row
+        // reads like every other key and value row, its key at the top.
+        return part('Where each operation goes', el('div', {class: 'config-operations'}, kv(rows.map(row => ({
             key: [row.label || row.operation, row.method ? [' ', chip(row.method, {mono: true})] : null,
                 row.write ? [' ', chip('write', {tone: 'blocked', title: 'On production it is blocked unless writes are unlocked.'})] : null],
-            value: el('div', {class: 'form-section'}, el('div', null, addressCell(row)), el('div', {class: 'small muted'}, sourceCell(row)),
-                el('div', null, statusCell(row, signIn)))
-        }))));
+            value: [el('div', null, addressCell(row), el('span', {class: 'kv__display'}, sourceCell(row))),
+                el('div', null, statusCell(row, signIn))]
+        })))));
     }
 
     function addressCell(row) {
@@ -187,13 +200,14 @@ export function mount(root, route) {
                 parts.push(el('div', null, el('strong', null, 'Cannot sign in. '), signIn.problem));
             } else if (row.withoutSignIn) {
                 // The server's reason: a Postman helper PAVE does not apply, or sign-in settings nothing uses.
-                parts.push(el('strong', null, 'Yes, without signing in.'), el('div', {class: 'small'}, row.withoutSignIn));
+                parts.push(el('strong', null, 'Yes, without signing in.'), ' ', el('span', {class: 'small'}, row.withoutSignIn));
             } else {
                 parts.push(el('strong', null, 'Yes.'));
             }
         }
         if (row.note) {
-            parts.push(el('div', {class: 'small'}, row.note));
+            // On the same line as the state it explains.
+            parts.push(parts.length > 0 ? ' ' : null, el('span', {class: 'small'}, row.note));
         }
         return parts;
     }
@@ -211,22 +225,6 @@ export function mount(root, route) {
                     setting.secret ? [' ', chip('secret, masked', {tone: 'neutral'})] : null]})))}));
     }
 
-    /* ---------- the lookups in force ---------- */
-
-    function lookupsPart(data) {
-        if (!data || typeof data !== 'object') {
-            return null;
-        }
-        const rows = [];
-        for (const [kind, label] of [['member', 'Member lookup'], ['provider', 'Provider lookup']]) {
-            const view = data[kind];
-            if (view && view.inForce && view.inForce.words) {
-                rows.push({key: label, value: [view.inForce.words, view.inForce.from ? el('span', {class: 'muted'}, ', ' + view.inForce.from) : null,
-                    view.problem ? el('div', {class: 'small'}, view.problem) : null]});
-            }
-        }
-        return rows.length > 0 ? part('Lookups in force', kv(rows)) : null;
-    }
 
     const off = app.on('config', () => load());
     load();
