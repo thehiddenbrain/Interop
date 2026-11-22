@@ -19,6 +19,7 @@ import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
@@ -391,7 +392,7 @@ public class RunSupport {
      * down, which says something false about an environment no request reached.
      *
      * <p>Its words follow the cause. A setting not given, or a token endpoint that refused the
-     * client, is the tester's configuration, with the Config tab as the way on; a token endpoint
+     * client, is the tester's configuration, with Configuration as the way on; a token endpoint
      * that could not be reached, failed or gave no usable token is a fault in the environment at the
      * token endpoint. Neither draws an address called: nothing reached the service.
      *
@@ -402,10 +403,16 @@ public class RunSupport {
                                           RunRequest request) {
         boolean endpoint = exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT;
         String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
-        NextStepView step = endpoint
+        String ownTokenUrl = environmentTokenUrl(call);
+        // A token url the environment states is first of all a url to check; that the sign-in
+        // service may be down is the second thing said (I-34).
+        NextStepView step = endpoint && ownTokenUrl != null
+                ? NextStepView.of(NextAction.OPEN_CONFIG, "Next: check " + checkTokenUrl(call, ownTokenUrl) + " If the url is right, the sign-in service "
+                + "may be down: try again later.", "Nothing reached the service, so this says nothing about it, the member or the code.")
+                : endpoint
                 ? NextStepView.of(NextAction.CHECK_ENVIRONMENT, "Next: check the token endpoint, then send again.",
                 "Nothing reached the service, so this says nothing about it, the member or the code. The token endpoint is "
-                        + "onyx.auth.token-url on the Config tab.")
+                        + "onyx.auth.token-url, as PAVE was started.")
                 : NextStepView.of(NextAction.OPEN_CONFIG, "Next: correct the sign-in settings, then send again.",
                 "Nothing reached the service, so this says nothing about it, the member or the code. The line above says which "
                         + "setting, or which answer of the token endpoint, stopped it.");
@@ -433,7 +440,7 @@ public class RunSupport {
                         "Nothing was sent, so there is nothing to compare with what was expected."))
                 .nextStep(step)
                 .wire(new WireView(exchange.request(), null, memberId))
-                .error(notSignedInError(exchange, call.signIn() != null))
+                .error(notSignedInError(exchange, call.signIn() != null, ownTokenUrl == null ? null : checkTokenUrl(call, ownTokenUrl)))
                 .ledger(receipt)
                 .build();
     }
@@ -449,6 +456,25 @@ public class RunSupport {
                 : "Correct the sign-in settings on the Config tab: nothing was sent.";
     }
 
+    /**
+     * The token url the call signed in at when the active environment's Sign-in states it, as
+     * stored with credentials masked, or null when onyx.auth applied or the gateway is not at hand.
+     */
+    private String environmentTokenUrl(PreparedCall call) {
+        if (call.signIn() == null || call.signIn().method() != org.p32h.interop.epa.pave.service.config.SignInSettings.Method.CLIENT_CREDENTIALS) {
+            return null;
+        }
+        org.p32h.interop.epa.pave.service.config.OperationGateway known = gatewayOrNull();
+        return known == null ? null : known.activeTokenUrlShown();
+    }
+
+    /** The environment's token url in words, with the place it is set and the url itself, to follow "check". */
+    private static String checkTokenUrl(PreparedCall call, String tokenUrl) {
+        String name = call.environment() == null ? null : org.p32h.interop.epa.pave.postman.Names.shown(call.environment().name());
+        return "the token url of the environment" + (Texts.present(name) ? " " + name : "") + ", set in Configuration > "
+                + "Environments > Sign-in: " + tokenUrl + ".";
+    }
+
     /** True when an exchange is a call this tool did not send because it could not sign in. */
     public static boolean notSignedIn(VendorExchange exchange) {
         return exchange != null && (exchange.failureType() == OnyxFailureType.NOT_SIGNED_IN
@@ -457,22 +483,29 @@ public class RunSupport {
 
     /** The error panel of a call that was not signed in for: the tester's settings, or the token endpoint. */
     private static ErrorView notSignedInError(VendorExchange exchange) {
-        return notSignedInError(exchange, false);
+        return notSignedInError(exchange, false, null);
     }
 
-    /** @param environmentSignIn true when the call signed in as its environment's settings state, not by onyx.auth */
-    private static ErrorView notSignedInError(VendorExchange exchange, boolean environmentSignIn) {
+    /**
+     * @param environmentSignIn true when the call signed in as its environment's settings state, not by onyx.auth
+     * @param checkTokenUrl     the environment's own token url in words, or null when onyx.auth applied
+     */
+    private static ErrorView notSignedInError(VendorExchange exchange, boolean environmentSignIn, String checkTokenUrl) {
         String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
         if (exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT) {
             // UNREACHABLE is the panel's kind for an environment to report; the heading and the detail say it was the token endpoint.
-            return ErrorView.of(ErrorKind.UNREACHABLE, detail, "Note the time and the run id and report it to the people who look after "
-                    + "the token endpoint. Try again later.").withHeading("Not sent: the token endpoint gave no access token");
+            String action = checkTokenUrl != null
+                    ? "Check " + checkTokenUrl + " If the url is right, the sign-in service "
+                    + "may be down: note the time and the run id, report it to the people who look after the token endpoint, and try "
+                    + "again later."
+                    : "Note the time and the run id and report it to the people who look after the token endpoint. Try again later.";
+            return ErrorView.of(ErrorKind.UNREACHABLE, detail, action).withHeading("Not sent: the token endpoint gave no access token");
         }
         return ErrorView.of(ErrorKind.CONFIGURATION, detail, environmentSignIn
                         ? "Check the sign-in of the active environment in Configuration > Environments: its token url, client id and "
                         + "client secret, or its bearer token, and the variables they name."
-                        : "Check onyx.auth.token-url, onyx.auth.client-id and onyx.auth.client-secret, and the variables of the active "
-                        + "environment they name.")
+                        : "Check onyx.auth.token-url, onyx.auth.client-id and onyx.auth.client-secret, as PAVE was started, and the "
+                        + "variables of the active environment they name.")
                 .withHeading("Not sent: this tool could not sign in");
     }
 
@@ -544,8 +577,8 @@ public class RunSupport {
                             + "own. Its sign-in is chosen in Configuration > Environments.", step.carry(), step.carryLabels());
         }
         return new NextStepView(NextAction.OPEN_CONFIG, "Next: switch signing in on, then send again.",
-                "This tool sent no Authorization header: signing in is off and the request carried none of its own. Ready to send, on "
-                        + "the Config tab, gives the start-up arguments that switch it on.", step.carry(), step.carryLabels());
+                "This tool sent no Authorization header: signing in is off and the request carried none of its own. Choose a sign-in "
+                        + "for the environment under Sign-in in Configuration > Environments.", step.carry(), step.carryLabels());
     }
 
     /** True when a result is the one {@link #blocked} builds, which a controller answers with 403. */
@@ -719,17 +752,19 @@ public class RunSupport {
                             + "wire view."
                             : (code == 401 || code == 403) && sentWithoutSignIn(exchange)
                             ? "This tool sent no Authorization header: signing in is off (onyx.auth.enabled is false) and the request "
-                            + "carried none of its own. Ready to send, on the Config tab, says how to switch signing in on. The request "
-                            + "that was sent is in the wire view."
+                            + "carried none of its own. Choose a sign-in for the environment under Sign-in in Configuration > Environments. "
+                            + "The request that was sent is in the wire view."
                             : (code == 401 || code == 403) && carriedAuthorization(exchange)
                             ? "This status means the service did not accept the credentials this tool sent. Check the client id, the "
-                            + "secret and the token url on the Config tab. The request that was sent is in the wire view."
+                            + "secret and the token url under Sign-in in Configuration > Environments. The request that was sent is in the "
+                            + "wire view."
                             : code == 401 || code == 403
                             ? "This status means credentials were wanted, and the request as sent carried no Authorization header. "
-                            + "Check the sign-in settings on the Config tab. The request that was sent is in the wire view."
+                            + "Check the sign-in under Sign-in in Configuration > Environments. The request that was sent is in the wire "
+                            + "view."
                             : code == 404
-                            ? "This status usually means the url or the service id is wrong. Check it on the Config tab. The request "
-                            + "that was sent is in the wire view."
+                            ? "This status usually means the url or the service id is wrong. Check it under Addresses in Configuration > "
+                            + "Environments. The request that was sent is in the wire view."
                             : "Read the issues it returned, correct the request and send again. The request that was sent is in the "
                             + "wire view.");
             case SERVER_ERROR -> ErrorView.of(ErrorKind.VENDOR_ERROR, "The service failed" + status + ".",
@@ -752,7 +787,8 @@ public class RunSupport {
                     "The service may be slow or down. If it repeats, report the environment. The next step says whether to send again.");
             case UNAVAILABLE -> ErrorView.of(ErrorKind.UNREACHABLE,
                     Texts.orElse(exchange.failureDetail(), "The service could not be reached."),
-                    "Check the url on the Config tab, the network and any proxy or trust store settings.");
+                    "Check the address under Addresses in Configuration > Environments, the network and any proxy or trust store "
+                            + "settings.");
             // A run never reaches this: each service returns notSignedIn first. The case keeps the switch exhaustive.
             case NOT_SIGNED_IN, TOKEN_ENDPOINT_FAULT -> notSignedInError(exchange);
             case MALFORMED_RESPONSE -> exchange.responseBody() == null
@@ -772,7 +808,35 @@ public class RunSupport {
         if (epa.mock() && failure != OnyxFailureType.TIMEOUT) {
             view = played(view, failure, code, exchange);
         }
-        return view.withHttpStatus(exchange.httpStatus()).withIssues(issues == null ? List.of() : issues);
+        List<IssueView> said = issues == null || issues.isEmpty() ? serviceRefusal(exchange) : issues;
+        return view.withHttpStatus(exchange.httpStatus()).withIssues(said);
+    }
+
+    /**
+     * A refusal a CDS service states in its own error object, {@code summary} and {@code detail}
+     * (CDS Hooks 2.0, section on errors), as one issue, so that the result says what the service
+     * said as it does for an OperationOutcome (plan 3.2). Read from the body with every secret
+     * this tool sent masked, as the wire view shows it. It is the service's own text, never an
+     * exception message of this tool, and it is never logged. Empty for any other body.
+     */
+    private static List<IssueView> serviceRefusal(VendorExchange exchange) {
+        OnyxFailureType failure = exchange.failureType();
+        if (failure != OnyxFailureType.BAD_REQUEST && failure != OnyxFailureType.SERVER_ERROR) {
+            return List.of();
+        }
+        tools.jackson.databind.JsonNode body = exchange.withReturnedSecretsMasked().json();
+        if (body == null || !body.isObject() || JsonSafe.presentText(body, "resourceType") != null) {
+            return List.of();
+        }
+        String summary = JsonSafe.presentText(body, "summary");
+        String detail = JsonSafe.presentText(body, "detail");
+        if (summary == null && detail == null) {
+            return List.of();
+        }
+        String diagnostics = summary != null && detail != null ? summary + ": " + detail : summary != null ? summary : detail;
+        return List.of(new IssueView(org.p32h.interop.epa.pave.model.Shown.of("error"), org.p32h.interop.epa.pave.model.Shown.of("processing"),
+                org.p32h.interop.epa.pave.model.Shown.of(diagnostics), org.p32h.interop.epa.pave.model.Shown.absent(), List.of(),
+                List.of(), List.of()));
     }
 
     /** The heading of a rejection a mock scenario played. */

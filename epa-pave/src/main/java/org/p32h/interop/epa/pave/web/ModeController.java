@@ -46,8 +46,12 @@ public class ModeController {
     @GetMapping
     public ModeView mode(HttpServletRequest http) {
         return new ModeView(epa.name(), epa.version(), port(), epa.mode(), epa.target(), gateway.activeEnvironment(), gateway.epoch(),
-                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()), build(), signIn());
+                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()), build(), signIn(), STARTED_AT);
     }
+
+    /** When this process started, read once: a restart is a new process, and nothing else moves it (I-13). */
+    private static final String STARTED_AT = java.time.Instant.ofEpochMilli(
+            java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime()).toString();
 
     /**
      * The sign-in state under the active environment's own sign-in, read from the store on every

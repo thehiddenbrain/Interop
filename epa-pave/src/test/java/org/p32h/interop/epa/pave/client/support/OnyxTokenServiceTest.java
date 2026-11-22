@@ -148,7 +148,7 @@ class OnyxTokenServiceTest {
                 .contains("placeholder");
         assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL, "client-id", "{{clientId}}", "client-secret", "{{undefinedSecret}}"))
                 .token().failure()).contains("Authentication is switched on but onyx.auth.client-secret is not set, or a placeholder the active "
-                + "environment does not define. Ready to send, on the Config tab, says where it reads from.");
+                + "environment does not define. Configuration > Advanced > In force now says where it is read from.");
         // The setting that is missing is the one named.
         assertThat(service(Map.of("enabled", "true", "token-url", TOKEN_URL, "client-secret", "b")).token().failure())
                 .contains("but onyx.auth.client-id is not set");

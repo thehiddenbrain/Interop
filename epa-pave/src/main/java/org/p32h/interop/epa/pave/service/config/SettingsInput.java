@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.RequestShape;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.postman.LiteralCredentials;
+import org.p32h.interop.epa.pave.postman.UrlNormal;
 import org.p32h.interop.epa.pave.service.config.SettingsViews.EnvironmentSettingsInput;
 import org.p32h.interop.epa.pave.service.config.SettingsViews.SignInInput;
 import org.p32h.interop.epa.pave.service.config.SettingsViews.TimeoutsInput;
@@ -44,6 +45,9 @@ final class SettingsInput {
             }
             if (Texts.present(signIn.tokenUrl()) && !LiteralCredentials.inUrl(signIn.tokenUrl().strip()).none()) {
                 errors.add(new FieldError("signIn.tokenUrl", CREDENTIAL_IN_URL));
+            } else if (Texts.present(signIn.tokenUrl()) && UrlNormal.escapeOfEscape(signIn.tokenUrl())) {
+                // A token url is held against the production addresses as an address is (I-28, I-29).
+                errors.add(new FieldError("signIn.tokenUrl", UrlNormal.NO_ESCAPE_OF_AN_ESCAPE));
             }
         }
         TimeoutsInput timeouts = input.timeouts();
@@ -61,6 +65,9 @@ final class SettingsInput {
                     errors.add(new FieldError(field, "An address is an absolute http or https url, or starts with {{."));
                 } else if (Texts.present(address) && !LiteralCredentials.inUrl(address.strip()).none()) {
                     errors.add(new FieldError(field, CREDENTIAL_IN_URL));
+                } else if (Texts.present(address) && UrlNormal.escapeOfEscape(address)) {
+                    // Compared with production as a server reads it, decoded once (I-29).
+                    errors.add(new FieldError(field, UrlNormal.NO_ESCAPE_OF_AN_ESCAPE));
                 }
             });
         }

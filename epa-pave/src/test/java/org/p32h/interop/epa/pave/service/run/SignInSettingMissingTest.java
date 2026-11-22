@@ -60,7 +60,7 @@ class SignInSettingMissingTest {
         assertThat(answer.at("/verdict/headline").asString()).isEqualTo("Nothing was sent: this tool could not sign in.");
         // The line names the setting, so the next step's "the line above says which setting" is true.
         assertThat(answer.at("/verdict/supporting/0").asString()).isEqualTo("Authentication is switched on but onyx.auth.client-secret is not "
-                + "set, or a placeholder the active environment does not define. Ready to send, on the Config tab, says where it reads from. "
+                + "set, or a placeholder the active environment does not define. Configuration > Advanced > In force now says where it is read from. "
                 + "The request was not sent.");
         assertThat(answer.at("/error/kind").asString()).isEqualTo("CONFIGURATION");
         assertThat(answer.at("/error/heading").asString()).isEqualTo("Not sent: this tool could not sign in");
