@@ -308,7 +308,8 @@ public class PasService {
         }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
-        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
+        // A timeout is worded from the read timeout this call ran under, which the environment may set.
+        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues(), call) : null;
 
         Map<String, String> correlation = new LinkedHashMap<>(known);
         if (Texts.present(reading.claimResponseId())) {
