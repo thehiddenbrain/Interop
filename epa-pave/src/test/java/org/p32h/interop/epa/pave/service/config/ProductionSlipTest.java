@@ -1,0 +1,138 @@
+package org.p32h.interop.epa.pave.service.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * An environment uploaded as prod by a slip of the mouse, and removed, leaves its addresses
+ * production for good (files hunt, failure 2). The refusal of a later sandbox or uat upload says
+ * so in true words (R-35): the address is remembered from a removed environment, and the way to
+ * forget it, should the prod upload have been the mistake, is given in full and works. While an
+ * environment that made the address production is still stored, the refusal keeps its words.
+ */
+class ProductionSlipTest {
+
+    private static final String SLIPPED = "Vendor Sandbox (Postman 11)";
+    private static final String ADDRESS = "https://sandbox.vendor.example.invalid/fhir/r4";
+
+    @TempDir
+    Path directory;
+
+    private static byte[] environment(String name, String baseUrl) {
+        return ("{\"name\": \"" + name + "\", \"values\": [{\"key\": \"baseUrl\", \"value\": \"" + baseUrl + "\", \"enabled\": true}]}")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static void upload(ConfigFixture fixture, String name, String baseUrl, EnvironmentKind kind) {
+        fixture.store.uploadEnvironment(name + ".json", environment(name, baseUrl), kind, true);
+    }
+
+    /** What the refusal's way out asks the tester to do with PAVE stopped: take out the entries remembered from that environment. */
+    private void forget(String environment) throws IOException {
+        Path state = directory.resolve(ConfigStore.STATE_FILE);
+        ObjectNode root = (ObjectNode) JsonSafe.mapper().readTree(Files.readString(state));
+        ArrayNode kept = JsonSafe.mapper().createArrayNode();
+        for (JsonNode entry : JsonSafe.elements(root, "productionDestinations")) {
+            if (!environment.equals(JsonSafe.presentText(entry, "environment"))) {
+                kept.add(entry);
+            }
+        }
+        root.set("productionDestinations", kept);
+        Files.writeString(state, JsonSafe.pretty(root));
+    }
+
+    @Test
+    void aSlipToProdThatWasRemovedIsNamedAsSuchAndTheWayOutItGivesWorks() throws IOException {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        upload(fixture, SLIPPED, ADDRESS, EnvironmentKind.PROD);
+        fixture.store.removeEnvironment(SLIPPED);
+        // A restart keeps the address production: it is read back from store.json.
+        ConfigFixture restarted = ConfigFixture.mock(directory);
+
+        for (EnvironmentKind kind : new EnvironmentKind[] {EnvironmentKind.SANDBOX, EnvironmentKind.UAT}) {
+            assertThatThrownBy(() -> upload(restarted, SLIPPED, ADDRESS, kind)).isInstanceOfSatisfying(ValidationException.class, e -> {
+                assertThat(e).hasMessage("This environment was declared as " + kind.wire() + ", and its address " + ADDRESS + " is an "
+                        + "address remembered as production from the removed environment \"" + SLIPPED + "\", or lies above or beneath "
+                        + "one. It was not stored.");
+                assertThat(e.fieldErrors()).singleElement().satisfies(note -> {
+                    assertThat(note.field()).isEqualTo("kind");
+                    assertThat(note.message()).isEqualTo("If \"" + SLIPPED + "\" was uploaded as prod by mistake: stop PAVE, delete the "
+                            + "entries whose environment is \"" + SLIPPED + "\" from productionDestinations in "
+                            + directory.resolve(ConfigStore.STATE_FILE) + ", start PAVE again and upload this environment again. "
+                            + "Otherwise the address stays production: if this environment is production, upload it with the kind prod, "
+                            + "and if it is not, point its variables at the " + kind.wire() + " service and upload it again.");
+                });
+            });
+        }
+        assertThat(restarted.store.snapshot().environments()).isEmpty();
+
+        // The way out, followed as written: PAVE stopped, the entries taken out, PAVE started again.
+        forget(SLIPPED);
+        ConfigFixture afterwards = ConfigFixture.mock(directory);
+        upload(afterwards, SLIPPED, ADDRESS, EnvironmentKind.SANDBOX);
+        assertThat(afterwards.store.snapshot().byName(SLIPPED).kind()).isEqualTo(EnvironmentKind.SANDBOX);
+    }
+
+    @Test
+    void whileTheProductionEnvironmentIsStoredTheRefusalKeepsItsWords() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        upload(fixture, SLIPPED, ADDRESS, EnvironmentKind.PROD);
+
+        // Not removed: the guardrail never forgets an address of a stored prod environment, and offers no way to.
+        assertThatThrownBy(() -> upload(fixture, "Vendor Sandbox Copy", ADDRESS, EnvironmentKind.SANDBOX))
+                .isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e).hasMessage("This environment was declared as sandbox, and its address " + ADDRESS + " is an address of "
+                            + "the production environment \"" + SLIPPED + "\", or lies above or beneath one. It was not stored.");
+                    assertThat(e.fieldErrors().get(0).message()).isEqualTo("An address that this installation knows as production stays "
+                            + "production, even after its environment is deleted. If this environment is production, upload it with the "
+                            + "kind prod. If it is not, point its variables at the sandbox service and upload it again.");
+                });
+    }
+
+    @Test
+    void anAddressAlsoHeldByAStoredProductionEnvironmentIsNotOfferedToBeForgotten() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        upload(fixture, "Payer Live A", ADDRESS, EnvironmentKind.PROD);
+        upload(fixture, "Payer Live B", ADDRESS, EnvironmentKind.PROD);
+        fixture.store.removeEnvironment("Payer Live A");
+
+        assertThatThrownBy(() -> upload(fixture, "Vendor Sandbox Copy", ADDRESS, EnvironmentKind.SANDBOX))
+                .isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e.getMessage()).contains("is an address of the production environments \"Payer Live A\" and \"Payer Live B\"")
+                            .doesNotContain("removed");
+                    assertThat(e.fieldErrors().get(0).message()).startsWith("An address that this installation knows as production stays "
+                            + "production").doesNotContain("productionDestinations");
+                });
+    }
+
+    @Test
+    void addressesRememberedFromTwoRemovedEnvironmentsNameBoth() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        upload(fixture, "Payer Live A", ADDRESS, EnvironmentKind.PROD);
+        upload(fixture, "Payer Live B", ADDRESS, EnvironmentKind.PROD);
+        fixture.store.removeEnvironment("Payer Live A");
+        fixture.store.removeEnvironment("Payer Live B");
+
+        assertThatThrownBy(() -> upload(fixture, "Vendor Sandbox Copy", ADDRESS, EnvironmentKind.SANDBOX))
+                .isInstanceOfSatisfying(ValidationException.class, e -> {
+                    assertThat(e.getMessage()).contains("is an address remembered as production from the removed environments "
+                            + "\"Payer Live A\" and \"Payer Live B\", or lies above or beneath one.");
+                    assertThat(e.fieldErrors().get(0).message()).startsWith("If \"Payer Live A\" and \"Payer Live B\" were uploaded as prod "
+                            + "by mistake: stop PAVE, delete the entries whose environment is \"Payer Live A\" or \"Payer Live B\" from "
+                            + "productionDestinations in ");
+                });
+    }
+}

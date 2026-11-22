@@ -5,12 +5,17 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.DosFileAttributes;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -86,6 +91,120 @@ public class ConfigStore {
     static final String COLLECTIONS = "collections";
     private static final int STATE_VERSION = 1;
     private static final String TEMP_MARK = ".tmp-";
+    /**
+     * How long a replace that was refused is tried again. A virus scanner, an indexer or a sync
+     * client on Windows holds a file it has just seen for moments, and a refusal it causes is gone
+     * well within a second.
+     */
+    static final long REPLACE_RETRY_MILLIS = 1000;
+    static final long REPLACE_RETRY_STEP_MILLIS = 100;
+    /**
+     * Room a file system needs beyond the bytes of a file, for its directory entry and blocks. A
+     * write that failed with less than this free beside the bytes failed for want of space.
+     */
+    static final long SPACE_MARGIN_BYTES = 64 * 1024;
+
+    /**
+     * The file system calls whose failures this store tells apart, behind one seam. Windows alone
+     * refuses to replace a file marked read-only or one another program holds open, and a full disk
+     * cannot be made where the tests run, so a test stands in for these calls to make each of those
+     * failures happen on any machine. Everything else the store does goes to the file system directly.
+     */
+    interface Disk {
+
+        /** Writes the bytes to a new file, created for the owner alone, and forces them to the disk. */
+        void writeNew(Path file, byte[] bytes) throws IOException;
+
+        /** Puts the file in place of the target, in one step where the file system allows it. */
+        void replace(Path file, Path target) throws IOException;
+
+        /** True when the file carries the read-only attribute of Windows. False where there is none, or it cannot be read. */
+        boolean readOnly(Path file);
+
+        /** Takes that attribute off the file. False when it could not be taken off. */
+        boolean clearReadOnly(Path file);
+
+        /** The bytes this account may still write on the disk that holds the folder, or -1 when that cannot be read. */
+        long usableSpace(Path folder);
+
+        /** True where a file another program holds open cannot be replaced, which is Windows. */
+        boolean locksFiles();
+
+        /** Waits between two attempts to replace a file. */
+        void pause(long millis);
+    }
+
+    /** The file system itself. */
+    static final Disk SYSTEM_DISK = new SystemDisk();
+
+    private static final class SystemDisk implements Disk {
+
+        @Override
+        public void writeNew(Path file, byte[] bytes) throws IOException {
+            // Created for the owner alone where the file system has owners: an environment file can hold a client secret.
+            try (FileChannel channel = FileChannel.open(file, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                    OwnerOnly.file())) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+                channel.force(true);
+            }
+        }
+
+        @Override
+        public void replace(Path file, Path target) throws IOException {
+            try {
+                Files.move(file, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(file, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+
+        @Override
+        public boolean readOnly(Path file) {
+            try {
+                return Files.readAttributes(file, DosFileAttributes.class).isReadOnly();
+            } catch (IOException | RuntimeException e) {
+                // No such attribute here, or the file is gone: either way nothing marks it read-only.
+                return false;
+            }
+        }
+
+        @Override
+        public boolean clearReadOnly(Path file) {
+            try {
+                Files.setAttribute(file, "dos:readonly", false);
+                return true;
+            } catch (IOException | RuntimeException e) {
+                return false;
+            }
+        }
+
+        @Override
+        public long usableSpace(Path folder) {
+            try {
+                return Files.getFileStore(folder).getUsableSpace();
+            } catch (IOException | RuntimeException e) {
+                return -1;
+            }
+        }
+
+        @Override
+        public boolean locksFiles() {
+            return System.getProperty("os.name", "").startsWith("Windows");
+        }
+
+        @Override
+        public void pause(long millis) {
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                // A stop is under way: the attempts that are left run at once, and the failure is reported as it stands.
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
 
     /**
      * What an environment upload did.
@@ -133,6 +252,7 @@ public class ConfigStore {
     /** The {@code onyx.variables} of application.yml, through which the addresses of an environment are read as well. */
     private final Map<String, String> applicationYml;
     private final Path directory;
+    private final Disk disk;
     /** Files that were in the two upload directories at startup and that the state file did not name. */
     private final List<Path> strays;
     private volatile ConfigSnapshot current;
@@ -152,8 +272,14 @@ public class ConfigStore {
      */
     @org.springframework.beans.factory.annotation.Autowired
     public ConfigStore(ConfigStoreProperties properties, org.p32h.interop.epa.pave.config.OnyxProperties onyx, Clock clock) {
+        this(properties, onyx, clock, SYSTEM_DISK);
+    }
+
+    /** As the application's constructor, with the file system calls a test stands in for. */
+    ConfigStore(ConfigStoreProperties properties, org.p32h.interop.epa.pave.config.OnyxProperties onyx, Clock clock, Disk disk) {
         this.properties = properties;
         this.clock = clock;
+        this.disk = disk;
         this.applicationYml = onyx == null ? Map.of() : onyx.variables();
         if (Texts.blank(properties.directory())) {
             throw new IllegalStateException("config-store.directory is blank. Set it to the directory uploaded Postman files are kept in.");
@@ -562,8 +688,15 @@ public class ConfigStore {
      * through: production uploaded again under a sandbox's kind, or under the same name after a
      * delete, is the mistake the write guardrail cannot recover from. Declaring it production is
      * the way through.
+     *
+     * <p>When no environment that made the address production is stored any more, the refusal says
+     * that the address is remembered from a removed environment, and how to forget it. An
+     * environment uploaded as prod by a slip and then removed leaves its addresses refused for
+     * good, and the one way out the refusal used to give, pointing the variables at the sandbox,
+     * cannot work when they point there already (R-35). Nothing is forgotten here: the way out is
+     * the tester's own edit, made with PAVE stopped.
      */
-    private static void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
+    private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
         ProductionDestinations.Found quoted = null;
         for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, before.context())) {
@@ -580,29 +713,46 @@ public class ConfigStore {
         // The address is quoted only when no secret is part of it, and only as far as the first secret.
         // One the client cannot read is quoted as the file writes it, since this tool's own
         // reading of it is not an address the file holds.
-        String production = "production environment" + (owners.size() > 1 ? "s " : " ") + named;
+        boolean several = owners.size() > 1;
+        String production = "production environment" + (several ? "s " : " ") + named;
+        // An owner that is no longer stored is known only as a name the store remembers the address by.
+        boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
+        String fromRemoved = "remembered as production from the removed environment" + (several ? "s " : " ") + named;
+        String anAddressOf = removed ? "an address " + fromRemoved : "an address of the " + production;
         ProductionDestinations.Found shown = quoted;
         String said;
         if (shown == null) {
-            said = "one of its addresses is an address of the " + production + ", or lies above or beneath one.";
+            said = "one of its addresses is " + anAddressOf + ", or lies above or beneath one.";
         } else if (!shown.destination().readable() && shown.written() != null) {
             said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + quoted(shown.variable())
-                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
-                    + production + ", or lies above or beneath one.";
+                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is " + anAddressOf
+                    + ", or lies above or beneath one.";
         } else if (before.remembered().stream().anyMatch(known -> known.destination().everyPortAndPath()
                 && known.destination().covers(shown.destination()))) {
-            said = "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
+            said = removed ? "its address " + oneLine(shown.destination().shown()) + " is on a host " + fromRemoved + ". "
+                    + (several ? "One of them" : "That environment") + " had an address this tool cannot read the way the HTTP client "
+                    + "reads it, so every port and every path of its host is taken as production."
+                    : "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
                     + "production environment has an address this tool cannot read the way the HTTP client reads it, so every port and "
                     + "every path of its host is taken as production.";
         } else {
-            said = "its address " + oneLine(shown.destination().shown()) + " is an address of the " + production
-                    + ", or lies above or beneath one.";
+            said = "its address " + oneLine(shown.destination().shown()) + " is " + anAddressOf + ", or lies above or beneath one.";
+        }
+        String note = "An address that this installation knows as production stays production, even after its environment is deleted. "
+                + "If this environment is production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
+                + " service and upload it again.";
+        if (removed) {
+            // The store keeps no way to forget an address while it runs, so the way out is the
+            // one that works: the remembered entries taken out of store.json while PAVE is stopped.
+            String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+            note = "If " + named + (several ? " were" : " was") + " uploaded as prod by mistake: stop PAVE, delete the entries whose "
+                    + "environment is " + entries + " from productionDestinations in " + directory.resolve(STATE_FILE) + ", start PAVE "
+                    + "again and upload this environment again. Otherwise the address stays production: if this environment is "
+                    + "production, upload it with the kind prod, and if it is not, point its variables at the " + kind.wire()
+                    + " service and upload it again.";
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
-                List.of(new FieldError("kind", "An address that this "
-                + "installation knows as production stays production, even after its environment is deleted. If this environment is "
-                + "production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
-                + " service and upload it again.")));
+                List.of(new FieldError("kind", note)));
     }
 
     /**
@@ -811,6 +961,7 @@ public class ConfigStore {
      */
     private List<String> commit(ConfigSnapshot next, String newFile, String oldFile) {
         try {
+            refuseMissingFiles(next);
             writeAtomically(directory.resolve(STATE_FILE), stateJson(next).getBytes(StandardCharsets.UTF_8));
         } catch (ConfigStoreException e) {
             if (newFile != null && !newFile.equals(oldFile)) {
@@ -828,29 +979,158 @@ public class ConfigStore {
         return warnings;
     }
 
-    private void writeAtomically(Path target, byte[] bytes) {
-        Path temporary = target.resolveSibling(target.getFileName() + TEMP_MARK + UUID.randomUUID());
+    /**
+     * Refuses a change when a file the new state would name is not on disk. A store.json that
+     * names a missing file stops the next start, so it is never written: the store folder changed
+     * under the running tool, as a clean-up, a scanner or a second copy of the tool on the same
+     * folder changes it, and memory no longer says what is there.
+     */
+    private void refuseMissingFiles(ConfigSnapshot next) {
+        int missing = 0;
+        for (StoredEnvironment environment : next.environments()) {
+            missing += Files.isRegularFile(directory.resolve(environment.file())) ? 0 : 1;
+        }
+        for (StoredCollection collection : next.collections()) {
+            missing += Files.isRegularFile(directory.resolve(collection.file())) ? 0 : 1;
+        }
+        if (missing == 0) {
+            return;
+        }
+        // The folder and a count. Never a name from an uploaded file.
+        log.error("The configuration store at {} is missing {} of the files it names, so the change was refused", directory, missing);
+        String files = missing == 1 ? "1 stored file is missing" : missing + " stored files are missing";
+        // A start reads store.json as it lies on disk. Where that still names a missing file, a
+        // restart is refused as well, so the sentence says what does work.
+        String what = startRefused() ? (missing == 1 ? "Put it back" : "Put them back") + " and try again, or stop PAVE, move the folder "
+                + "aside and start PAVE again with an empty store." : "Stop PAVE and start it again.";
+        throw ConfigStoreException.ofThisComputer("The configuration store folder " + directory + " changed while PAVE ran: " + files + ". "
+                + what, null);
+    }
+
+    /**
+     * True when a start would refuse store.json as it lies on disk now: it cannot be read, or it
+     * names a file that is not there. False when there is no store.json, since a start then opens
+     * an empty store, and when every file it names is there.
+     */
+    private boolean startRefused() {
+        Path state = directory.resolve(STATE_FILE);
+        if (!Files.exists(state)) {
+            return false;
+        }
         try {
-            // Created for the owner alone where the file system has owners: an environment file can hold a client secret.
-            try (FileChannel channel = FileChannel.open(temporary, Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                    OwnerOnly.file())) {
-                ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                while (buffer.hasRemaining()) {
-                    channel.write(buffer);
+            JsonSafe.Parsed parsed = JsonSafe.parse(read(state));
+            if (!parsed.ok() || !JsonSafe.isObject(parsed.node())) {
+                return true;
+            }
+            for (String list : List.of("environments", "collections")) {
+                for (JsonNode entry : JsonSafe.elements(parsed.node(), list)) {
+                    String file = JsonSafe.presentText(entry, "file");
+                    Path named = file == null ? null : directory.resolve(file).normalize();
+                    if (named == null || !named.startsWith(directory) || !Files.isRegularFile(named)) {
+                        return true;
+                    }
                 }
-                channel.force(true);
             }
-            try {
-                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-            }
+            return false;
+        } catch (RuntimeException e) {
+            // Unreadable, or a path that cannot be used: a start refuses both.
+            return true;
+        }
+    }
+
+    /**
+     * Writes a file of the store to a temporary name and moves it into place. A failure whose cause
+     * lies with this computer's files is named as such, with what to do about it: a disk that is
+     * full, a file marked read-only that could not be cleared, a file another program kept open.
+     * Any other failure keeps the general sentence, so that nothing is named that was not seen.
+     */
+    private void writeAtomically(Path target, byte[] bytes) {
+        Path folder = target.getParent();
+        Path temporary = target.resolveSibling(target.getFileName() + TEMP_MARK + UUID.randomUUID());
+        boolean written = false;
+        try {
+            // A folder removed while the tool runs, by a clean-up or by hand, is made again, so the
+            // next save works without a restart. Whether the files it held are still there is the
+            // commit's question.
+            Files.createDirectories(folder, OwnerOnly.directory());
+            disk.writeNew(temporary, bytes);
+            written = true;
+            replace(temporary, target);
+        } catch (ConfigStoreException e) {
+            deleteQuietly(temporary);
+            throw e;
         } catch (IOException | RuntimeException e) {
             deleteQuietly(temporary);
+            if (!written && noRoom(folder, bytes.length)) {
+                // The folder and the type of the failure. Never content.
+                log.error("The configuration store could not write {}: the disk is full ({})", target, e.getClass().getSimpleName());
+                throw ConfigStoreException.ofThisComputer("The disk that holds " + folder + " is full. Free some space, then try again. "
+                        + "Nothing was changed.", e);
+            }
             // The path and the type of the failure. Never content.
             log.error("The configuration store could not write {} ({})", target, e.getClass().getSimpleName());
             throw new ConfigStoreException("The configuration store could not write " + target + ". Nothing was changed. Check that "
                     + "the directory exists, is writable and has free space.", e);
+        }
+    }
+
+    /** True when the disk that holds the folder has too little room left for these bytes. The space is read after the failure, not guessed. */
+    private boolean noRoom(Path folder, int length) {
+        long usable = disk.usableSpace(folder);
+        return usable >= 0 && usable < length + SPACE_MARGIN_BYTES;
+    }
+
+    /**
+     * Puts the written file in place of the target. Windows refuses to replace a file marked
+     * read-only and one another program holds open, and both are common on a workstation: a sync
+     * or copy tool sets the attribute, a scanner or an indexer opens what was just written. The
+     * attribute is cleared once, since the file is the store's own, and a refusal that may be a
+     * lock is tried again for about a second before it is reported.
+     */
+    private void replace(Path temporary, Path target) throws IOException {
+        boolean clearedOnce = false;
+        long waited = 0;
+        while (true) {
+            FileSystemException refused;
+            try {
+                disk.replace(temporary, target);
+                return;
+            } catch (NoSuchFileException | FileAlreadyExistsException | DirectoryNotEmptyException e) {
+                // A folder that went away, or something other than a file in the way: no attribute and no lock.
+                throw e;
+            } catch (FileSystemException e) {
+                refused = e;
+            }
+            boolean readOnly = disk.readOnly(target);
+            if (readOnly && !clearedOnce) {
+                clearedOnce = true;
+                if (disk.clearReadOnly(target)) {
+                    // The path only.
+                    log.warn("The configuration store took the read-only attribute off {} to replace it", target);
+                    continue;
+                }
+            }
+            if (readOnly) {
+                // The path and the type of the failure. Never content.
+                log.error("The configuration store could not write {}: it is marked read-only ({})", target,
+                        refused.getClass().getSimpleName());
+                throw ConfigStoreException.ofThisComputer("The file " + target + " is marked read-only. Clear Read-only in its "
+                        + "Properties, then try again. Nothing was changed.", refused);
+            }
+            if (waited < REPLACE_RETRY_MILLIS) {
+                disk.pause(REPLACE_RETRY_STEP_MILLIS);
+                waited += REPLACE_RETRY_STEP_MILLIS;
+                continue;
+            }
+            // Elsewhere an open file does not stop a replace, so a refusal there is not called a lock.
+            if (disk.locksFiles() && Files.exists(target)) {
+                // The path and the type of the failure. Never content.
+                log.error("The configuration store could not write {}: another program holds it open ({})", target,
+                        refused.getClass().getSimpleName());
+                throw ConfigStoreException.ofThisComputer("The file " + target + " is in use by another program (a sync or backup "
+                        + "client, a virus scanner, an editor). Close it or wait, then try again. Nothing was changed.", refused);
+            }
+            throw refused;
         }
     }
 
@@ -865,7 +1145,8 @@ public class ConfigStore {
         }
     }
 
-    private static String stateJson(ConfigSnapshot snapshot) {
+    /** The text of store.json for a snapshot. Every character outside ASCII is written as its escape, see {@link #asciiOnly}. */
+    static String stateJson(ConfigSnapshot snapshot) {
         ObjectNode root = JsonSafe.mapper().createObjectNode();
         root.put("version", STATE_VERSION);
         root.put("epoch", snapshot.epoch());
@@ -909,7 +1190,28 @@ public class ConfigStore {
                 }
             }
         }
-        return JsonSafe.pretty(root) + "\n";
+        return asciiOnly(JsonSafe.pretty(root)) + "\n";
+    }
+
+    /**
+     * JSON text with every character outside ASCII written as its escape, which JSON allows
+     * anywhere in a string; outside strings the text is ASCII already. Written as it was, a name
+     * holding half of a surrogate pair (a broken emoji) became a question mark in the file, while
+     * the uploaded file kept it, and the store refused its own files at the next start because the
+     * two names differed. Escaped, every name reads back exactly, and an editor that saves the
+     * file in another encoding cannot change one.
+     */
+    static String asciiOnly(String json) {
+        StringBuilder out = new StringBuilder(json.length());
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c < 0x80) {
+                out.append(c);
+            } else {
+                out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
+            }
+        }
+        return out.toString();
     }
 
     private static void putIfPresent(ObjectNode node, String field, String value) {
