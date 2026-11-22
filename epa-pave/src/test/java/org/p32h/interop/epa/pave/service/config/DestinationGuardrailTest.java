@@ -331,17 +331,19 @@ class DestinationGuardrailTest {
                     .getBytes(StandardCharsets.UTF_8);
             for (byte[] file : List.of(same, renamed)) {
                 for (EnvironmentKind kind : List.of(EnvironmentKind.SANDBOX, EnvironmentKind.UAT)) {
-                    // R-35: the environment the address is remembered from is named as removed, and the way to forget
-                    // the address, should it have been a slip, is the tester's own edit with PAVE stopped.
+                    // R-16: the guardrail's sentence keeps its words. R-35: the field note names the environment as no
+                    // longer stored, and the way to forget the address, should it have been a slip, is the tester's own
+                    // edit with PAVE stopped.
                     assertThatThrownBy(() -> fixture.store.uploadEnvironment("env.json", file, kind, true)).as(profile)
                             .isInstanceOfSatisfying(ValidationException.class, e -> {
                                 assertThat(e.getMessage()).isEqualTo("This environment was declared as " + kind.wire() + ", and its "
-                                        + "address " + LIVE_TWO + " is an address remembered as production from the removed environment "
-                                        + "\"vendor-live-two\", or lies above or beneath one. It was not stored.");
+                                        + "address " + LIVE_TWO + " is an address of the production environment \"vendor-live-two\", or "
+                                        + "lies above or beneath one. It was not stored.");
                                 assertThat(e.fieldErrors().get(0).field()).isEqualTo("kind");
-                                assertThat(e.fieldErrors().get(0).message()).startsWith("If \"vendor-live-two\" was uploaded as prod by "
-                                        + "mistake: stop PAVE, delete the entries whose environment is \"vendor-live-two\" from "
-                                        + "productionDestinations in " + shared.resolve(ConfigStore.STATE_FILE) + ", start PAVE again");
+                                assertThat(e.fieldErrors().get(0).message()).startsWith("\"vendor-live-two\" is no longer stored. If it "
+                                        + "was uploaded as prod by mistake, stop PAVE, delete the entries whose environment is "
+                                        + "\"vendor-live-two\" from productionDestinations in " + shared.resolve(ConfigStore.STATE_FILE)
+                                        + ", start PAVE again");
                             });
                 }
             }
