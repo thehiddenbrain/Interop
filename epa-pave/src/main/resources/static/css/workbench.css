@@ -255,3 +255,129 @@
     overflow-x: auto;
     overflow-wrap: anywhere;
 }
+
+/* A child of a fold never takes its min-content width, so a wide table or a long line scrolls in
+   its fold instead of widening the page (NEEDS from H0). */
+.fold__body > * {
+    min-width: 0;
+}
+
+/* The response detail's parts (detail.js, batch H). */
+.detail {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.detail__part {
+    display: grid;
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+}
+
+.detail__item,
+.detail__nested {
+    padding-left: var(--s-3);
+    border-left: 2px solid var(--line);
+}
+
+.detail__head,
+.detail__sub {
+    font-weight: 600;
+}
+
+/* A payer that delegates to a vendor: a callout, because the next call goes elsewhere. */
+.detail__vendor {
+    padding-left: var(--s-3);
+    border-left: 3px solid var(--action-edge);
+}
+
+.detail__text {
+    white-space: pre-wrap;
+}
+
+.detail__depth-1 > :first-child { padding-left: 12px; }
+.detail__depth-2 > :first-child { padding-left: 24px; }
+.detail__depth-3 > :first-child { padding-left: 36px; }
+.detail__depth-4 > :first-child { padding-left: 48px; }
+.detail__depth-5 > :first-child { padding-left: 60px; }
+.detail__depth-6 > :first-child { padding-left: 72px; }
+
+td .notes {
+    border-left: 0;
+    padding-left: 0;
+}
+
+/* Steps 2 and 3 (batch H): what goes, the gaps, the questionnaire's lines. */
+.goes__line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    align-items: center;
+}
+
+.gaps {
+    margin-top: var(--s-2);
+}
+
+/* A question that appeared or went away is a visible line, ruled in the tone that asks for action. */
+.dtr-change {
+    padding-left: var(--s-3);
+    border-left: 3px solid var(--action-edge);
+}
+
+.dtr-withdrawn {
+    color: var(--action-ink);
+}
+
+.dtr-count {
+    margin-top: var(--s-2);
+}
+
+.question__group {
+    margin-top: var(--s-3);
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-3);
+}
+
+.choices--prefilled {
+    background-color: var(--surface-sunk);
+}
+
+.attachments .table input {
+    width: 100%;
+}
+
+/* Beside Send PAS request on kind prod, like the production line under the top bar. */
+.submit-writes {
+    background: var(--purple-deep);
+    color: var(--white);
+    padding: var(--s-1) var(--s-2);
+    border-radius: 6px;
+}
+
+/* Step 4: the subscription id beside its call, and the notifications the receiver holds. */
+.call__id {
+    width: 14em;
+    max-width: 100%;
+}
+
+.receiver__line {
+    margin-top: var(--s-2);
+}
+
+.notes-list {
+    list-style: none;
+    margin: var(--s-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-1);
+}
+
+.note-open {
+    display: grid;
+    gap: var(--s-2);
+}
