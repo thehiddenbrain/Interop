@@ -306,6 +306,19 @@ class AuditFrontendTest {
     }
 
     @Test
+    void suitesAreTheSuitesModulesOwnViewMountedForTheirAddress() throws IOException {
+        String audit = StaticSources.script("audit.js");
+        // Loaded when Suites is first opened, and handed the parts after #audit, 'suites' first, as G4's module reads them.
+        assertThat(audit).contains("module = await import('./audit-suites.js');")
+                .contains("suites = module.mount(holder, rest);")
+                .contains("suites.update(rest);")
+                .contains("leaveSuites();")
+                .contains("{id: 'runs', label: 'Runs', address: '#audit'}")
+                .contains("{id: 'journeys', label: 'Journeys', address: '#audit/journeys'}")
+                .contains("{id: 'suites', label: 'Suites', address: '#audit/suites'}");
+    }
+
+    @Test
     void aReplaySendsIdsAndNeverDays() throws IOException {
         for (String name : new String[] {"audit-runs.js", "audit-run.js"}) {
             String script = StaticSources.script(name);

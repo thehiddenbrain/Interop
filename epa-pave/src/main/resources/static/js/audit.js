@@ -1,8 +1,9 @@
 // The Audit view: what the ledger recorded. Runs (#audit, its filters in the address), one run
-// (#audit/runs/<runId>) and Journeys (#audit/journeys, one journey at #audit/journeys/<chainId>).
-// Suites joins them once its module is in the build; until then no entry leads to a page that is not there.
+// (#audit/runs/<runId>), Journeys (#audit/journeys, one journey at #audit/journeys/<chainId>) and
+// Suites (#audit/suites, the suites module's own view, loaded when it is first opened).
 
 import {el, fill} from './dom.js';
+import {errorPanel} from './fault.js';
 import {app, ledgerLine} from './app.js';
 import {vocabulary} from './words.js';
 import {wordsOf} from './audit-common.js';
@@ -13,7 +14,8 @@ import {journeysView, journeyFiltersOf} from './audit-journeys.js';
 // The sub-navigation, in the order it is drawn.
 const PAGES = [
     {id: 'runs', label: 'Runs', address: '#audit'},
-    {id: 'journeys', label: 'Journeys', address: '#audit/journeys'}
+    {id: 'journeys', label: 'Journeys', address: '#audit/journeys'},
+    {id: 'suites', label: 'Suites', address: '#audit/suites'}
 ];
 
 /**
@@ -33,7 +35,7 @@ function ledgerAlarm(health) {
 /** Which page of Audit a route is on. A part this view does not know shows the runs. */
 export function pageOf(parts) {
     const first = Array.isArray(parts) && parts.length > 0 ? parts[0] : '';
-    return first === 'journeys' ? first : 'runs';
+    return first === 'journeys' || first === 'suites' ? first : 'runs';
 }
 
 /** Draws the view into root. route: the parts of the address after #audit. */
@@ -52,6 +54,10 @@ export function mount(root, route) {
     const runs = runsView(ctx);
     const one = runView(ctx);
     const journeys = journeysView(ctx);
+    // The suites view, while Suites is the page shown. It is loaded when first opened, so a fault in it can never
+    // stop Runs or Journeys from drawing, and unmounted when the tester leaves it, so its polls stop with it.
+    let suites = null;
+    let shownPage = null;
     page.append(nav, body);
     root.append(page);
 
@@ -59,11 +65,47 @@ export function mount(root, route) {
         fill(nav, PAGES.map(each => el('a', {class: 'subnav__item', href: each.address, 'aria-current': each.id === current ? 'page' : null}, each.label)));
     }
 
+    function leaveSuites() {
+        if (suites) {
+            suites.unmount();
+            suites = null;
+        }
+    }
+
+    async function showSuites(rest) {
+        if (suites) {
+            suites.update(rest);
+            return;
+        }
+        const holder = el('div', {class: 'audit-suites'});
+        fill(body, holder);
+        let module = null;
+        try {
+            module = await import('./audit-suites.js');
+        } catch (failed) {
+            // A script that did not load is said in the page's one error shape; the other pages of Audit still work.
+            fill(holder, errorPanel({kind: 'PAGE_FAULT'}));
+            return;
+        }
+        if (shownPage !== 'suites' || !holder.isConnected) {
+            // The tester left Suites while its script was loading; the later choice stands.
+            return;
+        }
+        // The module takes the parts after #audit, 'suites' first, as its own address.
+        suites = module.mount(holder, rest);
+    }
+
     function update(parts) {
         const rest = Array.isArray(parts) ? parts : [];
         const current = pageOf(rest);
         drawNav(current);
         runs.close();
+        shownPage = current;
+        if (current === 'suites') {
+            showSuites(rest);
+            return;
+        }
+        leaveSuites();
         if (current === 'journeys') {
             const second = rest.length > 1 ? String(rest[1]) : '';
             fill(body, journeys.node);
@@ -97,6 +139,7 @@ export function mount(root, route) {
         unmount() {
             offConfig();
             runs.close();
+            leaveSuites();
         }
     };
 }
