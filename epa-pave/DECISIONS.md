@@ -63,6 +63,9 @@ entry.
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
 | D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test, six of which the recheck of the final build saw closed on `22478b8`; what the rechecks left was corrected in a second round, except what `PROGRESS.md` lists as open (features-8 among them, I-28a being withdrawn); each left open is an open line of `PROGRESS.md`. The recheck of the final build found four more, corrected in a third round (D-300). Nothing was checked on Windows itself or against the vendor's service |
 | D-300 | Submit is back on Da Vinci PAS 2.0.1: the guide is the environment's request shape "PAS guide", 2.0.1 unless it chooses 2.2.1; the third round of corrections; the code handed over is `6e1bff3`, at 16:00 UTC | The operator said twice that the payer uses 2.0.1; the integrator should have put that against their answer naming 2.2.1 and did not. **No second agent rechecked the change or the third round**, and nothing was sent to the vendor's service. Two X12 value sets of PAS 2.0.1 were not settled |
+| D-301 | Release 2: the trail, Audit's request and answer, Journeys and Suites, a reload that redraws the case, lookups set up on screen, answers from the case, Forget, the store's lock and its damaged files, the Advanced Trail page | Built on release 1's candidate before its corrections (A2c, B5, B4b, C2c, D3, D6, E4, F4, G3, G4, H4, I4). The trail keeps member data on disk within D-298's bounds and never a secret. The sweep of old place names was not made |
+| D-302 | Release 1, its corrections and the PAS 2.0.1 decision merged into release 2 by one agent (`86d4807`) | Every place both sides changed was settled one way, said in this entry; a whole build and one walk on mock held it |
+| D-303 | The one check of release 2, its five findings, their corrections (`c31ae00`), and the limit: no recheck | **Release 2 was closed with five agents and no second check of the corrections**, to keep spending low. It rests on its tests, its whole build and one independent look. Nothing ran on Windows or against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -7994,3 +7997,186 @@ round of corrections; the code handed over.**
 - **The code handed over** is `6e1bff3` of the release branch (`22478b8`, the third round, and Submit back
   on PAS 2.0.1), at 16:00 UTC on 2026-11-22; these records were committed after it. The integrator's two
   whole builds of `6e1bff3` and its build from a fresh clone gave 3,571 tests, 0 failures, 0 errors, 2 skipped, each time.
+
+
+**D-301. Release 2: what it adds to release 1.**
+- **What it is.** The second half of the plan (D-285), built by the same batches on the integration
+  branch `rebuild/main` while release 1 was checked and corrected on its own branch, so on the release
+  candidate `7fc32c8` of release 1 and before any of its corrections. Its slices, each merged by the
+  merger with a quick gate of its tests and the guard tests, and each shown working by its builder or
+  the merger's smoke on a jar as `MERGE_LOG.md` and its `.ready` file say: B5 (the trail), D3 (where a
+  lookup saved on screen goes), E4 (answers from the case, the server part), G3 (the suites' repeated
+  case id, D-283), D6 (Forget, the store's lock, unreadable stored files), F4 (lookups saved on
+  screen, GET or POST), A2c (a reload that redraws the case, values for one run), G4 and B4b (Suites,
+  Journeys and the run's request and answer in Audit), C2c (the lookup forms), I4 (the Advanced Trail
+  page, Forget on Production writes, unreadable files in In force now) and H4 (answers from the case
+  on the Questionnaire step). `rebuild/main` stood at `d62a84a` after H4, whose whole build gave 3,637
+  tests, 0 failures, 0 errors, 2 skipped. Release 1 and its corrections were then merged into it (D-302)
+  and one check and one round of corrections followed (D-303). What a tester reads below was searched in
+  the source at `c31ae00`.
+- **The trail** (B5, R-41). The request and the response of each of the last runs, one file a run under
+  `<tracking.directory>/trail/` (by default `run-history/trail/`), the folder owner-only (rwx------) and
+  each file rw-------, kept across a restart. `trail.max-entries` (500) bounds it, oldest first out;
+  `trail.enabled: false` keeps nothing and answers "The trail is switched off on this installation
+  (trail.enabled).". What is kept is the case and the wire view the result already carried, masked by
+  the same secrets rule (`Secrets`, with I-35's words), so it holds member data and never a secret. Every
+  run result is kept except a write the production guardrail refused (since `3d71571`, D-303). A run not
+  kept reads "Not kept: the trail holds the last 500 runs, and never a write that was refused." (the
+  number is the installation's). The ledger's rules are unchanged: the trail is a store of its own
+  (D-298). Emptied by `DELETE /api/trail` or Configuration > Advanced > Trail, "Empty the trail", which
+  asks "Empty the trail?" first and logs only the count. Held by `RunTrailTest`, `TrailRecorderTest`,
+  `TrailControllerTest`, `TrailSecretsTest`, and `LedgerOverTheServerTest`, which reads only the ledger's
+  own files and checks the trail folder and files as owner-only.
+- **Audit** (B4b, G4). A sub-navigation Runs, Journeys, Suites. One run has the folds "Request JSON" and
+  "Answer JSON" from the trail, "Download" (`GET /api/trail/{runId}/download`, a file `<runId>.json`,
+  no-store), and "Load into the Workbench", drawn also where the run cannot be run again (D-302 (h)).
+  Journeys lists today's journeys (UTC) with each step's state, "Include journeys of one run" for the
+  rest, and one journey with its steps and "Load into the Workbench". Suites: "CSV template", "Suite
+  file", "Tester reference", "Preview the suite", "Run suite", the results and "Results CSV", with the
+  page's labels in a refusal (D-302 (i)). Held by `AuditFrontendTest`, `SuitesFrontendTest` and the
+  suite tests of G3.
+- **A reload that redraws the case** (A2c, H4). A journey's address is `#workbench/<chainId>`; a reload,
+  or `#workbench/load/<runId>` from Audit, reads the journey back from the ledger and the trail ("Reading
+  the journey back from the ledger and the trail.") and draws the case, each field marked "from the
+  trail" or "from the ledger", and each step's result. When the trail no longer holds the runs:
+  "Not kept in the trail: the case shows what the ledger kept.". Release 1's notice that a reload starts
+  a new case is gone (D-302 (a)). On a step refused for a placeholder with no value, "Values for this
+  run" takes values for every run from that page until removed. Held by `WorkbenchFlowFrontendTest`,
+  `RunValuesFrontendTest`, `QuestionnaireStepFrontendTest`.
+- **Lookups set up on screen** (D3, F4, C2c, R-11). Configuration > Members and Configuration > Providers
+  each hold a lookup form in the fold "Lookup settings": "Lookup on", "Method" GET or POST (never another
+  method, so a lookup stays a read; on prod an address that reads as a write is refused with the
+  guardrail's unchanged sentence), "Address" with `{id}` for a GET, "Body template", headers, "Sign in
+  with" (None, an API key header, a bearer token, client credentials, or the active environment's
+  sign-in, which only then reaches the lookup), "Where the answer's fields are", and the timeouts. It is
+  stored in `config-store/lookups.json`, its secrets masked on screen and kept as typed in the file. A
+  saved lookup is used in place of `lookup.member` or `lookup.provider` of `application.yml`, which
+  apply when nothing is saved. "Test the lookup" sends one ID through the saved settings and answers in
+  one line. On the Workbench a lookup not set up links "Set up the member lookup" or "Set up the
+  provider lookup" (D-302 (f)). Endpoints `GET /api/config/lookups`, `PUT` and `DELETE
+  /api/config/lookups/{member|provider}`; the lookups take an optional `dateOfService`. Held by
+  `LookupTargetTest`, `LookupSettingsStoreTest`, `LookupSettingsControllerTest`, `PostLookupTest`,
+  `LookupSignInTest`, `MemberLookupServiceTest` and `ConfigFrontendTest`.
+- **Answers from the case** (E4, H4, R-18). `POST /api/dtr/case-answers` reads the questionnaire the page
+  holds and the case typed, sends and records nothing, and answers each question it can with the field
+  it came from. The step puts them only into empty fields, never over the payer's prefilled answer
+  ("payer prefilled") or the tester's, each marked "from the case" (a date it takes as a default is
+  marked "default, change if needed"); a question its condition turns off takes none (D-302 (c)). Date
+  questions take the date of service of the Service card and are text fields read as YYYY-MM-DD; a
+  required question left blank is named ("Required, no answer: ..."). The same on mock and live; on live
+  it was not seen (D-303). Held by `CaseAnswersTest`, `CaseAnswersControllerTest`,
+  `QuestionnaireStepFrontendTest`.
+- **Forget this production address** (D6, I4, R-35). Configuration > Production writes offers it beside
+  a remembered address only when no environment it is remembered for is stored as prod
+  (`forgettable` in `GET /api/config/environments`); the tester types that environment's name exactly
+  (`POST /api/config/production-destinations/forget {destination, environment}`). A wrong name is
+  refused at the field; an address of a stored production environment is never forgotten. The notes that
+  told the tester to stop PAVE and edit `store.json` now name Forget where it is offered (D-302 (e)),
+  and the save refusal names every remembered address that blocks (D-303). The guardrail's own
+  sentences are unchanged. Held by `ForgetDestinationTest`, `ProductionSlipTest`,
+  `DestinationGuardrailTest`, `GuardrailOverTheServerTest`, `ConfigPagesFrontendTest`.
+- **The store** (D6). A lock on the store folder: a second copy on the same `config-store.directory`
+  stops at start with "Another copy of PAVE is using the configuration store <folder>. Stop it, or give
+  this copy its own config-store.directory and tracking.directory." (`StoreLockTest`, with a real second
+  JVM). A stored file that is missing, damaged, holds another environment or repeats a collection is
+  left out, not a refused start, and listed in In force now under "Stored files PAVE could not read"
+  with "Remove it from the store", which moves it to `config-store/unreadable/`
+  (`POST /api/config/unreadable/remove`; `UnreadableEntryTest`). The production addresses are checked
+  once per configuration epoch (`AddressChecksOncePerEpochTest`).
+- **The Advanced Trail page** (I4): "The last 500 runs' requests and responses, secrets masked, member
+  data inside. Kept in <folder>, never in the ledger or the log.", the count and size, and "Empty the
+  trail". In force now also lists the lookups in force (`ConfigPagesFrontendTest`).
+- **Not in release 2, though the plan named it for this half**: the sweep of the old place names in
+  server sentences (R-16, plan 7.6: `PlaceNamesTest`, `NextActionButtonsTest`) was not made, so the
+  README's table of old names stays; the advice for a rebuild under a PAVE started with
+  `-Dpave.classes.load-at-start=false` covers a LinkageError looked at afresh (B3a's correction of
+  hunts-1, `ClassesOnDiskTest`) but not a missing class reached by reflection (hunts-2), and B3a's probe
+  on a running tool was not run.
+
+**D-302. Release 1, its corrections and the PAS 2.0.1 decision merged into release 2.**
+- **What happened.** One agent merged `release1` (`afa821d`, release 1 as handed over with its records)
+  into `rebuild/main` (`d62a84a`), commit `86d4807`, and made no later commit.
+- **The conflicts, each settled one way.** `MemberLookupService`: release 2's date overloads and rule
+  helper, release 1's check that a blank ID is tested on the form actually sent. `result.js`: release 1's
+  in-card service fault (issue chips, the issues fold, the fault report and the files-changed note,
+  I-12) for VENDOR_REJECTED and VENDOR_ERROR, with release 2's "who played it" heading and its "Service
+  said" for a CDS refusal; TIMEOUT, UNREACHABLE and MALFORMED keep their own panel. `config-environments.js`:
+  release 1 (the panel always drawn with field labels, I-3, and the banner scrolled into view).
+  `wb-dtr-items.js`: release 1's I-36 (a question turned off is muted, typeable, never required, with the
+  server's reason). `wb-dtr.js`: release 1's single Why and release 2's required list. `wb-attachments.js`:
+  release 1's size line. `cfg-inforce.js`: release 2's unreadable files and lookups, release 1's rule of
+  saying "No environment is active." once (look-19). `workbench.js`: A2c's read-back replaces release 1's
+  reload notice. The style sheets kept both sides' rules.
+- **Where a decision of release 1 met a feature of release 2.** (a) I-8 and the reload: the notice "A
+  reload starts a new case..." is removed; where the journey cannot be read back, the line under the top
+  bar says why. (b) I-26 and the trail: the line that only the page that made a run shows its request is
+  removed; the trail's folds stand. (c) I-36 and answers from the case: a question turned off takes no
+  answer from the case. (d) operator-1: release 2's additions were searched for an unconditional
+  2.2.1; one comment was changed. (e) I-19 and I-28 against Forget: the three notes that named the hand
+  edit of `store.json` name Forget where it is offered (the token url at sending, the remembered address
+  on a refused write and in write access, the token url at save); the hand edit stays only where an owner
+  is still stored as prod; the guardrail's sentences are unchanged, and a test shows a sandbox's token url
+  no longer refused after Forget. (f) I-1, I-15, I-34: a lookup not set up links its form, with no
+  property name. (h) I-20: "Load into the Workbench" is drawn also beside "This run cannot be run again:
+  its member ID was not kept.". (i) I-3 in release 2's forms: the lookup form and the Suites page name an
+  unplaced field by its label. (j) I-12 and I-13: the files-changed line rides wherever the read-back and
+  the trail show an error. (k) I-35: the trail keeps the envelope already masked.
+- **Tests changed**, each to the code kept: `ResultFrontendTest` (release 1's issue chips),
+  `AuditFrontendTest` (the trail's Not kept line in place of I-26's), `ConfigPagesFrontendTest` (In force
+  now reads `/api/config/lookups`), `QuestionnaireStepFrontendTest` (I-36's reason on a question turned off),
+  and three failures of the first build after the merge, corrected before the commit.
+- **What held it.** The merge agent's whole build of the tree committed as `86d4807`: BUILD SUCCESSFUL,
+  3,687 test lines PASSED, 3 SKIPPED, 0 FAILED (`rebuild/r2/merge/build2.log`); the Eclipse check 0 errors on
+  that tree. Its walk of the jar on mock at 1440 by 900: P32H-DTR-PREPOP from a fresh page, Run check and a
+  reload that brought back the case and step 1 ("Documentation is required.", the NPI "from the trail"),
+  the questionnaire, Submit with the questionnaire response of 5 answers, "The prior authorization is
+  approved."; Audit's folds from the trail; Configuration's Environments, Members, Production writes with
+  a removed prod environment's row and "Forget this production address", Advanced Trail and In force now;
+  no console error, only `pave.tab` stored, no other host called. Not walked at 1024 by 768 or on live.
+  Interactions (c), (e), (g), (i), (j) and (k) were not seen on a running tool by anyone.
+
+**D-303. The one check of release 2, its findings, their corrections, and its limit.**
+- **The check.** Two agents that built none of it checked `86d4807` once. The first walked the journeys:
+  P32H-DTR-PREPOP to "The prior authorization is approved." in 8 clicks and nothing typed at 1440 and
+  1024, P32H-NO-AUTH, P32H-ERR500 as one card, P32H-PAS-PENDED and its inquiry, P32H-PAS-ATTACH-REQ with
+  two files; `GET /api/pas/options` and the Submit preview naming PAS 2.0.1 on mock and live, and 2.2.1
+  only when the environment chose it; Submit and the inquiry approved by the strict stand-in under both
+  guides; the trail kept across a restart and empty with `--trail.enabled=false`; a POST member lookup
+  saved on screen and tested as Found, Several matched, Not found and Not answering; Journeys, a three-case
+  suite, the top bar on live at 1024. The second looked for secrets and the guardrail: 14 placeholder
+  secrets found only in the store's files, never in the trail, the ledger, the logs, 134 GET answers, the
+  page text or the CSV export; the trail folder 700 and its files 600, "Empty the trail" leaving 0;
+  the floor, the per-session unlock and its losses, 22 spellings of a sandbox address under a production
+  one refused at save, and Forget's own refusals.
+- **The findings and their corrections**, by one corrector on `release2`, each with a test:
+  r2-journey-1 (major): a completed questionnaire response was never kept in the trail, so a reload after
+  step 2 lost the step and the response Submit carries, and said a false reason. Every run result is now
+  kept except a refused write (`3d71571`, `TrailRecorderTest`); seen on the jar after a reload at 1440 and
+  1024, step 2 "Response complete" and Submit carrying "questionnaire response, 4 answers". safety-1
+  (major): with the owner gone, forgetting the address the refusal named left the same refusal, because a
+  remembered address above it still blocked; the note now names every remembered row that blocks, and the
+  Forget dialog adds ", unless another remembered address lies above or beneath it." (`868b036`,
+  `ForgetDestinationTest`, `ProductionSlipTest`, `DestinationGuardrailTest`); the guardrail's sentence is
+  unchanged; held by tests only. r2-journey-2 (minor): the PAS guide note said "the PAS guide of the
+  environment" when none states one; it now says "This request follows Da Vinci PAS 2.0.1, the default: no
+  environment states a PAS guide (Configuration > Environments, Request shapes)." (`eba3e14`, `PasServiceTest`,
+  `Pas201SubmitTest`); seen in the preview on the jar. r2-journey-3 (minor): the download was named
+  `run-run-<uuid>.json`; now `<runId>.json` (`3d71571`, `TrailControllerTest`). safety-2 (minor): In force
+  now told a lookup set up on screen to take an address from the environment; that row is left out
+  (`c31ae00`, `ConfigPagesFrontendTest`); held by the Node test only.
+- **Left.** "Ready to send?" still counts a lookup set up only on screen among the operations, since a
+  fix needs a new dependency of `ConfigService`. Not reached by the check: answers from the case on live
+  (the stand-in refused the coverage check while draftOrders type was Sent), a reload after step 4, 501
+  runs keeping 500, and the closed release 1 majors it
+  listed but did not follow.
+- **The limit.** No second check of the corrections was made and no recheck round was run: the operator
+  asked for spending to be kept low, so release 2 was closed with five agents (one merge agent, two
+  checkers, one corrector, and the agent of these records) where release 1 used many more. The merge and
+  the corrections rest on their tests, the whole build and one independent look. Nothing was run on a
+  Windows workstation or against the vendor's service.
+- **The build.** The corrector's whole clean build of `c31ae00`: BUILD SUCCESSFUL in 10m 22s, exit 0;
+  its log holds 3,690 lines marked PASSED or "tests completed", a line count and not an exact number of
+  tests (`rebuild/r2/correct/build.log`). An earlier run cut off by a time limit does not count. The
+  Eclipse compiler check at `c31ae00`: 0 errors. The gates of section 0 before the hand-over (two whole
+  builds from clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on
+  the commit that carries these records, after them; their result is reported with the hand-over.

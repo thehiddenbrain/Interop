@@ -13,61 +13,53 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
-**Release 1 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
+**Release 2 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
-ledger) is the one PAVE had.
-Release 1 is handed over on 2026-11-22 at 16:00 UTC: the code of commit `6e1bff3` of the release
-branch, the release candidate `7fc32c8` with three rounds of corrections and Submit brought back to
-Da Vinci PAS 2.0.1; this README and the records were committed after it. The top bar of a running
+ledger) is the one PAVE had. Release 1 was handed over on 2026-11-22 at 16:00 UTC. Release 2 adds to
+it the same day: the code of commit `c31ae00` of the branch `release2`, which is the second half of
+the plan with release 1 and all its corrections merged into it (`86d4807`) and four corrections after
+one independent check; this README and the records were committed after it. The top bar of a running
 build shows the day and time (UTC) that build was made; the same time is `build.time` in `GET /api/mode`.
 
-What release 1 holds:
+What release 2 holds:
 
 - One top bar and three tabs: **Workbench**, **Audit** and **Configuration**.
 - The Workbench: the case on the left (Member, Provider, Service), and four steps on the right,
   **Coverage check** (CRD), **Questionnaire** (DTR), **Submit** (PAS) and **Status** (PAS
   inquiry, subscriptions, notifications). Each result is a row of chips, one headline, a few
-  facts and closed folds.
+  facts and closed folds. A step refused for a placeholder with no value offers "Values for this
+  run" in place.
+- **A reload keeps the case.** The address of a journey is `#workbench/<journey id>`; a reload, or
+  "Load into the Workbench" in Audit, reads the journey back from the trail and the ledger and draws
+  the case and each step's result again; a field read back is marked "from the trail", or "from the
+  ledger" when the trail no longer holds the run.
+- **The trail**: the requests and responses of the last 500 runs, secrets masked, member data inside,
+  in its own folder beside the ledger (see [Audit and the trail](#audit-and-the-trail)).
+- **Audit**: Runs, Journeys and Suites. One run shows its "Request JSON" and "Answer JSON" from the
+  trail with "Download", "Run again" and "Load into the Workbench".
+- **Lookups set up on screen**: Configuration > Members and Configuration > Providers, "Lookup
+  settings", GET or POST, a sign-in of their own, and "Test the lookup" (see
+  [Lookups and test lists](#lookups-and-test-lists)).
+- **Questionnaire answers from the case**, each marked "from the case", never over the payer's
+  answer or the tester's.
 - Configuration: Environments edited on screen (sign-in, member ID rule, timeouts, request shapes,
   values, an address per operation), Collections, saved test Members and Providers with a CSV
-  import, Access token with a token pasted for the session, Production writes, and Advanced: In
-  force now, Send as written, Try a value, Check this installation, CDS discovery and Compare with
-  a request that works.
-- Audit: the runs with filters, one run with "Run again", "Export CSV", "Replay the runs listed".
+  import, Access token with a token pasted for the session, Production writes with **"Forget this
+  production address"**, and Advanced: In force now (with the stored files PAVE could not read),
+  Send as written, Try a value, Check this installation, CDS discovery, Compare with a request that
+  works, and **Trail**.
+- **The store**: a second copy of PAVE on the same configuration store is refused at start, and a
+  stored file that cannot be read is left out and listed instead of stopping the start.
 - Submit follows Da Vinci PAS 2.0.1, as CRD and DTR do, unless the environment's "PAS guide"
   chooses 2.2.1 (see [Submit](#submit)); the request shapes the vendor's sandbox accepted; one
   retry after a refused token; a wait of up to 120 s for the vendor.
-- The fixes for the ways an upload was found to fail, except one after a rebuild under a PAVE
-  started with `-Dpave.classes.load-at-start=false` (see [Limitations](#limitations)).
-  A file that is not text is named as what it is; a CSV saved with semicolons or tabs is told how
-  to save it again; a Postman file of the wrong kind is told where it goes.
+- The fixes for the ways an upload was found to fail. A file that is not text is named as what it
+  is; a CSV saved with semicolons or tabs is told how to save it again; a Postman file of the wrong
+  kind is told where it goes.
 
-**Not in release 1; release 2, at 22:00 UTC the same day, brings them:**
-
-- The trail of the last 500 runs' requests and responses, and what reads it: a run's request and
-  answer in Audit (in release 1 only the page that made a run shows them, while it stays open) and
-  Download for the vendor. Configuration > Advanced > Trail says "This page comes in the next
-  release."
-- A reload of the Workbench that keeps the case. In release 1 a reload starts a new case; the runs
-  of the case before are in Audit.
-  After a reload the page says so under the top bar: "A reload starts a new case. The runs of the
-  case before are in Audit."
-- Member and provider lookups configured on screen (GET or POST, their own sign-in). In release 1
-  they come from `application.yml`, or you type the details (see
-  [Lookups and test lists](#lookups-and-test-lists)); Configuration has no Lookups page.
-- Questionnaire answers filled from the case. In release 1 every answer is typed.
-- Journeys and Suites in Audit. In release 1 Audit shows the runs only; suites run through the API
-  (see [Audit](#audit)).
-- A button on Production writes that forgets an address remembered as production by mistake. In
-  release 1 that is a hand edit of the store (see
-  [A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
-- Values typed for one run on the Workbench, the other store repairs (unreadable stored files
-  listed, a lock against a second copy on one store), and the place names below brought up to
-  date.
-
-**Old place names in some server sentences.** Release 1 brought the sentences a tester meets on the
-Workbench to the new places; some others the server writes, in a fold, in Configuration, Audit or
-the API, keep the old names until release 2. Read them this way:
+**Old place names in some server sentences.** The sentences a tester meets on the Workbench name
+the new places; some others the server writes, in a fold, in Configuration, Audit or the API, keep
+the old names. Read them this way:
 
 | A sentence says | It means |
 | --- | --- |
@@ -80,31 +72,35 @@ the API, keep the old names until release 2. Read them this way:
 | Continue in PAS | Continue to Submit |
 | the environment strip | the top bar |
 
-The sentences of the production guardrail keep their words in release 1 (release 2 may change only
-their place names): in a production refusal "the Config tab" is Configuration (Production writes,
-for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip is the top bar.
+The sentences of the production guardrail keep their words: in a production refusal "the Config
+tab" is Configuration (Production writes, for the unlock), "the PAS tab" is step 3 Submit or step 4
+Status, and the strip is the top bar.
 
-**Known to be open in release 1**, each with what to do:
+**Known to be open in release 2**, each with what to do:
 
-- Started with `-Dpave.classes.load-at-start=false` (not the default), an internal error just after
-  the IDE rebuilt the classes can ask you to report it, and the top bar's environment list can
-  fail: stop PAVE and start it again (release 2).
+- Started with `-Dpave.classes.load-at-start=false` (not the default), the top bar's environment
+  list can answer with an internal error that asks you to report it just after the IDE rebuilt the
+  classes: stop PAVE and start it again.
 - A replay sent from Audit that fails just after a pull does not say that PAVE's files changed:
   stop PAVE and start it again, then replay once more.
-- The Date of service and the questionnaire's dates show in the browser's own form (for example
-  01/10/2026); the value sent is the ISO date whatever it shows.
-- On live, answers are not filled from the case in release 1: type the questionnaire's dates (on
-  the stand-in, the member's date of birth and the date of service) in step 2 yourself.
-- A sandbox whose token url is, or lies beneath, an address of an environment saved as prod by
-  mistake and then removed (on the same host, for example) cannot sign in, reads included: the refusal says that production environment "is no longer stored";
-  stop PAVE, delete its entries from `productionDestinations` in `store.json` and start again (see
-  [A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
+- The Date of service shows in the browser's own form (for example 01/10/2026); the value sent is
+  the ISO date whatever it shows.
+- On live, answers from the case have not been seen by anyone: before "Complete the response",
+  read each answer marked "from the case", the dates above all.
+- A sandbox or uat environment refused for a remembered production address: forget each address the
+  refusal names in Configuration > Production writes, then save again (the naming is held by tests
+  and not seen on a screen).
+- With a lookup set up in Configuration > Members or Providers, In force now's "Ready to send?"
+  can still count that lookup as to do: read "Lookups in force" for it instead.
+- A reload after step 4 (an inquiry, a subscription, a notification) has not been seen to redraw
+  that step: open the journey in Audit > Journeys.
 - A red `Failed to load resource: ... 422` line in the browser console after a refused form is
   expected: the page shows the refusal.
 
 **Before you rely on it**: nothing here has been run against the vendor's service or on the
-operator's Windows workstation; see [Before you rely on it](#before-you-rely-on-it). How release 1
-was checked: [How release 1 was checked](#how-release-1-was-checked).
+operator's Windows workstation; see [Before you rely on it](#before-you-rely-on-it). How it was
+checked: [How release 1 was checked](#how-release-1-was-checked) and
+[How release 2 was checked](#how-release-2-was-checked).
 
 ## Start here
 
@@ -171,8 +167,9 @@ give the second copy folders and a port of its own:
 run.cmd live "--config-store.directory=config-store-live" "--tracking.directory=run-history-live" "--server.port=8058"
 ```
 
-In release 1 nothing stops a second copy on the same folders, and the two then overwrite each
-other's store; from release 2 the second copy is refused.
+A second copy started on the same configuration store stops at once with "Another copy of PAVE is
+using the configuration store <folder>. Stop it, or give this copy its own config-store.directory
+and tracking.directory."
 
 ## Before you rely on it
 
@@ -181,14 +178,15 @@ other's store; from release 2 the second copy is refused.
   server on a loopback port of a Linux machine.
 - **A pass on mock says nothing about the live service.** The scenario files were written from the
   same reading of the guides as the code that reads the answers.
-- **On live the screens show member data**: the wire view, the lookups, the saved test lists. See
+- **On live the screens show member data**: the wire view, the lookups, the saved test lists, and
+  the trail keeps it on disk. See
   [The wire view carries member data](#the-wire-view-carries-member-data).
 - **PAVE has no sign-in** and listens on this machine only. See
   [Who can reach this tool](#who-can-reach-this-tool).
 - **DTR here is not a SMART launch**, and the notification receiver very likely cannot be reached
   by the vendor. See [What PAVE is not](#what-pave-is-not).
 - **The configuration store holds secrets and test data in plain text**, readable by your account
-  only. Never commit `config-store/`. See [Secrets](#secrets).
+  only. Never commit `config-store/` or `run-history/`. See [Secrets](#secrets).
 
 ## Your first case on mock
 
@@ -325,12 +323,18 @@ older build, keep `store.json.before-v2`: stop PAVE and rename it to `store.json
 
 **A production address remembered by mistake.** An environment once saved or uploaded as prod
 leaves its addresses remembered as production, also after it is removed, and a sandbox or uat
-environment on that address is refused. In release 1, with PAVE stopped, delete the entries whose
-environment is that name from `productionDestinations` in `config-store/store.json`, and start
-again; the upload refusal's field note says the same.
-A send refused for this reason says so under the guardrail's sentence, names the environment the
-address was remembered from and gives the same way out, and Configuration > Production writes and
-`GET /api/mode` say that writes to that address are blocked (seen again on the jar of `19ddf8e`).
+environment on that address is refused. Configuration > Production writes lists each remembered
+address; beside an address whose environment is no longer stored as prod it offers **"Forget this
+production address"**. The dialog asks for the name of the environment it was remembered for,
+typed exactly, and then says "<address> is no longer remembered as production." An address of a
+stored production environment is never forgotten. Another remembered address above or beneath the
+one forgotten still blocks: the refusal at save names every remembered address that blocks ("forget
+the address <address> in Configuration > Production writes and upload this environment again."),
+so forget each one it names. A send refused for this reason says so under the guardrail's sentence,
+names the environment the address was remembered from and says "press Forget this production
+address beside it in Configuration > Production writes." Where Forget is not offered (an owner is
+still stored as prod), it gives the hand edit instead: stop PAVE, delete those entries from
+`productionDestinations` in `config-store/store.json`, start again.
 
 **A sandbox that cannot sign in after a slip.** An environment saved as prod by mistake on the same
 host as a working sandbox, and then removed, stops that sandbox from signing in, reads included,
@@ -338,11 +342,10 @@ when the sandbox's token url is, or lies beneath, an address remembered from it.
 "Nothing was sent: the token url, at <address>, is an address of the production environment ...",
 then that the environment "is no longer stored, so this tool no longer knows the token url it
 signed in with", and gives the two ways out: store it again (this helps only when the sandbox signs in at
-that environment's own token url), or, if it was stored as prod by mistake, stop PAVE, delete its entries from `productionDestinations` in `store.json` (the refusal
-names the file) and start PAVE again. The recheck of the final build saw this on `22478b8`.
-
-From release 2 a button on Configuration > Production writes does it, for an address whose
-environment is no longer stored.
+that environment's own token url), or, if it was stored as prod by mistake, "press Forget this
+production address beside each address of" that environment in Configuration > Production writes,
+"and this environment signs in again." A test shows the sandbox's token url no longer refused after
+Forget; no one has seen it on a screen.
 
 **What the vendor's sandbox refused before, and what answers it now.**
 
@@ -372,7 +375,7 @@ reverse, is told where it goes. Seen again in all three places on the jar of `19
 ### Variables
 
 A `{{placeholder}}` is filled from, in order: a value typed for one run (Configuration > Advanced >
-Try a value, or `variables` in a request body; on the Workbench from release 2), the environment's values
+Try a value, `variables` in a request body, or "Values for this run" on the Workbench), the environment's values
 (Configuration), the environment export, the variables of the collection, then `onyx.variables` in
 `application.yml`. A defined but blank variable counts as not set. When one cannot be filled, the
 request is not sent: 422 with `"kind":"CONFIGURATION"`, naming the variable. On mock the url of a
@@ -558,50 +561,69 @@ practitioner once, with the vendor patient id and the vendor practitioner id, by
 CSV import, which shows the columns used and each row's outcome before anything is stored. From
 Excel, save the sheet as CSV first. `test-lists.enabled: false` switches the lists off.
 
-**Lookups.** On mock, lookups answer from PAVE's synthetic fixtures. On live in release 1, the
-member and provider lookups come from `application.yml` (`lookup.member.url`,
-`lookup.provider.url`, see [Properties](#properties)); when none is configured, or the lookup
-does not answer, the card says so and you type the fields by hand. Nothing a lookup returns is
-kept. A member lookup answers "Found", "Several matched", "Not found", "Not answering", "The
-lookup failed" or "No lookup is configured". Lookups configured on screen (GET or POST, their own
-sign-in, a test of the saved lookup) come in release 2. The provider lookup's own contract is not known
-(see [Open items](#open-items)).
+**Lookups.** On mock, lookups answer from PAVE's synthetic fixtures ("On mock, lookups answer from
+PAVE's test fixtures. These settings are used on live."). On live, Configuration > Members holds
+"Member lookup" and Configuration > Providers "Provider lookup", each with a fold "Lookup settings":
+"Lookup on", "Method" (GET or POST), "Address" (a GET puts `{id}` where the ID goes, in the path or
+the query), "Body template" for a POST, extra headers, "Sign in with" (None, API key header, Bearer
+token, Client credentials, or the active environment's sign-in), "Where the answer's fields are"
+and the timeouts. "Save lookup" stores it in `config-store/lookups.json`; a secret is masked on
+screen and kept as typed in that file, like the environment's. "Test the lookup" sends one ID (for
+example `S123456789`) through the saved settings and answers in one line, such as "Found, HTTP 200,
+145 ms, Member found, with coverage reported as active.". A lookup saved on screen is used in place
+of `lookup.member.url` or `lookup.provider.url` of `application.yml` (see [Properties](#properties)),
+which still apply when nothing is saved. When no lookup is set up, or it does not answer, the card
+says so, links "Set up the member lookup" or "Set up the provider lookup", and you type the fields by
+hand. Nothing a lookup returns is kept. A member lookup answers "Found", "Several matched", "Not
+found", "Not answering", "The lookup failed" or "No lookup is configured". The real member API's and
+provider directory's contracts are not known (see [Open items](#open-items)).
 
-## Audit
+## Audit and the trail
 
 - **Runs**: today's count is on the Audit tab ("!" when the ledger is not recording, with a line
   under the top bar). Filters by day, step, test result, outcome and tester reference; "Export
   CSV"; "Replay the runs listed".
 - **One run**: its result, "Run again" (sends the same case again and compares the answers, for
-  example "Same outcome."), and a note and tester reference ("Save note"). A run whose ledger line
-  lacks what a replay needs says so in the button's place.
-  On live with the default policy that is every run: "This run cannot be run again: its member ID
-  was not kept."
-- **A run's request and answer** are shown only by the page that made the run, while it stays
-  open.
-  Another page says "The request and answer are shown only by the page that made the run, while it
-  stays open."
-- **From release 2**: the run's request and answer from the trail with Download for the vendor,
-  Journeys and Suites (the suite and journey endpoints already answer, see
-  [Endpoints](#endpoints)). The trail will hold member data, is never to be committed, and is
-  switched off with `trail.enabled: false`.
-- **Suites through the API meanwhile**: `samples/suites/sample-suite.csv` has six CRD cases that run
-  on mock (four pass, one fails on purpose, one declares no expectation). Columns: `caseId`,
-  `protocol` (crd, dtr, pas or chain), `hook`, `operation`, `chain`, `memberId`, `npi`,
-  `procedureCodes` (separated by `|`), `dateOfService`, `expected`, `scenarioId`, `testerRef`,
-  `note`, `claimId`, `subscriptionId`; a column whose name starts with `#` is never read, any other
-  unknown column stops the file. `curl -s -F file=@samples/suites/sample-suite.csv
-  localhost:8057/api/suites/preview` says what PAVE makes of it without sending anything.
+  example "Same outcome."), "Load into the Workbench" (reads the case and each step back into the
+  Workbench; sends nothing), and a note and tester reference ("Save note"). A run whose ledger line
+  lacks what a replay needs says so in the button's place. On live with the default policy that is
+  every run: "This run cannot be run again: its member ID was not kept."
+- **A run's request and answer**: the folds "Request JSON" and "Answer JSON", read from the trail,
+  with "Download" (one file, `<run id>.json`, for the vendor). A run the trail no longer holds says
+  "Not kept: the trail holds the last 500 runs, and never a write that was refused."
+- **Journeys**: each journey of today (UTC) with its member, code, steps and where it stands;
+  "Include journeys of one run"; one journey shows its four steps and "Load into the Workbench".
+- **Suites**: a file of cases run one after another. "CSV template", "Suite file", "Tester
+  reference", "Preview the suite", "Run suite", then the results and "Results CSV". Suites PAVE
+  holds are listed under "Suite runs PAVE holds", in memory only.
+  `samples/suites/sample-suite.csv` has six CRD cases that run on mock (four pass, one fails on
+  purpose, one declares no expectation). Columns: `caseId`, `protocol` (crd, dtr, pas or chain),
+  `hook`, `operation`, `chain`, `memberId`, `npi`, `procedureCodes` (separated by `|`),
+  `dateOfService`, `expected`, `scenarioId`, `testerRef`, `note`, `claimId`, `subscriptionId`; a
+  column whose name starts with `#` is never read, any other unknown column stops the file. From a
+  terminal: `curl -s -F file=@samples/suites/sample-suite.csv localhost:8057/api/suites/preview`
+  says what PAVE makes of it without sending anything.
+
+**The trail** keeps the request and the response of each of the last 500 runs (`trail.max-entries`),
+one file a run in `run-history/trail/` beside the ledger (`<tracking.directory>/trail/`), readable by
+your account only. Every run is kept except a write the production guardrail refused. **It holds
+member data** (the case and the wire as sent and answered) and **never a secret**: what it keeps is
+the wire view, masked by the same rule. It is not the ledger: the ledger's rules are unchanged. Never
+commit it or send it on except to the vendor, run by run. To empty it: Configuration > Advanced >
+Trail, "Empty the trail", or `curl -s -X DELETE localhost:8057/api/trail`. `trail.enabled: false`
+keeps nothing: every run then reads "The trail is switched off on this installation
+(trail.enabled)."
 
 ## Advanced
 
-Configuration > Advanced holds the tools kept off the Workbench, all of them in release 1: **In
-force now** (where each
-operation goes, whether it can be sent, the store's folder, address warnings), **Send as written**
-(a collection request as it is written, or a body of your own), **Try a value**, **Check this
-installation** (the code list's self-check, the ledger, the mode), **CDS discovery**, **Compare
-with a request that works** (PAVE's CRD request beside one you paste, element by element; nothing
-is sent). Its **Trail** page says "This page comes in the next release."
+Configuration > Advanced holds the tools kept off the Workbench: **In force now** (where each
+operation goes, whether it can be sent, the lookups in force, the store's folder, address warnings,
+and "Stored files PAVE could not read", each with "Remove it from the store", which moves the file
+to `config-store/unreadable/` and never deletes it), **Send as written** (a collection request as it
+is written, or a body of your own), **Try a value**, **Check this installation** (the code list's
+self-check, the ledger, the mode), **CDS discovery**, **Compare with a request that works** (PAVE's
+CRD request beside one you paste, element by element; nothing is sent), and **Trail** (how many runs
+are kept, their size, the folder, and "Empty the trail").
 
 ## What PAVE is, and what it is not
 
@@ -686,7 +708,9 @@ On mock a short delay is added to each answer, so the screens behave as on live;
 The wire view (a closed fold under each result) shows the request and the response as they went.
 That is its point, and it means that **on live it shows member data**: the member ID, the name,
 the date of birth, and whatever the payer sent back. So do the lookup results, "Edit member
-fields", the saved test lists, the request preview and a body of your own.
+fields", the saved test lists, the request preview and a body of your own. **The trail keeps the
+same on disk** for the last 500 runs, with the same masking, and Audit and its "Download" show it
+again ([Audit and the trail](#audit-and-the-trail)).
 
 - Do not screenshot or share the wire view, a lookup, a preview or a request body on live unless
   everyone who can see it may see that member's data. Keep the fold closed.
@@ -867,6 +891,10 @@ normal answer.
 | PUT | `/api/config/collections/{id}/mapping` | Correct a mapping |
 | DELETE | `/api/config/collections/{id}` | Remove a collection |
 | POST | `/api/config/writes` | Unlock or lock production writes for this session |
+| POST | `/api/config/production-destinations/forget` | "Forget this production address" (`{destination, environment}`, the name typed exactly); refused for an address of a stored production environment |
+| POST | `/api/config/unreadable/remove` | "Remove it from the store" (`{file}`): moves an unreadable stored file to `unreadable/` |
+| GET | `/api/config/lookups` | The member and provider lookups saved on screen, secrets masked, and what is in force |
+| PUT, DELETE | `/api/config/lookups/{kind}` | Save or remove the `member` or `provider` lookup |
 | GET | `/api/config/effective` | Everything in force, secrets masked |
 | POST | `/api/config/resolve` | What a request would become, without sending it |
 | POST | `/api/config/sign-in/token` | Hold a pasted token for the active environment (`{token, environment}`; 422 on mock) |
@@ -877,8 +905,8 @@ normal answer.
 | GET | `/api/lists/members/template.csv` | The CSV template, three placeholder rows |
 | POST | `/api/lists/members/import` | Import CSV text (`{csv, dryRun}`; a dry run stores nothing) |
 | GET, POST, PUT, DELETE | `/api/lists/providers`, `/api/lists/providers/{id}`, `.../template.csv`, `.../import` | The same for saved test providers |
-| GET | `/api/members/{memberId}`, `/api/members?memberId=` | Member lookup (the query form for an ID with a slash) |
-| GET | `/api/providers/{npi}`, `/api/providers?npi=` | Provider lookup (the NPI check digit first) |
+| GET | `/api/members/{memberId}`, `/api/members?memberId=` | Member lookup (the query form for an ID with a slash; optional `dateOfService`) |
+| GET | `/api/providers/{npi}`, `/api/providers?npi=` | Provider lookup (the NPI check digit first; optional `dateOfService`) |
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
 | GET | `/api/procedure-codes/self-check` | What the tool made of the code list |
 | POST | `/api/crd`, `/api/crd/preview` | One CRD call, or its request without sending it |
@@ -888,6 +916,7 @@ normal answer.
 | POST | `/api/dtr/package`, `/api/dtr/package/preview` | `$questionnaire-package` |
 | POST | `/api/dtr/next-question`, `/api/dtr/next-question/preview` | One step of the adaptive loop |
 | POST | `/api/dtr/response` | Complete the QuestionnaireResponse (sends nothing) |
+| POST | `/api/dtr/case-answers` | Answers to a questionnaire's questions from the case, each marked with where it came from (sends and records nothing) |
 | GET | `/api/pas/options` | The PAS version Submit follows, the Service card's code lists, attachment kinds and limits |
 | POST | `/api/pas/submit`, `/api/pas/submit/preview` | `Claim/$submit` |
 | POST | `/api/pas/inquire`, `/api/pas/inquire/preview` | `Claim/$inquire` |
@@ -907,6 +936,9 @@ normal answer.
 | POST | `/api/suites/preview`, `/api/suites` | What PAVE makes of a suite file, or start it (multipart: `file`); 202 |
 | GET | `/api/suites`, `/api/suites/{suiteRunId}`, `.../results.csv` | Suite runs held in memory, one, its results |
 | POST | `/api/suites/{suiteRunId}/stop` | Stop a running suite |
+| GET | `/api/trail` | The trail: switched on or off, runs kept, the limit, size and folder |
+| GET | `/api/trail/{runId}`, `/api/trail/{runId}/download` | One run's request and answer as kept, or the same as a file `<runId>.json` (404 when not kept) |
+| DELETE | `/api/trail` | Empty the trail |
 
 ### Examples, on mock
 
@@ -973,7 +1005,7 @@ meets:
 | `tracking.salt-file` | `""` | Blank: `installation-salt` in the store folder. Never inside the ledger folder |
 | `tracking.slow-threshold-ms` | `15000` | A call slower than this gets the "slow" chip |
 | `test-lists.enabled` | `true` | The saved test members and providers. False: the lists answer empty and nothing is read or written |
-| `trail.enabled`, `trail.max-entries` | `true`, `500` | The trail of release 2 |
+| `trail.enabled`, `trail.max-entries` | `true`, `500` | The trail of the last runs' requests and responses, in `<tracking.directory>/trail/`. False: nothing is kept |
 | `codelist.file` | `""` | The code list export. Blank: the bundled placeholder |
 | `app.scenario-dir` | `""` | A folder of scenario files in place of the bundled ones |
 | `app.mock-latency-enabled` | `true` | The scenario's delay on mock |
@@ -985,7 +1017,7 @@ meets:
 | `onyx.read-timeout-ms` | `120000` | How long PAVE waits for the vendor's answer, unless the environment states its own. The vendor's inquiry took longer than 20 s |
 | `onyx.auth.enabled`, `.token-url`, `.client-id`, `.client-secret`, `.scopes` | off, blank | Client credentials for an environment whose sign-in is left to `application.yml`. Values may be placeholders |
 | `onyx.variables` | `{}` | Last-resort values for placeholders |
-| `lookup.member.url`, `lookup.provider.url` | `""` | The lookups on live in release 1, with `{id}` in the path or the query. Blank: no lookup |
+| `lookup.member.url`, `lookup.provider.url` | `""` | The lookups on live when none is saved in Configuration, with `{id}` in the path or the query. Blank: no lookup |
 | `lookup.member.enabled`, `.connect-timeout-ms`, `.read-timeout-ms`, `.headers` | `true`, `3000`, `5000`, `{}` | Lookup switches; the same for `lookup.provider` |
 
 Also read when set: `lookup.member.use-onyx-auth` and `lookup.provider.use-onyx-auth`,
@@ -1174,9 +1206,9 @@ Each of these is unknown. PAVE uses an obvious placeholder rather than a plausib
 | Open item | What stands in for it | Where the real value goes |
 | --- | --- | --- |
 | The Onyx CRD service id | The variable `crdOrderSignServiceId` (`placeholder-order-sign-service` in the sample) | The vendor's environment, or Values in Configuration; CDS discovery lists what the environment offers |
-| The member API's response contract | A tolerant mapping: several spellings per field, any common envelope | `lookup.member.url`; from release 2 the field paths of the lookup form |
-| The provider directory's contract | The same; none appears in any earlier session | `lookup.provider.url`; from release 2 the lookup form |
-| How the lookup APIs authenticate | Nothing is assumed | `lookup.*.headers` or `lookup.*.use-onyx-auth`; from release 2 the lookup form's sign-in |
+| The member API's response contract | A tolerant mapping: several spellings per field, any common envelope | "Where the answer's fields are" in Configuration > Members, or `lookup.member.url` |
+| The provider directory's contract | The same; none appears in any earlier session | "Provider lookup" in Configuration > Providers, or `lookup.provider.url` |
+| How the lookup APIs authenticate | Nothing is assumed | "Sign in with" in the lookup's settings, or `lookup.*.headers` and `lookup.*.use-onyx-auth` |
 | How the vendor's token request authenticates the client | Client authentication by a Basic header, or in the form body, chosen in the environment's Sign-in; never observed against the vendor | The environment's Sign-in. A signed JWT assertion would need `requestToken` in `client/support/OnyxTokenService.java` changed |
 | The code list's header row, flag spellings, dates, encoding | The bundled placeholder and candidate headers | `codelist.file`, `codelist.columns.*`; check with the self-check |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode` |
@@ -1201,8 +1233,8 @@ open item, the worst first, with the entry that gives the reason.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.
-- **DTR is not a SMART launch**; no CQL is run, and in release 1 every answer is typed (answers
-  from the case come in release 2).
+- **DTR is not a SMART launch**; no CQL is run. Answers from the case are filled only into empty
+  fields, never over the payer's or the tester's, and were not seen on live.
 - **PAS**: no claim update and no `$submit-attachment`; `x12-275` sends no 275 transaction; a
   resubmission reuses the claim id.
 - **Two PAS 2.0.1 value sets were not settled**: whether the X12 role code SJ PAVE sends for a
@@ -1217,18 +1249,18 @@ open item, the worst first, with the entry that gives the reason.
   code belongs is kept.
 - **The guardrail** does not see another DNS name for a production host, or the `onyx.*.url`
   fallbacks as production addresses.
-- **Two copies on one store** are not refused in release 1 (from release 2 they are).
-- **Some server sentences name the old screens** until release 2 ([This release](#this-release)).
+- **Some server sentences name the old screens** ([This release](#this-release)).
+- **The trail holds member data** in `run-history/trail/`; it is emptied only on purpose
+  ([Audit and the trail](#audit-and-the-trail)).
 
 - **Started with `-Dpave.classes.load-at-start=false`** (not the default, which loads every class
-  at start), the first internal error within about 10 seconds after the IDE rebuilt the classes
-  can ask you to report it instead of saying to restart, and the top bar's environment list can
-  fail. Stop PAVE and start it again. Release 2 corrects it.
-- **A sandbox whose token url is, or lies beneath, an address of a production environment removed
-  after a slip** (on the same host, for example) cannot sign in until the remembered address is
-  forgotten by hand (or the production environment is stored again, when the token url is its
-  own); release 2 brings the button
+  at start), the top bar's environment list can fail after the IDE rebuilt the classes, with an
+  internal error that asks you to report it. Stop PAVE and start it again.
+- **The refusal that names each remembered address that blocks a save**, and the Forget dialog's
+  words on an address above or beneath, are held by tests only, not seen on a screen
   ([A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
+- **"Ready to send?"** in In force now can count a lookup set up on screen as to do; "Lookups in
+  force" says where it goes.
 - **A replay from Audit that fails just after a pull** does not add the files-changed line: stop
   PAVE and start it again, then replay once more.
 - **The Date of service and the questionnaire's dates** show in the browser's own form; the ISO
@@ -1277,6 +1309,27 @@ the vendor's service. What stays open on purpose is in [This release](#this-rele
 [Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
+## How release 2 was checked
+
+Release 2's slices were built on the release candidate of release 1 before its corrections. One
+agent merged release 1, its corrections and the PAS 2.0.1 decision into them (`86d4807`), settled
+each place both sides changed, and walked the jar on mock at 1440 by 900: P32H-DTR-PREPOP from a
+fresh page to "The prior authorization is approved.", a reload that brought the case and step 1
+back, Audit's request and answer from the trail, and Configuration's new pages. Two agents that built
+none of it then checked the merge once: the mock journeys at 1440 and 1024, Submit and the inquiry
+on live against the strict stand-in under both PAS guides, the lookups, the trail, suites and Audit;
+and the secrets and the guardrail across the store, the trail, the ledger, the logs and every
+answer. They found a completed questionnaire response missing from the trail, so a reload after
+step 2 lost it (major); a Forget dialog that promised too much when another remembered address
+still blocks (major); the PAS guide note naming the environment when none states a guide; the
+download named `run-run-...`; and In force now telling a lookup set up on screen to take an address
+from the environment. One corrector corrected all five (`3d71571`, `868b036`, `eba3e14`, `c31ae00`),
+seeing the reload on the jar at both sizes; the Forget and In force now corrections are held by tests
+only. **No second check of the corrections and no recheck round was run**, to keep spending low:
+release 2 rests on its tests, its whole build and that one independent look. Nothing was run on
+Windows or against the vendor's service. What stays open is in [This release](#this-release) and
+[Limitations](#limitations); what was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
+
 ## What this README was checked against
 
 Brought up to the release candidate on 2026-11-22: commit `7fc32c8` of the integration branch, cut
@@ -1304,3 +1357,14 @@ after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipp
 after the second round, 3,561 tests, 1 failure; `f0dace9`, after the third round, 3,563 tests, 0
 failures, 0 errors, 2 skipped. The code handed over, `6e1bff3`, was built whole twice and once from
 a fresh clone: 3,571 tests, 0 failures, 0 errors, 2 skipped, each time.
+
+For release 2, the parts that changed (This release, Start here's line on a second copy, Variables,
+the production address remembered by mistake, Lookups and test lists, Audit and the trail, Advanced,
+Endpoints, Properties, Open items, Limitations, How release 2 was checked) were brought to commit
+`c31ae00` of the branch `release2`: every sentence they quote from a screen was searched in
+`src/main` at that head, and every endpoint added was found in its controller there. They were not
+walked in a browser for this README; what they say was seen is what the merge agent's walk, the two
+checks and the corrector name. The last whole build of `c31ae00` ended BUILD SUCCESSFUL, and the
+Eclipse compiler check at that head found 0 errors. The gates before the hand-over (two whole builds
+from clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on the
+commit that carries this README, after it was written; their result is reported with the hand-over.

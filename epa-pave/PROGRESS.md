@@ -4,16 +4,40 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
-**This is release 1 of the rebuild of the screens** (D-281, D-285). After the operator called the
+**This is release 2 of the rebuild of the screens** (D-301 to D-303), on 2026-11-22, the same day as
+release 1. **The code** is `c31ae00` of the branch `release2`: the second half of the plan (the trail of
+the last 500 runs' requests and responses, Audit's request and answer from it with Download, Journeys
+and Suites, a reload that redraws the case and "Load into the Workbench", lookups set up on screen with
+GET or POST and "Test the lookup", questionnaire answers from the case, "Forget this production
+address", the lock on the store folder and its damaged files listed, the Advanced Trail page), built on
+release 1's candidate before its corrections, with release 1, its corrections and the PAS 2.0.1
+decision merged into it by one agent (`86d4807`, D-302), then one check by two agents that built none of
+it and four corrections by one corrector (`3d71571`, `868b036`, `eba3e14`, `c31ae00`; D-303). These
+records were committed after it. **No second check of the corrections and no recheck round was run**:
+the operator asked for spending to be kept low, so release 2 was closed with five agents where release
+1 used many more, and the merge and the corrections rest on their tests, the whole build and one
+independent look. Nothing was run on a Windows workstation or against the vendor's service.
+**The last whole build** of `c31ae00`: BUILD SUCCESSFUL in 10m 22s, exit 0; its log holds 3,690 lines
+marked PASSED or "tests completed", a line count and not an exact number of tests
+(`rebuild/r2/correct/build.log`); the Eclipse compiler check at `c31ae00` found 0 errors. The merge
+commit's own whole build had 3,687 PASSED, 3 SKIPPED and 0 FAILED test lines
+(`rebuild/r2/merge/build2.log`). The gates of section 0 before the hand-over (two whole builds from
+clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on the commit
+that carries these records, after them; their result is reported with the hand-over.
+**The new entries**: D-301 what release 2 adds; D-302 the merge of release 1 into it; D-303 its one check,
+the five findings and their corrections, and the limit. The commit that records them changes this file,
+`DECISIONS.md` and `README.md` only.
+
+**Release 1 of the rebuild of the screens** (D-281, D-285). After the operator called the
 screens unusable, the integrator had them rebuilt on the model of the operator's own tool, keeping
 PAVE's server: one top bar, three tabs (Workbench, Audit, Configuration), the Workbench a case column
 and four steps (Coverage check, Questionnaire, Submit, Status), a result made of chips, one headline,
 a few facts and closed folds, environments configured on screen, saved test members and providers,
 Submit after Da Vinci PAS 2.0.1 (2.2.1 a choice of the environment), the request shapes the vendor's
 sandbox accepted. It reaches the operator in two releases on 2026-11-22: release 1, handed over at
-16:00 UTC (first planned for 15:00); release 2, handed over at
-22:00 UTC, which adds to release 1 and is never its repair. Each is handed over only after its checks.
-Hours here are UTC.
+16:00 UTC (first planned for 15:00); release 2, planned for 22:00 UTC, which adds to release 1.
+Hours here are UTC. The paragraphs that follow, to "Before the rebuild", describe release 1 as it was
+handed over.
 
 **The release candidate** of release 1 is `7fc32c8` (`7fc32c80e0202762b2cfe29e87c3a9800f9ad68d`) of the
 integration branch `rebuild/main`, cut at 11:48 UTC; the branch of these records merged it (`65d5069`)
@@ -121,36 +145,39 @@ Each line can be read alone. The detail of each is in the entry named.
    the environment chooses 2.2.1 (D-300; their earlier answer that named 2.2.1 is D-293). The lookups
    have never met the real member API or a provider directory, and how the vendor wants the client to
    sign in is an assumption (D-233, D-290).
-2. **What release 1 does not hold, and release 2 brings at 22:00 UTC**, each with how the screen tells
-   the tester:
-   - the trail of the full requests and responses of the last 500 exchanges, secrets masked (B5), and
-     what reads it: a run's request and answer in Audit with Copy and Download (B4b), and the Advanced
-     Trail page (I4): Configuration > Advanced > Trail says "This page comes in the next
-     release."; Audit shows a run's request and answer only while the page that made the run stays open,
-     and a run opened by another page says "The request and answer are shown only by the page that made the
-     run, while it stays open." (seen on `19ddf8e`);
-   - the member and provider lookups configured on screen, with "Test the lookup" (D3, F4, C2c): no page
-     of Configuration offers them; until then `lookup.member` and `lookup.provider` in `application.yml`, and typing by hand;
-     the Member and Provider cards say "No lookup is configured" and "Type the details." and leave the
-     fields open (seen on `e5d0972`);
-   - questionnaire answers filled from the case (E4, H4): every answer the questionnaire response does
-     not already hold is typed, and nothing marks an answer as coming from the case;
-   - Journeys and Suites in Audit (B4b, G4), and the suites' Postman fix with the repeated case id of
-     D-283 (G3): Audit draws no
-     sub-navigation while Runs is its only page, so neither is offered;
-   - a reload that keeps the case and every step's result, and "Load into the Workbench" (A2c): a reload starts a new case, the runs
-     made before it being in Audit; one notice under the top bar says "A reload starts a new case. The runs
-     of the case before are in Audit." (seen on `e5d0972` and `19ddf8e`);
-   - "Forget this production address" (D6, I4): Production writes lists the addresses remembered as
-     production and offers no way to forget one; a send refused for such an address names the environment it
-     was remembered from and gives the way out that works today (stop PAVE, remove that environment's
-     entries from `productionDestinations` in `store.json`, start it again), and Production writes and
-     `/api/mode` say the same (D-295; seen on `19ddf8e`);
-   - also release 2: values for one run on the step that was refused for them (A2c); a stored file that
-     cannot be read listed instead of refusing the start, and a lock against a second copy on one store
-     (D6); the place names in server sentences brought up to the new screens (R-16), the guardrail's
-     sentences changed in their place names only (I-30); the advice after a rebuild for a PAVE started
-     with loading at start off (hunts-1, hunts-2, I-9).
+2. **Release 2 was checked once, and its corrections by nobody but their corrector** (D-303). The merge of
+   release 1 into it was walked by its own agent on mock at 1440 only (D-302); two agents that built none
+   of it checked the merge once; one corrector corrected their five findings. No second check and no
+   recheck round followed, to keep spending low. What that leaves, each with what a tester does:
+   - **Held by tests only, never seen on a screen**: the save refusal that names every remembered
+     production address that blocks, and the Forget dialog's ", unless another remembered address lies
+     above or beneath it." (safety-1, `868b036`); In force now leaving out the operation row of a lookup set
+     up on screen (safety-2, `c31ae00`). After a refusal, forget each address the note names, then save
+     again.
+   - **Left by the corrector**: "Ready to send?" still counts a lookup set up only on screen among the
+     operations it calls to do; read "Lookups in force" for it.
+   - **Not reached by anyone**: answers from the case on live (M19; the strict stand-in refused the
+     coverage check while draftOrders type was Sent); a reload after step 4 (inquiry, subscriptions,
+     notifications); 501 runs keeping 500 in a browser; "Load into the Workbench" beside "This run cannot be
+     run again" for a journey made in a browser on live; the merge's interactions (c), (e), (g), (i), (j)
+     and (k) on a running tool (D-302); a walk of the merge at 1024 or on live by its own agent; the
+     release 1 majors closed before the merge, not followed again on release 2.
+   - **The plan's release 2 items not built**: the sweep of the old place names in server sentences
+     (R-16, plan 7.6), so the README's table of old names stays; the advice after a rebuild for a missing
+     class reached by reflection under a PAVE started with `-Dpave.classes.load-at-start=false` (hunts-2):
+     the top bar's environment list can then answer an internal error that asks to report it; stop PAVE and
+     start it again. B3a's correction of hunts-1 (a LinkageError looked at afresh) is in the code, held by
+     `ClassesOnDiskTest`; its probe on a running tool was not run (D-301).
+   - **What release 1 left open that release 2 closes**, each in the code at `c31ae00` (D-301): the trail
+     and a run's request and answer in Audit with Download (the Audit line of I-26 is gone); Journeys and
+     Suites in Audit; a reload that keeps the case, and "Load into the Workbench" (the reload notice is
+     gone); lookups set up on screen with "Test the lookup"; answers from the case; values for one run on
+     the Workbench; "Forget this production address" in place of the hand edit of `store.json`; a lock
+     against a second copy on one store; a stored file that cannot be read listed instead of stopping the
+     start; the Advanced Trail page in place of "This page comes in the next release.". Seen on a running
+     tool by the check of release 2 or the merge agent: the trail, Audit's folds, Download, Journeys,
+     Suites, the reload and "Load into the Workbench" on mock, the lookup on live against the stand-in,
+     Forget's own refusals; answers from the case only on mock.
 3. **What the checks of release 1 and the integrator's own findings on the candidate left** (D-299).
    - **Two holes in the guardrail the rebuild opened, closed before any hand-over**, found by the check on
      `0b69049` before any
@@ -169,8 +196,9 @@ Each line can be read alone. The detail of each is in the entry named.
      says that the production environment is no longer stored and gives the way out by hand (`185b5be`):
      stop PAVE, delete the entries whose environment is that one from `productionDestinations` in
      `config-store/store.json`, and start PAVE again. Narrowing the rule to write addresses (I-28a) was
-     withdrawn: the store does not know which remembered address served a write. Release 2 brings the
-     "Forget this production address" button (D-290).
+     withdrawn: the store does not know which remembered address served a write. **Closed in release 2**:
+     the refusal names "Forget this production address" in Configuration > Production writes, and a test
+     shows the sandbox's token url no longer refused after Forget (D-302 (e)); not seen on a screen.
    - **A callback url typed in the environment was not used by the subscription.** At the candidate it was
      shown in the settings view and held for masking, but the subscription call still names
      `onyx.subscription.callback-url` of `application.yml` (integrator-2, major, found by the integrator on
@@ -214,17 +242,19 @@ Each line can be read alone. The detail of each is in the entry named.
      only (critic-k3-1, `ab65809`); `ListsFrontendTest` expects the refused date of birth twice, as the
      page shows it (`e783589`). The README committed after `22478b8` has the "This release" section and
      the line on the slip of features-8 (features-9).
-   - Left open, each with what a tester does: dates show in the browser's own form (for example
-     01/10/2026) beside ISO dates elsewhere; the value sent is the ISO date (look-12). A replay sent again
+   - Left open, each with what a tester does: the Date of service shows in the browser's own form (for
+     example 01/10/2026) beside ISO dates elsewhere; the value sent is the ISO date (look-12; the
+     questionnaire's date questions are text fields read as YYYY-MM-DD since H4, D-301). A replay sent again
      from Audit that fails does not carry the line that PAVE's files changed on disk; after a pull, restart
      PAVE before replaying (the Audit part of I-12, not done). Configuration's mapping note and raw-send
      note still say "the Config tab": read Configuration > Advanced; two lines the store writes to the log
      at start say it for Configuration.
    - Left for time by the sorter and corrected all the same, seen closed on `e5d0972`: critic-8, critic-10,
      critic-11, look-11, look-17, look-18 (D-299).
-   - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2): after rebuilding under a PAVE
-     started with `-Dpave.classes.load-at-start=false`, stop PAVE and start it again before trusting any
-     internal error (hunts-1, hunts-2, I-9; release 2). Also hunts-3 (the measure
+   - Left by the integrator's decision: hunts-1 and hunts-2 (I-9), given to release 2; hunts-1 is
+     corrected there and hunts-2 is not (line 2): after rebuilding under a PAVE started with
+     `-Dpave.classes.load-at-start=false`, stop PAVE and start it again before trusting any internal
+     error. Also hunts-3 (the measure
      was wrong, I-10), the browser's own console line for a planned refusal (wb-mock-5, live-config-6,
      I-7, I-33), M6 at 5 typed values (live-config-3, I-31), the guardrail's sentences still naming the
      Config tab and the PAS tab (look-guardrail-6, I-30): in a production refusal "the Config tab" means
@@ -283,16 +313,17 @@ Each line can be read alone. The detail of each is in the entry named.
    redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
    production checks since D1b; the two holes the checks of release 1 found in the rebuild's new
    destinations are line 3. An address remembered from a removed production environment is forgotten
-   only by hand in `store.json` until release 2 (line 2, D-295).
+   with "Forget this production address" since release 2 (D-301); another remembered address above or
+   beneath it still blocks, and the refusal names each (line 2, D-303).
 8. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
    identifiers only, and as typed when a placeholder has no value or is filled from a collection variable
    (D-262). A suite expectation that holds a date of birth or a name and is also malformed is repeated
    in the results file. A supplied identifier of 64 hex characters or shaped like a UUID is kept in clear.
    A note added later on a token line cannot be checked for a name or a date of birth. Closed since: a
-   member's name in a suite row's case id (D-283), and a typed DTR questionnaire address that holds
-   member data (F2b, D-283). Still open from that close: a repeated case id on mock (release 2, G3), a
-   chain row whose expectation cannot be read, and a live run with the lookup off, where no name is known
+   member's name in a suite row's case id (D-283), a typed DTR questionnaire address that holds
+   member data (F2b, D-283), and a repeated case id on mock, now "case-<n> [id not shown]" for every
+   row that shares it (G3, D-301). Still open from that close: a chain row whose expectation cannot be read, and a live run with the lookup off, where no name is known
    to compare. The configuration store keeps
    uploads as uploaded (D-213), the saved test lists by design (D-294), secrets and the installation salt
    in plain text in `config-store/` (D-234), and the wire view carries member data.
@@ -309,8 +340,8 @@ Each line can be read alone. The detail of each is in the entry named.
     sentences still name the old tabs: those the Workbench shows name the new places since `629a584` and
     `7a1dbe7` (I-1 (d)), three more since the second round (a run id, the sign-in line of a suite or a
     replay, a send with no address; `c891362`); Configuration's mapping and raw-send notes and two
-    start-up log lines still say "the Config tab"; the rest wait for release 2 (R-16), and the
-    guardrail's keep their words in release 1 (I-30).
+    start-up log lines still say "the Config tab"; the sweep of the rest (R-16) was not made in release 2
+    either (D-301), and the guardrail's keep their words (I-30).
 10. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
     while the tool runs on mock is recorded as answered by a mock scenario; lines written between
     `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two
