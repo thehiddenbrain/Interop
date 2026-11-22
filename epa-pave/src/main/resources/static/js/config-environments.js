@@ -150,6 +150,9 @@ function createPage(root) {
                 lines.push(el('p', {class: 'config-card-line'}, shapeLine(shape)));
             }
         }
+        if (settings && settings.problem) {
+            lines.push(el('p', {class: 'config-card-line config-warning'}, settings.problem));
+        }
         const addresses = settings && Array.isArray(settings.addresses) ? settings.addresses : [];
         return el('article', {class: ['env-card', environment.active ? 'env-card--active' : null]},
             el('div', {class: 'env-card__head'},
@@ -400,6 +403,9 @@ export function createEditor(options) {
 
         const sections = [];
         sections.push(el('p', {class: 'muted'}, 'Saved in the configuration store and used at once. A blank secret keeps the stored value.'));
+        if (view && view.problem) {
+            sections.push(el('p', {class: 'config-warning'}, view.problem));
+        }
         sections.push(banner);
         sections.push(el('div', {class: 'importer'},
             el('p', {class: 'form-section__title'}, 'Start from Postman exports (optional)'),
@@ -1103,5 +1109,7 @@ function shapeLine(shape) {
 function operationChip(address) {
     const inForce = address.inForce || {};
     const none = !inForce.source || inForce.source === 'NONE';
-    return chip(address.short || address.label || address.operation, {dashed: none, title: inForce.sourceLabel || null});
+    // The plan names the short label "short"; the server's record may name it "shortLabel". Either is the server's word.
+    const words = address.short || address.shortLabel || address.label || address.operation;
+    return chip(words, {dashed: none, title: inForce.sourceLabel || null});
 }
