@@ -23,24 +23,6 @@ const QUIET_MS = 500;
 // A gap chip shows the start of the server's line; the whole line is its title.
 const GAP_WORDS = 40;
 
-/**
- * A step option through ctx.option (as wb-dtr.js reads one; each step module loads on its own). Should reading it fail in the Workbench itself, the value is read
- * from the step's own options row, where the tester typed it, so a defect there neither stops the
- * step nor drops what was typed.
- */
-function optionOf(ctx, name) {
-    try {
-        return ctx.option(name);
-    } catch (defect) {
-        const row = typeof ctx.optionsRow === 'function' ? ctx.optionsRow() : null;
-        const field = row ? row.querySelector('[data-case-field="' + name + '"] input, [data-case-field="' + name + '"] select') : null;
-        if (field) {
-            return String(field.value || '').trim();
-        }
-        throw defect;
-    }
-}
-
 /** The number of questions a QuestionnaireResponse (JSON text) holds an answer for, walked without recursion; null when it cannot be read. */
 export function answerCount(json) {
     let response;
@@ -151,7 +133,7 @@ export function mount(root, ctx) {
     const sendButton = el('button', {type: 'button', class: 'btn btn--primary', on: {click: () => send()}}, 'Send PAS request');
     const toggle = typeof ctx.optionsToggle === 'function' ? ctx.optionsToggle() : null;
     const optionsRow = typeof ctx.optionsRow === 'function' ? ctx.optionsRow() : null;
-    const writes = el('div', {class: 'submit-writes'});
+    const writes = el('div', {class: 'submit-writes', hidden: true});
     const readiness = el('div', {class: 'readiness'});
     const goes = el('div', {class: 'panel__section goes'});
     const gaps = el('div', {class: 'gaps'});
@@ -174,9 +156,9 @@ export function mount(root, ctx) {
     function own() {
         return {
             expected: expect.value,
-            claimId: optionOf(ctx, 'claimId'),
+            claimId: ctx.option('claimId'),
             mock: ctx.isMock(),
-            scenarioId: ctx.isMock() ? optionOf(ctx, 'scenarioId') : '',
+            scenarioId: ctx.isMock() ? ctx.option('scenarioId') : '',
             includeResponse: include.checked
         };
     }
@@ -199,12 +181,15 @@ export function mount(root, ctx) {
     /** On kind prod: the server's sentence on writes and the way to Production writes. The button stays. */
     function drawWrites() {
         const access = mode ? mode.writeAccess : null;
+        // The box is framed by the stylesheet, so it is hidden, not only emptied, off kind prod.
         if (!access || access.production !== true) {
             clear(writes);
+            writes.hidden = true;
             return;
         }
+        writes.hidden = false;
         fill(writes, el('p', {class: 'line line--prod small'}, access.reason || '', ' ',
-            el('a', {href: '#configuration/production-writes'}, 'Production writes')));
+            el('a', {class: 'line__link', href: '#configuration/production-writes'}, 'Production writes')));
     }
 
     /** "What goes": at most three lines of chips, each a short label and its value (M22). */
@@ -340,11 +325,9 @@ export function mount(root, ctx) {
             busyWords: 'Sending the request...', buttons: [sendButton, previewButton], typed: ctx.typedCode(), ctx,
             onResult: envelope => {
                 clear(refusal);
+                // The frame hands step 4 its claim from this envelope (through its check for a mask), so
+                // this step hands nothing on of its own and never undoes the frame's hand-over.
                 ctx.resulted(envelope);
-                const carry = envelope.nextStep ? envelope.nextStep.carry : null;
-                if (carry && carry.claimId) {
-                    ctx.handOn(4, carry);
-                }
                 fill(result, ctx.card(envelope));
             },
             onRefused: (error, placed) => {
