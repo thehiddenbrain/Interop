@@ -25,6 +25,9 @@ class RequestShapeFilterTest {
     private final MockEnvironment environment = new MockEnvironment().withProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "1KB")
             .withProperty(RequestShapeFilter.MAX_FILE_SIZE, "1KB").withProperty(RequestShapeFilter.FILE_SIZE_THRESHOLD, "1KB");
 
+    /** A fixed heap, so that no answer depends on the memory of the machine that runs the test. */
+    private static final long HEAP = 1024L * 1024 * 1024;
+
     private record Result(MockHttpServletResponse response, boolean passedOn) {
 
         JsonNode json() throws Exception {
@@ -44,7 +47,7 @@ class RequestShapeFilterTest {
                 }
             }
         };
-        new RequestShapeFilter(environment).doFilter(request, response, new MockFilterChain(counting));
+        new RequestShapeFilter(environment, () -> HEAP).doFilter(request, response, new MockFilterChain(counting));
         return new Result(response, reached.get());
     }
 
@@ -110,7 +113,8 @@ class RequestShapeFilterTest {
         assertThat(result.json().get("title").stringValue())
                 .isEqualTo("The request is larger than this tool accepts, which is 1KB in all. Nothing was done.");
         assertThat(result.json().get("action").stringValue())
-                .isEqualTo("Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size in application.yml.");
+                .isEqualTo("Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size and "
+                        + "spring.servlet.multipart.max-file-size together in application.yml.");
 
         MockHttpServletRequest atLimit = new MockHttpServletRequest("POST", "/api/config/writes");
         atLimit.setContent(new byte[1024]);
@@ -149,7 +153,7 @@ class RequestShapeFilterTest {
 
     @Test
     void withTheLimitUnsetTheFilterHoldsToTheValueApplicationYmlShipsWith() throws Exception {
-        RequestShapeFilter unset = new RequestShapeFilter(new MockEnvironment());
+        RequestShapeFilter unset = new RequestShapeFilter(new MockEnvironment(), () -> HEAP);
         for (long length : new long[] {30L * 1024 * 1024, 30L * 1024 * 1024 + 1}) {
             MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/crd") {
                 @Override
@@ -163,8 +167,8 @@ class RequestShapeFilterTest {
             assertThat(response.getStatus()).as("length " + length).isEqualTo(length > 30L * 1024 * 1024 ? 413 : 200);
             assertThat(response.getContentAsString()).as("length " + length).isEqualTo(length > 30L * 1024 * 1024
                     ? "{\"kind\":\"VALIDATION\",\"title\":\"The request is larger than this tool accepts, which is 30MB in all. Nothing was done.\","
-                            + "\"action\":\"Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size in "
-                            + "application.yml.\",\"fieldErrors\":[],\"issues\":[]}"
+                            + "\"action\":\"Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size and "
+                            + "spring.servlet.multipart.max-file-size together in application.yml.\",\"fieldErrors\":[],\"issues\":[]}"
                     : "");
         }
     }
@@ -201,13 +205,100 @@ class RequestShapeFilterTest {
         chunked.setContent(new byte[64 * 1024]);
         assertThat(send(chunked, reader).response().getStatus()).isEqualTo(200);
 
+        // No size limit is no heap: a body the memory cannot hold is still refused before it is read.
         MockHttpServletRequest large = new MockHttpServletRequest("POST", "/api/crd") {
             @Override
             public long getContentLengthLong() {
                 return 100L * 1024 * 1024 * 1024;
             }
         };
-        assertThat(send(large, null).passedOn()).isTrue();
+        Result refused = send(large, null);
+        assertThat(refused.passedOn()).isFalse();
+        assertThat(refused.json().get("title").stringValue())
+                .isEqualTo("This request is 102400 MB and PAVE runs with 1024 MB of memory, which is too little to read it.");
+        // A heap with no stated bound refuses nothing.
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        new RequestShapeFilter(environment, () -> Long.MAX_VALUE).doFilter(large, response, chain);
+        assertThat(chain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void aBodyTooLargeForTheHeapIsRefusedBeforeItIsReadWithTheSettingThatHelps() throws Exception {
+        environment.setProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "30MB");
+        long fiveMb = 5L * 1024 * 1024;
+        // 5 MB times twelve is 60 MB, more than a heap of 48 MB: the hunt's -Xmx64m case, with room for the rest of PAVE.
+        for (long heapMb : new long[] {48, 64}) {
+            MockHttpServletRequest upload = new MockHttpServletRequest("POST", "/api/config/collections") {
+                @Override
+                public long getContentLengthLong() {
+                    return fiveMb;
+                }
+            };
+            upload.setContentType("application/json");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+            new RequestShapeFilter(environment, () -> heapMb * 1024 * 1024).doFilter(upload, response, chain);
+            if (heapMb == 48) {
+                assertThat(chain.getRequest()).as("heap " + heapMb).isNull();
+                assertThat(response.getStatus()).isEqualTo(413);
+                JsonNode json = JsonSafe.parse(response.getContentAsString()).node();
+                assertThat(json.get("title").stringValue())
+                        .isEqualTo("This request is 5 MB and PAVE runs with 48 MB of memory, which is too little to read it.");
+                assertThat(json.get("action").stringValue()).isEqualTo("Start PAVE with -Xmx512m or more.");
+                assertThat(json.get("kind").stringValue()).isEqualTo("VALIDATION");
+            } else {
+                assertThat(chain.getRequest()).as("heap " + heapMb).isNotNull();
+            }
+        }
+        // The size is rounded up and the heap down, so neither makes the fit look better than it is.
+        assertThat(RequestShapeFilter.tooLittleMemory(fiveMb + 1, 48L * 1024 * 1024 + 1023))
+                .isEqualTo("This request is 6 MB and PAVE runs with 48 MB of memory, which is too little to read it.");
+    }
+
+    @Test
+    void aBodyOverTheSizeLimitIsToldAboutThatLimitEvenWhenTheHeapIsSmallerToo() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/config/writes");
+        request.setContent(new byte[2048]);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        new RequestShapeFilter(environment, () -> 1024L).doFilter(request, response, new MockFilterChain());
+        assertThat(JsonSafe.parse(response.getContentAsString()).node().get("title").stringValue())
+                .isEqualTo("The request is larger than this tool accepts, which is 1KB in all. Nothing was done.");
+    }
+
+    @Test
+    void aFormUploadOverTheLimitNamesTheLimitForOneFileBesideTheOneForTheRequestAndBothSettings() throws Exception {
+        environment.setProperty(RequestShapeFilter.MAX_REQUEST_SIZE, "30MB");
+        environment.setProperty(RequestShapeFilter.MAX_FILE_SIZE, "25MB");
+        MockHttpServletRequest upload = new MockHttpServletRequest("POST", "/api/config/collections") {
+            @Override
+            public long getContentLengthLong() {
+                return 31L * 1024 * 1024;
+            }
+        };
+        upload.setContentType("multipart/form-data; boundary=x");
+        Result refused = send(upload, null);
+        assertThat(refused.response().getStatus()).isEqualTo(413);
+        assertThat(refused.json().get("title").stringValue())
+                .isEqualTo("The upload is larger than this tool accepts, which is 25MB for one file and 30MB in all. Nothing was done.");
+        assertThat(refused.json().get("action").stringValue()).isEqualTo("Send a smaller body. To accept larger ones, raise "
+                + "spring.servlet.multipart.max-request-size and spring.servlet.multipart.max-file-size together in application.yml.");
+
+        // The same body sent as JSON, as the screens send a file, has only the request's limit.
+        MockHttpServletRequest json = new MockHttpServletRequest("POST", "/api/config/collections") {
+            @Override
+            public long getContentLengthLong() {
+                return 31L * 1024 * 1024;
+            }
+        };
+        json.setContentType("application/json");
+        assertThat(send(json, null).json().get("title").stringValue())
+                .isEqualTo("The request is larger than this tool accepts, which is 30MB in all. Nothing was done.");
+
+        // With the file limit at or above the request's, the request's is the one that matters.
+        environment.setProperty(RequestShapeFilter.MAX_FILE_SIZE, "40MB");
+        assertThat(send(upload, null).json().get("title").stringValue())
+                .isEqualTo("The request is larger than this tool accepts, which is 30MB in all. Nothing was done.");
     }
 
     @Test
