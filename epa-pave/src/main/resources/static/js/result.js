@@ -6,6 +6,8 @@ import {el} from './dom.js';
 // are held by StaticJoinTest from the first merge on, before the card itself exists.
 import {responseDetail} from './detail.js';
 import {errorPanel} from './fault.js';
+import {jsonView} from './json-view.js';
+import {vocabulary} from './words.js';
 
 /** A run envelope as a result card. options.context: 'workbench' or 'audit'. */
 export function resultCard(envelope, options) {
