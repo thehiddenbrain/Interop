@@ -531,11 +531,30 @@ public final class DtrVerdicts {
     /** The question's text in quotes, or its linkId when the payer gave no text. */
     private static String quotedShort(QuestionRef question) {
         String text = Texts.present(question.text()) ? question.text() : question.linkId();
-        String flat = text == null ? "" : text.strip().replaceAll("\\s+", " ");
+        String flat = collapsed(text == null ? "" : text.strip());
         if (flat.codePointCount(0, flat.length()) > HEADLINE_TEXT_LIMIT) {
             flat = flat.substring(0, flat.offsetByCodePoints(0, HEADLINE_TEXT_LIMIT)).stripTrailing() + "...";
         }
         return "\"" + flat + "\"";
+    }
+
+    /** Each run of whitespace as one space, by a loop: a pattern here would be one more for the stack guard to vouch for. */
+    private static String collapsed(String text) {
+        StringBuilder out = new StringBuilder(text.length());
+        boolean space = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                space = true;
+                continue;
+            }
+            if (space) {
+                out.append(' ');
+                space = false;
+            }
+            out.append(c);
+        }
+        return out.toString();
     }
 
     private static String named(List<QuestionRef> questions) {
