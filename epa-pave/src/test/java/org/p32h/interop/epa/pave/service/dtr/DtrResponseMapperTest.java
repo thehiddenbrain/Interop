@@ -251,7 +251,7 @@ class DtrResponseMapperTest {
             assertThat(condition.explanation()).isEqualTo("The condition holds.");
         });
         assertThat(second.enabled()).isEqualTo(ItemEnabled.ENABLED);
-        assertThat(second.enabledReason()).isEqualTo("Enabled: its condition holds.");
+        assertThat(second.enabledReason()).isEqualTo("Asked because the answer to \"First question\" is Yes.");
 
         // A group inside a group, and the initial value the questionnaire itself states.
         ItemView inner = group.items().get(2);

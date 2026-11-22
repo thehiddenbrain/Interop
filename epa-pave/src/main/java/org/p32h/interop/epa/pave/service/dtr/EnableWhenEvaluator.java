@@ -301,6 +301,81 @@ public final class EnableWhenEvaluator {
         }
     }
 
+    /**
+     * Why an item that its own conditions decide is asked or not, in the words a tester reads under
+     * the question. One condition is said in full: the question it reads, by its text, and the
+     * answer that asks the item, as the questionnaire writes it. Neither is a member's answer: both
+     * come from the questionnaire. Several are said together, as the questions above them show them.
+     *
+     * @param first the item's first enableWhen entry, read only when it has one condition
+     */
+    static String conditionReason(ItemEnabled own, boolean several, String behavior, JsonNode first, Map<String, Item> byLinkId) {
+        String phrase = several ? null : conditionPhrase(first, byLinkId);
+        return switch (own) {
+            case ENABLED -> several ? ("any".equals(behavior) ? "Asked because at least one condition on the answers above holds."
+                    : "Asked because every condition on the answers above holds.")
+                    : phrase == null ? "Asked because its condition on the answers above holds." : "Asked because " + phrase + ".";
+            case DISABLED -> several ? "Not asked until the answers above meet its conditions."
+                    : phrase == null ? "Not asked until its condition on the answers above holds." : "Not asked until " + phrase + ".";
+            case UNDETERMINED -> "Undetermined: a condition that decides it could not be evaluated. It is still shown.";
+        };
+    }
+
+    /** 'the answer to "Question text" is Yes', or null when the condition cannot be put that way. */
+    private static String conditionPhrase(JsonNode entry, Map<String, Item> byLinkId) {
+        String question = JsonSafe.presentText(entry, "question");
+        String operator = JsonSafe.presentText(entry, "operator");
+        String key = QuestionnaireJson.valueKey(entry, "answer");
+        if (question == null || operator == null || key == null) {
+            return null;
+        }
+        Item target = byLinkId.get(question);
+        String text = target == null ? null : JsonSafe.presentText(target.node(), "text");
+        String named = text == null ? "question " + question : "\"" + text + "\"";
+        JsonNode value = entry.get(key);
+        if ("exists".equals(operator)) {
+            Boolean exists = JsonSafe.bool(value);
+            return exists == null ? null : named + (exists ? " has an answer" : " has no answer");
+        }
+        String shown = shownValue(value);
+        if (shown == null) {
+            return null;
+        }
+        String answer = "the answer to " + named;
+        return switch (operator) {
+            case "=" -> answer + " is " + shown;
+            case "!=" -> answer + " is not " + shown;
+            case ">" -> answer + " is more than " + shown;
+            case "<" -> answer + " is less than " + shown;
+            case ">=" -> answer + " is " + shown + " or more";
+            case "<=" -> answer + " is " + shown + " or less";
+            default -> null;
+        };
+    }
+
+    /** A value as a person reads it: yes or no, a coding's display (else its code), a quantity with its unit, or the text. */
+    private static String shownValue(JsonNode value) {
+        if (JsonSafe.nullOrMissing(value)) {
+            return null;
+        }
+        if (value.isBoolean()) {
+            return value.booleanValue() ? "Yes" : "No";
+        }
+        if (value.isObject()) {
+            String display = JsonSafe.presentText(value, "display");
+            if (display != null) {
+                return display;
+            }
+            String number = JsonSafe.presentText(value, "value");
+            if (number != null) {
+                String unit = JsonSafe.presentText(value, "unit");
+                return unit == null ? number : number + " " + unit;
+            }
+            return JsonSafe.presentText(value, "code");
+        }
+        return JsonSafe.presentText(value);
+    }
+
     private static final class Run {
 
         private final List<Item> items;
@@ -452,13 +527,7 @@ public final class EnableWhenEvaluator {
                             + "all or any to combine them by. It is still shown.";
                 }
                 if (reason == null) {
-                    reason = switch (own) {
-                        case ENABLED -> several ? ("any".equals(behavior) ? "Enabled: at least one of its conditions holds."
-                                : "Enabled: every one of its conditions holds.") : "Enabled: its condition holds.";
-                        case DISABLED -> several ? ("any".equals(behavior) ? "Disabled: none of its conditions holds."
-                                : "Disabled: at least one of its conditions does not hold.") : "Disabled: its condition does not hold.";
-                        case UNDETERMINED -> "Undetermined: a condition that decides it could not be evaluated. It is still shown.";
-                    };
+                    reason = conditionReason(own, several, behavior, JsonSafe.elements(item.node(), "enableWhen").get(0), byLinkId);
                 }
             }
             List<DtrNotApplied.Rule> rules = new ArrayList<>(DtrNotApplied.governing(item.node()));
