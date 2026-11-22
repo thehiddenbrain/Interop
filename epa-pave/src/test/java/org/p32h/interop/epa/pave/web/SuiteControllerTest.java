@@ -214,8 +214,76 @@ class SuiteControllerTest {
         assertThat(unknownEarlier.get("title").stringValue()).contains("nothing to compare with");
     }
 
+    private static String body(String fileName, String text, String... more) {
+        StringBuilder out = new StringBuilder("{\"fileName\": ").append(JsonSafe.mapper().writeValueAsString(fileName))
+                .append(", \"text\": ").append(JsonSafe.mapper().writeValueAsString(text));
+        for (String extra : more) {
+            out.append(", ").append(extra);
+        }
+        return out.append("}").toString();
+    }
+
+    private JsonNode posted(MockMvc mvc, String path, String json, int expectedStatus) throws Exception {
+        return json(mvc.perform(post(path).contentType("application/json").content(json)).andExpect(status().is(expectedStatus))
+                .andReturn().getResponse());
+    }
+
+    /**
+     * The page reads the suite file itself and posts its text (R-06, R-30): the preview and the run
+     * answer as they do for the uploaded file, the run's reference and comparison come in the same
+     * body, and the multipart form stays for curl.
+     */
     @Test
-    void theSuiteIsUploadedAsAFileAndNeverAsJson() throws Exception {
-        mvc().perform(post("/api/suites").contentType("application/json").content("{}")).andExpect(status().isUnsupportedMediaType());
+    void theSuiteFileCanBePostedAsTheTextThePageRead() throws Exception {
+        MockMvc mvc = mvc();
+        JsonNode preview = posted(mvc, "/api/suites/preview", body("cases.csv", twoCases()), 200);
+        assertThat(preview.get("headline").stringValue()).isEqualTo("2 cases, and every one can be run.");
+        assertThat(preview.get("name").stringValue()).isEqualTo("cases.csv");
+        assertThat(bed.ledger.records()).isEmpty();
+        // The same body the run takes: a preview never refuses what the run would accept.
+        JsonNode same = posted(mvc, "/api/suites/preview", body("cases.csv", twoCases(), "\"testerRef\": \"QA-17\"", "\"configEpoch\": 0"), 200);
+        assertThat(same.get("total").intValue()).isEqualTo(2);
+
+        JsonNode started = posted(mvc, "/api/suites", body("cases.csv", twoCases(), "\"testerRef\": \"QA-17\""), 202);
+        String id = started.get("suiteRunId").stringValue();
+        assertThat(started.get("testerRef").stringValue()).isEqualTo("QA-17");
+        JsonNode run = json(mvc.perform(get("/api/suites/" + id)).andExpect(status().isOk()).andReturn().getResponse());
+        assertThat(run.get("headline").stringValue()).isEqualTo("Finished: 2 cases. 1 passed, 1 failed.");
+        assertThat(bed.ledger.records()).hasSize(2);
+
+        JsonNode compared = posted(mvc, "/api/suites", body("again.csv", twoCases(), "\"compareWith\": " + JsonSafe.mapper().writeValueAsString(id)), 202);
+        assertThat(compared.get("comparedWith").stringValue()).isEqualTo(id);
+        // A JSON file is told by its name, as an uploaded one is.
+        JsonNode jsonFile = posted(mvc, "/api/suites/preview", body("cases.json",
+                "[{\"caseId\": \"TC-1\", \"protocol\": \"crd\", \"memberId\": \"P32H-NO-AUTH\", \"npi\": \"1234567893\"}]"), 200);
+        assertThat(jsonFile.get("format").stringValue()).isEqualTo("JSON");
+    }
+
+    @Test
+    void aPostedSuiteIsHeldToTheRulesOfAnUploadedOne() throws Exception {
+        MockMvc mvc = mvc();
+        JsonNode unknownColumn = posted(mvc, "/api/suites", body("cases.csv", "caseId,memberId,expectd\nTC-1,S123456789,X"), 422);
+        assertThat(unknownColumn.get("title").stringValue()).isEqualTo("The suite file cannot be run. Nothing was sent.");
+        assertThat(unknownColumn.get("fieldErrors").get(0).get("field").stringValue()).isEqualTo("file");
+
+        JsonNode noText = posted(mvc, "/api/suites", "{\"fileName\": \"cases.csv\"}", 422);
+        assertThat(noText.get("fieldErrors").get(0).get("field").stringValue()).isEqualTo("text");
+        assertThat(noText.get("fieldErrors").get(0).get("message").stringValue()).isEqualTo("The suite file holds no text. Choose it again.");
+        posted(mvc, "/api/suites/preview", "{\"fileName\": \"cases.csv\"}", 422);
+
+        // Read strictly: a misspelt property is named, never dropped in silence.
+        JsonNode misspelt = posted(mvc, "/api/suites", body("cases.csv", twoCases(), "\"testerReference\": \"QA-1\""), 422);
+        assertThat(misspelt.toString()).contains("testerReference");
+
+        // Over the size an uploaded file may have, counted in the same UTF-8 bytes.
+        JsonNode large = posted(mvc, "/api/suites/preview", body("cases.csv", "x".repeat(5 * 1024 * 1024 + 1)), 422);
+        assertThat(large.get("title").stringValue()).isEqualTo("The suite file is larger than 5 MB, which is more than this tool reads as a suite.");
+
+        bed.gateway.changeConfiguration();
+        JsonNode stale = posted(mvc, "/api/suites", body("cases.csv", twoCases(), "\"configEpoch\": 0"), 409);
+        assertThat(stale.get("kind").stringValue()).isEqualTo("CONFIGURATION");
+        assertThat(bed.ledger.records()).isEmpty();
+        // Neither multipart nor JSON: refused as a type the endpoint does not take.
+        mvc.perform(post("/api/suites").contentType("text/plain").content("x")).andExpect(status().isUnsupportedMediaType());
     }
 }

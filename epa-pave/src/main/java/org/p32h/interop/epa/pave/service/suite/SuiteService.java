@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.time.Duration;
-import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.service.config.Timeouts;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.CaseOutcome;
 import org.p32h.interop.epa.pave.model.CaseSpec;
@@ -116,8 +116,12 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
     private final RunSupport support;
     private final Executor executor;
     private final ExecutorService owned;
-    /** How long a case in flight may take to finish once the tool begins to stop. See {@link #stopBound}. */
-    private final Duration stopBound;
+    /**
+     * How long a case in flight may take to finish once the tool begins to stop. See {@link #stopBound}.
+     * Asked when the stop begins, not when the tool starts: the active environment may state its own
+     * timeouts, and a save or another environment made active changes them while the tool runs.
+     */
+    private final java.util.function.Supplier<Duration> stopBound;
     /** When the stop began, by {@link System#nanoTime()}, or null while the tool runs. Read and written under {@link #lock}. */
     private Long stopBegan;
 
@@ -126,10 +130,10 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
 
     @Autowired
     public SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
-                        EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, OnyxProperties onyx,
+                        EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support,
                         @Value("${server.shutdown:graceful}") String shutdown,
                         @Value("${spring.lifecycle.timeout-per-shutdown-phase:30s}") Duration shutdownPhase) {
-        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, null, stopBound(shutdown, shutdownPhase, onyx));
+        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, null, () -> stopBound(shutdown, shutdownPhase, timeouts(gateway)));
     }
 
     /** @param executor runs a suite. Null for the service's own single background thread */
@@ -145,6 +149,12 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
     SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
                  EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, Executor executor,
                  Duration stopBound) {
+        this(caseRunner, ledger, gateway, epa, outcomes, reader, support, executor, () -> stopBound);
+    }
+
+    private SuiteService(ObjectProvider<CaseRunner> caseRunner, ObjectProvider<RunLedger> ledger, OperationGateway gateway,
+                         EpaProperties epa, OutcomeCatalogue outcomes, SuiteFileReader reader, RunSupport support, Executor executor,
+                         java.util.function.Supplier<Duration> stopBound) {
         this.stopBound = stopBound;
         this.caseRunner = caseRunner;
         this.ledger = ledger;
@@ -351,13 +361,31 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
      * stop may take ({@code spring.lifecycle.timeout-per-shutdown-phase}, 30 seconds unless set).
      * When the server stops at once it gives none, and the bound is then the longest one call to a
      * service can take, its connect and read timeouts together, and never more than 30 seconds.
+     * Those are the timeouts in force when the stop begins: the active environment's own where it
+     * states them, else application.yml's ({@link OperationGateway#activeTimeouts()}).
      */
-    static Duration stopBound(String shutdown, Duration shutdownPhase, OnyxProperties onyx) {
+    static Duration stopBound(String shutdown, Duration shutdownPhase, Timeouts timeouts) {
         if (!"immediate".equalsIgnoreCase(Texts.orElse(shutdown, "").strip())) {
             return shutdownPhase == null || shutdownPhase.isNegative() ? LONGEST_STOP : shutdownPhase;
         }
-        Duration call = Duration.ofMillis(Math.max(0L, (long) onyx.connectTimeoutMs() + onyx.readTimeoutMs()));
+        Timeouts known = timeouts == null ? Timeouts.APPLICATION : timeouts;
+        long connect = known.connectOr(Timeouts.APPLICATION.connectOr(0));
+        long read = known.readOr(Timeouts.APPLICATION.readOr(0));
+        Duration call = Duration.ofMillis(Math.max(0L, connect + read));
         return call.compareTo(LONGEST_STOP) > 0 ? LONGEST_STOP : call;
+    }
+
+    /**
+     * The timeouts in force, or application.yml's when the gateway cannot say. The tool is stopping:
+     * a configuration that cannot be read then must not keep the stop from being bounded.
+     */
+    private static Timeouts timeouts(OperationGateway gateway) {
+        try {
+            return gateway.activeTimeouts();
+        } catch (RuntimeException e) {
+            // Nothing of the configuration is logged; the bound falls back to application.yml's values.
+            return Timeouts.APPLICATION;
+        }
     }
 
     /**
@@ -423,13 +451,14 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         owned.shutdown();
         // The web server's grace may already have used up the bound. An idle thread still needs a moment to end
         // after the shutdown, and is not to be taken for a case that is running.
-        long left = Math.max(IDLE_END.toNanos(), stopBound.toNanos() - (System.nanoTime() - began));
+        Duration bound = stopBound.get();
+        long left = Math.max(IDLE_END.toNanos(), bound.toNanos() - (System.nanoTime() - began));
         if (owned.awaitTermination(left, TimeUnit.NANOSECONDS)) {
             return;
         }
         // The bound and nothing of the case, which holds a member ID and is never logged.
         log.info("A suite case was still running when the time for the stop ran out ({} seconds). Its thread is interrupted.",
-                stopBound.toSeconds());
+                bound.toSeconds());
         owned.shutdownNow();
         if (!owned.awaitTermination(AFTER_INTERRUPT.toNanos(), TimeUnit.NANOSECONDS)) {
             // Nothing of the case either.

@@ -67,4 +67,36 @@ class UrlNormalTest {
         assertThat(UrlNormal.hostKey("1.2.3.4.5")).isEqualTo("1.2.3.4.5");
         assertThat(UrlNormal.hostKey("256.1.1.1")).isEqualTo("256.1.1.1");
     }
+    /**
+     * hunt-files 5: a production address that cannot be read stands for its whole host, which the
+     * store writes as text and reads back with destination(). A host holding a space or a percent
+     * sign was taken by wholeHost and refused by the lenient reading, so the store remembered what it
+     * could not read and the tool did not start again. The two now accept the same hosts: wholeHost
+     * takes a host only when it reads back as itself.
+     */
+    @Test
+    void theWholeHostOfAnUnreadableAddressIsOnlyAHostThatReadsBackAsItself() {
+        assertThat(UrlNormal.wholeHost("https://api prodvendor.example.invalid/fhir")).isNull();
+        assertThat(UrlNormal.wholeHost("https://api%20prodvendor.example.invalid/fhir")).isNull();
+        assertThat(UrlNormal.wholeHost("https://prod%zzvendor.example.invalid/fhir")).isNull();
+        assertThat(UrlNormal.wholeHost("https://api\u3000prodvendor.example.invalid/fhir")).isNull();
+        // Folded by NFKC into a host with a slash in it, which reads back as another host.
+        assertThat(UrlNormal.wholeHost("https://a\u2100b.example.invalid:+1/fhir")).isNull();
+        String[] taken = {"https://prodvendor.example.invalid:+1/fhir", "http://127.0.0.1:18865:/fhir", "http://[::1]:+5/x",
+            "http://PRODVENDOR.example.invalid.:99999/fhir", "http://u@prodvendor.example.invalid:+8/x"};
+        for (String url : taken) {
+            UrlNormal.Destination host = UrlNormal.wholeHost(url);
+            assertThat(host).as(url).isNotNull();
+            assertThat(UrlNormal.destination(host.shown())).as(url).isEqualTo(host);
+        }
+        assertThat(UrlNormal.wholeHost("https://PRODVENDOR.example.invalid.:99999/fhir").host()).isEqualTo("prodvendor.example.invalid");
+        // Every host destination() reads leniently is one wholeHost takes, and the other way round.
+        String[] hosts = {"prodvendor.example.invalid", "api prodvendor.example.invalid", "a%41b.example.invalid", "a%2fb.example.invalid",
+            "10.0.0.1", "[::1]", "x\ty.example.invalid"};
+        for (String written : hosts) {
+            UrlNormal.Destination whole = UrlNormal.wholeHost("http://" + written + ":+1/p");
+            UrlNormal.Destination back = UrlNormal.destination(written);
+            assertThat(whole == null).as(written).isEqualTo(back == null || !back.equals(new UrlNormal.Destination(null, back.host(), -1, "", false)));
+        }
+    }
 }

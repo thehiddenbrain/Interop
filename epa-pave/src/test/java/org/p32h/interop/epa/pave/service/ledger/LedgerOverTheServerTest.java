@@ -95,7 +95,9 @@ class LedgerOverTheServerTest {
         }
         StringBuilder all = new StringBuilder();
         try (Stream<Path> files = Files.list(folder)) {
-            for (Path file : files.sorted().toList()) {
+            // The trail (R-21) lives in a folder beside the ledger's files and holds member data by design; the ledger's
+            // own rule is checked over every file of the ledger.
+            for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
                 all.append(Files.readString(file));
             }
         }
@@ -149,8 +151,20 @@ class LedgerOverTheServerTest {
         assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(folder))).isEqualTo("rwx------");
         try (Stream<Path> files = Files.list(folder)) {
             for (Path file : files.toList()) {
-                assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).as(file.getFileName().toString())
-                        .isEqualTo("rw-------");
+                if (Files.isDirectory(file)) {
+                    // The trail's folder (R-21): owner only, and so is every file it holds.
+                    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).as(file.getFileName().toString())
+                            .isEqualTo("rwx------");
+                    try (Stream<Path> inner = Files.list(file)) {
+                        for (Path held : inner.toList()) {
+                            assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(held)))
+                                    .as(file.getFileName() + "/" + held.getFileName()).isEqualTo("rw-------");
+                        }
+                    }
+                } else {
+                    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).as(file.getFileName().toString())
+                            .isEqualTo("rw-------");
+                }
             }
         }
     }
