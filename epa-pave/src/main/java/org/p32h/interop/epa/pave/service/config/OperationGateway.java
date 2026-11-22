@@ -276,4 +276,13 @@ public interface OperationGateway {
     default String tokenUrlRefusal(String tokenUrl) {
         return null;
     }
+
+    /**
+     * The token url the active environment's Sign-in states for client credentials, as stored,
+     * with any credential written into it masked, or null when it states none and onyx.auth
+     * applies. For naming the url a failed sign-in was sent to (I-34). This default knows none.
+     */
+    default String activeTokenUrlShown() {
+        return null;
+    }
 }

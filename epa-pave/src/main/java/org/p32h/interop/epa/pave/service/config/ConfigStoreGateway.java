@@ -311,6 +311,16 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     @Override
+    public String activeTokenUrlShown() {
+        StoredEnvironment active = store.snapshot().active();
+        SignInSettings signIn = active == null ? null : active.settings().signIn();
+        if (signIn == null || signIn.method() != SignInSettings.Method.CLIENT_CREDENTIALS || !Texts.present(signIn.tokenUrl())) {
+            return null;
+        }
+        return ConfigStore.oneLine(org.p32h.interop.epa.pave.postman.LiteralCredentials.inUrl(signIn.tokenUrl().strip()).shown());
+    }
+
+    @Override
     public String tokenUrlRefusal(String tokenUrl) {
         UrlNormal.Destination destination = UrlNormal.destination(tokenUrl);
         if (destination == null) {
