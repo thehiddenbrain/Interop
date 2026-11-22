@@ -2,6 +2,7 @@
   "id": "dtr-07-no-questionnaire",
   "number": 7,
   "label": "Package bundle returns with no questionnaire in it",
+  "short": "no questionnaire",
   "description": "The service answers successfully and the package bundle holds a library but no questionnaire. DTR 2.0.1 does not provide for that: a package bundle starts with its questionnaire. This tool reports it as an empty package and does not turn it into an answer that no documentation is needed. It departs from DTR 2.0.1 on purpose, to show that this shape is reported as what it is.",
   "sentinelMemberId": "P32H-DTR-EMPTY",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

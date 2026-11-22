@@ -2,6 +2,7 @@
   "id": "dtr-10-provider-not-found",
   "number": 10,
   "label": "Provider not found",
+  "short": "provider not found",
   "description": "The service does not recognise the ordering provider. Selected by the test NPI as well as by the test member ID, so the provider CRD scenario 9 uses gets the same answer here. It models DTR 2.0.1, whose operation answers a failure with an OperationOutcome. The CRD test member ID P32H-NOPROV selects it too, so a case means the same thing in CRD and in DTR.",
   "sentinelMemberId": "P32H-DTR-NOPROV",
   "crdSentinelMemberIds": [

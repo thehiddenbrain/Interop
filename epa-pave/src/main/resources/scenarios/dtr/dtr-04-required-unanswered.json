@@ -2,6 +2,7 @@
   "id": "dtr-04-required-unanswered",
   "number": 4,
   "label": "Required question left unanswered",
+  "short": "required left blank",
   "description": "The package holds one conventional questionnaire with two groups and enableWhen branching. Answering yes to a question enables a required follow-up. Leaving that follow-up unanswered must never be reported as a complete response. It models DTR 2.0.1: the package carries the draft response to start from.",
   "sentinelMemberId": "P32H-DTR-REQUIRED",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
