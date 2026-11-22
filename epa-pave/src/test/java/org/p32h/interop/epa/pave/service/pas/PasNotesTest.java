@@ -14,7 +14,7 @@ class PasNotesTest {
                 "The relationship was not sent.", "HCPCS Level II codes were sent with the system y.", PasNotes.summary(List.of("PASClaim item.category")));
         assertThat(PasNotes.asPreview(run)).containsExactly("Attachment 1 would be sent with no document type.",
                 "No heartbeat period would be sent: the variable x is not set.", "The relationship would not be sent.",
-                "HCPCS Level II codes would be sent with the system y.", "This request would go out without 1 element PAS 2.0.1 requires, because "
+                "HCPCS Level II codes would be sent with the system y.", "This request would go out without 1 element PAS 2.2.1 requires, because "
                         + "nobody supplied it: PASClaim item.category. The service may refuse the request for that alone.");
         // Words that only contain the tense are left alone.
         assertThat(PasNotes.asPreview(List.of("The resent claim was sentenced."))).containsExactly("The resent claim was sentenced.");
