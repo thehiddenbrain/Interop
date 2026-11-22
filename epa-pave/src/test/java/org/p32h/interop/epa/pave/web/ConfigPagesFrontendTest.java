@@ -535,7 +535,20 @@ class ConfigPagesFrontendTest {
             new Read("cfg-inforce.js", "setting.secret", ConfigViews.SettingRow.class, "secret"),
             new Read("cfg-inforce.js", "active.addressWarnings", ConfigViews.EnvironmentView.class, "addressWarnings"),
             new Read("cfg-token.js", "each.active", ConfigViews.EnvironmentView.class, "active"),
-            new Read("cfg-token.js", "active.id", ConfigViews.EnvironmentView.class, "id"));
+            new Read("cfg-token.js", "active.id", ConfigViews.EnvironmentView.class, "id"),
+            new Read("cfg-writes.js", "row.forgettable", ConfigViews.ProductionDestinationView.class, "forgettable"),
+            new Read("cfg-inforce.js", "data.unreadable", ConfigViews.Effective.class, "unreadable"),
+            new Read("cfg-inforce.js", "each.file", ConfigViews.UnreadableView.class, "file"),
+            new Read("cfg-inforce.js", "each.line", ConfigViews.UnreadableView.class, "line"),
+            new Read("cfg-inforce.js", "data.removed", ConfigViews.UnreadableRemoved.class, "removed"),
+            new Read("cfg-inforce.js", "data.movedTo", ConfigViews.UnreadableRemoved.class, "movedTo"),
+            new Read("cfg-trail.js", "trail.enabled", TrailController.TrailSummary.class, "enabled"),
+            new Read("cfg-trail.js", "trail.count", TrailController.TrailSummary.class, "count"),
+            new Read("cfg-trail.js", "trail.maxEntries", TrailController.TrailSummary.class, "maxEntries"),
+            new Read("cfg-trail.js", "trail.bytes", TrailController.TrailSummary.class, "bytes"),
+            new Read("cfg-trail.js", "trail.folder", TrailController.TrailSummary.class, "folder"),
+            new Read("cfg-trail.js", "trail.damaged", TrailController.TrailSummary.class, "damaged"),
+            new Read("cfg-trail.js", "answer.data.removed", TrailController.Removed.class, "removed"));
 
     @Test
     void everyFieldThePagesReadIsOnTheRecordTheServerSends() throws IOException {

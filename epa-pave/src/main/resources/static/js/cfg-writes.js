@@ -144,20 +144,19 @@ export function mount(root, route) {
             clear(remembered);
             return;
         }
-        // The action column is there only when the server offers Forget for at least one address.
-        const offered = destinations.some(row => row.forgettable === true);
         fill(remembered, part('Addresses remembered as production',
             destinations.length === 0
                 ? el('p', {class: 'muted'}, 'None. An address is remembered once an environment of kind prod uses it.')
                 : el('div', {class: 'table-wrap'}, el('table', {class: 'table'},
                     el('thead', null, el('tr', null, el('th', {scope: 'col'}, 'Address'), el('th', {scope: 'col'}, 'Environment'),
-                        el('th', {scope: 'col'}, 'Environment still stored'), offered ? el('th', {scope: 'col'}, 'Forget') : null)),
+                        el('th', {scope: 'col'}, 'Environment still stored'))),
                     el('tbody', null, destinations.map(row => el('tr', null,
-                        el('td', null, el('span', {class: 'mono'}, row.destination || '')),
-                        el('td', null, row.environment || ''),
-                        el('td', null, row.stored === true ? 'Yes' : 'No, it was removed'),
-                        offered ? el('td', null, row.forgettable === true
-                            ? button('Forget this production address', () => confirmForget(row), {small: true}) : null) : null)))))));
+                        // An address and a name can be long; they wrap, so the table stays within the page at 1024.
+                        el('td', {class: 'config-wrap'}, el('span', {class: 'mono'}, row.destination || '')),
+                        el('td', {class: 'config-wrap'}, row.environment || ''),
+                        // Forget sits under the fact that makes it possible, and only where the server offers it.
+                        el('td', null, el('div', null, row.stored === true ? 'Yes' : 'No, it was removed'), row.forgettable === true
+                            ? el('div', null, button('Forget this production address', () => confirmForget(row), {small: true})) : null))))))));
     }
 
     /**
