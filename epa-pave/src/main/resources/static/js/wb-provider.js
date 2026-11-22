@@ -121,7 +121,8 @@ export function createProviderCard(env) {
         const name = [values.firstName, values.lastName].filter(Boolean).join(' ') || values.organizationName || '';
         const chosen = name || npi.value() || values.vendorPractitionerId || '';
         // An NPI the server refused is never drawn with the tick of a chosen provider (I-3).
-        const refused = npi.node.classList.contains('field--error');
+        const said = npi.node.querySelector('.field__error');
+        const refused = Boolean(said && !said.hidden);
         head.picked(chosen || 'not chosen', Boolean(chosen) && !refused);
         head.attention(Boolean(answer && Array.isArray(answer.attention) && answer.attention.length > 0));
         const status = statusChip(answer);
