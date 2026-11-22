@@ -11,7 +11,7 @@ import {app} from './app.js';
 import {el, fill, clear, chip, button, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, once, sentences, counted, day, none} from './cfg-parts.js';
+import {pageHead, section, part, during, once, sentences, counted, day, none, fileRefusal} from './cfg-parts.js';
 
 const UNMAPPED = 'UNMAPPED';
 
@@ -47,7 +47,7 @@ export function mount(root, route) {
         // Whatever the answer, the chosen file is let go: the next press reads what is chosen then.
         file.value = '';
         if (!answer.ok) {
-            fill(outcome, errorPanel(answer.error));
+            fill(outcome, fileRefusal(read.fileName, answer));
             return;
         }
         fill(outcome, uploaded(answer.data || {}));

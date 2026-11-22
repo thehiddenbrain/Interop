@@ -3,6 +3,38 @@
 // the same fact two ways.
 
 import {el, clear} from './dom.js';
+import {app} from './app.js';
+import {errorPanel} from './fault.js';
+
+// Between a pull and the restart the page can run new scripts against old classes, and a refusal
+// then names a cure the tester cannot use (I-12). The same words as fault.js, written here so the
+// lines these pages draw themselves need nothing more from it.
+const FILES_CHANGED = "PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.";
+
+/** The line under a refusal while /api/mode says PAVE's files changed on disk; null otherwise. */
+export function filesChangedNote() {
+    const mode = app.mode();
+    return mode && mode.build && mode.build.changedOnDisk === true ? el('p', {class: 'files-changed-note small'}, FILES_CHANGED) : null;
+}
+
+/**
+ * A file the server refused, said as one plain line like the page's own refusals of a file (plan
+ * 10.11 M10): "<file>: <title> <action>". answer: what api.js resolved to. An answer that is not a
+ * refusal of what was sent (an internal fault with its reference, no answer at all) keeps the
+ * error panel, which carries the fault report.
+ */
+export function fileRefusal(fileName, answer) {
+    const error = answer && answer.error ? answer.error : null;
+    const refusal = error && answer.status >= 400 && answer.status < 500 && typeof error.title === 'string' && error.title !== '';
+    if (!refusal) {
+        return errorPanel(error);
+    }
+    const fields = Array.isArray(error.fieldErrors) ? error.fieldErrors.map(each => each && each.message).filter(Boolean) : [];
+    const words = [error.title, error.action].concat(fields).filter(each => typeof each === 'string' && each !== '').join(' ');
+    return el('div', {class: 'file-refusal'},
+        el('p', {class: 'field__error', role: 'alert'}, fileName ? fileName + ': ' + words : words),
+        filesChangedNote());
+}
 
 /**
  * The head of a page: its title, one quiet line, and the controls at its end. Built from the

@@ -17,6 +17,7 @@ import {call} from './api.js';
 import {el, clear, fill, chip, badge, fold, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel, faultReport} from './fault.js';
 import {readText} from './files.js';
+import {filesChangedNote} from './cfg-parts.js';
 
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
@@ -723,7 +724,8 @@ export function createEditor(options) {
         for (const file of Array.isArray(draft.files) ? draft.files : []) {
             lines.push(el('div', {class: 'config-file-line'},
                 el('p', null, file.fileName ? el('span', {class: 'mono'}, named(file.fileName)) : null, file.fileName ? ' ' : null, file.line || ''),
-                file.read === false ? faultReport(file.reference, file.cause) : null));
+                file.read === false ? faultReport(file.reference, file.cause) : null,
+                file.read === false ? filesChangedNote() : null));
         }
         if (draft.nameTaken === true && draft.name) {
             lines.push(el('p', {class: 'config-warning'}, 'An environment named "' + named(draft.name)

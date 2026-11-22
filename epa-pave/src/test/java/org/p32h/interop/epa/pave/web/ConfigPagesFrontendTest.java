@@ -106,6 +106,23 @@ class ConfigPagesFrontendTest {
             await settle();
             say(['unread', fake.sent.filter(each => each.key.startsWith('POST')).length === 2, text(root).includes('empty.json is empty.'), input.value]);
 
+            // A refusal of the file is one plain line, like the page's own (AU-5); while PAVE's files
+            // changed on disk, the line under it says that this can be the cause (I-12).
+            fake.answers['POST /api/config/collections'] = {status: 422, body: {kind: 'VALIDATION', heading: 'A problem with what was submitted',
+                title: 'This is a Postman collection in the old v1 format, which this tool does not read.', action: 'In Postman, export it as Collection v2.1. Then upload it.'}};
+            const refuse = async changed => {
+                fake.mode.build = {changedOnDisk: changed};
+                input.files = [new File([new TextEncoder().encode('{}')], 'col-v1.json')];
+                input.value = 'C:/fakepath/col-v1.json';
+                await upload.click();
+                await settle();
+                return [root.querySelectorAll('.error-panel').length, root.querySelectorAll('.file-refusal .field__error').map(text),
+                    root.querySelectorAll('.files-changed-note').map(text)];
+            };
+            say(['line', await refuse(false)]);
+            say(['changed', await refuse(true)]);
+            delete fake.mode.build;
+
             // The mapping: one line per request, the choice sent at once.
             const mapping = root.querySelectorAll('button').find(each => text(each) === 'Mapping');
             await mapping.click();
@@ -140,6 +157,8 @@ class ConfigPagesFrontendTest {
                 "[\"refused\",true,true,true,\"\"]",
                 // A file the page cannot read is said in one line and never posted.
                 "[\"unread\",true,true,\"\"]",
+                "[\"line\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[]]]",
+                "[\"changed\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[\"PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.\"]]]",
                 "[\"options\",[\"PAS submit\",\"PAS inquire\",\"Unmapped\"]]",
                 "[\"mapped\",[{\"requestId\":\"order-sign Happy Path\",\"operation\":\"PAS_INQUIRE\"}],true]",
                 // A removal is offered inside the open row only, asks first, and is sent once.

@@ -15,7 +15,7 @@ import {call} from './api.js';
 import {el, fill, clear, chip, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, counted, sentences, none} from './cfg-parts.js';
+import {pageHead, section, part, during, counted, sentences, none, fileRefusal} from './cfg-parts.js';
 
 const OFF_LINE = 'Saved test lists are switched off on this installation (test-lists.enabled).';
 
@@ -278,6 +278,7 @@ export function mount(root, route) {
     /** The import: read the file, show the dry run, then import exactly the text shown. */
     function importDialog(list) {
         let text = null;         // the text the dry run was asked about, kept until the dialog closes
+        let fileName = '';       // the name of the file that text was read from, for a refusal of the import
         const file = el('input', {type: 'file', class: 'input', accept: '.csv,text/csv', 'aria-label': 'CSV file'});
         const line = el('span', {class: 'muted small', role: 'status'});
         const shown = el('div', {'aria-live': 'polite'});
@@ -309,15 +310,19 @@ export function mount(root, route) {
             // The file is let go: what is imported is the text read now, shown below.
             file.value = '';
             if (!answer.ok) {
-                fill(shown, errorPanel(answer.error));
+                fill(shown, fileRefusal(got.fileName, answer));
                 return;
             }
             const result = answer.data || {};
+            fileName = got.fileName;
             fill(shown, outcomeOf(result, got.fileName));
             const rows = (result.added || 0) + (result.replaced || 0);
             if (rows > 0) {
                 text = got.text;
-                const go = button('Import ' + counted(rows, 'row', 'rows'), () => during(go, line, 'Importing', importNow), {primary: true});
+                // The button names what it will not import (I-27).
+                const refused = result.refused || 0;
+                const go = button('Import ' + counted(rows, 'row', 'rows') + (refused > 0 ? ' (' + refused + ' refused)' : ''),
+                    () => during(go, line, 'Importing', importNow), {primary: true});
                 fill(foot, go);
             }
         }
@@ -329,7 +334,7 @@ export function mount(root, route) {
             const answer = await call('POST', list.path + '/import', {body: {csv: text, dryRun: false}});
             clear(foot);
             if (!answer.ok) {
-                fill(shown, errorPanel(answer.error));
+                fill(shown, fileRefusal(fileName, answer));
                 return;
             }
             const result = answer.data || {};
@@ -345,7 +350,9 @@ export function mount(root, route) {
     function outcomeOf(result, fileName) {
         const used = Array.isArray(result.columnsUsed) ? result.columnsUsed : [];
         const ignored = Array.isArray(result.columnsIgnored) ? result.columnsIgnored : [];
-        const rows = Array.isArray(result.rows) ? result.rows : [];
+        // The refused rows first: in a long file they would otherwise sit below every row to be added, off screen (I-27).
+        const given = Array.isArray(result.rows) ? result.rows : [];
+        const rows = given.filter(row => row && row.status === 'REFUSED').concat(given.filter(row => row && row.status !== 'REFUSED'));
         return el('div', {class: 'config-said'},
             el('p', null, 'Read ' + named(fileName) + ': ' + counted(rows.length, 'row', 'rows') + '. Nothing is saved yet.'),
             el('p', null, 'Columns used: ', used.length > 0 ? el('span', {class: 'mono'}, used.join(', ')) : 'none', '.'),
