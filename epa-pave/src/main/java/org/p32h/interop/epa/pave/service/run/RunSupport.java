@@ -440,7 +440,7 @@ public class RunSupport {
                         "Nothing was sent, so there is nothing to compare with what was expected."))
                 .nextStep(step)
                 .wire(new WireView(exchange.request(), null, memberId))
-                .error(notSignedInError(exchange, call.signIn() != null, ownTokenUrl == null ? null : checkTokenUrl(call, ownTokenUrl)))
+                .error(notSignedInError(exchange, call.signIn(), ownTokenUrl == null ? null : checkTokenUrl(call, ownTokenUrl)))
                 .ledger(receipt)
                 .build();
     }
@@ -484,14 +484,15 @@ public class RunSupport {
 
     /** The error panel of a call that was not signed in for: the tester's settings, or the token endpoint. */
     private static ErrorView notSignedInError(VendorExchange exchange) {
-        return notSignedInError(exchange, false, null);
+        return notSignedInError(exchange, null, null);
     }
 
     /**
-     * @param environmentSignIn true when the call signed in as its environment's settings state, not by onyx.auth
-     * @param checkTokenUrl     the environment's own token url in words, or null when onyx.auth applied
+     * @param signIn        the environment's sign-in the call was given, or null when onyx.auth applied
+     * @param checkTokenUrl the environment's own token url in words, or null when onyx.auth applied
      */
-    private static ErrorView notSignedInError(VendorExchange exchange, boolean environmentSignIn, String checkTokenUrl) {
+    private static ErrorView notSignedInError(VendorExchange exchange, org.p32h.interop.epa.pave.service.config.SignInSettings signIn,
+                                              String checkTokenUrl) {
         String detail = Texts.orElse(exchange.failureDetail(), "No access token was obtained. The request was not sent.");
         if (exchange.failureType() == OnyxFailureType.TOKEN_ENDPOINT_FAULT) {
             // UNREACHABLE is the panel's kind for an environment to report; the heading and the detail say it was the token endpoint.
@@ -502,9 +503,11 @@ public class RunSupport {
                     : "Note the time and the run id and report it to the people who look after the token endpoint. Try again later.";
             return ErrorView.of(ErrorKind.UNREACHABLE, detail, action).withHeading("Not sent: the token endpoint gave no access token");
         }
-        return ErrorView.of(ErrorKind.CONFIGURATION, detail, environmentSignIn
+        // The token endpoint's reason can name the one setting to change; onyx.auth has no such choice, so it gets none (D-305).
+        String advice = signIn == null ? null : org.p32h.interop.epa.pave.client.support.TokenRefusal.advice(detail, signIn.clientAuthentication());
+        return ErrorView.of(ErrorKind.CONFIGURATION, detail, signIn != null
                         ? "Check the sign-in of the active environment in Configuration > Environments: its token url, client id and "
-                        + "client secret, or its bearer token, and the variables they name."
+                        + "client secret, or its bearer token, and the variables they name." + (advice == null ? "" : " " + advice)
                         : "Check onyx.auth.token-url, onyx.auth.client-id and onyx.auth.client-secret, as PAVE was started, and the "
                         + "variables of the active environment they name.")
                 .withHeading("Not sent: this tool could not sign in");

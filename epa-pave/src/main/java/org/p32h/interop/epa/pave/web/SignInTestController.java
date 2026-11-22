@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.support.OnyxTokenService;
 import org.p32h.interop.epa.pave.client.support.OnyxTokenService.TokenFailure;
 import org.p32h.interop.epa.pave.client.support.OnyxTokenService.TokenResult;
 import org.p32h.interop.epa.pave.client.support.SignInState;
+import org.p32h.interop.epa.pave.client.support.TokenRefusal;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.SignInSettings;
@@ -40,9 +41,15 @@ public class SignInTestController {
      * @param httpStatus    the token endpoint's status, when known. The token service does not hand
      *                      it on, so it is left out rather than guessed
      * @param elapsedMillis how long the token endpoint took; absent when nothing was asked
+     * @param advice        the setting the token endpoint's answer points at, as the run card says it
+     *                      (D-305); absent when the answer points at none
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SignInTest(String state, String line, Integer httpStatus, Long elapsedMillis) {
+    public record SignInTest(String state, String line, Integer httpStatus, Long elapsedMillis, String advice) {
+
+        public SignInTest(String state, String line, Integer httpStatus, Long elapsedMillis) {
+            this(state, line, httpStatus, elapsedMillis, null);
+        }
     }
 
     private final ObjectProvider<OnyxTokenService> tokens;
@@ -106,7 +113,9 @@ public class SignInTestController {
             // Outcome only: no url, client id or answer is logged.
             log.info("Sign-in test failed");
             Long asked = result.cause() == TokenFailure.SETTING_MISSING ? null : elapsed;
-            return new SignInTest(SignInState.Code.FAILED.name(), forATest(result.failure()) + pasted, null, asked);
+            // onyx.auth always sends a Basic header and offers no other way, so only an environment's sign-in is advised.
+            String advice = signIn == null ? null : TokenRefusal.advice(result.failure(), signIn.clientAuthentication());
+            return new SignInTest(SignInState.Code.FAILED.name(), forATest(result.failure()) + pasted, null, asked, advice);
         }
         // Outcome only.
         log.info("Sign-in test signed in");

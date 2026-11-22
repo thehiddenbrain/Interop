@@ -373,6 +373,17 @@ class ConfigPagesFrontendTest {
             await root.querySelectorAll('button').find(each => text(each) === 'Forget the pasted token').click();
             await settle();
             say(['forgot', root.querySelectorAll('button').some(each => text(each) === 'Forget the pasted token')]);
+            fake.answers['POST /api/config/sign-in/test'] = {status: 200, body: {state: 'FAILED', elapsedMillis: 4,
+                line: 'No access token: the token endpoint answered HTTP 401 (invalid_client). It said: Bad client.',
+                advice: 'The client id and secret were sent in a Basic header: if the service wants them in the form body, choose In the form body under Client authentication in Configuration > Environments > Sign-in.'}};
+            await root.querySelectorAll('button').find(each => text(each) === 'Test the sign-in').click();
+            await settle();
+            const said = root.querySelectorAll('p').map(each => text(each)).filter(each => each.includes('token endpoint') || each.includes('Basic header'));
+            fake.answers['POST /api/config/sign-in/test'] = {status: 200, body: {state: 'SIGNED_IN', elapsedMillis: 4,
+                line: 'Signed in: the token endpoint issued a token.'}};
+            await root.querySelectorAll('button').find(each => text(each) === 'Test the sign-in').click();
+            await settle();
+            say(['tested', said, root.querySelectorAll('p').some(each => text(each).includes('Basic header'))]);
             page.unmount();
             fake.mode = {mode: 'mock', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true}, writeAccess: {production: false}};
             root = document.createElement('div');
@@ -390,6 +401,10 @@ class ConfigPagesFrontendTest {
                 // The token goes once, for the active environment; the box is emptied and the token is not on the page.
                 "[\"pasted\",[{\"token\":\"placeholder-token-value\",\"environment\":\"pave-sample-sandbox\"}],\"\",false,true,true]",
                 "[\"forgot\",false]",
+                // A refused test says the endpoint's own reason and, below it, the setting it points at (D-305); a later success drops the advice.
+                "[\"tested\",[\"No access token: the token endpoint answered HTTP 401 (invalid_client). It said: Bad client., 4 ms\",\"The client "
+                        + "id and secret were sent in a Basic header: if the service wants them in the form body, choose In the form body under "
+                        + "Client authentication in Configuration > Environments > Sign-in.\"],false]",
                 // On mock nothing signs in: no token field and no test.
                 "[\"mock\",true,0,false]");
     }
@@ -629,6 +644,7 @@ class ConfigPagesFrontendTest {
             new Read("cfg-inforce.js", "active.addressWarnings", ConfigViews.EnvironmentView.class, "addressWarnings"),
             new Read("cfg-token.js", "each.active", ConfigViews.EnvironmentView.class, "active"),
             new Read("cfg-token.js", "active.id", ConfigViews.EnvironmentView.class, "id"),
+            new Read("cfg-token.js", "data.advice", SignInTestController.SignInTest.class, "advice"),
             new Read("cfg-writes.js", "row.forgettable", ConfigViews.ProductionDestinationView.class, "forgettable"),
             new Read("cfg-inforce.js", "data.unreadable", ConfigViews.Effective.class, "unreadable"),
             new Read("cfg-inforce.js", "each.file", ConfigViews.UnreadableView.class, "file"),

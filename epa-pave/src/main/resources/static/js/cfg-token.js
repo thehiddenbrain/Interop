@@ -69,7 +69,9 @@ export function mount(root, route) {
         const data = answer.data || {};
         fill(tested, el('p', {role: 'status'}, data.line || '',
             typeof data.httpStatus === 'number' ? el('span', {class: 'muted'}, ' HTTP ' + data.httpStatus) : null,
-            typeof data.elapsedMillis === 'number' ? el('span', {class: 'muted'}, ', ' + data.elapsedMillis + ' ms') : null));
+            typeof data.elapsedMillis === 'number' ? el('span', {class: 'muted'}, ', ' + data.elapsedMillis + ' ms') : null),
+            // The setting the token endpoint's answer points at, in the run card's words; drawn only when the server says one.
+            typeof data.advice === 'string' && data.advice ? el('p', {class: 'small'}, data.advice) : null);
     }
 
     function drawFacts() {

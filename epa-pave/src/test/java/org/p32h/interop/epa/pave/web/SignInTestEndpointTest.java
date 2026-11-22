@@ -209,9 +209,12 @@ class SignInTestEndpointTest {
 
         server.verify();
         assertThat(answer.get("state").stringValue()).isEqualTo("FAILED");
-        assertThat(answer.get("line").stringValue()).isEqualTo("No access token: the token endpoint answered HTTP 401.");
+        // Since D-305 the endpoint's own error is said, and the advice names the setting that sends the credentials.
+        assertThat(answer.get("line").stringValue()).isEqualTo("No access token: the token endpoint answered HTTP 401 (invalid_client).");
+        assertThat(answer.get("advice").stringValue()).isEqualTo("The client id and secret were sent in a Basic header: if the service "
+                + "wants them in the form body, choose In the form body under Client authentication in Configuration > Environments > Sign-in.");
         assertThat(answer.get("elapsedMillis").isNumber()).isTrue();
-        assertThat(body).doesNotContain(SECRET).doesNotContain("invalid_client");
+        assertThat(body).doesNotContain(SECRET);
         JsonNode chip = mode(live).get("signIn");
         assertThat(chip.get("state").stringValue()).isEqualTo("FAILED");
         assertThat(chip.get("short").stringValue()).isEqualTo("Sign-in failed");

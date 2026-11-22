@@ -157,13 +157,29 @@ class OnyxTokenServiceTest {
         server.verify();
     }
 
+    /**
+     * Before D-305 the sentence held the status only. The endpoint's {@code error} is now said, so
+     * a tester can tell a wrong secret from credentials sent the wrong way; a secret it repeats is
+     * masked as the wire view masks one, so still nothing secret is quoted.
+     */
     @Test
-    void aRefusalFromTheTokenEndpointIsReportedByStatusAndNothingSecretIsQuoted() {
+    void aRefusalFromTheTokenEndpointIsReportedByStatusAndReasonAndNothingSecretIsQuoted() {
         server.expect(requestTo(TOKEN_URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("{\"error\":\"invalid_client placeholder-secret\"}"));
         OnyxTokenService.TokenResult result = service(enabled()).token();
         assertThat(result.token()).isNull();
-        assertThat(result.failure()).isEqualTo("No access token: the token endpoint answered HTTP 401. The request was not sent.");
+        assertThat(result.failure()).isEqualTo("No access token: the token endpoint answered HTTP 401 (invalid_client [secret client secret]). "
+                + "The request was not sent.");
         assertThat(result.failure()).doesNotContain("placeholder-secret").doesNotContain("placeholder-client").doesNotContain("auth.example.invalid");
+        server.reset();
+        // An access token held from an earlier sign-in is masked as well, should a misconfigured endpoint echo it.
+        server.expect(requestTo(TOKEN_URL)).andRespond(withSuccess(GRANT, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TOKEN_URL)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                .body("{\"error\":\"invalid_grant\",\"error_description\":\"placeholder-access-token was already used\"}"));
+        OnyxTokenService once = service(enabled());
+        assertThat(once.token().token()).isEqualTo("placeholder-access-token");
+        clock.advance(Duration.ofHours(2));
+        assertThat(once.token().failure()).isEqualTo("No access token: the token endpoint answered HTTP 400 (invalid_grant). It said: "
+                + "[secret access token] was already used. The request was not sent.");
     }
 
     @Test

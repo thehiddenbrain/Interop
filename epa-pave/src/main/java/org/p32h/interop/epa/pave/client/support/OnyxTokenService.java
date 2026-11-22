@@ -4,6 +4,7 @@ import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.OnyxFailureType;
 import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.postman.Names;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
@@ -584,6 +585,16 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
     }
 
     /**
+     * Every secret this sign-in holds, for a token endpoint's answer that may repeat one: the client
+     * secret it was just sent, and the tokens held, which a misconfigured endpoint can echo as well.
+     */
+    protected SentSecrets heldSecrets(TokenRequest request) {
+        SentSecrets.Builder secrets = SentSecrets.builder().variable("client secret", request.clientSecret());
+        addTo(secrets);
+        return secrets.build();
+    }
+
+    /**
      * THE ONE METHOD TO REPLACE for another way of obtaining a token.
      *
      * <p>This implementation is the OAuth2 client credentials grant, with the client authenticated
@@ -615,7 +626,9 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             if (raw.status() < 200 || raw.status() >= 300) {
                 // A 4xx is the endpoint refusing this client, which the tester's settings decide; anything else is the endpoint.
                 TokenFailure cause = raw.status() >= 400 && raw.status() < 500 ? TokenFailure.CLIENT_REFUSED : TokenFailure.ENDPOINT_FAULT;
-                return new TokenGrant(null, null, "No access token: the token endpoint answered HTTP " + raw.status() + ".", cause);
+                // The endpoint's own reason says which setting it refused; it is made safe there and never logged (D-305).
+                return new TokenGrant(null, null, TokenRefusal.sentence(raw.status(), raw.body(), heldSecrets(request), request.clientSecret()),
+                        cause);
             }
             // A success with nothing usable in it is the endpoint's fault: the client was accepted.
             JsonSafe.Parsed parsed = JsonSafe.parse(raw.body());
