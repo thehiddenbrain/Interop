@@ -24,6 +24,18 @@ final class Readiness {
     }
 
     /**
+     * The same, said when a send is refused or a preview has no address, with why where there is more
+     * to say than "nothing gives one". The property follows in brackets, last, for whoever started PAVE.
+     *
+     * @param why what else was looked at and could not give an address, or null
+     * @param property the property that would give the address as PAVE was started
+     */
+    static String noAddress(EpaOperation operation, String why, String property) {
+        return "No address for " + operation.shortLabel() + (why == null ? "" : ": " + why)
+                + ". Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: " + property + ".)";
+    }
+
+    /**
      * Values the call needs and nothing gives, named as the tester knows them from a Postman
      * environment.
      *
