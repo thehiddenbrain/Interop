@@ -67,6 +67,7 @@ entry.
 | D-302 | Release 1, its corrections and the PAS 2.0.1 decision merged into release 2 by one agent (`86d4807`) | Every place both sides changed was settled one way, said in this entry; a whole build and one walk on mock held it |
 | D-303 | The one check of release 2, its five findings, their corrections (`c31ae00`), and the limit: no recheck | **Release 2 was closed with five agents and no second check of the corrections**, to keep spending low. It rests on its tests, its whole build and one independent look. Nothing ran on Windows or against the vendor's service |
 | D-305 | A correction after release 2: the sign-in is read from the collection's token request and from wider variable names, several candidates are offered as buttons, an empty value is said; a refused sign-in says what the token endpoint said and names the setting (`80962e5`, `c0f9cf1`, `27e3a96`, `b7a1770`) | On the operator's first run against the vendor's UAT the files filled no sign-in and a refused sign-in said only "HTTP 401". The scripts of a collection are still never read. The service's words are shown made safe and never logged. Seen on live against the stand-in and a token endpoint of the builder's own, not against the vendor's service |
+| D-306 | A second correction after release 2: what a collection's requests state about members, providers and procedure codes goes into the saved lists, on the tester's tick; procedure codes a third list, picked in the Service card; a saved member may hold a vendor patient id alone (`babb793`, `fdce17b`, `85b8834`, `76743d4`, merged as `165bbd2`) | The operator asked for it after the first real run. It stays inside D-298's bounds: the box is the purpose, and the stored collection already holds every value. Only what a request sends is read, nothing is guessed, the log holds counts only, nothing goes to the ledger. Seen on mock and on live against the stand-in, not with the vendor's files |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -7575,6 +7576,9 @@ finding's title names the guide in force.
 - **Left at the candidate.** Corrected and seen again on `19ddf8e`: a CSV separated by semicolons or tabs,
   and a JSON file, are told what they are (I-23); the import button names what it will not import, as
   "Import 200 rows (1 refused)", and the refused rows are listed first (I-27).
+Later: D-306. A saved member may hold a vendor patient id without a member ID, one vendor patient id
+names one saved member, a list is also filled from what an uploaded collection's requests state, and
+procedure codes are a third list.
 
 **D-295. Uploads, the classes on disk, the build stamp and the run scripts.**
 - **What a tester met before.** The failures of D-281: an upload answered the internal error after
@@ -7714,6 +7718,9 @@ finding's title names the guide in force.
 - **Also bent, already recorded.** The configuration store keeps uploads as uploaded and can hold
   member data a file contains (D-213); from D1b an export posted as text is kept as the text decoded,
   not byte for byte (R-06).
+Later: D-306. A list is also filled from what an uploaded collection's requests state, when the tester
+ticks the box of the environment form or presses "Add to the saved lists"; procedure codes are a third
+list within the same bounds.
 
 **D-299. The checks of release 1: what they measured, what they found, what the integrator decided,
 what was corrected and seen again, and what is left.**
@@ -8297,3 +8304,106 @@ round of corrections; the code handed over.**
   there by a strict endpoint and taken in the form body: not changed here, since endpoints that do not
   decode would then refuse every such secret. What PAVE's sign-in does not send (an audience, a
   subscription key header) can still not be added to it: the line names it so the tester knows.
+
+**D-306. A second correction after release 2: what a collection states goes into the saved lists.**
+- **What happened.** On the same first run against the vendor's UAT (D-305) the operator typed every
+  member, provider and procedure code by hand, though the vendor's Postman collection states them in the
+  bodies of its sample requests: the patient and practitioner ids of the vendor's own FHIR server, the
+  test member's identifier and name, the NPI, codes the sandbox knows. They asked that what the
+  collections state about members, providers and procedure codes be put into the saved lists, so they
+  could use it at once. The vendor's files were not seen and were not asked for.
+- **Decided** (by the integrator, `TASK_INGEST_LISTS.md`). When a collection is read, PAVE shows the
+  members, providers and procedure codes its requests state and adds them to the saved lists when the
+  tester says so. In the environment form, after "Fill the form from these files", a part "Found in the
+  collection" lists them, each with the request it was found in ("From "<request>"."), and under "Seen
+  and not used" one line for each thing seen that cannot be used, with why; the box "Add these to the
+  saved lists when the environment is saved" is ticked at first, and the entries are added only after
+  the save went through. On Configuration > Collections the same part follows a successful upload, with
+  the button "Add to the saved lists" and the active environment filling the placeholders. An entry is
+  labelled "From <request name>". The result is one line, "Added to the saved lists: 2 members, 2
+  providers, 4 procedure codes." or "Nothing new was added to the saved lists.", then what was there
+  already, what did not fit a full list and what the lists' rules refused, with links to the three lists.
+  Nothing found: "Nothing to add to the saved lists was found in the collection.", and no box.
+- **Why this stays inside the rule that no member data is persisted.** The operator relaxed that rule for
+  saved test lists entered on purpose (D-294, D-298). The tick is the purpose: nothing goes into a list
+  unless the tester leaves the box ticked and saves, or presses the button. The collection read is the
+  one being uploaded or saved with the environment, and the store keeps it with every value it holds
+  (D-213), so nothing is on disk afterwards that was not there before. The bounds of D-298 hold
+  unchanged: test data only, owner-only files, at most 200 entries a list, the same field rules, never
+  logged, never in the ledger, the trail or the browser's storage (its one key stays `pave.tab`), off with
+  `test-lists.enabled: false`, the same on mock and live. The list store itself (`TestListStore`) was not
+  changed.
+- **Why only what a request sends is read.** A request's body and url are what the vendor's sandbox was
+  sent and accepted for the sample, so the ids, member ID and codes in them are ones it knows. A saved
+  example response may come from a real call (the upload already warns of it, D-213) and says what a
+  service answered, not what a tester sends: it is never read. Scripts are never read or run (D-305).
+  Placeholders are filled from the environment export chosen with the collection, else the stored
+  environment being edited, else, on Configuration > Collections only, the active environment, then the
+  collection's own variables; a stored secret counts as its mask. A body with a placeholder nothing fills,
+  or that uses a secret, is skipped whole with one line, so no entry is built from half a value and no
+  secret reaches a list. The rules, word for word, are those of the builder's report
+  (`ingest/report/build.json`, readingRules): members from `context.patientId`, a Patient id in a url and
+  each `Patient` resource wherever it sits, with a `Coverage` of that patient; the member ID from the
+  environment's `memberIdSystem`, else the one identifier typed `MB`, else the only identifier, else none;
+  providers from `context.userId` reading `Practitioner/<id>`, a Practitioner id in a url and each
+  `Practitioner` resource, the NPI only when its check digit holds; procedure codes from the codings of
+  `ServiceRequest.code`, `Procedure.code`, `DeviceRequest.codeCodeableConcept` and
+  `Claim.item.productOrService` with its details, RxNorm and NDC left out as medications. The same member
+  (member ID or vendor patient id), provider (NPI or vendor practitioner id) or code (code and system)
+  found twice is one entry; where two requests disagree the first is kept and a line says so. Adding reads
+  the files again on the server rather than taking the entries from the page, so the reading rules live
+  in one tested place.
+- **Why a saved member may hold a vendor patient id alone.** A CDS Hooks sample usually names its patient
+  only by the vendor's FHIR id, and that id is what a tester cannot guess. A member now needs a member ID
+  or a vendor patient id ("Enter the member ID as it is on the card, or the vendor patient id."); one
+  vendor patient id names one saved member, as one NPI and one vendor practitioner id already name one
+  provider ("A saved member has this vendor patient id already. Edit that entry instead."); a CSV row is
+  matched by `memberId` or `vendorPatientId`. Picking such an entry fills the vendor patient id and leaves
+  Member ID empty for the tester; the Member card's picker names it "vendor patient id <id>", and the
+  Members table has a column "Vendor patient id". A provider could already be saved with a vendor
+  practitioner id alone.
+- **Why procedure codes got a list of their own.** A code the sandbox knows is as hard to guess as an id,
+  and the Service card had nowhere to keep one. Configuration > Procedure codes is built from the same
+  code as the two other lists (add, edit, remove, CSV import with a dry run, a template), in
+  `test-lists/codes.json`: label, code (1 to 40 characters, no space), code system, description (at most
+  500 characters), one entry for one code in one system, no system counting as its own value. The Service
+  card's "Saved codes" adds a picked code with its system and description, marked "<code> from saved
+  list" under its line.
+- **What is never done.** Nothing is guessed: a member ID that cannot be told apart, an NPI whose check
+  digit fails, a partial birth date, a gender PAVE does not know is left out and said. An entry a list
+  holds already is left as it is, never overwritten. An entry the rules refuse is not cut down to fit.
+  Nothing found is logged: the log lines hold counts only ("Test <list> from a collection: N added, N
+  there already, N did not fit, N refused"). Nothing goes to the ledger. Reading sends nothing to the
+  vendor and stores nothing.
+- **Endpoints.** `POST /api/lists/found` (what was found, stores nothing; a misspelt property is a 422
+  that names it; a file it cannot read answers 200 with "The collection was not read: " and the file
+  guard's line); `POST /api/lists/found/add` (the same body, the files read again, then added);
+  `/api/lists/codes` with the same routes and shapes as the two other lists.
+- **What holds it.** `CollectionFindsTest` (the reading: order-sign with and without prefetch, a PAS
+  submit Bundle, the member ID order, placeholders defined and not, one patient in four requests, a body
+  that is not JSON, deep bodies, odd context ids, a url, saved examples not read); `FoundListsControllerTest`
+  (both endpoints: the three placeholder layers, an unknown environment, v2.0 and broken files, a missing
+  collection, a misspelt property, lists switched off, an entry left as it is, adding twice, a full list);
+  `CodeListControllerTest` (the third list); `FoundFrontendTest` (the part, the box, the button, the form
+  that reads after Fill and adds after a save, the picker for a vendor-only member, the Procedure codes
+  page and "Saved codes", nothing but `pave.tab` in the browser's storage). `TestListControllerTest`,
+  `TestListStoreTest`, `ListsFrontendTest`, `ConfigFrontendTest`, `ConfigPagesFrontendTest` and
+  `ServiceCardFrontendTest` were brought up to the changed behavior. The builder's report does not say
+  whether the new tests were shown to fail without the change. The walks of the body use a stack of their
+  own, never recursion (`RecursionGuardTest`, `RegexStackGuardTest` and `DeepAnswerStackTest` unchanged).
+- **What was seen.** By the builder, on the jar of the branch, with a placeholder collection and
+  environment of its own (`S123456789`, `pat-001`, NPI `1234567893`, `prac-002`): on mock at 1440 by 900
+  and 1024 by 768 the part after Fill, the save that added "2 members, 2 providers, 4 procedure codes",
+  the three lists, and on the Workbench the Member, Provider and Service cards filled from them with
+  "E0601 from saved list"; a second save refused for a name already stored added nothing. On live against
+  the strict stand-in at 1440 by 900 the same, the member picker showing only saved members; at 1024 by
+  768 the part. The application logs held none of the placeholder ids or names. Not seen: the vendor's own
+  files or service, Windows, the IDE, the Edit form of a stored environment, the button on Configuration >
+  Collections, a full list, lists switched off, a body with a placeholder nothing fills. No second agent
+  checked it.
+- **Left.** A collection already stored is not read again: the store keeps no collection text the lists
+  could reach without changing `service/config`, so the part appears only at upload and in the
+  environment form. A collection in format v2.0 is not read, as the parser refuses it at upload too.
+  Placeholders are not filled from `onyx.variables` of `application.yml`. At 1024 pixels the Service
+  card's code line was crowded before this change; the "from saved list" mark was put under the line so
+  as not to add to it.

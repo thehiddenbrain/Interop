@@ -13,6 +13,29 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**A second correction after release 2: the saved lists filled from a collection.** On the same first
+run against the vendor's UAT, every member, provider and procedure code was typed by hand, though the
+vendor's collection states them in its sample requests. The code of commits `babb793`, `fdce17b`,
+`85b8834` and `76743d4`, merged as `165bbd2` after the sign-in correction, with this README after it,
+changes that:
+
+- In the environment form, choose the collection export (and the environment export if you have it)
+  and press "Fill the form from these files". A part "Found in the collection" lists the members,
+  providers and procedure codes the collection's requests state, each with the request it was found
+  in, and under "Seen and not used" what cannot be used and why.
+- Leave "Add these to the saved lists when the environment is saved" ticked and press "Save
+  environment": they go into Configuration > Members, Providers and Procedure codes, each labelled
+  "From <request name>", and one line says what was added, for example "Added to the saved lists: 2
+  members, 2 providers, 4 procedure codes.", with links to the lists. On Configuration > Collections,
+  after an upload, "Add to the saved lists" does the same.
+- They are then picks in the Case column, like any saved entry. Configuration > Procedure codes is a
+  third saved list, and the Service card has "Saved codes": a pick adds the code with its description
+  and the line "<code> from saved list" under it.
+
+What is read and what is left alone: [Lookups and test lists](#lookups-and-test-lists). Seen on mock
+and on live against the stand-in, never with the vendor's files or against the vendor's service
+(D-306).
+
 **A correction after release 2: the sign-in.** On the first run against the vendor's UAT, "Fill
 the form from these files" left the sign-in empty: the vendor's collection asks for its token with a
 request of its own and its variables carry a prefix, and PAVE read neither. Typed by hand, the
@@ -491,6 +514,9 @@ included. The upload warns, naming the variables or requests and never a value, 
 name reads as member data or a request carries a saved example. It cannot judge the values:
 **never upload an environment or a collection that holds a real member's data**; use placeholders
 such as `S123456789`, and remove saved examples taken from real calls.
+What a collection's requests state about a member can now also be put into the saved lists, by your
+own tick: the box in the environment form, or "Add to the saved lists" on Configuration > Collections
+([Lookups and test lists](#lookups-and-test-lists)). Saved example responses are not read for it.
 
 ### Environment kinds
 
@@ -603,15 +629,49 @@ uses 2.0.1, so 2.0.1 is the default and 2.2.1 is kept as a choice, with everythi
 
 ## Lookups and test lists
 
-**Saved test members and providers** live in Configuration > Members and Configuration > Providers,
-for sandbox test data only: "Add member", "Import CSV", "CSV template" ("Manage lists" in the Case
-column opens them). They are kept in
+**Saved test members, providers and procedure codes** live in Configuration > Members,
+Configuration > Providers and Configuration > Procedure codes, for sandbox test data only: "Add
+member", "Import CSV", "CSV template" ("Manage lists" in the Case column opens them). They are kept in
 `config-store/test-lists/`, readable by your account only, never in the ledger or the log, at most
 200 entries a list. Picking a saved entry in the Case column fills the card, each field marked
-"from saved list"; it does not look the member up. Load the vendor's sandbox patient and
-practitioner once, with the vendor patient id and the vendor practitioner id, by hand or with the
+"from saved list"; it does not look the member up. A saved member holds a member ID, a vendor patient
+id, or both; picking one that holds only the vendor patient id fills that and leaves Member ID empty
+for you to type. A saved procedure code (label, code, code system, description) is picked in the
+Service card under "Saved codes". Load the vendor's sandbox patient and practitioner once, with the
+vendor patient id and the vendor practitioner id, from a collection (below), by hand or with the
 CSV import, which shows the columns used and each row's outcome before anything is stored. From
-Excel, save the sheet as CSV first. `test-lists.enabled: false` switches the lists off.
+Excel, save the sheet as CSV first. `test-lists.enabled: false` switches the lists off, and the
+reading of collections below with them.
+
+**Filled from a collection.** PAVE reads only what each request of a collection sends: its body and
+its url as written, with `{{placeholders}}` filled from the environment export chosen with it, else
+from the stored environment being edited, else (on Configuration > Collections) from the active
+environment, then from the collection's own variables. Saved example responses are never read;
+scripts are never read or run. Reading sends nothing and stores nothing. A body with a placeholder
+nothing fills, or that uses a secret, is not read, and one line says so.
+
+- **Members**: `context.patientId` of a CDS Hooks request, a Patient id in a request's url, and each
+  `Patient` resource wherever it sits in a body (a prefetch value, a Bundle entry, a contained
+  resource, a Parameters part): its id as the vendor patient id, its name, a whole birth date and its
+  gender; a `Coverage` of that patient gives the subscriber id, status, period and plan. The member ID
+  is the identifier of the environment's `memberIdSystem`; else the one identifier typed `MB`; else
+  the only identifier; else there is none: it is never guessed.
+- **Providers**: `context.userId` when it reads `Practitioner/<id>`, a Practitioner id in a request's
+  url, and each `Practitioner` resource: its id, its name, and its NPI (system
+  `http://hl7.org/fhir/sid/us-npi`) only when its check digit holds.
+- **Procedure codes**: the codings of `ServiceRequest.code`, `Procedure.code`,
+  `DeviceRequest.codeCodeableConcept` and `Claim.item.productOrService` with its details. An RxNorm or
+  NDC code is a medication and is left out.
+- The same member, provider or code in several requests is one entry.
+
+It is offered in two places: the environment form, after "Fill the form from these files", with the
+box "Add these to the saved lists when the environment is saved", ticked at first (the entries are
+added only once the save went through); and Configuration > Collections, after an upload, with the
+button "Add to the saved lists". An entry a list already holds (the same member ID, vendor patient id,
+NPI, vendor practitioner id, or code and code system) is left as it is; a full list says how many did
+not fit; an entry the list's rules refuse is named with why. Choose the collection at that moment: a
+collection already stored is not read again. A collection in Postman's older format v2.0 is not read
+("The collection was not read: ... This tool reads format v2.1 only.").
 
 **Lookups.** On mock, lookups answer from PAVE's synthetic fixtures ("On mock, lookups answer from
 PAVE's test fixtures. These settings are used on live."). On live, Configuration > Members holds
@@ -957,6 +1017,9 @@ normal answer.
 | GET | `/api/lists/members/template.csv` | The CSV template, three placeholder rows |
 | POST | `/api/lists/members/import` | Import CSV text (`{csv, dryRun}`; a dry run stores nothing) |
 | GET, POST, PUT, DELETE | `/api/lists/providers`, `/api/lists/providers/{id}`, `.../template.csv`, `.../import` | The same for saved test providers |
+| GET, POST, PUT, DELETE | `/api/lists/codes`, `/api/lists/codes/{id}`, `.../template.csv`, `.../import` | The same for saved test procedure codes |
+| POST | `/api/lists/found` | What a collection's requests state for the saved lists (`{collectionExport, environmentExport, forId, fromActiveEnvironment}`, each export `{fileName, text}`); stores nothing |
+| POST | `/api/lists/found/add` | The same files read again, and what they state added to the saved lists |
 | GET | `/api/members/{memberId}`, `/api/members?memberId=` | Member lookup (the query form for an ID with a slash; optional `dateOfService`) |
 | GET | `/api/providers/{npi}`, `/api/providers?npi=` | Provider lookup (the NPI check digit first; optional `dateOfService`) |
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
@@ -1317,6 +1380,20 @@ open item, the worst first, with the entry that gives the reason.
   PAVE and start it again, then replay once more.
 - **The Date of service and the questionnaire's dates** show in the browser's own form; the ISO
   date is sent.
+- **Saved lists from a collection, in the Edit form** of a stored environment (its stored variables
+  filling the placeholders) are held by tests only, not seen on a screen.
+- **"Add to the saved lists" on Configuration > Collections** is held by tests only, not seen on a
+  screen.
+- **A full list, lists switched off, and a body with a placeholder nothing fills**, when read from a
+  collection, are held by tests only, not seen on a screen.
+- **A collection already stored is not read again** for the saved lists: choose it again in the
+  environment form, or upload it again.
+- **A collection in Postman's format v2.0** is not read for the saved lists, as it is refused at
+  upload.
+- **Placeholders of a collection read for the saved lists** are filled from the environment and the
+  collection only, never from `onyx.variables` of `application.yml`.
+- **An entry the list's rules refuse** (a description over 500 characters, for one) is not cut down to
+  fit: it is not added, and a line says why.
 
 ## How release 1 was checked
 
@@ -1419,4 +1496,11 @@ walked in a browser for this README; what they say was seen is what the merge ag
 checks and the corrector name. The last whole build of `c31ae00` ended BUILD SUCCESSFUL, and the
 Eclipse compiler check at that head found 0 errors. The gates before the hand-over (two whole builds
 from clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on the
+commit that carries this README, after it was written; their result is reported with the hand-over.
+
+For the saved lists filled from a collection (D-306), the parts that changed (This release, Member data
+in an uploaded file, Lookups and test lists, Endpoints, Limitations) were brought to the merge
+`165bbd2`: every sentence they quote from a screen was searched in `src/main` at that head, and every
+endpoint added was found in its controller there. They were not walked in a browser for this README;
+what they say was seen is what the builder's report names. The gates are run by the integrator on the
 commit that carries this README, after it was written; their result is reported with the hand-over.
