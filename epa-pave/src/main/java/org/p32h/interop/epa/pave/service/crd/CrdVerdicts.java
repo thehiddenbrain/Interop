@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.RequestShape;
 import org.p32h.interop.epa.pave.model.Shown;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.VendorExchange;
@@ -314,13 +315,21 @@ public final class CrdVerdicts {
      * record or report that run. Null when there is no run, as for a preview.
      */
     public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId) {
+        return nextStep(reading, exchange, runId, null);
+    }
+
+    /**
+     * The next step, with the name of the environment the call went to, so a refusal that a setting
+     * of that environment answers can name where to change it. Null when no environment is active.
+     */
+    public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId, String environmentName) {
         // A fault a scenario played is a rehearsal on every branch, the readable answer of the wrong kind included.
-        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId),
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId, environmentName),
                 PlayedFaults.aboutTheEnvironment("the member or the code"));
     }
 
     /** The next step as it would be after a real service gave this answer. */
-    private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId) {
+    private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId, String environmentName) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
@@ -438,7 +447,7 @@ public final class CrdVerdicts {
                     "The service does not recognise the member. The environment answered normally.", carry);
             case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
                     "The service does not recognise the provider. The environment answered normally.", carry);
-            case REJECTED -> notAccepted(exchange, carry);
+            case REJECTED -> notAccepted(exchange, carry, environmentName);
             case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
                     "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
@@ -502,8 +511,11 @@ public final class CrdVerdicts {
      * the same outcome covers credentials that were not accepted and an address that does not
      * exist, and sending the tester to correct the request for either would waste their time.
      */
-    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
+    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry, String environmentName) {
         int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
+        if (status == 400 && refusedDraftOrdersType(exchange)) {
+            return new NextStepView(NextAction.OPEN_CONFIG, leaveOutDraftOrdersType(environmentName), DRAFT_ORDERS_TYPE_REASON, carry);
+        }
         if (status == 401 || status == 403) {
             return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
                     RunSupport.credentialsReason(status, exchange), carry);
@@ -516,6 +528,31 @@ public final class CrdVerdicts {
         }
         return new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
                 "The service did not accept the request as it was sent.", carry);
+    }
+
+    /** Why the next step after a 400 that names draftOrders.type points at the environment's setting (R-37). */
+    static final String DRAFT_ORDERS_TYPE_REASON = "The service answered HTTP 400 and its answer names draftOrders.type, which this "
+            + "request sent. FHIR requires Bundle.type, and the setting draftOrders type of the environment leaves it out for a vendor "
+            + "whose sandbox refuses it.";
+
+    /** The next step's headline after a 400 that names draftOrders.type, in the words of R-37. */
+    static String leaveOutDraftOrdersType(String environmentName) {
+        String name = Texts.present(environmentName) ? environmentName.strip() : "the active environment";
+        return "Set draftOrders type to Left out for " + name + " in Configuration > Environments, then run the check again.";
+    }
+
+    /**
+     * True when the service's answer names draftOrders.type and the request as sent carried it.
+     * A request that already left it out is not sent to the setting that leaves it out: the 400 is
+     * then about something else, and the issues below say what.
+     */
+    static boolean refusedDraftOrdersType(VendorExchange exchange) {
+        String answer = exchange.responseBody();
+        if (answer == null || !answer.contains("draftOrders.type")) {
+            return false;
+        }
+        String sent = exchange.request() == null ? null : exchange.request().body();
+        return RequestShape.SENT.equals(VendorSamples.fromBody(RequestShape.CRD_DRAFT_ORDERS_TYPE, sent));
     }
 
     /** True when the answer asks for documentation: doc-needed clinical, admin or both, or the 2.2.0 ballot's patient. */
