@@ -290,7 +290,8 @@ class DtrScenarioDeterminationTest {
         assertThat(returned.at("/item/0/answer/0/valueCoding/system").asString()).endsWith("/CodeSystem/yes-no");
         // So is what the tool put on the response when it first built it.
         assertThat(returned.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        assertThat(returned.at("/authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        // R-37: authored is written in whole seconds UTC; the same instant as 11:00 at -04:00.
+        assertThat(returned.at("/authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         // The questions and the status are the step's.
         assertThat(returned.at("/status").asString()).isEqualTo("in-progress");
         assertThat(returned.at("/contained/0/item")).hasSize(2);

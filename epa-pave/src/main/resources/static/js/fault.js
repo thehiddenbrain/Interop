@@ -39,7 +39,9 @@ export function errorPanel(error, options) {
     if (!error || typeof error !== 'object') {
         return null;
     }
-    if (error.kind === 'UNREACHABLE') {
+    // The server's own errors of kind UNREACHABLE (the service could not be reached) carry a title;
+    // the page's own (PAVE itself gave no answer) carry none.
+    if (error.kind === 'UNREACHABLE' && !error.title) {
         return panel('fault', null, UNREACHABLE_LINE,
             'If a run was on its way, it may or may not have been made: look for it in Audit before sending it again.');
     }

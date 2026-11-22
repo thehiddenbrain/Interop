@@ -286,7 +286,8 @@ class StaticJoinTest {
 
     private static List<String> calledButMissing(String name, String text, String object, Set<String> members) {
         List<String> missing = new ArrayList<>();
-        Matcher matcher = Pattern.compile("\\b" + object + "\\.(\\w+)").matcher(text);
+        // Not the name of the file the object is imported from ("./app.js"), which is no call.
+        Matcher matcher = Pattern.compile("(?<![\\w./])" + object + "\\.(\\w+)").matcher(text);
         while (matcher.find()) {
             if (!members.contains(matcher.group(1))) {
                 missing.add(name + " calls " + object + "." + matcher.group(1));

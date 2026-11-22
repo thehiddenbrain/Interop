@@ -1,5 +1,7 @@
 package org.p32h.interop.epa.pave.service.crd;
 
+import org.p32h.interop.epa.pave.service.run.CaseResources;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -199,8 +201,12 @@ class CrdRequestComparerTest {
                                 CrdRequestComparer.Case read = CrdRequestComparer.merge(
                                         CrdRunRequest.builder().includePrefetch(original.includePrefetch()).build(),
                                         CrdRequestReader.read(JsonSafe.parse(sent).node()));
+                                // Without prefetch nothing says the provider is an organization, and only for one is the user the
+                                // PractitionerRole (R-37), so that one reference is all the request built again may differ in.
+                                String expected = !prefetch && CaseResources.organizationOnly(provider)
+                                        ? sent.replace("\"PractitionerRole/practitioner-role-1\"", "\"Practitioner/practitioner-1\"") : sent;
                                 assertThat(sent(read.request)).as(hook + ", " + codes + " code(s), prefetch " + prefetch + ", member ID ["
-                                        + memberId + "], variables set " + configured).isEqualTo(sent);
+                                        + memberId + "], variables set " + configured).isEqualTo(expected);
                                 // With prefetch the request says everything, and all of it was found.
                                 assertThat(read.lacking).isEqualTo(prefetch ? List.of() : List.of("no member ID", "no NPI"));
                                 // Not only the same request built again: each value read is the value the form held, the member ID as sent.
@@ -239,17 +245,17 @@ class CrdRequestComparerTest {
         assertThat(comparison.caseSource()).extracting(CaseValue::field, CaseValue::source, CaseValue::path, value -> value.value().value())
                 .containsExactly(
                         tuple("hook", "hook", "order-select"),
-                        tuple("member.memberId", "prefetch.patient.identifier[0].value", "S1234567801"),
-                        tuple("member.firstName", "prefetch.patient.name[0].given[0]", "Given"),
-                        tuple("member.lastName", "prefetch.patient.name[0].family", SURNAME),
-                        tuple("member.dateOfBirth", "prefetch.patient.birthDate", BIRTH_DATE),
-                        tuple("member.gender", "prefetch.patient.gender", "female"),
-                        tuple("member.subscriberId", "prefetch.coverage.subscriberId", "SUB-PLACEHOLDER-1"),
-                        tuple("member.planName", "prefetch.coverage.class[0].value", "Placeholder Plan"),
-                        tuple("member.coverageStatus", "prefetch.coverage.status", "active"),
-                        tuple("provider.npi", "prefetch.practitioner.identifier[0].value", NPI),
-                        tuple("provider.firstName", "prefetch.practitioner.name[0].given[0]", "Pat"),
-                        tuple("provider.lastName", "prefetch.practitioner.name[0].family", "Provider"),
+                        tuple("member.memberId", "prefetch.patientBundle.entry[0].resource.identifier[0].value", "S1234567801"),
+                        tuple("member.firstName", "prefetch.patientBundle.entry[0].resource.name[0].given[0]", "Given"),
+                        tuple("member.lastName", "prefetch.patientBundle.entry[0].resource.name[0].family", SURNAME),
+                        tuple("member.dateOfBirth", "prefetch.patientBundle.entry[0].resource.birthDate", BIRTH_DATE),
+                        tuple("member.gender", "prefetch.patientBundle.entry[0].resource.gender", "female"),
+                        tuple("member.subscriberId", "prefetch.coverageBundle.entry[0].resource.subscriberId", "SUB-PLACEHOLDER-1"),
+                        tuple("member.planName", "prefetch.coverageBundle.entry[0].resource.class[0].value", "Placeholder Plan"),
+                        tuple("member.coverageStatus", "prefetch.coverageBundle.entry[0].resource.status", "active"),
+                        tuple("provider.npi", "prefetch.practitionerBundle.entry[0].resource.identifier[0].value", NPI),
+                        tuple("provider.firstName", "prefetch.practitionerBundle.entry[0].resource.name[0].given[0]", "Pat"),
+                        tuple("provider.lastName", "prefetch.practitionerBundle.entry[0].resource.name[0].family", "Provider"),
                         // A code, its system and its description are three values, and each is reported with its own place.
                         tuple("procedureCodes[0].code", "context.draftOrders.entry[0].resource.code.coding[0].code", "95810"),
                         tuple("procedureCodes[0].system", "context.draftOrders.entry[0].resource.code.coding[0].system", "http://www.ama-assn.org/go/cpt"),
@@ -260,7 +266,7 @@ class CrdRequestComparerTest {
                         tuple("procedureCodes[2].code", "context.draftOrders.entry[2].resource.code.coding[0].code", "70553"),
                         tuple("procedureCodes[2].system", "context.draftOrders.entry[2].resource.code.coding[0].system", "http://www.ama-assn.org/go/cpt"),
                         tuple("dateOfService", "context.draftOrders.entry[0].resource.occurrenceDateTime", "2026-03-20"));
-        assertThat(source(comparison, "member.memberId").pointer()).isEqualTo("/prefetch/patient/identifier/0/value");
+        assertThat(source(comparison, "member.memberId").pointer()).isEqualTo("/prefetch/patientBundle/entry/0/resource/identifier/0/value");
         assertThat(source(comparison, "member.memberId").label()).isEqualTo("Member ID");
         assertThat(source(comparison, "procedureCodes[0].system").pointer()).isEqualTo("/context/draftOrders/entry/0/resource/code/coding/0/system");
         assertThat(source(comparison, "procedureCodes[0].system").label()).isEqualTo("System of procedure code 1");
@@ -330,8 +336,11 @@ class CrdRequestComparerTest {
         String pasted = sent(form("order-sign", 1, true).procedureCodes(List.of(new CodeInput("95810", "urn:oid:2.16.840.1.113883.6.12", null))).build());
         RequestComparison comparison = compare(form("order-sign", 1, true).procedureCodes(List.of(CodeInput.of("95810"))).rawBody(pasted).build());
         String coding = "context.draftOrders.entry[ServiceRequest].resource.code.coding";
+        // The order is in serviceRequestBundle as well (R-37), so the same difference is listed there.
+        String again = "prefetch.serviceRequestBundle.entry[ServiceRequest].resource.code.coding";
         assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, coding + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
-                coding + "[urn:oid:2.16.840.1.113883.6.12] | ONLY_IN_YOURS | BUILD");
+                coding + "[urn:oid:2.16.840.1.113883.6.12] | ONLY_IN_YOURS | BUILD", again + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
+                again + "[urn:oid:2.16.840.1.113883.6.12] | ONLY_IN_YOURS | BUILD");
         assertThat(at(comparison, coding + "[http://www.ama-assn.org/go/cpt]").explanation()).isEqualTo("This list is matched by system. The "
                 + "tool's request has an element with this system that your request has no counterpart for. The other request has an unmatched "
                 + "element here too: the two were not compared with each other, because they do not share a system. When a code comes without "
@@ -346,6 +355,10 @@ class CrdRequestComparerTest {
         tools.jackson.databind.node.ObjectNode stated = (tools.jackson.databind.node.ObjectNode) root.at("/context/draftOrders/entry/0/resource/code/coding/0");
         stated.remove("system");
         stated.remove("display");
+        // The same order sits in serviceRequestBundle (R-37), edited alike.
+        tools.jackson.databind.node.ObjectNode again = (tools.jackson.databind.node.ObjectNode) root.at("/prefetch/serviceRequestBundle/entry/0/resource/code/coding/0");
+        again.remove("system");
+        again.remove("display");
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(root.toString()).build());
 
         // No system was read, and no description: both are reported as looked for and not found, with what this tool does then.
@@ -357,8 +370,10 @@ class CrdRequestComparerTest {
                 + "display only when it is given a description.");
         // The system this tool works out is in its request and not in the pasted one, so it is a difference and is listed as one.
         String coding = "context.draftOrders.entry[ServiceRequest].resource.code.coding";
+        String bundled = "prefetch.serviceRequestBundle.entry[ServiceRequest].resource.code.coding";
         assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, coding + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
-                coding + "[no system] | ONLY_IN_YOURS | BUILD");
+                coding + "[no system] | ONLY_IN_YOURS | BUILD", bundled + "[http://www.ama-assn.org/go/cpt] | ONLY_IN_TOOL | BUILD",
+                bundled + "[no system] | ONLY_IN_YOURS | BUILD");
         assertThat(JsonSafe.parse(comparison.toolBody()).node().at("/context/draftOrders/entry/0/resource/code/coding/0/display").isMissingNode()).isTrue();
         // Nothing was read to be set beside what this tool writes by itself, so there is no note about a system that was taken over.
         assertThat(comparison.notes()).noneMatch(note -> note.contains(OWN_SYSTEM));
@@ -372,7 +387,7 @@ class CrdRequestComparerTest {
     /** The request with the id of its prefetched patient changed and nothing else: no reference to it is changed with it. */
     private static String withThePatientRenamed(String request) {
         JsonNode root = JsonSafe.parse(request).node();
-        ((tools.jackson.databind.node.ObjectNode) root.at("/prefetch/patient")).put("id", "8842");
+        ((tools.jackson.databind.node.ObjectNode) root.at("/prefetch/patientBundle/entry/0/resource")).put("id", "8842");
         return root.toString();
     }
 
@@ -382,11 +397,11 @@ class CrdRequestComparerTest {
         String sent = sent(form("order-sign", 1, true).build());
         RequestComparison comparison = compare(form("order-sign", 1, true).rawBody(withThePatientRenamed(sent)).build());
         // No text of a reference differs, so the id is the one difference, and it says that no reference follows it.
-        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.id | DIFFERENT_VALUE | LABELS");
-        assertThat(at(comparison, "prefetch.patient.id").referencesFollowing()).isZero();
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patientBundle.entry[Patient].resource.id | DIFFERENT_VALUE | LABELS");
+        assertThat(at(comparison, "prefetch.patientBundle.entry[Patient].resource.id").referencesFollowing()).isZero();
         // The same texts now point past the patient of the pasted request, and that is said.
         String sameText = comparison.notes().stream().filter(note -> note.contains(SAME_TEXT)).findFirst().orElseThrow();
-        assertThat(sameText).startsWith("At context.patientId and at 2 other places the two requests hold the same reference text. In the "
+        assertThat(sameText).startsWith("At context.patientId and at 3 other places the two requests hold the same reference text. In the "
                 + "tool's request it points at a Patient the request carries.").endsWith("The Patient that your request carries in its place is "
                 + "labelled differently, so in your request the same text does not point at that Patient.");
         // The pasted request names no fhirServer, so where its references point is said as a fact about it as well.
@@ -399,11 +414,11 @@ class CrdRequestComparerTest {
         String sent = sent(form("order-select", 3, true).build());
         assertThat(sent).contains("https://ehr.example.invalid/fhir");
         RequestComparison comparison = compare(form("order-select", 3, true).rawBody(withThePatientRenamed(sent)).build());
-        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.id | DIFFERENT_VALUE | LABELS");
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patientBundle.entry[Patient].resource.id | DIFFERENT_VALUE | LABELS");
         // With a server named, a reference to a resource the request does not carry is not remarked on. What is said is about the two requests.
         assertThat(comparison.notes()).noneMatch(note -> note.contains("it does not carry"));
         assertThat(comparison.notes()).filteredOn(note -> note.contains(SAME_TEXT)).singleElement().satisfies(note -> assertThat(note)
-                .startsWith("At context.patientId and at 4 other places the two requests hold the same reference text."));
+                .startsWith("At context.patientId and at 7 other places the two requests hold the same reference text."));
         assertThat(comparison.notes()).contains(FHIR_SERVER_NOTE);
     }
 
@@ -438,26 +453,26 @@ class CrdRequestComparerTest {
         String order = "context.draftOrders.entry[ServiceRequest #1]";
         assertThat(lines(comparison)).containsExactly(
                 "hookInstance | DIFFERENT_VALUE | EVERY_CALL",
-                // The tool names a PractitionerRole as the user and the sample names the Practitioner.
-                "context.userId | DIFFERENT_VALUE | BUILD",
+                // The user and the requester are no difference: both name the Practitioner (R-37), relabelled.
+                // Both requests write a fullUrl on the order, the tool's a urn:uuid with no fhirServer set.
+                order + ".fullUrl | WRITTEN_DIFFERENTLY | BUILD",
                 order + ".resource.id | DIFFERENT_VALUE | LABELS",
                 order + ".resource.intent | DIFFERENT_VALUE | BUILD",
                 // The sample holds a date and time, and the tool sends a date.
                 order + ".resource.occurrenceDateTime | DIFFERENT_VALUE | CASE",
                 // This tool writes the moment it builds the request, which CRD 2.0.1 requires and nobody supplies.
                 order + ".resource.authoredOn | DIFFERENT_VALUE | EVERY_CALL",
-                order + ".resource.requester.reference | DIFFERENT_VALUE | BUILD",
                 order + ".resource.meta | ONLY_IN_YOURS | BUILD",
                 // The extra extension.
                 order + ".resource.extension | ONLY_IN_YOURS | BUILD",
                 order + ".resource.encounter | ONLY_IN_YOURS | BUILD",
-                order + ".fullUrl | ONLY_IN_YOURS | BUILD",
                 // The second order is a DeviceRequest in the sample and a ServiceRequest in the tool's request.
                 "context.draftOrders.entry[ServiceRequest #2] | ONLY_IN_TOOL | BUILD",
                 "context.draftOrders.entry[DeviceRequest] | ONLY_IN_YOURS | BUILD",
                 "context.encounterId | ONLY_IN_YOURS | BUILD",
-                // Other prefetch keys, other ids.
+                // Other prefetch keys, other ids, and the tool's resources inside named Bundles (R-37).
                 "prefetch[Patient] | DIFFERENT_KEY | BUILD",
+                "prefetch[Patient] | DIFFERENT_VALUE | BUILD",
                 "prefetch[Patient].id | DIFFERENT_VALUE | LABELS",
                 // The member ID is in another place: the sample's Patient carries a record number, not a member ID.
                 "prefetch[Patient].identifier[no system] | ONLY_IN_TOOL | BUILD",
@@ -466,14 +481,17 @@ class CrdRequestComparerTest {
                 "prefetch[Patient].name[0].use | ONLY_IN_YOURS | BUILD",
                 "prefetch[Patient].address | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage] | DIFFERENT_KEY | BUILD",
+                "prefetch[Coverage] | DIFFERENT_VALUE | BUILD",
                 "prefetch[Coverage].id | DIFFERENT_VALUE | LABELS",
                 "prefetch[Coverage].identifier | ONLY_IN_TOOL | BUILD",
                 "prefetch[Coverage].class[plan].name | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage].period | ONLY_IN_YOURS | BUILD",
                 "prefetch[Coverage].payor | ONLY_IN_YOURS | BUILD",
-                "prefetch.practitionerRole | ONLY_IN_TOOL | BUILD",
                 "prefetch[Practitioner] | DIFFERENT_KEY | BUILD",
+                "prefetch[Practitioner] | DIFFERENT_VALUE | BUILD",
                 "prefetch[Practitioner].id | DIFFERENT_VALUE | LABELS",
+                "prefetch.practitionerRoleBundle | ONLY_IN_TOOL | BUILD",
+                "prefetch.serviceRequestBundle | ONLY_IN_TOOL | BUILD",
                 "prefetch.encounterRequest | ONLY_IN_YOURS | BUILD",
                 "fhirServer | ONLY_IN_YOURS | BUILD",
                 "fhirAuthorization | ONLY_IN_YOURS | BUILD",
@@ -481,10 +499,10 @@ class CrdRequestComparerTest {
         assertThat(comparison.comparable()).isTrue();
         assertThat(comparison.whyNot()).isNull();
         assertThat(comparison.hook()).isEqualTo("order-sign");
-        assertThat(comparison.headline()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the case they "
+        assertThat(comparison.headline()).isEqualTo("The two requests differ in 36 places: 27 in how the request is built, 2 in the case they "
                 + "describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
         assertThat(comparison.counts()).extracting(GroupCount::group, GroupCount::count).containsExactly(
-                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.BUILD, 25), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.CASE, 2),
+                org.assertj.core.groups.Tuple.tuple(DifferenceGroup.BUILD, 27), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.CASE, 2),
                 org.assertj.core.groups.Tuple.tuple(DifferenceGroup.LABELS, 4), org.assertj.core.groups.Tuple.tuple(DifferenceGroup.EVERY_CALL, 2),
                 org.assertj.core.groups.Tuple.tuple(DifferenceGroup.NOT_CLASSIFIED, 1));
         assertThat(comparison.counts().get(0).label()).isEqualTo("How the request is built");
@@ -505,39 +523,33 @@ class CrdRequestComparerTest {
         Difference patient = at(comparison, "prefetch[Patient].id");
         assertThat(patient.toolValue().value()).isEqualTo("patient-1");
         assertThat(patient.yourValue().value()).isEqualTo("pat-8842");
-        assertThat(patient.toolPointer()).isEqualTo("/prefetch/patient/id");
+        assertThat(patient.toolPointer()).isEqualTo("/prefetch/patientBundle/entry/0/resource/id");
         assertThat(patient.yourPointer()).isEqualTo("/prefetch/patientRequest/id");
         // context.patientId, the order's subject and the coverage's beneficiary: none of them is listed.
         assertThat(patient.referencesFollowing()).isEqualTo(3);
         assertThat(patient.what()).isEqualTo("The id of the resource, which is its label inside the request and not a member ID.");
         assertThat(at(comparison, "prefetch[Coverage].id").referencesFollowing()).isEqualTo(1);
-        assertThat(at(comparison, "prefetch[Practitioner].id").referencesFollowing()).isZero();
+        // context.userId and the order's requester follow the relabelled Practitioner (R-37), so neither is listed.
+        assertThat(at(comparison, "prefetch[Practitioner].id").referencesFollowing()).isEqualTo(2);
         assertThat(lines(comparison)).noneMatch(line -> line.startsWith("context.patientId") || line.contains("subject") || line.contains("beneficiary")
                 || line.contains("insurance"));
 
-        // The two references that are listed point at another kind of resource, which no relabelling explains.
-        Difference user = at(comparison, "context.userId");
-        assertThat(user.toolValue().value()).isEqualTo("PractitionerRole/practitioner-role-1");
-        assertThat(user.yourValue().value()).isEqualTo("Practitioner/prac-9001");
-        assertThat(user.explanation()).isEqualTo("The two references do not follow one matched pair of resources: the tool's points at a "
-                + "PractitionerRole in the tool's request, and yours points at a Practitioner in your request.");
-        assertThat(at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.requester.reference").explanation())
-                .isEqualTo(user.explanation());
+        assertThat(lines(comparison)).noneMatch(line -> line.startsWith("context.userId") || line.contains("requester"));
     }
 
     @Test
     void whatIsSaidAboutAVendorShapedRequestFollowsFromItsStructureAndFromHowThisToolBuilds() {
         RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build());
         Difference key = at(comparison, "prefetch[Patient]");
-        assertThat(key.toolValue().value()).isEqualTo("patient");
+        assertThat(key.toolValue().value()).isEqualTo("patientBundle");
         assertThat(key.yourValue().value()).isEqualTo("patientRequest");
         assertThat(key.what()).isEqualTo("The member, as a FHIR Patient resource.");
-        assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patient` and your request holds it under "
-                + "`patientRequest`. The tool's was built from what was read out of yours, so the two are compared with each other. "
+        assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patientBundle` and your request holds it under "
+                + "`patientRequest`. "
                 + "A CDS service names the prefetch keys it asks for in its discovery response. "
                 + "The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.");
-        assertThat(at(comparison, "prefetch.practitionerRole").explanation()).isEqualTo("The tool's request has the key `practitionerRole` here "
-                + "and your request does not. It holds a PractitionerRole resource. A CDS service names the prefetch keys it asks for in its "
+        assertThat(at(comparison, "prefetch.practitionerRoleBundle").explanation()).isEqualTo("The tool's request has the key `practitionerRoleBundle` here "
+                + "and your request does not. It holds a Bundle resource. A CDS service names the prefetch keys it asks for in its "
                 + "discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the "
                 + "service names.");
 
@@ -589,8 +601,8 @@ class CrdRequestComparerTest {
                 + "service as a date, so the date was used.");
         assertThat(comparison.caseSource()).allSatisfy(value -> assertThat(value.source()).isEqualTo(CaseValue.Source.YOUR_REQUEST));
         JsonNode tool = JsonSafe.parse(comparison.toolBody()).node();
-        assertThat(tool.at("/prefetch/patient/identifier/0/value").asString()).isEqualTo("S123456789");
-        assertThat(tool.at("/prefetch/practitioner/identifier/0/value").asString()).isEqualTo(NPI);
+        assertThat(tool.at("/prefetch/patientBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo("S123456789");
+        assertThat(tool.at("/prefetch/practitionerBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo(NPI);
         assertThat(tool.at("/context/draftOrders/entry/1/resource/code/coding/0/code").asString()).isEqualTo("E0601");
         // Both texts are indented the same way, and the pasted one keeps its own order of keys.
         assertThat(comparison.yourBody()).startsWith("{\n  \"hookInstance\" : \"5f0e8a57").contains("\n  \"fhirServer\" : ");
@@ -609,24 +621,25 @@ class CrdRequestComparerTest {
 
         RequestComparison bare = compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build());
         RequestComparison wrapped = compare(CrdRunRequest.builder().rawBody(root.toString()).build());
-        // Everything the bare coverage gave is still found, and one difference more says how the coverage is wrapped.
-        List<String> expected = new ArrayList<>(lines(bare));
-        expected.add(expected.indexOf("prefetch[Coverage] | DIFFERENT_KEY | BUILD") + 1, "prefetch[Coverage] | DIFFERENT_VALUE | BUILD");
+        // The tool's coverage is itself a Bundle now (R-37), and a Bundle is not matched with a Bundle under another key, so the two
+        // coverages are each listed whole in place of the differences between them. Everything else is as for the bare coverage.
+        List<String> expected = new ArrayList<>();
+        for (String line : lines(bare)) {
+            if (line.startsWith("prefetch[Coverage]")) {
+                if (line.equals("prefetch[Coverage] | DIFFERENT_KEY | BUILD")) {
+                    expected.add("prefetch.coverageBundle | ONLY_IN_TOOL | BUILD");
+                }
+                continue;
+            }
+            expected.add(line);
+        }
+        expected.add(expected.indexOf("prefetch.encounterRequest | ONLY_IN_YOURS | BUILD") + 1, "prefetch.coverageSearch | ONLY_IN_YOURS | BUILD");
+        // With the coverages unmatched, the order's reference to its coverage no longer follows one matched pair.
+        expected.add(expected.indexOf("context.draftOrders.entry[ServiceRequest #1].resource.authoredOn | DIFFERENT_VALUE | EVERY_CALL") + 1,
+                "context.draftOrders.entry[ServiceRequest #1].resource.insurance[0].reference | DIFFERENT_VALUE | BUILD");
         assertThat(lines(wrapped)).containsExactlyElementsOf(expected);
-
-        Difference key = wrapped.differences().stream().filter(d -> d.kind() == DifferenceKind.DIFFERENT_KEY && d.path().equals("prefetch[Coverage]"))
-                .findFirst().orElseThrow();
-        assertThat(key.yourValue().value()).isEqualTo("coverageSearch");
-        Difference wrapping = wrapped.differences().stream()
-                .filter(d -> d.kind() == DifferenceKind.DIFFERENT_VALUE && d.path().equals("prefetch[Coverage]")).findFirst().orElseThrow();
-        assertThat(wrapping.explanation()).isEqualTo("The tool's request holds a Coverage resource here and your request holds a Bundle with one "
-                + "Coverage in it. The two Coverage resources are compared with each other in the differences that follow, and the rest of the "
-                + "Bundle is given whole here. " + CrdRequestGlossary.PREFETCH_SHAPES);
-        assertThat(wrapping.yourPointer()).isEqualTo("/prefetch/coverageSearch");
-        // What is compared beneath is pointed at inside the Bundle, and the case is read from there too.
-        assertThat(at(wrapped, "prefetch[Coverage].payor").yourPointer()).isEqualTo("/prefetch/coverageSearch/entry/0/resource/payor");
+        // The case is still read from inside the Bundle.
         assertThat(source(wrapped, "member.memberId").path()).isEqualTo("prefetch.coverageSearch.entry[0].resource.subscriberId");
-        assertThat(at(wrapped, "prefetch[Coverage].id").referencesFollowing()).isEqualTo(at(bare, "prefetch[Coverage].id").referencesFollowing());
     }
 
     // ---- the form wins, and what is borrowed is never mixed between two members ----
@@ -648,7 +661,7 @@ class CrdRequestComparerTest {
         assertThat(family.what()).isEqualTo("The family name.");
         assertThat(at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime").explanation())
                 .startsWith("The two requests hold different text here. This tool sends the date of service as a date");
-        assertThat(comparison.headline()).startsWith("The two requests differ in 35 places: 25 in how the request is built, 3 in the case they describe");
+        assertThat(comparison.headline()).startsWith("The two requests differ in 37 places: 27 in how the request is built, 3 in the case they describe");
     }
 
     @Test
@@ -702,9 +715,9 @@ class CrdRequestComparerTest {
         CaseValue memberId = source(comparison, "member.memberId");
         assertThat(memberId.value().value()).isEqualTo("S12345678   01");
         assertThat(memberId.note()).isEqualTo("This tool removes the spaces from a member ID before it sends it.");
-        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.identifier[MB].value | DIFFERENT_VALUE | CASE",
-                "prefetch.coverage.identifier[MB].value | DIFFERENT_VALUE | CASE");
-        Difference value = at(comparison, "prefetch.patient.identifier[MB].value");
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patientBundle.entry[Patient].resource.identifier[MB].value | DIFFERENT_VALUE | CASE",
+                "prefetch.coverageBundle.entry[Coverage].resource.identifier[MB].value | DIFFERENT_VALUE | CASE");
+        Difference value = at(comparison, "prefetch.patientBundle.entry[Patient].resource.identifier[MB].value");
         assertThat(value.toolValue().value()).isEqualTo("S1234567801");
         assertThat(value.yourValue().value()).isEqualTo("S12345678   01");
         assertThat(value.explanation()).isEqualTo("The two requests hold different text here. They differ only in spaces: one has spaces where "
@@ -761,12 +774,15 @@ class CrdRequestComparerTest {
                 "context.patientId | DIFFERENT_VALUE | BUILD",
                 // The sample selects one of its two orders and the tool selects every order it builds.
                 "context.selections[0] | ONLY_IN_TOOL | BUILD",
+                // R-37: this tool writes a fullUrl on every entry, and the sample has none.
+                "context.draftOrders.entry[ServiceRequest #1].fullUrl | ONLY_IN_TOOL | BUILD",
                 first + ".id | DIFFERENT_VALUE | LABELS",
                 first + ".subject.reference | DIFFERENT_VALUE | BUILD",
                 first + ".authoredOn | ONLY_IN_TOOL | BUILD",
                 first + ".requester.reference | DIFFERENT_VALUE | BUILD",
                 first + ".insurance[0].reference | DIFFERENT_VALUE | BUILD",
                 first + ".quantityQuantity | ONLY_IN_YOURS | BUILD",
+                "context.draftOrders.entry[ServiceRequest #2].fullUrl | ONLY_IN_TOOL | BUILD",
                 second + ".id | DIFFERENT_VALUE | LABELS",
                 second + ".subject.reference | DIFFERENT_VALUE | BUILD",
                 second + ".authoredOn | ONLY_IN_TOOL | BUILD",
@@ -793,7 +809,7 @@ class CrdRequestComparerTest {
                         + "and context.draftOrders.entry[1].resource.subject.reference. It names no fhirServer to fetch it from.",
                 "Your request points at a Coverage it does not carry, at context.draftOrders.entry[0].resource.insurance[0].reference and "
                         + "context.draftOrders.entry[1].resource.insurance[0].reference. It names no fhirServer to fetch it from.",
-                "The tool's request points at a PractitionerRole it does not carry, at context.userId, "
+                "The tool's request points at a Practitioner it does not carry, at context.userId, "
                         + "context.draftOrders.entry[0].resource.requester.reference, and context.draftOrders.entry[1].resource.requester.reference. "
                         + "It names no fhirServer to fetch it from.",
                 "The tool's request points at a Patient it does not carry, at context.patientId, "
@@ -815,7 +831,8 @@ class CrdRequestComparerTest {
                         + "request was built with that system. Left to work the system out for itself, from the code list or else from the "
                         + "format of the code, this tool writes urn:oid:2.16.840.1.113883.6.285.",
                 FHIR_SERVER_NOTE);
-        assertThat(lines(comparison)).doesNotContain("fhirServer | ONLY_IN_YOURS | BUILD").hasSize(15);
+        // Two more than before R-37: the fullUrl this tool writes on each of the two orders.
+        assertThat(lines(comparison)).doesNotContain("fhirServer | ONLY_IN_YOURS | BUILD").hasSize(17);
     }
 
     @Test
@@ -915,8 +932,8 @@ class CrdRequestComparerTest {
                         + "placeholder left in place. A value is looked for among the values typed for this run, in the active environment and in "
                         + "application.yml, and not in the variables of a collection.");
         assertThat(comparison.yourBody()).contains("{{memberSurname}}");
-        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patient.name[0].family | DIFFERENT_VALUE | CASE",
-                "prefetch.patient.name[0].given[0] | ONLY_IN_TOOL | CASE", "prefetch.patient.name[0].given[0] | ONLY_IN_YOURS | CASE");
+        assertThat(lines(comparison)).containsExactly(ONLY_HOOK_INSTANCE, "prefetch.patientBundle.entry[Patient].resource.name[0].family | DIFFERENT_VALUE | CASE",
+                "prefetch.patientBundle.entry[Patient].resource.name[0].given[0] | ONLY_IN_TOOL | CASE", "prefetch.patientBundle.entry[Patient].resource.name[0].given[0] | ONLY_IN_YOURS | CASE");
 
         // Typed for this run, both are filled in exactly as a run fills them, and nothing is left to note.
         RequestComparison filled = compare(form("order-sign", 1, true).rawBody(pasted)
@@ -974,7 +991,7 @@ class CrdRequestComparerTest {
         // The member ID typed on the form is all that was missing.
         RequestComparison withMember = compare(CrdRunRequest.builder().rawBody(pasted).member(MemberDetail.builder().memberId("S123456789").build()).build());
         assertThat(withMember.comparable()).isTrue();
-        assertThat(lines(withMember)).contains("prefetch.patient | ONLY_IN_TOOL | BUILD");
+        assertThat(lines(withMember)).contains("prefetch.patientBundle | ONLY_IN_TOOL | BUILD");
     }
 
     @Test
@@ -1089,7 +1106,7 @@ class CrdRequestComparerTest {
         assertThat(comparable.propertyNames()).containsExactly("comparable", "headline", "caveat", "maskedNote", "hook", "counts", "notes", "caseSource", "notFound",
                 "differences", "toolBody", "yourBody");
         assertThat(comparable.get("comparable").asBoolean()).isTrue();
-        JsonNode label = comparable.at("/differences/15");
+        JsonNode label = comparable.at("/differences/14");
         assertThat(label.propertyNames()).containsExactly("path", "kind", "kindLabel", "group", "toolValue", "yourValue", "toolType", "yourType",
                 "what", "explanation", "referencesFollowing", "toolPointer", "yourPointer");
         assertThat(label.get("kind").asString()).isEqualTo("DIFFERENT_VALUE");
@@ -1100,7 +1117,7 @@ class CrdRequestComparerTest {
         assertThat(label.get("toolType").asString()).isEqualTo("string");
         assertThat(label.get("referencesFollowing").asInt()).isEqualTo(3);
         // An element only one request has: the other value is absent, with no value, no type and no pointer.
-        JsonNode only = comparable.at("/differences/31");
+        JsonNode only = comparable.at("/differences/33");
         assertThat(only.get("path").asString()).isEqualTo("fhirServer");
         assertThat(only.at("/toolValue").propertyNames()).containsExactly("presence");
         assertThat(only.at("/toolValue/presence").asString()).isEqualTo("ABSENT");
@@ -1108,7 +1125,7 @@ class CrdRequestComparerTest {
         assertThat(only.has("toolPointer")).isFalse();
         assertThat(only.has("referencesFollowing")).isFalse();
         // The element nobody described has no description, and the property is left out, not sent as null.
-        assertThat(comparable.at("/differences/33").has("what")).isFalse();
+        assertThat(comparable.at("/differences/35").has("what")).isFalse();
         // The sample types no identifier as a member number, so the member ID is read from the subscriber id, and the answer says so.
         assertThat(comparable.at("/caseSource/1").propertyNames()).containsExactlyInAnyOrder("field", "label", "path", "pointer", "source", "sourceLabel",
                 "value", "note");
@@ -1149,7 +1166,7 @@ class CrdRequestComparerTest {
                     .doesNotContain("Placeholder-Sample-Provider").doesNotContain("hookInstance\"").doesNotContain("resourceType").doesNotContain("pat-8842")
                     .doesNotContain("Placeholder Street");
         }
-        assertThat(compared.toString()).isEqualTo("RequestComparison[comparable=true, differences=34]");
+        assertThat(compared.toString()).isEqualTo("RequestComparison[comparable=true, differences=36]");
         assertThat(compared.caseSource().get(1).toString()).isEqualTo("CaseValue[member.memberId, YOUR_REQUEST]");
         assertThat(notFound(comparison, "member.memberId").toString()).isEqualTo("NotFound[member.memberId, candidates=2]");
         assertThat(notFound(comparison, "member.memberId").candidates().get(0).toString()).isEqualTo("Candidate[prefetch.coverageRequest.identifier[0].value]");

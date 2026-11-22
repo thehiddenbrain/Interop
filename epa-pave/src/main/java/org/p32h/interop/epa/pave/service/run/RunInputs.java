@@ -73,17 +73,58 @@ public final class RunInputs {
                 errors.add(new FieldError("member.dateOfBirth", "The date of birth is in the future."));
             }
         }
+        String vendorId = CaseResources.vendorIdProblem("A vendor patient id", member.vendorPatientId());
+        if (vendorId != null) {
+            errors.add(new FieldError("member.vendorPatientId", vendorId));
+        }
         return this;
     }
 
-    /** An NPI is required and its check digit must be right. */
+    /**
+     * An NPI is required and its check digit must be right. A step whose request cannot yet name
+     * the provider by a vendor practitioner id alone keeps this rule; one that can uses
+     * {@link #providerByNpiOrVendorId}.
+     */
     public RunInputs provider(ProviderDetail provider) {
         // The provider lookup says the same sentence for the same mistake.
         String problem = Npi.problem(provider == null ? null : provider.npi());
         if (problem != null) {
             errors.add(new FieldError("provider.npi", problem));
         }
+        vendorPractitionerId(provider);
         return this;
+    }
+
+    /**
+     * An NPI or a vendor practitioner id is required (R-40). The vendor's sandbox names its
+     * practitioners by ids that are not NPIs, so with one given the NPI is optional; an NPI that is
+     * typed still has its check digit tested, and the vendor id its characters.
+     */
+    public RunInputs providerByNpiOrVendorId(ProviderDetail provider) {
+        boolean vendorId = provider != null && Texts.present(provider.vendorPractitionerId());
+        boolean npi = provider != null && Texts.present(provider.npi());
+        if (!vendorId && !npi) {
+            errors.add(new FieldError("provider.npi", NPI_OR_VENDOR_ID));
+            return this;
+        }
+        if (npi) {
+            String problem = Npi.problem(provider.npi());
+            if (problem != null) {
+                errors.add(new FieldError("provider.npi", problem));
+            }
+        }
+        vendorPractitionerId(provider);
+        return this;
+    }
+
+    /** Why a step with neither an NPI nor a vendor practitioner id is refused. */
+    public static final String NPI_OR_VENDOR_ID = "Enter the ordering provider's NPI, or the vendor practitioner id under Edit provider fields.";
+
+    private void vendorPractitionerId(ProviderDetail provider) {
+        String problem = CaseResources.vendorIdProblem("A vendor practitioner id", provider == null ? null : provider.vendorPractitionerId());
+        if (problem != null) {
+            errors.add(new FieldError("provider.vendorPractitionerId", problem));
+        }
     }
 
     /** At least one procedure code is required, and none may be blank. */

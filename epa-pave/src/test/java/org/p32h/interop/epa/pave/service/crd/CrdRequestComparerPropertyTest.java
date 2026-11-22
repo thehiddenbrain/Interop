@@ -321,14 +321,14 @@ class CrdRequestComparerPropertyTest {
                 "/context/draftOrders/entry/0/resource/code/coding/0/code",
                 "/context/draftOrders/entry/0/resource/code/coding/0/display",
                 "/context/draftOrders/entry/0/resource/code/coding/0/system",
-                "/prefetch/coverage/class/0/value",
-                "/prefetch/coverage/subscriberId",
-                "/prefetch/patient/birthDate",
-                "/prefetch/patient/name/0/family",
-                "/prefetch/patient/name/0/given/0",
-                "/prefetch/practitioner/identifier/0/value",
-                "/prefetch/practitioner/name/0/family",
-                "/prefetch/practitioner/name/0/given/0");
+                "/prefetch/coverageBundle/entry/0/resource/class/0/value",
+                "/prefetch/coverageBundle/entry/0/resource/subscriberId",
+                "/prefetch/patientBundle/entry/0/resource/birthDate",
+                "/prefetch/patientBundle/entry/0/resource/name/0/family",
+                "/prefetch/patientBundle/entry/0/resource/name/0/given/0",
+                "/prefetch/practitionerBundle/entry/0/resource/identifier/0/value",
+                "/prefetch/practitionerBundle/entry/0/resource/name/0/family",
+                "/prefetch/practitionerBundle/entry/0/resource/name/0/given/0");
     }
 
     @Test

@@ -73,7 +73,8 @@ class DtrRequestBuilderTest {
         assertThat(named(sent, "order")).extracting(order -> order.at("/resource/code/coding/0/code").asString()).containsExactly("95810", "E0601");
         assertThat(named(sent, "order")).allSatisfy(order -> {
             assertThat(order.at("/resource/subject/reference").asString()).isEqualTo("Patient/patient-1");
-            assertThat(order.at("/resource/requester/reference").asString()).isEqualTo("PractitionerRole/practitioner-role-1");
+            // R-37: every requester is the Practitioner, as in the request the vendor accepted.
+            assertThat(order.at("/resource/requester/reference").asString()).isEqualTo("Practitioner/practitioner-1");
             assertThat(order.at("/resource/insurance/0/reference").asString()).isEqualTo("Coverage/coverage-1");
             assertThat(order.at("/resource/occurrenceDateTime").asString()).isEqualTo("2026-03-20");
         });
@@ -138,7 +139,9 @@ class DtrRequestBuilderTest {
         assertThat(DtrProfileCheck.packageRequest(json(built.json()))).extracting(DtrProfileCheck.Gap::element)
                 .containsExactly("Coverage.status", "Coverage.payor");
         // The Patient gets one note, naming what was left out of it and what would supply it.
-        assertThat(built.notes()).filteredOn(note -> note.contains("Patient")).singleElement().isEqualTo("DTR 2.0.1 names no profile for "
+        // Beside the note on which id the Patient went with (R-40), which says nothing about the profile.
+        assertThat(built.notes()).filteredOn(note -> note.contains("Patient") && !note.startsWith("The Patient was sent with the id "))
+                .singleElement().isEqualTo("DTR 2.0.1 names no profile for "
                 + "the Patient a package request carries among its referenced resources. It is built as CRD 2.0.1 profile-patient has it, "
                 + "so that the payer is sent the Patient CRD sent. Nobody supplied Patient.identifier.system (the member ID) (from the "
                 + "variable memberIdSystem), Patient.identifier:MRIdentifier (from the variables patientMrn and patientMrnSystem), "
@@ -289,7 +292,7 @@ class DtrRequestBuilderTest {
         // The member is named by the local id of the Patient resource, never by the member ID.
         assertThat(sent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
         assertThat(first.json()).doesNotContain("S123456789");
-        assertThat(sent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(sent.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         assertThat(sent.has("item")).isFalse();
         // The body sent is the response itself, and the same response is what the changes are worked out from.
         assertThat(json(first.json())).isEqualTo(first.response());
@@ -444,7 +447,7 @@ class DtrRequestBuilderTest {
                 + "put on it.", "The response so far holds an answer for vanished, which is not a question of its "
                 + "questionnaire. It was not sent: a response is built from the questionnaire it answers.");
         // DTR 2.0.1 requires authored, and the time of this step is a fact this tool knows.
-        assertThat(sent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(sent.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         // The provider on the form is named as the author of the response, by its local id.
         assertThat(sent.at("/author/reference").asString()).isEqualTo("Practitioner/practitioner-1");
     }
@@ -629,7 +632,7 @@ class DtrRequestBuilderTest {
         assertThat(response.get("questionnaire").asString()).isEqualTo("https://example.org/p32h-placeholder/Questionnaire/static|2.0");
         assertThat(response.get("status").asString()).isEqualTo("completed");
         assertThat(response.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        assertThat(response.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(response.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         // The answer to the question the first answer disables is not in the response, and the note says so.
         assertThat(response.toString()).doesNotContain("typed before");
         assertThat(response.get("item")).extracting(item -> item.get("linkId").asString()).containsExactly("q1", "g1");
