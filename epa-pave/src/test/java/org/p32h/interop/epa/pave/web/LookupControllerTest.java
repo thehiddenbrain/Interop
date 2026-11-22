@@ -164,7 +164,7 @@ class LookupControllerTest {
         assertThat(result.at("/wire/response/status").asInt()).isEqualTo(503);
 
         JsonNode timeout = member(mvc(), "P32H-LOOKUP-TIMEOUT");
-        assertThat(timeout.get("status").asString()).isEqualTo("FAULT");
+        assertThat(timeout.get("status").asString()).isEqualTo("NOT_ANSWERING");
         assertThat(timeout.at("/error/kind").asString()).isEqualTo("TIMEOUT");
         assertThat(timeout.at("/wire/response").has("status")).isFalse();
     }

@@ -299,7 +299,7 @@ class HttpMemberLookupClientTest {
         server.reset();
         server.expect(requestTo(URL)).andRespond(withException(new SocketTimeoutException("Read timed out for S123456789")));
         MemberLookupResult timeout = client.lookup(FORMS);
-        assertThat(timeout.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(timeout.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.message()).isEqualTo("The member API did not answer inside the read timeout.");
         assertThat(timeout.wire().request().sent()).isTrue();
@@ -309,7 +309,7 @@ class HttpMemberLookupClientTest {
             server.reset();
             server.expect(requestTo(URL)).andRespond(withException(unreachable));
             MemberLookupResult result = client.lookup(FORMS);
-            assertThat(result.status()).isEqualTo(LookupStatus.FAULT);
+            assertThat(result.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
             assertThat(result.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
             assertThat(result.message()).isEqualTo("The member API could not be reached.");
             // The reason is one of this tool's own sentences, never the exception's message.
