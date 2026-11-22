@@ -43,8 +43,9 @@ the release branch from 11:57 to 12:45 UTC; their work was merged without confli
 wrote no correction checked it again (D-299). A second, short round of three correctors corrected what those rechecks left,
 in commits from 12:52 to 13:14 UTC, each seen by its corrector on its own jar; it was merged at 13:23 UTC
 into `22478b8` (`22478b8164e1184622013b71a758b35a435f2043`), the commit whose code is handed over, which
-the branch of these records merges; these records were committed after it. The recheck of the final
-build had not reported when this was written. The Eclipse compiler STS 5.4.0 brings finds 0 errors over
+the branch of these records merges; these records were committed after it. Of the recheck of the final
+build, only the check of features-8 had reported when this was written: on `22478b8` it saw the refusal
+with the no-longer-stored note and the way out by hand, the sandbox still not signed in (D-299). The Eclipse compiler STS 5.4.0 brings finds 0 errors over
 every source set of `22478b8` (`rebuild/r1/ecj-22478b8/ecj.txt`). The top bar shows the day and time
 (UTC) the running build was made. The integrator's two whole builds of `22478b8` and its build from a
 fresh clone gave TO-FILL-COUNTS.

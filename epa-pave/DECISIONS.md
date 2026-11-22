@@ -7835,7 +7835,10 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
   the ways out (features-8, `185b5be`); and the test line the Eclipse compiler rejected (STS-3, `1772d37`).
   The narrowing of the token url rule (I-28a) was not made and was withdrawn. The three branches were
   merged at 13:23 UTC into `22478b8`, the commit whose code is handed over; these records were committed
-  after it. The recheck of the final build had not reported when this was written. The integrator builds
+  after it. Of the recheck of the final build, when this was written, only the check of features-8 had
+  reported: on `22478b8` a sandbox after its production copy was removed is still not signed in, and the
+  refusal ends with the note that the production environment is no longer stored and the way out by hand
+  (`rebuild/r1/recheck3/features/`); the rest of the recheck had not reported. The integrator builds
   `22478b8` whole twice and once from a fresh clone: TO-FILL-COUNTS.
 - **Left open, each an open line of `PROGRESS.md` with what a tester does.** An environment saved as prod by
   mistake on the same host as a working sandbox, and then removed, stops that sandbox from signing in,
