@@ -217,6 +217,8 @@ class CrdRequestGlossaryTest {
         Set<String> remarks = new LinkedHashSet<>();
         List<String> documents = new ArrayList<>(List.of("hookInstance", "fhirServer", "fhirAuthorization", "context.encounterId", "context.selections",
                 "prefetch", "prefetch.*", "context.draftOrders.entry", "context.draftOrders.entry.fullUrl", "hook"));
+        remarks.add(String.valueOf(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.DIFFERENT_VALUE)));
+        remarks.add(String.valueOf(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.DIFFERENT_VALUE)));
         List<String> resources = new ArrayList<>(CrdRequestGlossary.listed().keySet());
         for (DifferenceKind kind : DifferenceKind.values()) {
             documents.forEach(path -> remarks.add(String.valueOf(glossary.remark(new ElementPath(path, null), kind))));
@@ -303,6 +305,45 @@ class CrdRequestGlossaryTest {
         assertThat(glossary.remark(new ElementPath("prefetch", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo("This tool left prefetch out because the form said so.");
         assertThat(sign.has("prefetch")).isTrue();
         assertThat(build(everything().includePrefetch(false).build(), CONFIGURED).has("prefetch")).isFalse();
+    }
+
+    @Test
+    void theRemarksAboutTheNamedBundlesOfThePrefetchAreTrueOfTheBuilder() {
+        JsonNode person = build(everything().build(), CONFIGURED);
+        JsonNode organization = build(everything().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder Clinic")
+                .build()).build(), NOTHING_SET);
+        List<String> personKeys = new ArrayList<>(person.at("/prefetch").propertyNames());
+        List<String> organizationKeys = new ArrayList<>(organization.at("/prefetch").propertyNames());
+        assertThat(personKeys).containsExactly("patientBundle", "coverageBundle", "practitionerBundle", "practitionerRoleBundle",
+                "serviceRequestBundle");
+        assertThat(organizationKeys).containsExactly("patientBundle", "coverageBundle", "organizationBundle", "practitionerRoleBundle",
+                "serviceRequestBundle");
+        String named = glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.ONLY_IN_TOOL);
+        assertThat(named).startsWith(CrdRequestGlossary.NAMED_BUNDLES).endsWith(CrdRequestGlossary.PREFETCH_KEYS);
+        for (String key : personKeys) {
+            assertThat(CrdRequestGlossary.NAMED_BUNDLES).contains(key);
+        }
+        assertThat(CrdRequestGlossary.NAMED_BUNDLES).contains("organizationBundle in place of practitionerBundle");
+        assertThat(glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.DIFFERENT_KEY)).isEqualTo(named);
+        assertThat(glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo(CrdRequestGlossary.PREFETCH_KEYS);
+
+        // Each named Bundle is of type collection, and each of its entries has a fullUrl, as on the orders.
+        for (JsonNode request : List.of(person, organization)) {
+            request.at("/prefetch").forEach(bundle -> {
+                assertThat(bundle.at("/resourceType").asString()).isEqualTo("Bundle");
+                assertThat(bundle.at("/type").asString()).isEqualTo("collection");
+                bundle.at("/entry").forEach(entry -> assertThat(entry.propertyNames()).containsExactly("fullUrl", "resource"));
+            });
+        }
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo("This tool sends each prefetch Bundle as type collection.");
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.ONLY_IN_TOOL))
+                .isEqualTo(CrdRequestGlossary.PREFETCH_BUNDLE_TYPE);
+        // A Coverage sent bare under a key has a type of its own at the same path, which this remark is not about.
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Coverage.type"), DifferenceKind.DIFFERENT_VALUE)).isNull();
+        assertThat(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo(CrdRequestGlossary.FULL_URL);
+        assertThat(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.ONLY_IN_YOURS)).isNull();
     }
 
     @Test

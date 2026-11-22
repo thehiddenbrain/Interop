@@ -91,6 +91,16 @@ public final class ClassesOnDisk {
         return watch().changed();
     }
 
+    /**
+     * The same, looking at the folder now whatever the time of the last look. For a failure that
+     * cannot link a class: the page asks {@link #changedSinceStart()} every few seconds, so the
+     * throttled answer is always fresh and would miss a rebuild made just before the failure, the
+     * one moment the answer matters. Such a failure is rare, so looking costs nothing that counts.
+     */
+    public static boolean changedSinceStartNow() {
+        return watch().changedNow();
+    }
+
     /** When the build PAVE started from was made: the jar's time, or the newest class file's at start. Null when unknown. */
     public static Instant builtAt() {
         return watch().builtAt();
@@ -235,6 +245,18 @@ public final class ClassesOnDisk {
             if (lookedAt != null && now.isBefore(lookedAt.plus(LOOK_EVERY))) {
                 return false;
             }
+            return look(now);
+        }
+
+        /** See {@link ClassesOnDisk#changedSinceStartNow()}. */
+        public synchronized boolean changedNow() {
+            if (classes == null || changed) {
+                return changed;
+            }
+            return look(clock.instant());
+        }
+
+        private boolean look(Instant now) {
             lookedAt = now;
             // A file newer than the start, and newer than the newest class file the start saw, so
             // that a class file written with a clock ahead of this one is not taken for a rebuild.

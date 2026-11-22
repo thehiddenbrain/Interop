@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.service.pas;
 
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ final class PasNotes {
 
     private final List<String> notes = new ArrayList<>();
     private final List<String> leftOut = new ArrayList<>();
+    private final List<RequestPreview.ToComplete> toComplete = new ArrayList<>();
 
     /** A sentence about the request that claims no requirement. */
     void add(String note) {
@@ -41,6 +43,23 @@ final class PasNotes {
         if (Texts.present(note)) {
             notes.add(note);
         }
+    }
+
+    /**
+     * A gap the tester can close before sending, with the field that closes it, for "To complete
+     * before sending". Said once per field: several elements one value supplies are one gap.
+     *
+     * @param field a case field such as {@code provider.phone}, or a value of the environment such as {@code values.payerName}
+     * @param line  what is missing, the rule that wants it, and where to add it, starting with the words the chip shows
+     */
+    void toComplete(String field, String line) {
+        if (toComplete.stream().noneMatch(gap -> gap.field().equals(field))) {
+            toComplete.add(new RequestPreview.ToComplete(field, line));
+        }
+    }
+
+    List<RequestPreview.ToComplete> toComplete() {
+        return List.copyOf(toComplete);
     }
 
     List<String> leftOut() {
