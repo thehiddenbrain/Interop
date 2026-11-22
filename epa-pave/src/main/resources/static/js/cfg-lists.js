@@ -233,6 +233,11 @@ export function mount(root, route) {
                     }
                 }
                 fill(problems, errorPanel(answer.error, {fieldsPlaced: placed}));
+                // The pressed button was disabled while it waited, which drops the focus; it goes
+                // to the first field to correct, so the keyboard stays inside the form.
+                if (placed.length > 0) {
+                    inputs[placed[0]].focus();
+                }
                 if (answer.status === 404) {
                     await load();
                 }
