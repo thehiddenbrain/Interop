@@ -10,36 +10,39 @@ PAVE's server: one top bar, three tabs (Workbench, Audit, Configuration), the Wo
 and four steps (Coverage check, Questionnaire, Submit, Status), a result made of chips, one headline,
 a few facts and closed folds, environments configured on screen, saved test members and providers,
 Submit after Da Vinci PAS 2.2.1, the request shapes the vendor's sandbox accepted. It reaches the
-operator in two releases on 2026-11-22: release 1, merged until 12:30 UTC and handed over at 15:00
-UTC; release 2, merged until 19:30 UTC and handed over at 22:00 UTC. Each is handed over only after
-its checks and an independent look. Hours here are UTC.
+operator in two releases on 2026-11-22: release 1, handed over at 15:00 UTC; release 2, handed over at
+22:00 UTC, which adds to release 1 and is never its repair. Each is handed over only after its checks.
+Hours here are UTC.
 
-<!-- R1-FACT: the head of the release candidate, its branch, and the slices it holds; replace the
-paragraph below with them -->
-**The head when this was drafted** is `4d0858a` on the integration branch `rebuild/main`; the branch
-of these records adds the two record commits of D-280 (merge `c20c4cf`). It starts from `79a7c25`, the head of the second round of changes to the
-old screens (D-282; whole build 3,188 tests, 0 failures, 0 errors, 2 skipped), and holds these slices,
-each merged by the merger with a quick gate of the guard and static tests: A1 (the frame of the new
-screens, `1d0c4c0`), D0 (the store's write failures and the run scripts, `00f1578`), F1 (member ID
-rules, request shapes and vendor ids in the model, `e89ea5f`), E1 (the Submit fields and `GET
-/api/pas/options`, `17db802`), B3a (the error after the classes changed on disk or the heap ran out,
-and the store's problems of this computer, `53b1403`), I5 (run scripts that find a Java 21, `b31df8a`),
-C1 (saved test lists on the server, `ba28020`), F5 (the shape evidence in the collection's sample,
-`9b48b30`), D1c (every call carries its settings, `db03ae8`), H0 (the response detail, `a55bb2d`), E2
-(the PAS 2.2.1 request, `1dcefb0`), B1 (short words and tones, `2ff19d4`), G5 (sign-in per call, the
-retry after a 401, the pasted token, `00c2c13`) and D1a (environment settings in `store.json` version 2,
-`de91bee`). **The Workbench, Audit and Configuration are still one-line stubs at this head**: their
-slices were not merged when this was drafted (the list is under "Open", line 3).
+**The release candidate** of release 1 is `7fc32c8` (`7fc32c80e0202762b2cfe29e87c3a9800f9ad68d`) of the
+integration branch `rebuild/main`, cut at 11:48 UTC; the branch of these records merges it (`65d5069`)
+onto the records of D-280. It starts from `79a7c25`, the head of the second round of changes to the old
+screens (D-282; whole build 3,188 tests, 0 failures, 0 errors, 2 skipped). It holds every slice release
+1 must hold and the three it took only if merged by 12:30 UTC (D5, F2b, I3), and no slice of release 2:
+A1 (the frame of the new screens, `1d0c4c0`), D0 (the store's write failures and the run scripts,
+`00f1578`), F1, E1, B3a, I5, C1, F5, D1c, H0, E2, B1, G5 and D1a (merged by `de91bee`), then F2a, A2a, G2,
+D1b, F6, B4a, I1, I2 and I3, C2a1, A2b with A2a's correction, F3, H1, D5, E3, C2a and F2b (merged by
+`037efb6`), and H2, merged last at `7fc32c8` (11:30 UTC). Each was merged by the merger with a quick gate
+of the guard and static tests. Its jar, built from that commit without running the tests, is
+`rebuild/r1/jars/epa-pave-7fc32c8.jar` in the integrator's scratch directory (sha1
+`6552b74113c343f8330580b6088f9bffdaf48a48`).
 
-**The last whole build** of the integration branch was that of `3d84250` (the second sweep, finished
-08:32 UTC): BUILD SUCCESSFUL in 9m 57s, 315 classes, 3,318 tests, 0 failures, 0 errors, 2 skipped (the
-two that need a folder that cannot be written, which a build running as root cannot make); the jar's
-sha1 is `87b863ba194ccf7c0e29776555d1866b8fd55f6c`. The first sweep, of `1dcefb0`, gave 3,253 tests, 0
-failures, 0 errors, 2 skipped. D1a was merged after the second sweep; its builder's whole build before
-the merge was green but for the two tests the merger then changed (`4d0858a`).
-<!-- R1-FACT: the last whole build of the release candidate (head, counts, duration, jar sha1) -->
-<!-- R1-FACT: the checks of release 1
-and what they left, from their reports -->
+**The last whole build** is that of `037efb6`, the commit just before H2 was merged (the merger's fifth
+sweep, ended 11:21 UTC): BUILD SUCCESSFUL in 13m 36s, 355 classes, 3,519 tests, 0 failures, 0 errors, 2
+skipped (the two that need a folder that cannot be written, which a build running as root cannot make);
+its jar's sha1 is `b68338f30d61ce6f064e653f1b6ddefe2bb73814`. H2's builder's whole build on its own
+branch before the merge gave 3,508 tests, 0 failures, 0 errors, 2 skipped. <!-- R1-LAST: the merger's whole build of 7fc32c8, the last line of SWEEP.md -->The
+whole build of the candidate itself is the merger's next and is not known yet.<!-- /R1-LAST -->
+
+**The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
+and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
+are **two holes in the production guardrail that the rebuild opened**, found before any hand-over and
+held by no build handed over: a sandbox's token url could be a production write address and receive the
+client secret, and a typed address could reach production spelled `/Claim/%24submit` (look-guardrail-3
+and -4, decided I-28 and I-29). The integrator decided I-1 to I-34 on what the checks left to them.
+<!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29, every line of findings.jsonl -->Four
+correctors are correcting the findings on the release branch until about 13:25 UTC, the two holes first;
+the release is then built whole twice and checked again by agents that wrote no correction.<!-- /R1-LAST -->
 
 **The entries.** D-281 records the operator's verdict, what was found about the Config error and the
 uploads, and their four answers; D-282 the second round of the old screens, built, closed and
@@ -49,9 +52,9 @@ found; D-285 how the rebuild was planned and built, with its limits; D-286 to D-
 the rebuild by area (the frame and the Workbench, the result, short words, environment settings and
 the store's version 2, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists,
 uploads and run scripts, Audit, mock and live); D-298 how the saved lists and the trail bend two rules
-of the specification. Older entries whose rule or contract the rebuild changed carry a "Later:" line;
-the file's head says once that the old screens are gone. The commit that records this changes this
-file and `DECISIONS.md` only.
+of the specification; D-299 the checks of release 1, what they found and what was decided. Older
+entries whose rule or contract the rebuild changed carry a "Later:" line; the file's head says once
+that the old screens are gone. The commit that records this changes this file and `DECISIONS.md` only.
 
 **Before the rebuild.** The line up to `6ab0e69`, the head handed over before the rebuild, is
 described by D-269 to D-280 and by the sections below from "Gates, first" on, which are kept as they
@@ -60,101 +63,121 @@ and gates of that line. What of them is still open at this revision is in the li
 
 ### Open at the revision handed over, the worst first
 
-Each line can be read alone. The detail of each is in the entry named. "Not merged" means the slice
-was not in the head when this was drafted. <!-- R1-FACT: bring every "Not merged" up to the release
-candidate -->
+Each line can be read alone. The detail of each is in the entry named.
 
 1. **Nothing has been seen on the one real workstation that has run the tool, or against the vendor's
-   service.** Every live check of the rebuild, as of every earlier step, used a stand-in on a loopback
-   port; nothing ran on Windows itself; no person has used the new screens. On the operator's
-   workstation the first tab they opened showed the internal error and three uploads in a row failed
-   (D-281). The Config error is the fault D-279 corrected, in a build that predates the fix; the
-   likeliest cause of the uploads is the IDE rebuilding the classes under a running PAVE after a pull,
-   next a run script starting an old jar; neither was seen there. Both now have their answer in the
-   code (D-295: the action "PAVE's classes changed on disk while it was running, as the IDE does when
-   it rebuilds the project. Stop PAVE and start it again.", and scripts that build before every start
-   and say which jar and Java they start). Whether the operator pulled any of it, and the cause their
-   log entry names, are not known. The operator says the vendor's sandbox follows 2.0.1 for CRD and
-   DTR (D-269), not observed; that Submit should follow PAS 2.2.1 is their answer (D-293). The lookups
-   have never met the real member API or a provider directory, and how the vendor wants the client to
-   sign in is an assumption (D-233, D-290).
-2. **The operator has not seen the rebuild, nor the two rounds of changes before it** (D-276, D-282).
-   Their verdict (D-281) is the only judgement of the tool by the person it was built for, and they
-   have said nothing about what was built in answer.
-3. **What the release 1 floor holds that was not merged when this was drafted**, each a slice of the
-   queue's table:
-   - the Workbench: the case column, step 1 and the result card (A2a), step 4 Status (A2b), the
-     questionnaire step (H1), the Submit step with attachments (H2);
-   - Configuration: the router and Environments with its form (C2a), Collections, Production writes,
-     In force now and Access token (I1), Test members and Test providers (I2);
-   - Audit: the runs, one run and replay (B4a);
-   - the environment's settings used by every call at once, the uploads posted as JSON (D1b);
-   - the vendor's request shapes in the CRD and DTR requests (F2a), read at run time (F3), and the
-     Postman files refused for the true reason (F6);
-   - Submit after PAS 2.2.1 end to end, the member ID rule and the vendor ids in it (E3);
-   - the draft that fills the environment form from the exports (G2).
-   Release 1 also takes, if merged by 12:30 UTC: `/api/mode`'s sign-in state (D5), the next step for a
-   400 naming `draftOrders.type` and the typed questionnaire address held to the member-name check
-   (F2b), and the Advanced tools (I3: Send as written, Try a value, Check this installation, CDS
-   discovery, the request comparison). <!-- R1-FACT: which of these are in the release candidate; a
-   floor slice not merged by 12:30 holds the release -->
-4. **What release 1 does not hold and release 2 will** (handed over at 22:00 UTC), each in one line:
-   - the trail of the last 500 requests and responses, secrets masked (B5), and what reads it: a run's
-     request and answer in Audit with Copy and Download (B4b), Advanced, Trail (I4);
-   - a reload that keeps the case and every step's result, and "Load into the Workbench" (A2c); until
-     then a reload clears the Workbench, by rule nothing being kept in the browser;
-   - values for one run on the step that was refused for them (A2c); until then the environment's
-     values;
-   - the member and provider lookups configured on screen, GET or POST with a body template, with
-     "Test the lookup" (D3, F4, C2c); until then `lookup.member` and `lookup.provider` in
-     `application.yml`, and typing by hand;
-   - questionnaire answers filled from the case (E4, H4);
-   - Journeys and Suites in Audit (B4b, G4), and the suites' Postman fix with the repeated case id of
-     D-283 (G3);
-   - the store's remaining repairs (D6, I4): a stored file that cannot be read listed instead of
-     refusing the start, a lock against a second copy on one store, "Forget this production address";
-   - the place names in server sentences brought up to the new screens (R-16): until then some
-     server sentences still name the Config, CRD, DTR, PAS and History tabs; the guardrail's
-     sentences never change;
-   - the Advanced tools, if I3 misses release 1.
-5. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
+   service, and the operator has not seen the rebuild.** Every live check of the rebuild, as of every
+   earlier step, used a stand-in on a loopback port; nothing ran on Windows itself; no person has used
+   the new screens. On the operator's workstation the first tab they opened showed the internal error
+   and three uploads in a row failed (D-281). The Config error is the fault D-279 corrected, in a build
+   that predates the fix; the likeliest cause of the uploads is the IDE rebuilding the classes under a
+   running PAVE after a pull, next a run script starting an old jar; neither was seen there. Both now
+   have their answer in the code (D-295: the action "PAVE's classes changed on disk while it was
+   running, as the IDE does when it rebuilds the project. Stop PAVE and start it again.", the line under
+   the top bar while files changed on disk, and scripts that build before every start and say which jar
+   and Java they start). Whether the operator pulled any of it, and the cause their log entry names, are
+   not known. Their verdict (D-281) is the only judgement of the tool by the person it was built for;
+   they have said nothing about the two rounds of changes before the rebuild (D-276, D-282) or the
+   rebuild itself. The operator says the vendor's sandbox follows 2.0.1 for CRD and DTR (D-269), not
+   observed; that Submit should follow PAS 2.2.1 is their answer (D-293). The lookups have never met the
+   real member API or a provider directory, and how the vendor wants the client to sign in is an
+   assumption (D-233, D-290).
+2. **What release 1 does not hold, and release 2 brings at 22:00 UTC**, each with how the screen tells
+   the tester:
+   - the trail of the full requests and responses of the last 500 exchanges, secrets masked (B5), and
+     the Advanced Trail page (I4): Configuration > Advanced > Trail says "This page comes in the next
+     release."; Audit shows a run's request and answer only while the page that made the run stays open
+     <!-- R1-LAST: AU-6, I-26 -->, and a run opened by another page says "The request and answer are shown
+     only by the page that made the run, while it stays open."<!-- /R1-LAST -->;
+   - the member and provider lookups configured on screen (D3, F4, C2c): no page of Configuration offers
+     them; until then `lookup.member` and `lookup.provider` in `application.yml`, and typing by hand;
+     <!-- R1-LAST: critic-3, look-8, I-1 -->the Member and Provider cards say "No lookup is configured" and
+     "Type the details." and leave the fields open<!-- /R1-LAST -->;
+   - questionnaire answers filled from the case (E4, H4): every answer the questionnaire response does
+     not already hold is typed, and nothing marks an answer as coming from the case;
+   - Journeys and Suites in Audit (B4b, G4), and the repeated case id of D-283 (G3): Audit draws no
+     sub-navigation while Runs is its only page, so neither is offered;
+   - a reload that keeps the case and every step's result (A2c): a reload starts a new case, the runs
+     made before it being in Audit; <!-- R1-LAST: wb-mock-6, wbm3-6, features-4, I-8 -->one notice under the top
+     bar says "A reload starts a new case. The runs of the case before are in Audit."<!-- /R1-LAST -->;
+   - "Forget this production address" (D6, I4): Production writes lists the addresses remembered as
+     production and offers no way to forget one; <!-- R1-LAST: features-1, I-19 -->a send refused for such an
+     address names the environment it was remembered from and gives the way out that works today (stop
+     PAVE, remove that environment's entries from `productionDestinations` in `store.json`, start it
+     again), and Production writes and `/api/mode` say the same (D-295)<!-- /R1-LAST -->;
+   - also release 2: values for one run on the step that was refused for them (A2c); a stored file that
+     cannot be read listed instead of refusing the start, and a lock against a second copy on one store
+     (D6); the place names in server sentences brought up to the new screens (R-16), the guardrail's
+     sentences changed in their place names only (I-30); the advice after a rebuild for a PAVE started
+     with loading at start off (hunts-1, hunts-2, I-9).
+3. **What the checks of release 1 left** (D-299).
+   - **Two holes in the guardrail the rebuild opened**, found by the check on `0b69049` before any
+     hand-over: a sandbox's token url set to a production environment's remembered `$submit` address
+     received a POST with the client secret, with no unlock and `allow-prod-writes` false
+     (look-guardrail-3, I-28, D-290); a typed Submit address ending `/Claim/%24submit` was stored and sent
+     to an address that is production (look-guardrail-4, I-29). <!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29 -->Both
+     are being corrected for release 1, first of all, with tests.<!-- /R1-LAST -->
+   - <!-- R1-LAST: every line of findings.jsonl not named in this line -->The other confirmed findings are being
+     corrected for release 1, to be seen again by agents that wrote no correction; each that is not
+     becomes an open line here.<!-- /R1-LAST -->
+   - Left open for time, minor, each with what a tester does: a refusal box 2 px under the panel head
+     (critic-8); a step chip that wraps at 1024 (look-17); the browser's own blue checkbox for "Send
+     prefetch", which works as the others do (critic-11); the line of an empty store wrapping in a narrow
+     box, where the tester presses "New environment" (look-18); the browser's own file inputs (look-11);
+     a scroll of 33 px after "+" adds a code (critic-10); a folder chosen in place of a file, told the
+     file can no longer be read, where the tester chooses the exported file inside it (AU-4, I-25).
+   - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2), hunts-3 (the measure
+     was wrong, I-10), the browser's own console line for a planned refusal (wb-mock-5, live-config-6,
+     I-7, I-33), M6 at 5 typed values (live-config-3, I-31), the guardrail's sentences still naming the
+     Config tab and the PAS tab (look-guardrail-6, I-30).
+   - <!-- R1-LAST: secrets-1 -->The README did not say that a client secret or a bearer token typed into the
+     form is kept in plain text in `config-store/store.json`, that `store.json.before-v2` is written once,
+     or that an older build refuses a version 2 store (secrets-1); the README is the integrator's, to say
+     it for the hand-over.<!-- /R1-LAST -->
+   - Checked by no agent: F2b and H2, merged after the jars the checks used, and the candidate itself.
+     <!-- R1-LAST: I-11 -->The real STS check at the candidate (I-11) is due before the hand-over.<!-- /R1-LAST -->
+   - The PAS finding that lists what a request left out is titled "The request left out <n> elements PAS
+     2.0.1 requires" though its elements are those of 2.2.1 (D-293).
+4. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
    has seen; whether the vendor's client secrets shown in the photographs of their earlier sessions were
    changed since (from the reading of those sessions; nothing of them is copied here); whether mock and
    live should be switched at run time once they have used the screens (D-297); and the questions
    D-269 left: the NPI's first digit, a sample request from the vendor.
-6. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
+5. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
    check follows them** (D-268). Four fixes (ledger, completeness on screen, walkthrough, guardrail)
    changed what keeps member data out of the ledger and what keeps writes from reaching production.
    Their screen parts went with the old screens; their server parts stand.
-7. **Not fit to be run as a shared or production service as delivered** (D-270). No sign-in, plain
+6. **Not fit to be run as a shared or production service as delivered** (D-270). No sign-in, plain
    http, secrets in plain text on disk, no record of who did what, one copy on one machine; it keeps
    listening on this machine only and is not to be opened to the network before a sign-in exists. The
    saved test lists (D-294) add member data the store keeps, on the operator's leave. The README,
    "Before PAVE is run as a shared or production service", lists what must exist first; none of it is
    built.
-8. **The guardrail, what it still lets through or cannot see.** A production environment refused at
+7. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
    production environment's. On production's server a sandbox whose base path holds `%00`, `%20` or
    `%2e`, or a production base path holding `%2F`, is warned about and not refused. Not proven: IPv6,
    explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
-   redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses among the
-   production checks come with D1b. An address remembered from a removed production environment is
-   forgotten only by hand in `store.json` until release 2 (D-295).
-9. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
+   redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
+   production checks since D1b; the two holes the checks of release 1 found in the rebuild's new
+   destinations are line 3. An address remembered from a removed production environment is forgotten
+   only by hand in `store.json` until release 2 (line 2, D-295).
+8. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
    identifiers only, and as typed when a placeholder has no value or is filled from a collection variable
    (D-262). A suite expectation that holds a date of birth or a name and is also malformed is repeated
    in the results file. A supplied identifier of 64 hex characters or shaped like a UUID is kept in clear.
    A note added later on a token line cannot be checked for a name or a date of birth. Closed since: a
-   member's name in a suite row's case id (D-283). Still open from that close: a repeated case id on mock
-   (release 2, G3), a typed DTR questionnaire address (F2b), a chain row whose expectation cannot be read,
-   and a live run with the lookup off, where no name is known to compare. The configuration store keeps
+   member's name in a suite row's case id (D-283), and a typed DTR questionnaire address that holds
+   member data (F2b, D-283). Still open from that close: a repeated case id on mock (release 2, G3), a
+   chain row whose expectation cannot be read, and a live run with the lookup off, where no name is known
+   to compare. The configuration store keeps
    uploads as uploaded (D-213), the saved test lists by design (D-294), secrets and the installation salt
    in plain text in `config-store/` (D-234), and the wire view carries member data.
-10. **Server sentences of the old screens that a new screen may still show** (D-257, D-266). The items
+9. **Server sentences of the old screens that a new screen may still show** (D-257, D-266). The items
     that described the old tabs went with them. The second round closed the next steps of played
     faults, of an answer the tool cannot act on and the CRD label of an answer that is not a CDS Hooks
     response (D-282). Left on the server: a replay of a run id that does not exist answers with the
@@ -163,16 +186,19 @@ candidate -->
     refused form says nothing of what to do; the CRD finding title for a sub-extension reads the same for
     null and empty; a subscription's headers have no presence of their own; the repeated-key detail
     says "the value shown above" for a key not drawn; the action of a "not configured" error does not
-    fit a url that is not valid as filled. None was looked at on the new screens when this was drafted.
-11. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
+    fit a url that is not valid as filled. The checks of release 1 did not look for these. Some server
+    sentences still name the old tabs: <!-- R1-LAST: critic-3, I-1 -->those the Workbench shows are being brought
+    to the new places for release 1 (I-1 (d)); the rest wait for release 2 (R-16)<!-- /R1-LAST -->, and the
+    guardrail's keep their words in release 1 (I-30).
+10. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
     while the tool runs on mock is recorded as answered by a mock scenario; lines written between
     `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two
     responses were completed from one package, nothing says which the PAS submission carried (D-181).
-12. **What the build cannot see.** No test drives a browser: the new screens are held by Java tests that
+11. **What the build cannot see.** No test drives a browser: the new screens are held by Java tests that
     read the scripts as text and run pieces of them under Node, skipped where no `node` is on the path.
-    The tests of the old screens were deleted with them (24, of which 12 are to be written again for the
-    new ones, D-282). A build green twice does not prove that no test passes by chance.
-13. **The fixtures and the style gate, given no fix after the last check of the line before.** Fixtures:
+    The tests of the old screens were deleted with them (24, D-282);
+    the new screens have Java tests of their own of the same kinds (D-286). A build green twice does not prove that no test passes by chance.
+12. **The fixtures and the style gate, given no fix after the last check of the line before.** Fixtures:
     a CRD note for `crd-04` chosen by hand does not say the DTR test member ID came from the body; the
     DTR note says CRD answers documentation required whatever the file says; two descriptions slip past
     the old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the
@@ -182,19 +208,22 @@ candidate -->
     refused; a text file with a binary extension or an early NUL byte is skipped unread; invented
     surnames and 16 files of empty banners remain. The gate does not read commit messages or the pull
     request description.
-14. **Never run or never tried.** `run.cmd` on Windows: it ran under Wine's `cmd` (I5, with one
+13. **Never run or never tried.** `run.cmd` on Windows: it ran under Wine's `cmd` (I5, with one
     difference of quoting Wine needs), and a double-click start that finds no Java closes its window
-    before its message can be read. STS has not been run on the code of the rebuild; the real Spring
-    Tools 5.4.0 on Linux ran the line before it (D-272 to D-274). A Windows Java under Wine ran the line
-    before it (D-275) and parts of the rebuild (D0's read-only and in-use cases, I5). Also never tried:
-    a mirror with credentials and a token server, a screen reader, contrast, 200% zoom and phone width.
-    <!-- R1-FACT: what the checks of release 1 ran on Wine and in STS -->
-15. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
+    before its message can be read. The real Spring Tools 5.4.0 under a virtual display on Linux ran the
+    line before the rebuild (D-272 to D-274) and, for release 1, imported the tree of `1a14611`, started it
+    from the Boot Dashboard, took a Team > Pull to the tree of `9dbf61a` under the running tool and
+    restarted it (D-299); the import from GitHub was not run, since nothing here clones or fetches. A
+    Windows Java under Wine ran the line before the rebuild (D-275), parts of the rebuild (D0's read-only
+    and in-use cases, I5), and on `1a14611` the read-only, in-use and disk-full sentences over the API
+    (D-299). Also never tried: a mirror with credentials and a token server, a screen reader, contrast,
+    200% zoom and phone width.
+14. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
     the tool has no sign-in of its own.
-16. **What the steps before the rebuild left on the server** (D-277 to D-280), unchanged by it.
+15. **What the steps before the rebuild left on the server** (D-277 to D-280), unchanged by it.
     - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
       made to fire on the real jar; tests hold them. A failure inside one of `ApiExceptionHandler`'s own
       methods is kept out of the log only by the logger level of Spring's handler resolver. A start that
@@ -211,7 +240,7 @@ candidate -->
     - History, now Audit, no longer keeps an ordinary questionnaire address with a part of 129
       characters or more. Names given as labels stay whole. The stop button of an IDE on Windows ends
       the process at once, so a call then out gets no ledger line (D-280).
-17. **What the second round of the old screens left that the rebuild did not take** (D-282, D-284): a
+16. **What the second round of the old screens left that the rebuild did not take** (D-282, D-284): a
     token endpoint that sends a status line and then cuts the body reads "closed the connection without
     answering"; the member and provider lookups keep their wording for a 401; on mock a note or a case id
     that uses the scenario word a mock member is named after is refused as holding the member's last
