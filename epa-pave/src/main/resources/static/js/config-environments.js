@@ -974,7 +974,11 @@ export function createEditor(options) {
         }
     }
 
-    /** A refusal: each field error at its field, its fold opened; what has no field above the form. */
+    /**
+     * A refusal: each field error at its field, its fold opened; the panel above the form always
+     * carries the server's heading, title and action, since a title can name what no field does
+     * (which address, which production environment), and lists only the errors no field holds.
+     */
     function refused(error) {
         const placed = [];
         let firstPlaced = null;
@@ -1002,10 +1006,7 @@ export function createEditor(options) {
             placed.push(each.field);
             firstPlaced = firstPlaced || part.wrapper.querySelector('input, select, textarea');
         }
-        const unplaced = (Array.isArray(error.fieldErrors) ? error.fieldErrors : []).filter(each => !placed.includes(each.field));
-        if (unplaced.length > 0 || placed.length === 0) {
-            fill(banner, errorPanel(error, {fieldsPlaced: placed}));
-        }
+        fill(banner, errorPanel(error, {fieldsPlaced: placed}));
         if (firstPlaced && typeof firstPlaced.focus === 'function') {
             firstPlaced.focus();
         }
