@@ -61,7 +61,7 @@ entry.
 | D-296 | Audit: the runs, one run and replay | Journeys, Suites and a run's request and answer from the trail are release 2 |
 | D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile |
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
-| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors, seen again on `19ddf8e`, and what the rechecks left corrected in a second round; each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
+| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test and not yet seen on a running jar; what the rechecks left was corrected in a second round; each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -7164,8 +7164,8 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   Audit." with a link to Audit (I-8); the live banner "Type a member ID to begin." (I-4); the Status step's
   chip "Matched to this submission", from this case's notifications only, the others in a closed fold (I-16,
   I-18); the focus kept after "Run check"; the fields of the case column at 1024 (wb-mock-1, look-7). Seen
-  on `19ddf8e`: the top bar at 1024 on live with nothing overlapping (look-1, live-config-2,
-  live-content-3). In the code at `19ddf8e` with their tests, and not seen on a running jar since: the
+  on `19ddf8e`: the top bar at 1024 on live with nothing overlapping (live-config-2, live-content-3
+  on `19ddf8e`; look-1 on `e5d0972`). In the code at `19ddf8e` with their tests, and not seen on a running jar since: the
   Status step's headline "A notification arrived for this submission." (wbm3-1, `NotificationReceiverTest`)
   and "The flow ends here: nothing further to send." where a result ends the flow (critic-9,
   `CrdVerdictsTest`, `PasVerdictsTest`). Since the second round step 2 also shows one filled button once the
@@ -7793,14 +7793,14 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3). The cor
   compiles every source set before a release (STS-3).
 - **What was corrected, how it was seen again, and what is left.** Four correctors corrected the findings
   from 11:57 to 12:45 UTC, each on its own list (the Workbench; Configuration and Audit; the guardrail; the
-  server), in the commits from `e63b70a` to `7a1dbe7`, merged without conflict into `19ddf8e` at 13:05 UTC.
+  server), in the commits from `e63b70a` to `7a1dbe7`, merged without conflict into `19ddf8e` at 12:45 UTC, the release branch as it stood at 13:05 UTC.
   The integrator's whole build of `19ddf8e` gave 3,551 tests, 0 failures, 0 errors, 2 skipped, against
   3,519, 0, 0 and 2 for the candidate `7fc32c8`. Agents that wrote no correction then checked again, each
   writing the status of every finding it saw into `findings.jsonl`: the Workbench on mock and the look on
   `e5d0972`, which held the screen corrections only (`cont51`); the guardrail and the secrets (`cont52`),
   Audit and uploads and every feature (`cont53`), live configuration and what live sends, and the real STS
-  5.4.0 (`rebuild/r1/recheck2/`), on `19ddf8e`. Every finding corrected in that round was seen closed but
-  these, corrected with a test and not seen on a running jar since, their screen halves seen on `e5d0972`
+  5.4.0 (`rebuild/r1/recheck2/`), on `19ddf8e`. Every finding corrected in that round was seen closed except
+  those corrected again in the second round (below), AU-4 (still open), and these, corrected with a test and not seen on a running jar since, their screen halves seen on `e5d0972`
   before the server halves were merged: the readiness words of the Workbench (critic-3, look-14), the sample
   code E0470 (critic-4, wb-mock-9), the end of a flow (critic-9), the Status step's headline (wbm3-1), and
   the integrator's three findings (integrator-1, integrator-2, integrator-3). A second, short round, until
@@ -7814,17 +7814,22 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3). The cor
   against production write addresses only (features-8, I-28a); and the test line the Eclipse compiler
   rejected (STS-3). It was merged and checked again, and the release was built whole twice and once from a
   fresh clone (TO-FILL-COUNTS) at TO-FILL-HEAD.
-- **Left open, each an open line of `PROGRESS.md` with what a tester does.** A folder whose name ends in
-  `.json` or `.csv`, chosen in place of a file, is told the file can no longer be read: the line for a
-  folder was built, but the recheck on `19ddf8e` did not meet it (AU-4, I-25). Dates show in the browser's
+- **Left open, each an open line of `PROGRESS.md` with what a tester does.** A folder with no extension is
+  told it is a folder; a folder whose name ends in `.json` or `.csv` is still told the file can no longer be
+  read, because the browser gives it a type from its name (AU-4, I-25, seen on `19ddf8e`). Choose the
+  exported file inside it. Dates show in the browser's
   own form beside ISO dates elsewhere; the value sent is the ISO date (look-12, no change in release 1).
   With `-Dpave.classes.load-at-start=false` the advice after a rebuild under a running PAVE misses two ways
-  a missing class shows (hunts-1, hunts-2, I-9; release 2); the default start meets neither. The measure M12
+  a missing class shows (hunts-1, hunts-2, I-9; release 2); the default start meets neither. After
+  rebuilding under a PAVE started with `-Dpave.classes.load-at-start=false`, stop PAVE and start it again
+  before trusting any internal error. The measure M12
   is run with fresh file times (hunts-3, I-10). The guardrail's sentences still name the Config tab and the
-  PAS tab (look-guardrail-6, I-30). A replay from Audit that fails does not carry the changed-files line
-  (the Audit part of I-12). With two environments whose names begin alike the chooser at 1024 cuts both to
-  the same letters (live-config-7). A save of the empty environment form names its missing field at the
-  field, not in the panel (live-config-8). The browser's own console line for a planned refusal (wb-mock-5,
+  PAS tab (look-guardrail-6, I-30): in a production refusal "the Config tab" means Configuration
+  (Production writes for the unlock) and "the PAS tab" means Workbench step 3 (Submit) or step 4 (Status)
+  for a subscription. A replay from Audit that fails does not carry the changed-files line
+  (the Audit part of I-12); after a pull, restart PAVE before replaying. With two environments whose names begin alike the chooser at 1024 cuts both to
+  the same letters (live-config-7); read the active one in Configuration > Environments. A save of the empty environment form names its missing field at the
+  field, not in the panel (live-config-8); look at the marked field. The browser's own console line for a planned refusal (wb-mock-5,
   live-config-6, I-7, I-33) and M6 at five typed values (live-config-3, I-31) are by decision. The six minor
   findings the sorter left for time (critic-8, critic-10, critic-11, look-11, look-17, look-18) were
   corrected all the same and seen closed on `e5d0972`. The README says what secrets-1 asked: a client secret

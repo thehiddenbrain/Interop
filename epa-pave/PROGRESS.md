@@ -37,7 +37,7 @@ of the candidate `7fc32c8` gave 3,519 tests, 0 failures, 0 errors, 2 skipped
 
 **The corrections and the revision handed over.** Four correctors corrected the findings of the checks on
 the release branch from 11:57 to 12:45 UTC; their work was merged without conflict into `19ddf8e`
-(`19ddf8e19a152c22075d8a3b81d4223dfc5aa162`, 13:05 UTC), which the branch of these records merges
+(`19ddf8e19a152c22075d8a3b81d4223dfc5aa162`) at 12:45 UTC, the release branch as it stood at 13:05 UTC, which the branch of these records merges
 (`f35e82d`). The integrator's whole build of `19ddf8e` gave 3,551 tests, 0 failures, 0 errors, 2 skipped
 (`rebuild/r1/close1/build-19ddf8e.log`; its jar `rebuild/r1/jars/epa-pave-19ddf8e-k2.jar`). Agents that
 wrote no correction checked it again (D-299). A second, short round corrected what those rechecks left,
@@ -70,7 +70,8 @@ the rebuild by area (the frame and the Workbench, the result, short words, envir
 the store's version 2, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists,
 uploads and run scripts, Audit, mock and live); D-298 how the saved lists and the trail bend two rules
 of the specification; D-299 the checks of release 1, what they found, the integrator's three findings on
-the candidate and what was decided. Older
+the candidate and what was decided, the corrections, the rechecks on `19ddf8e` and `e5d0972`, the second
+round and the real STS check. Older
 entries whose rule or contract the rebuild changed carry a "Later:" line; the file's head says once
 that the old screens are gone. The commit that records this changes this file and `DECISIONS.md` only.
 
@@ -159,7 +160,7 @@ Each line can be read alone. The detail of each is in the entry named.
      Submit head off kind prod (wbm3-2 and look-4 on `e5d0972`, live-content-5 on `19ddf8e`) and the link
      "Production writes" drawn purple on purple (look-guardrail-2, on `19ddf8e`; D-299).
    - The other confirmed findings were corrected in the first round and seen closed by the rechecks (D-299),
-     except these, corrected with a test and not seen on a running jar since (their screen halves were seen
+     except those corrected again in the second round (below), AU-4 (still open, below), and these, corrected with a test and not seen on a running jar since (their screen halves were seen
      on `e5d0972`, before the server halves were merged): the readiness words of the Workbench (critic-3,
      look-14), the sample code E0470 on the list for every line of business (critic-4, wb-mock-9), "The flow
      ends here: nothing further to send." (critic-9), the Status step's headline "A notification arrived for
@@ -173,8 +174,10 @@ Each line can be read alone. The detail of each is in the entry named.
      line of a suite or a replay, and a send with no address name Configuration or Audit, not a tab or a
      property alone; the refusal panel of the environment form stays in view (look-guardrail-8); the test
      line the Eclipse compiler rejected, which made STS ask before every start (STS-3).
-   - Left open, each with what a tester does: a folder whose name ends in `.json` or `.csv`, chosen in place
-     of a file, is told the file can no longer be read; choose the exported file inside it (AU-4, I-25).
+   - Left open, each with what a tester does: a folder with no extension is told it is a folder; a folder
+     whose name ends in `.json` or `.csv`, chosen in place of a file, is still told the file can no longer be
+     read, because the browser gives it a type from its name; choose the exported file inside it (AU-4, I-25,
+     seen on `19ddf8e`).
      Dates show in the browser's own form (for example 01/10/2026) beside ISO dates elsewhere; the value
      sent is the ISO date (look-12). A replay sent again from Audit that fails does not carry the line that
      PAVE's files changed on disk; after a pull, restart PAVE before replaying (the Audit part of I-12, not
@@ -184,17 +187,19 @@ Each line can be read alone. The detail of each is in the entry named.
      marked field (live-config-8).
    - Left for time by the sorter and corrected all the same, seen closed on `e5d0972`: critic-8, critic-10,
      critic-11, look-11, look-17, look-18 (D-299).
-   - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2), hunts-3 (the measure
+   - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2): after rebuilding under a PAVE
+     started with `-Dpave.classes.load-at-start=false`, stop PAVE and start it again before trusting any
+     internal error (hunts-1, hunts-2, I-9; release 2). Also hunts-3 (the measure
      was wrong, I-10), the browser's own console line for a planned refusal (wb-mock-5, live-config-6,
      I-7, I-33), M6 at 5 typed values (live-config-3, I-31), the guardrail's sentences still naming the
      Config tab and the PAS tab (look-guardrail-6, I-30): in a production refusal "the Config tab" means
-     Configuration (Production writes for the unlock) and "the PAS tab" means Workbench step 3, Submit.
+     Configuration (Production writes for the unlock) and "the PAS tab" means Workbench step 3 (Submit) or step 4 (Status) for a subscription.
    - The README says what secrets-1 asked: a client secret or bearer token typed in the environment form is
      kept as typed in `config-store/store.json` (owner-only) unless it is typed as `{{env:PAVE_NAME}}`; the
      first saved setting makes the store version 2 after one copy to `store.json.before-v2`; an older build
      refuses a version 2 store; going back means stopping PAVE and renaming the copy back (D-289).
    - Checked by none of the first checks: F2b, H2 and the candidate itself; the rechecks ran on `19ddf8e`,
-     which holds all three.
+     which holds all three, and the screen recheck on `e5d0972`.
      The real STS 5.4.0 check (I-11) ran on `19ddf8e`: the import, a start from the Boot Dashboard, a
      restart told apart from another window (STS-1) and the changed-files line under a refusal after a
      rebuild (STS-2) held; the Eclipse compiler marked one error in a test line, so STS asked before every
@@ -224,8 +229,9 @@ Each line can be read alone. The detail of each is in the entry named.
 7. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
-   production environment's. A base path holding an encoded separator is refused when it decodes onto a
-   production address and is otherwise warned about and not refused (I-29, `EncodedSeparatorGuardrailTest`).
+   production environment's. A base path holding an encoded separator is refused at upload when it decodes
+   onto a production address; otherwise it is stored with a warning, and a submit, an inquiry or a
+   subscription to it is refused (I-29, `EncodedSeparatorGuardrailTest`).
    Not proven: IPv6,
    explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
    redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
