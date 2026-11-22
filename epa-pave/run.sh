@@ -31,6 +31,7 @@ if [ "$#" -gt 0 ]; then
             echo "  ./run.sh                          mock profile on port ${PORT}"
             echo "  ./run.sh live                     live profile on port ${PORT}"
             echo "  ./run.sh mock --server.port=8091  mock profile on another port"
+            echo "Java: the first Java 21 or newer of PAVE_JAVA (a java executable), JAVA_HOME and the PATH."
             exit 0
             ;;
         --*)
@@ -49,35 +50,75 @@ for argument in "$@"; do
     esac
 done
 
-if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
-    JAVA="${JAVA_HOME}/bin/java"
-elif command -v java >/dev/null 2>&1; then
-    JAVA="$(command -v java)"
-else
-    echo "run.sh: no Java was found. PAVE needs a JDK 21." >&2
-    echo "Install a JDK 21, then either put its bin folder on the PATH or set JAVA_HOME to it." >&2
-    exit 1
-fi
+# The first Java 21 or newer wins, looked for in this order: PAVE_JAVA (a java executable),
+# JAVA_HOME, then the java on the PATH, the same order as run.cmd. An older Java is passed over
+# with a line that says so instead of ending the search, because a JAVA_HOME left at Java 8 must
+# not hide a Java 21 on the PATH.
+JAVA=""
+source_words=""
+version=""
+major=""
 
-# "java -version" prints for example: openjdk version "21.0.5" 2024-10-15. Java 8 and older
-# print "1.8.0_402", where the major version is the second number.
-version_line="$("$JAVA" -version 2>&1 | grep -i 'version' | head -n 1 || true)"
-version="$(printf '%s\n' "$version_line" | sed -n 's/.*version "\([^"]*\)".*/\1/p')"
-major="${version%%.*}"
-if [ "$major" = "1" ]; then
-    major="$(printf '%s\n' "$version" | cut -d. -f2)"
+# Reads the version of the java given as $1 into version and major. "java -version" prints for
+# example: openjdk version "21.0.5" 2024-10-15. Java 8 and older print "1.8.0_402", where the major
+# version is the second number.
+read_version() {
+    local version_line
+    version_line="$("$1" -version 2>&1 | grep -i 'version' | head -n 1 || true)"
+    version="$(printf '%s\n' "$version_line" | sed -n 's/.*version "\([^"]*\)".*/\1/p')"
+    major="${version%%.*}"
+    if [ "$major" = "1" ]; then
+        major="$(printf '%s\n' "$version" | cut -d. -f2)"
+    fi
+}
+
+# Tries one java: $1 is its path, $2 says where it was found.
+try_java() {
+    if [ ! -x "$1" ] || [ -d "$1" ]; then
+        echo "Not using $1, $2: there is no such program."
+        return 0
+    fi
+    read_version "$1"
+    case "$major" in
+        ''|*[!0-9]*)
+            echo "Not using $1, $2: its Java version could not be read."
+            return 0
+            ;;
+    esac
+    if [ "$major" -lt 21 ]; then
+        echo "Not using $1, $2: it is Java ${version}, and PAVE needs 21 or newer."
+        return 0
+    fi
+    JAVA="$1"
+    source_words="$2"
+}
+
+if [ -n "${PAVE_JAVA:-}" ]; then
+    try_java "$PAVE_JAVA" "named by PAVE_JAVA"
 fi
-case "$major" in
-    ''|*[!0-9]*)
-        echo "run.sh: could not read the Java version from: ${version_line:-(no output)}" >&2
-        echo "PAVE needs a JDK 21. Check that ${JAVA} is a Java installation." >&2
-        exit 1
-        ;;
-esac
-if [ "$major" -lt 21 ]; then
-    echo "run.sh: ${JAVA} is Java ${version}. PAVE needs a JDK 21." >&2
-    echo "Install a JDK 21 and set JAVA_HOME to it, or put its bin folder first on the PATH." >&2
+if [ -z "$JAVA" ] && [ -n "${JAVA_HOME:-}" ]; then
+    try_java "${JAVA_HOME}/bin/java" "named by JAVA_HOME"
+fi
+if [ -z "$JAVA" ] && command -v java >/dev/null 2>&1; then
+    try_java "$(command -v java)" "the java on the PATH"
+fi
+if [ -z "$JAVA" ]; then
+    echo "run.sh: no Java 21 or newer was found, and PAVE needs one to build and to run." >&2
+    echo "It looked at PAVE_JAVA, JAVA_HOME and the java on the PATH." >&2
+    echo "Install a JDK 21 and set JAVA_HOME to it, or point PAVE_JAVA at a java 21 or newer, for example:" >&2
+    echo "PAVE_JAVA=/path/to/jdk-21/bin/java ./run.sh" >&2
     exit 1
+fi
+echo "Using Java ${version} at ${JAVA}, ${source_words}."
+
+# Gradle builds with the same Java, so a JAVA_HOME left at an older Java cannot stop the build.
+# The java on the PATH can be a link with no Java home above it, so Gradle is then left to find it
+# on the PATH.
+if [ "$source_words" = "the java on the PATH" ] || [ "${JAVA#*/}" = "$JAVA" ]; then
+    unset JAVA_HOME
+else
+    JAVA_HOME="$(cd "${JAVA%/*}/.." && pwd)"
+    export JAVA_HOME
 fi
 
 # The jar is built before every start, not only when it is missing. Every build calls itself
