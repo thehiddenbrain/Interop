@@ -933,7 +933,7 @@ export function createEditor(options) {
                 // The first request in the file mapped to an operation is the one a call uses, so
                 // each one before the chosen request that fits is left unmapped.
                 const before = candidates.filter(id => order.indexOf(id) < order.indexOf(chosen.id));
-                picks.set(address.operation, {requestId: chosen.id, before, label: address.label});
+                picks.set(address.operation, {requestId: chosen.id, before, label: address.label, name: chosen.name});
                 givenLine(line, chosen.display, 'from the collection\'s request "' + chosen.name + '", chosen here', 'not given');
             });
             chooser = field({label: address.requestId ? 'Use another request' : 'Use a request of the collection', input: select});
@@ -1005,10 +1005,13 @@ export function createEditor(options) {
 
     /**
      * Maps each request chosen for an operation, once the save has stored the collection. A
-     * mapping that fails is said; the environment stays saved.
+     * mapping that fails is said; the environment stays saved. One that is recorded is said too,
+     * since the result line also says what the saved lists took (D-306) and silence beside it
+     * would read as nothing done.
      */
     async function recordPicks(collectionId, chosen) {
         const lines = [];
+        const recorded = [];
         const path = COLLECTIONS + '/' + encode(collectionId) + '/mapping';
         for (const [operation, pick] of chosen) {
             let failed = null;
@@ -1022,9 +1025,11 @@ export function createEditor(options) {
                 const title = failed.error && failed.error.title ? ' ' + failed.error.title : '';
                 lines.push('The environment is saved, but the request chosen for ' + pick.label + ' was not recorded.' + title
                     + ' Choose it again in Configuration > Collections.');
+            } else {
+                recorded.push(pick.label + ' uses the request "' + named(pick.name || '') + '".');
             }
         }
-        return lines;
+        return {failed: lines, recorded};
     }
 
     /* ---------- saving ---------- */
@@ -1153,9 +1158,10 @@ export function createEditor(options) {
         const data = answer.data || {};
         const saved = data.settings || data.environment || {};
         // A request chosen for an operation is mapped once the collection is stored, in a second call (D-307).
-        const pickLines = exportsRead.collectionExport && draft && draft.collectionId ? await recordPicks(draft.collectionId, picks) : [];
-        const warnings = (Array.isArray(data.warnings) ? data.warnings : []).concat(pickLines);
-        if (pickLines.length === 0 && picks.size > 0 && saved.id) {
+        const picked = exportsRead.collectionExport && draft && draft.collectionId ? await recordPicks(draft.collectionId, picks)
+            : {failed: [], recorded: []};
+        const warnings = (Array.isArray(data.warnings) ? data.warnings : []).concat(picked.recorded, picked.failed);
+        if (picked.failed.length === 0 && picks.size > 0 && saved.id) {
             // The addresses the save answered were worked out before the mapping: read them again.
             const again = await call('GET', LIST + '/' + encode(saved.id) + '/settings');
             if (again.ok && again.data) {

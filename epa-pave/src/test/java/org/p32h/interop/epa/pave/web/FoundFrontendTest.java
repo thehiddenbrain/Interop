@@ -179,6 +179,67 @@ class FoundFrontendTest {
                 "[\"changed\",false,true,[]]");
     }
 
+    /**
+     * The join of D-306 and D-307 in one form: after Fill "What these files give" stands first (what
+     * configures the environment) and "Found in the collection" after it (the case data); a save
+     * records the request chosen for an operation and adds the entries found, and the result line
+     * says both. Each part was tested alone on its own branch; this holds them together.
+     */
+    @Test
+    void afterFillWhatTheFilesGiveStandsBeforeWhatWasFoundAndASaveRecordsThePickAndAddsAndSaysBoth(@TempDir Path folder)
+            throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the form with both parts", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [{slot: 'collectionExport', fileName: 'vendor.json',
+                    read: true, line: 'Read: 2 requests.'}], variables: [], shapes: [], operations: [], warnings: [], epoch: 1,
+                    collectionId: 'vendor-1a2b',
+                    addresses: [{operation: 'CRD_ORDER_SIGN', key: 'CRD_ORDER_SIGN', label: 'CRD order-sign', short: 'CRD',
+                        lines: ['No request of the collection was found for it. Choose one below.'], candidates: []}],
+                    requests: [{id: 'r-c', name: 'CRD / Check', method: 'POST', display: 'https://vendor.example.invalid/cds-services/x',
+                        operation: 'UNMAPPED', errorSample: false}],
+                    values: []}};
+                answers['POST /api/lists/found'] = {status: 200, body: FOUND_ANSWER};
+                answers['POST /api/lists/found/add'] = {status: 200, body: ADDED_ANSWER};
+                answers['PUT /api/config/collections/vendor-1a2b/mapping'] = {status: 200, body: {changed: true}};
+                const settings = {id: 'vendor-uat', name: 'Vendor UAT', kind: 'uat', profile: {mode: 'live', words: 'Live'}, signIn: {method: 'NONE'}, epoch: 2};
+                answers['POST /api/config/environments/settings'] = {status: 200, body: {environment: {id: 'vendor-uat', name: 'Vendor UAT'},
+                    settings, warnings: [], epoch: 2}};
+                answers['GET /api/config/environments/vendor-uat/settings'] = {status: 200, body: settings};
+                const editor = createEditor({environment: null, settings: null});
+                const dialog = editor.dialog;
+                const [, collectionBox] = dialog.querySelectorAll('input').filter(each => each.type === 'file');
+                collectionBox.files = [new File(['{"info": {}}'], 'vendor.json', {type: 'application/json'})];
+                collectionBox.value = 'C:/fakepath/vendor.json';
+                await dialog.querySelectorAll('button').find(each => text(each) === 'Fill the form from these files').click();
+                await settle();
+                const importer = text(dialog.querySelector('.importer'));
+                const gives = importer.indexOf('What these files give');
+                const found = importer.indexOf('Found in the collection');
+                say([gives >= 0, found > gives, dialog.querySelector('.found').hidden]);
+                const select = dialog.querySelector('.config-gives').querySelector('select');
+                select.value = 'r-c';
+                await select.dispatchEvent({type: 'change'});
+                dialog.querySelectorAll('input').find(each => each.type === 'text').value = 'Vendor UAT';
+                dialog.querySelector('select').value = 'uat';
+                await dialog.querySelectorAll('button').find(each => text(each) === 'Save environment').click();
+                await settle();
+                say(posted.map(each => each.method + ' ' + each.path));
+                say(posted.filter(each => each.method === 'PUT').map(each => each.body));
+                say(text(dialog.querySelector('.config-form__banner')));
+                say(stored);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[true,true,false]",
+                "[\"POST /api/config/environments/draft\",\"POST /api/lists/found\",\"POST /api/config/environments/settings\","
+                        + "\"PUT /api/config/collections/vendor-1a2b/mapping\",\"POST /api/lists/found/add\"]",
+                "[{\"requestId\":\"r-c\",\"operation\":\"CRD_ORDER_SIGN\"}]",
+                "\"Saved \\\"Vendor UAT\\\". Its other settings can be set now.CRD order-sign uses the request \\\"CRD / Check\\\"."
+                        + "Added to the saved lists: 2 members, 1 provider. Already there: 1 member.Open the saved lists: Members, Providers and "
+                        + "Procedure codes.\"",
+                "[]");
+    }
+
     @Test
     void theCollectionsPageOffersTheButtonAfterAnUploadReadWithTheActiveEnvironment(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the Collections page with the found part", PRELUDE + """
