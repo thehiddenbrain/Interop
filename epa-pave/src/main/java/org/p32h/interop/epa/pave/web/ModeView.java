@@ -1,6 +1,8 @@
 package org.p32h.interop.epa.pave.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.p32h.interop.epa.pave.client.support.SignInState;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
 
@@ -25,10 +27,36 @@ import org.p32h.interop.epa.pave.service.config.WriteAccess;
  *                    notification receiver, in one sentence a business tester can act on. Always set
  * @param build       which build is running, for the stamp in the top bar, and whether its files
  *                    changed on disk since it started (R-24, R-31). Always set
+ * @param signIn      how PAVE signs in to the active environment's service now, for the chip beside
+ *                    the mode (plan 7.5). Absent on mock, where nothing signs in, so the top bar
+ *                    shows no chip there
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
-                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build) {
+                       WriteAccess writeAccess, String bindAddress, String bindNote, Build build, SignIn signIn) {
+
+    /** Without a sign-in state, as on mock. */
+    public ModeView(String name, String version, int port, String mode, String target, EnvironmentRef environment, long epoch,
+                    WriteAccess writeAccess, String bindAddress, String bindNote, Build build) {
+        this(name, version, port, mode, target, environment, epoch, writeAccess, bindAddress, bindNote, build, null);
+    }
+
+    /**
+     * The sign-in state in the words the screens share (plan 5.3): {@code state} names the state for
+     * a tone, {@code short} is the chip, {@code detail} one sentence. Names a method, a place and a
+     * time, never a value.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SignIn(String state, @JsonProperty("short") String shortWords, String detail) {
+
+        /** The token service's state under the names this answer uses; null stays null. */
+        public static SignIn of(SignInState state) {
+            if (state == null) {
+                return null;
+            }
+            return new SignIn(state.code() == null ? null : state.code().name(), state.shortWords(), state.detail());
+        }
+    }
 
     /**
      * The build this copy of PAVE started from.

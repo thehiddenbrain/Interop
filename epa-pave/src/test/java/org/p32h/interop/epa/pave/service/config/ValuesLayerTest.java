@@ -72,6 +72,30 @@ class ValuesLayerTest {
     }
 
     @Test
+    void theActiveSignInIsResolvedWithTheTypedValuesForTheStateAndTheTest() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        StoredEnvironment sandbox = fixture.activate(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        // An environment that states no method leaves onyx.auth to decide.
+        assertThat(fixture.gateway.activeSignIn()).isNull();
+
+        ObjectNode body = values(sandbox.id(), "signInHost", "https://auth.example.invalid");
+        ObjectNode signIn = body.putObject("signIn");
+        signIn.put("method", "CLIENT_CREDENTIALS");
+        signIn.put("tokenUrl", "{{signInHost}}/oauth/token");
+        signIn.put("clientId", "placeholder-client");
+        signIn.put("clientSecret", "{{undefinedSecret}}");
+        assertThat(save(mvc, body).getStatus()).isEqualTo(200);
+
+        SignInSettings active = fixture.gateway.activeSignIn();
+        assertThat(active.method()).isEqualTo(SignInSettings.Method.CLIENT_CREDENTIALS);
+        assertThat(active.tokenUrl()).isEqualTo("https://auth.example.invalid/oauth/token");
+        assertThat(active.clientId()).isEqualTo("placeholder-client");
+        // Kept as written, as for a call, so the token service names what is missing instead of sending an empty secret.
+        assertThat(active.clientSecret()).isEqualTo("{{undefinedSecret}}");
+    }
+
+    @Test
     void aValueOfAnEnvironmentThatIsNotActiveReachesNoCall() throws Exception {
         ConfigFixture fixture = ConfigFixture.mock(directory);
         MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
