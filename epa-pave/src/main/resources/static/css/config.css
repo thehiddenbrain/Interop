@@ -132,3 +132,8 @@
     white-space: normal;
     overflow-wrap: anywhere;
 }
+
+/* In force now, Where each operation goes: a row's key sits at the top beside its two lines. */
+.config-operations .kv th {
+    vertical-align: top;
+}

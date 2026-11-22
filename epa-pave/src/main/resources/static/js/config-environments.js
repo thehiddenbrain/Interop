@@ -28,7 +28,7 @@ export const SECTIONS = ['sign-in', 'values', 'addresses', 'timeouts', 'shapes']
 const KINDS = ['sandbox', 'uat', 'prod'];
 
 const METHODS = [
-    {value: '', words: 'Not stated: use application.yml'},
+    {value: '', words: 'As PAVE was started'},
     {value: 'NONE', words: 'None'},
     {value: 'CLIENT_CREDENTIALS', words: 'Client credentials'},
     {value: 'BEARER_TOKEN', words: 'Bearer token'}
@@ -352,7 +352,7 @@ export function createEditor(options) {
         el('p', {class: 'field__error', hidden: true}));
     const signInFields = el('div', {class: 'form-grid'});
 
-    for (const kind of [{value: '', words: 'Choose: never guessed'}].concat(KINDS.map(each => ({value: each, words: each})))) {
+    for (const kind of [{value: '', words: 'Choose a kind'}].concat(KINDS.map(each => ({value: each, words: each})))) {
         inputs.kind.append(el('option', {value: kind.value}, kind.words));
     }
     for (const method of METHODS) {
@@ -974,7 +974,7 @@ export function createEditor(options) {
         }
     }
 
-    /** A refusal: each field error at its field, its fold opened; what has no field above the form. */
+    /** A refusal: each field error at its field, its fold opened; the title and what has no field above the form. */
     function refused(error) {
         const placed = [];
         let firstPlaced = null;
@@ -1002,10 +1002,9 @@ export function createEditor(options) {
             placed.push(each.field);
             firstPlaced = firstPlaced || part.wrapper.querySelector('input, select, textarea');
         }
-        const unplaced = (Array.isArray(error.fieldErrors) ? error.fieldErrors : []).filter(each => !placed.includes(each.field));
-        if (unplaced.length > 0 || placed.length === 0) {
-            fill(banner, errorPanel(error, {fieldsPlaced: placed}));
-        }
+        // The title says what was refused and why (which address, which production environment):
+        // a field error says only where, so the panel is drawn even when every field error was placed.
+        fill(banner, errorPanel(error, {fieldsPlaced: placed}));
         if (firstPlaced && typeof firstPlaced.focus === 'function') {
             firstPlaced.focus();
         }

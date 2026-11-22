@@ -107,6 +107,41 @@ class ConfigFrontendTest {
     }
 
     @Test
+    void aRefusalWhoseFieldErrorsAreAllPlacedStillSaysItsTitleAboveTheForm(@TempDir Path folder) throws Exception {
+        // look-guardrail-1: a sandbox given a production address is refused at Kind; the title names the address.
+        NodeRun run = StaticSources.runModule(folder, "the title of a placed refusal", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION',
+                    title: 'This environment was declared as sandbox, and its address http://127.0.0.1:8950/fhir/Claim/$submit is an address of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'kind', message: 'Declared as sandbox.'}]}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
+                const banner = dialog.querySelector('.config-form__banner').textContent;
+                say([banner.includes('declared as sandbox'), banner.includes('vendor-live'), banner.includes('Declared as sandbox.')]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,false]");
+    }
+
+    @Test
+    void theKindAndMethodOptionsSayWhatTheyDoInPlainWords(@TempDir Path folder) throws Exception {
+        // I-15: no "application.yml" and no "never guessed" in the options a tester picks from.
+        NodeRun run = StaticSources.runModule(folder, "the option words", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                const editor = createEditor({});
+                const options = value => editor.dialog.querySelectorAll('select')
+                    .find(each => each.querySelectorAll('option').some(o => o.value === value))
+                    .querySelectorAll('option').filter(o => o.value === '').map(o => o.textContent);
+                say([options('prod'), options('BEARER_TOKEN')]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[[\"Choose a kind\"],[\"As PAVE was started\"]]");
+    }
+
+    @Test
     void aSecretInputIsAPasswordFieldNeverGivenAValueFromTheServer(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the secret inputs", PRELUDE + """
                 const {createEditor} = await import('./js/config-environments.js');

@@ -220,20 +220,22 @@ class ConfigPagesFrontendTest {
                 all.split('No. The active environment is declared as sandbox.').length - 1, all.includes('Yes, without signing in.'),
                 all.includes('The first request mapped is used.'), all.includes('./config-store'), all.includes('The PAS address reads as production.'),
                 all.includes('Lookups in force'), all.includes('********')]);
-            // Only what the server serves is drawn.
+            // Only what the server serves is drawn; with no checklist, Where PAVE is pointed says production itself.
             delete effective.readiness;
-            fake.answers['GET /api/config/lookups'] = {status: 200, body: {member: {kind: 'member', stated: true, inForce: {from: 'this screen', words: 'POST, signs in with an API key header'}}}};
             await root.querySelectorAll('button').find(each => text(each) === 'Read again').click();
             await settle();
             all = text(root);
-            say(['partial', all.includes('Ready to send?'), all.includes('Lookups in force'), all.includes('POST, signs in with an API key header'), all.includes('Provider lookup')]);
+            say(['partial', all.includes('Ready to send?'), all.split('No. The active environment is declared as sandbox.').length - 1]);
+            // Release 1 has no /api/config/lookups: the page never asks for it (features-3).
+            say(['asked', fake.sent.filter(each => each.key.includes('/api/config/lookups')).length]);
             """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                // "Ready to send?" first; the production fact said twice in the same words; the settings stay in a closed fold.
-                "[\"drawn\",true,2,true,true,true,true,false,false]",
-                // No readiness served: no checklist; the lookups drawn once the server serves them.
-                "[\"partial\",false,true,true,false]");
+                // "Ready to send?" first; the production fact said once, not again under Where PAVE is pointed (look-19);
+                // the settings stay in a closed fold.
+                "[\"drawn\",true,1,true,true,true,true,false,false]",
+                "[\"partial\",false,1]",
+                "[\"asked\",0]");
     }
 
     @Test
