@@ -140,6 +140,12 @@ export function caseField(spec) {
     return control;
 }
 
+/** The value of one of a step's options by name (ctx.option), '' when the step has no such option. */
+export function optionValue(controls, name) {
+    const control = controls && Object.prototype.hasOwnProperty.call(controls, name) ? controls[name] : null;
+    return control ? control.value() : '';
+}
+
 /** True when a mark says the tester gave the value, or took it away: what the ledger cannot rebuild. */
 export function byTheTester(mark) {
     return mark === MARKS.HAND || mark === MARKS.CHANGED || mark === MARKS.CLEARED;

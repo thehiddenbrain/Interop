@@ -25,7 +25,7 @@ class StatusFrontendTest {
                 import './browser.js';
                 import * as status from './js/wb-status.js';
                 import {offersInquiryWay, statusCarry} from './js/wb-journey.js';
-                import {caseField} from './js/wb-case.js';
+                import {caseField, optionValue} from './js/wb-case.js';
                 const say = value => console.log(JSON.stringify(value));
                 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
                 // The server's answers, by method and path; each request is kept.
@@ -133,6 +133,11 @@ class StatusFrontendTest {
                 claim.set('typed', null);
                 status.fillClaimFrom(claim, null);
                 say([claim.value(), claim.mark()]);
+                // ctx.option reads a step's option by name, and gives '' for one the step does not have.
+                const stepOptions = {claimId: caseField({name: 'claimId', label: 'Claim id'}), questionnaireUrl: caseField({name: 'questionnaireUrl', label: 'Questionnaire url'})};
+                stepOptions.claimId.set('  claim-9 ', null);
+                say([optionValue(stepOptions, 'claimId'), optionValue(stepOptions, 'questionnaireUrl'), optionValue(stepOptions, 'toString'),
+                  optionValue(stepOptions, 'nextQuestionShape'), optionValue(undefined, 'claimId')]);
                 process.exit(0);
 
                 """);
@@ -157,6 +162,7 @@ class StatusFrontendTest {
                 "[\"claim-7\",\"from step 3\"]",
                 "[\"\",\"masked, not taken\",true]",
                 "[\"\",null]",
-                "[\"typed\",\"by hand\"]");
+                "[\"typed\",\"by hand\"]",
+                "[\"claim-9\",\"\",\"\",\"\",\"\"]");
     }
 }

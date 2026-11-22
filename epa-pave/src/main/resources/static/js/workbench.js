@@ -19,7 +19,7 @@ import {vocabulary} from './words.js';
 import {remember} from './session-runs.js';
 import {resultCard} from './result.js';
 import {fillFromAnswer, maskedLine} from './masks.js';
-import {caseField, caseKey, onCaseChange} from './wb-case.js';
+import {caseField, caseKey, onCaseChange, optionValue} from './wb-case.js';
 import {createMemberCard} from './wb-member.js';
 import {createProviderCard} from './wb-provider.js';
 import {createServiceCard} from './wb-service.js';
@@ -154,8 +154,7 @@ function build() {
                 if (name === 'scenarioId') {
                     return app.isMock() && scenarioFields[n] ? scenarioFields[n].value() : '';
                 }
-                const control = options[n] ? options[n][name] : null;
-                return control ? control.value() : '';
+                return optionValue(options[n], name);
             },
             optionsRow() {
                 return optionRows[n] || null;
