@@ -40,18 +40,22 @@ the release branch from 11:57 to 12:45 UTC; their work was merged without confli
 (`19ddf8e19a152c22075d8a3b81d4223dfc5aa162`) at 12:45 UTC, the release branch as it stood at 13:05 UTC, which the branch of these records merges
 (`f35e82d`). The integrator's whole build of `19ddf8e` gave 3,551 tests, 0 failures, 0 errors, 2 skipped
 (`rebuild/r1/close1/build-19ddf8e.log`; its jar `rebuild/r1/jars/epa-pave-19ddf8e-k2.jar`). Agents that
-wrote no correction checked it again (D-299). A second, short round corrected what those rechecks left,
-until 13:35 UTC; it was merged and checked again, and the release was built whole twice and once from a
-fresh clone. The revision handed over is TO-FILL-HEAD, with the build stamp TO-FILL-STAMP; its two whole
-builds and its build from a fresh clone gave TO-FILL-COUNTS.
+wrote no correction checked it again (D-299). A second, short round of three correctors corrected what those rechecks left,
+in commits from 12:52 to 13:14 UTC, each seen by its corrector on its own jar; it was merged at 13:23 UTC
+into `22478b8` (`22478b8164e1184622013b71a758b35a435f2043`), the commit whose code is handed over, which
+the branch of these records merges; these records were committed after it. The recheck of the final
+build had not reported when this was written. The Eclipse compiler STS 5.4.0 brings finds 0 errors over
+every source set of `22478b8` (`rebuild/r1/ecj-22478b8/ecj.txt`). The top bar shows the day and time
+(UTC) the running build was made. The integrator's two whole builds of `22478b8` and its build from a
+fresh clone gave TO-FILL-COUNTS.
 
 **The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
 and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
 are **two holes in the production guardrail that the rebuild opened**, found before any hand-over and
 held by no build handed over: a sandbox's token url could be a production write address and receive the
 client secret, and a typed address could reach production spelled `/Claim/%24submit` (look-guardrail-3
-and -4, decided I-28 and I-29). The integrator decided I-1 to I-36 (with I-28a) on what the checks left to
-them. On
+and -4, decided I-28 and I-29). The integrator decided I-1 to I-36 on what the checks left to them (I-28a,
+the narrowing of the token url rule, was withdrawn at 13:25 UTC). On
 the candidate itself the integrator found three more, each with its decision: a callback url typed in an
 environment is shown and masked but not used by the subscription call (integrator-2, major); a url under
 a name such as `authBase` is masked as a secret, so on live the questionnaire url can reach DTR masked
@@ -59,7 +63,7 @@ and be refused (integrator-3, major, decided I-35); the PAS finding titled with 
 minor).
 Four correctors corrected them from 11:57 to 12:45 UTC, the two holes first; agents that wrote no correction
 checked the result again, on `19ddf8e` and, for the screens alone, on `e5d0972`; a second round corrected
-what those checks left, until 13:35 UTC (D-299).
+what those checks left, from 12:52 to 13:14 UTC (D-299).
 
 **The entries.** D-281 records the operator's verdict, what was found about the Config error and the
 uploads, and their four answers; D-282 the second round of the old screens, built, closed and
@@ -141,10 +145,16 @@ Each line can be read alone. The detail of each is in the entry named.
      (`e318758`, merged in `19ddf8e`) and are held by `TokenUrlAndEscapeGuardrailTest` (the token url at
      save in 13 spellings; the look's 21 refused spellings and five escaped forms of `$`) and
      `TokenUrlAtSendingTest` (nothing is sent to such a token url, whatever the store holds); the recheck of
-     the guardrail on `19ddf8e` saw both refused and every earlier spelling still refused (D-299). As first
-     built the token url rule also stopped a sandbox's reads after a slip (features-8); since the second
-     round a token url is held against the production submit and subscription addresses only (I-28a), the
-     hole staying closed.
+     the guardrail on `19ddf8e` saw both refused and every earlier spelling still refused (D-299). 
+   - **After a slip, a sandbox cannot sign in** (features-8, major). The token url rule refuses a token
+     url that is, or lies beneath, any address a production environment (stored or remembered) calls. An
+     environment saved as prod by mistake on the same host as a working sandbox, and then removed, stops
+     that sandbox from signing in, reads included, until the remembered address is forgotten. The refusal
+     says that the production environment is no longer stored and gives the way out by hand (`185b5be`):
+     stop PAVE, delete the entries whose environment is that one from `productionDestinations` in
+     `config-store/store.json`, and start PAVE again. Narrowing the rule to write addresses (I-28a) was
+     withdrawn: the store does not know which remembered address served a write. Release 2 brings the
+     "Forget this production address" button (D-290).
    - **A callback url typed in the environment was not used by the subscription.** At the candidate it was
      shown in the settings view and held for masking, but the subscription call still names
      `onyx.subscription.callback-url` of `application.yml` (integrator-2, major, found by the integrator on
@@ -160,31 +170,32 @@ Each line can be read alone. The detail of each is in the entry named.
      Submit head off kind prod (wbm3-2 and look-4 on `e5d0972`, live-content-5 on `19ddf8e`) and the link
      "Production writes" drawn purple on purple (look-guardrail-2, on `19ddf8e`; D-299).
    - The other confirmed findings were corrected in the first round and seen closed by the rechecks (D-299),
-     except those corrected again in the second round (below), AU-4 (still open, below), and these, corrected with a test and not seen on a running jar since (their screen halves were seen
-     on `e5d0972`, before the server halves were merged): the readiness words of the Workbench (critic-3,
-     look-14), the sample code E0470 on the list for every line of business (critic-4, wb-mock-9), "The flow
-     ends here: nothing further to send." (critic-9), the Status step's headline "A notification arrived for
-     this submission." (wbm3-1). Corrected in the second round, until 13:35 UTC, and checked again before
-     the hand-over: the coverage table of "Response detail" fits its fold (critic-2, look-2); a CDS
-     service's refusal on live shows what the service said in its card (look-3); on step 2 one filled button
-     once the response is complete (wb-mock-4, wbm3-4, I-6); a question that waits on another answer is
+     except those corrected again in the second round (below), and these, corrected with a test and not
+     seen on a running jar since (their screen halves were seen on `e5d0972`, before the server halves
+     were merged): the readiness words of the Workbench (critic-3, look-14), the sample code E0470 on the
+     list for every line of business (critic-4, wb-mock-9), "The flow ends here: nothing further to send."
+     (critic-9), the Status step's headline "A notification arrived for this submission." (wbm3-1).
+     Corrected in the second round, each seen by its corrector on its own jar and not yet by an
+     independent recheck: the tables of "Response detail" wrap inside the fold (critic-2, look-2,
+     `24a815b`); after a CDS service's refusal on live the card says what to change above "Open
+     Configuration" (look-3, `f6c851c`); step 2 has one filled button and one "Why" fold once the response
+     is complete (wb-mock-4, wbm3-4, I-6, look-10, `98f79d4`); a question that waits on another answer is
      drawn muted and can be typed into (wbm3-9, look-9, I-36); the headline of an incomplete response names
-     the question, with one "Why" fold (look-10); "Start a new case" clears the NPI's old error
-     (critic-k1-1); the page shows the second part of the sentences of I-19 and I-34; a run id, the sign-in
-     line of a suite or a replay, and a send with no address name Configuration or Audit, not a tab or a
-     property alone; the refusal panel of the environment form stays in view (look-guardrail-8); the test
-     line the Eclipse compiler rejected, which made STS ask before every start (STS-3).
-   - Left open, each with what a tester does: a folder with no extension is told it is a folder; a folder
-     whose name ends in `.json` or `.csv`, chosen in place of a file, is still told the file can no longer be
-     read, because the browser gives it a type from its name; choose the exported file inside it (AU-4, I-25,
-     seen on `19ddf8e`).
-     Dates show in the browser's own form (for example 01/10/2026) beside ISO dates elsewhere; the value
-     sent is the ISO date (look-12). A replay sent again from Audit that fails does not carry the line that
-     PAVE's files changed on disk; after a pull, restart PAVE before replaying (the Audit part of I-12, not
-     done). With two environments whose names begin alike, the chooser in the top bar at 1024 cuts both to
-     the same letters; read the active one in Configuration > Environments (live-config-7). A save of the
-     empty environment form names its missing field (Kind) at the field only, not in the panel; look at the
-     marked field (live-config-8).
+     the questions (look-10); a refusal leaves its field when a new value comes, "Start a new case"
+     included (critic-k1-1); one sentence after an action's first is a quieter line, not a closed "Why"
+     (I-34, `a42bf92`); a run id, the sign-in line of a suite or a replay, and a send with no address
+     name Configuration or Audit (`c891362`); a folder whose name ends in `.json` or `.csv` is told
+     "<name> is a folder. Choose the exported file inside it." (AU-4, `24a815b`); the environment chooser
+     names the environment at 1024 (live-config-7, `cfe8940`); a refused form names each field in its
+     panel by its label (live-config-8, I-3, `1af5d3f`); the refusal panel of the environment form stays
+     in view (look-guardrail-8, `178deb1`); the test line the Eclipse compiler rejected, which made STS
+     ask before every start (STS-3, `1772d37`).
+   - Left open, each with what a tester does: dates show in the browser's own form (for example
+     01/10/2026) beside ISO dates elsewhere; the value sent is the ISO date (look-12). A replay sent again
+     from Audit that fails does not carry the line that PAVE's files changed on disk; after a pull, restart
+     PAVE before replaying (the Audit part of I-12, not done). Configuration's mapping note and raw-send
+     note still say "the Config tab": read Configuration > Advanced; two lines the store writes to the log
+     at start say it for Configuration.
    - Left for time by the sorter and corrected all the same, seen closed on `e5d0972`: critic-8, critic-10,
      critic-11, look-11, look-17, look-18 (D-299).
    - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2): after rebuilding under a PAVE
@@ -203,7 +214,7 @@ Each line can be read alone. The detail of each is in the entry named.
      The real STS 5.4.0 check (I-11) ran on `19ddf8e`: the import, a start from the Boot Dashboard, a
      restart told apart from another window (STS-1) and the changed-files line under a refusal after a
      rebuild (STS-2) held; the Eclipse compiler marked one error in a test line, so STS asked before every
-     start (STS-3, corrected in the second round; the integrator now compiles every source set with that
+     start (STS-3, corrected in the second round, `1772d37`; the integrator now compiles every source set with that
      compiler before a release).
    - The PAS finding that lists what a request left out reads "The request left out <n> elements PAS 2.2.1
      requires" since `44f09fe` (integrator-1, D-293); it named 2.0.1 at the candidate.
@@ -261,8 +272,9 @@ Each line can be read alone. The detail of each is in the entry named.
     says "the value shown above" for a key not drawn; the action of a "not configured" error does not
     fit a url that is not valid as filled. The checks of release 1 did not look for these. Some server
     sentences still name the old tabs: those the Workbench shows name the new places since `629a584` and
-    `7a1dbe7` (I-1 (d)), three more come with the second round (a run id, the sign-in line of a suite or a
-    replay, a send with no address); the rest wait for release 2 (R-16), and the
+    `7a1dbe7` (I-1 (d)), three more since the second round (a run id, the sign-in line of a suite or a
+    replay, a send with no address; `c891362`); Configuration's mapping and raw-send notes and two
+    start-up log lines still say "the Config tab"; the rest wait for release 2 (R-16), and the
     guardrail's keep their words in release 1 (I-30).
 10. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
     while the tool runs on mock is recorded as answered by a mock scenario; lines written between
