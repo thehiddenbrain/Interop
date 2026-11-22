@@ -12,10 +12,13 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.web.StaticSources.Source;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -28,7 +31,8 @@ import org.springframework.web.context.WebApplicationContext;
  * edit and the browser, so the rules that keep those files safe are checked here, where a build
  * can check them:
  * <ul>
- *   <li>the page is served, with every script it loads, as something a browser will run</li>
+ *   <li>the page is served, with every script it loads, as something a browser will run, and every
+ *       script parses as a module</li>
  *   <li>no request leaves the machine for an asset</li>
  *   <li>nothing a service returned is ever turned into markup</li>
  *   <li>nothing is written to browser storage except which tab is open</li>
@@ -40,8 +44,6 @@ import org.springframework.web.context.WebApplicationContext;
  */
 @SpringBootTest
 class StaticFrontendTest {
-
-    private static final Path ROOT = Path.of("src/main/resources/static");
 
     /** The one key the frontend may use in browser storage. It holds which tab is open and nothing else. */
     private static final String INTERFACE_STATE_KEY = "pave.tab";
@@ -58,7 +60,7 @@ class StaticFrontendTest {
             Pattern.compile("(?i)@import\\s+(?:url\\(\\s*)?[\"']?" + ADDRESS_ELSEWHERE),
             Pattern.compile("(?i)\\bfetch\\s*\\(\\s*[\"'`]" + ADDRESS_ELSEWHERE),
             Pattern.compile("(?i)\\bfrom\\s+[\"']" + ADDRESS_ELSEWHERE),
-            Pattern.compile("(?i)\\bimport\\s*\\(?\\s*[\"']" + ADDRESS_ELSEWHERE));
+            Pattern.compile("(?i)\\bimport\\s*\\(?\\s*[\"'`]" + ADDRESS_ELSEWHERE));
 
     /** Ways a script can turn a string into markup or into code. A vendor response is untrusted text, so none of them is used at all. */
     private static final List<Pattern> MARKUP_OR_CODE_FROM_A_STRING = List.of(
@@ -92,7 +94,9 @@ class StaticFrontendTest {
     private static final Pattern MODULE_TYPE = Pattern.compile("(?i)\\btype\\s*=\\s*[\"']module[\"']");
     private static final Pattern HAS_SCHEME_OR_HOST = Pattern.compile("(?i)^\\s*(?:[a-z][a-z0-9+.-]*:|//)");
     private static final Pattern STYLESHEET = Pattern.compile("(?i)<link\\b[^>]*\\bhref\\s*=\\s*[\"']([^\"']*\\.css)[\"']");
-    private static final Pattern LOCAL_IMPORT = Pattern.compile("\\bfrom\\s+['\"](\\.[^'\"]*)['\"]");
+    private static final Pattern LOCAL_IMPORT = Pattern.compile("\\b(?:from\\s+|import\\s*\\(\\s*)['\"](\\.[^'\"]*)['\"]");
+    /** Every way a script can talk to a server. Only api.js does, so every answer is classified in one place. */
+    private static final Pattern CALLER = Pattern.compile("\\b(?:fetch|XMLHttpRequest|EventSource|WebSocket|sendBeacon)\\s*\\(");
     private static final Pattern POLICY_META = Pattern.compile(
             "(?is)<meta\\s+http-equiv\\s*=\\s*[\"']Content-Security-Policy[\"']\\s+content\\s*=\\s*\"([^\"]*)\"");
 
@@ -101,10 +105,6 @@ class StaticFrontendTest {
 
     @Autowired
     ResponseHeadersFilter headers;
-
-    /** One file of the frontend: its path under the static directory, with forward slashes, and its text. */
-    record Source(String name, String text) {
-    }
 
     // ------------------------------------------------------------------ the page is served
 
@@ -124,7 +124,7 @@ class StaticFrontendTest {
         assertThat(page.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(page.getHeader("Content-Security-Policy")).contains("script-src 'self'");
 
-        List<Source> scripts = sources(".js");
+        List<Source> scripts = StaticSources.sources(".js");
         assertThat(scripts).as("the frontend has scripts").isNotEmpty();
         for (Source script : scripts) {
             MockHttpServletResponse served = mvc.perform(get("/" + script.name())).andReturn().getResponse();
@@ -132,7 +132,7 @@ class StaticFrontendTest {
             // A browser refuses to run a module that is not served as JavaScript.
             assertThat(served.getContentType()).as(script.name()).containsAnyOf("text/javascript", "application/javascript");
         }
-        for (Source sheet : sources(".css")) {
+        for (Source sheet : StaticSources.sources(".css")) {
             MockHttpServletResponse served = mvc.perform(get("/" + sheet.name())).andReturn().getResponse();
             assertThat(served.getStatus()).as(sheet.name()).isEqualTo(200);
             assertThat(served.getContentType()).as(sheet.name()).startsWith("text/css");
@@ -143,17 +143,17 @@ class StaticFrontendTest {
     void everyFileThePageAsksForExists() throws IOException {
         // A module that is missing is a blank page in the browser and nothing at all in a Java build.
         List<String> missing = new ArrayList<>();
-        for (Source page : sources(".html")) {
+        for (Source page : StaticSources.sources(".html")) {
             for (String asked : loadedBy(page)) {
-                if (!Files.isRegularFile(ROOT.resolve(asked))) {
+                if (!Files.isRegularFile(StaticSources.ROOT.resolve(asked))) {
                     missing.add(page.name() + " asks for " + asked);
                 }
             }
         }
-        for (Source script : sources(".js")) {
+        for (Source script : StaticSources.sources(".js")) {
             Matcher imports = LOCAL_IMPORT.matcher(script.text());
             while (imports.find()) {
-                Path wanted = ROOT.resolve(script.name()).getParent().resolve(imports.group(1)).normalize();
+                Path wanted = StaticSources.ROOT.resolve(script.name()).getParent().resolve(imports.group(1)).normalize();
                 if (!Files.isRegularFile(wanted)) {
                     missing.add(script.name() + " imports " + imports.group(1));
                 }
@@ -162,16 +162,40 @@ class StaticFrontendTest {
         assertThat(missing).isEmpty();
     }
 
+    /**
+     * A module with a syntax error takes every module that imports it down with it: the page is
+     * blank, and a Java build sees nothing. Node checks each one as the browser would read it, as
+     * a module, where Node is installed.
+     */
+    @Test
+    void everyScriptParsesAsAModule(@TempDir Path folder) throws IOException, InterruptedException {
+        Path node = StaticSources.node();
+        Assumptions.assumeTrue(node != null, "Node is not installed here, so the scripts were not parsed.");
+        List<String> refused = new ArrayList<>();
+        for (Source script : StaticSources.sources(".js")) {
+            Path copy = folder.resolve(script.name().replace('/', '_') + ".mjs");
+            Files.writeString(copy, script.text(), StandardCharsets.UTF_8);
+            Path output = folder.resolve("check.txt");
+            Process check = new ProcessBuilder(node.toString(), "--check", copy.toString()).redirectErrorStream(true)
+                    .redirectOutput(output.toFile()).start();
+            assertThat(check.waitFor(60, TimeUnit.SECONDS)).as("node --check of " + script.name() + " finished").isTrue();
+            if (check.exitValue() != 0) {
+                refused.add(script.name() + ": " + Files.readString(output, StandardCharsets.UTF_8));
+            }
+        }
+        assertThat(refused).isEmpty();
+    }
+
     // ------------------------------------------------------------------ the rules over the files
 
     @Test
     void theTitleNamesTheToolSoTheBrowserTabCanBeToldApart() throws IOException {
-        assertThat(titleProblems(read("index.html"))).isEmpty();
+        assertThat(titleProblems(new Source("index.html", StaticSources.read("index.html")))).isEmpty();
     }
 
     @Test
     void noStylesheetUsesTracking() throws IOException {
-        List<Source> sheets = sources(".css");
+        List<Source> sheets = StaticSources.sources(".css");
         assertThat(sheets).as("the frontend has a stylesheet").isNotEmpty();
         assertThat(violations(sheets, StaticFrontendTest::trackingIn)).isEmpty();
     }
@@ -179,17 +203,17 @@ class StaticFrontendTest {
     @Test
     void noFileLoadsAnythingFromAnotherHost() throws IOException {
         // No CDN, no web font, no analytics. The tool runs on a laptop behind a corporate network.
-        assertThat(violations(sources(".html", ".css", ".js", ".svg"), StaticFrontendTest::loadsFromElsewhereIn)).isEmpty();
+        assertThat(violations(StaticSources.sources(".html", ".css", ".js", ".svg"), StaticFrontendTest::loadsFromElsewhereIn)).isEmpty();
     }
 
     @Test
     void noScriptTurnsAStringIntoMarkupOrIntoCode() throws IOException {
-        assertThat(violations(sources(".js"), StaticFrontendTest::markupOrCodeFromAStringIn)).isEmpty();
+        assertThat(violations(StaticSources.sources(".js"), StaticFrontendTest::markupOrCodeFromAStringIn)).isEmpty();
     }
 
     @Test
     void theOnlyThingKeptInBrowserStorageIsWhichTabIsOpen() throws IOException {
-        List<Source> scripts = sources(".js");
+        List<Source> scripts = StaticSources.sources(".js");
         assertThat(violations(scripts, StaticFrontendTest::storageIn)).isEmpty();
         // One key, declared once, and it is the one this test names.
         assertThat(storageKeys(scripts)).containsExactly(INTERFACE_STATE_KEY);
@@ -197,7 +221,7 @@ class StaticFrontendTest {
 
     @Test
     void thePageLoadsOnlyModuleScriptsFromThisTool() throws IOException {
-        for (Source page : sources(".html")) {
+        for (Source page : StaticSources.sources(".html")) {
             assertThat(scriptProblems(page)).as(page.name()).isEmpty();
             assertThat(SCRIPT_TAG.matcher(page.text()).find()).as(page.name() + " loads a script").isTrue();
         }
@@ -206,13 +230,13 @@ class StaticFrontendTest {
     @Test
     void thePageCarriesNoInlineScriptAndNoInlineStyle() throws IOException {
         // The content security policy refuses both, silently as far as a tester can see.
-        assertThat(violations(sources(".html"), StaticFrontendTest::inlineCodeIn)).isEmpty();
-        assertThat(violations(sources(".js"), StaticFrontendTest::styleAttributeFromScriptIn)).isEmpty();
+        assertThat(violations(StaticSources.sources(".html"), StaticFrontendTest::inlineCodeIn)).isEmpty();
+        assertThat(violations(StaticSources.sources(".js"), StaticFrontendTest::styleAttributeFromScriptIn)).isEmpty();
     }
 
     @Test
     void thePageStatesTheSamePolicyTheServerSends() throws IOException {
-        Matcher meta = POLICY_META.matcher(read("index.html").text());
+        Matcher meta = POLICY_META.matcher(StaticSources.read("index.html"));
         assertThat(meta.find()).as("index.html carries a Content-Security-Policy meta tag").isTrue();
         Set<String> inPage = directives(meta.group(1));
         assertThat(inPage).contains("default-src 'self'", "script-src 'self'", "style-src 'self'", "connect-src 'self'",
@@ -228,10 +252,10 @@ class StaticFrontendTest {
 
     @Test
     void onlyOneScriptTalksToTheServer() throws IOException {
-        // Every answer is classified in one place, so no tab reads a status code its own way.
+        // Every answer is classified in one place, so no view reads a status code its own way.
         List<String> callers = new ArrayList<>();
-        for (Source script : sources(".js")) {
-            if (Pattern.compile("\\bfetch\\s*\\(").matcher(script.text()).find()) {
+        for (Source script : StaticSources.sources(".js")) {
+            if (CALLER.matcher(script.text()).find()) {
                 callers.add(script.name());
             }
         }
@@ -240,7 +264,7 @@ class StaticFrontendTest {
 
     @Test
     void everyFileIsPlainAscii() throws IOException {
-        assertThat(violations(sources(".html", ".css", ".js", ".svg"), StaticFrontendTest::notAsciiIn)).isEmpty();
+        assertThat(violations(StaticSources.sources(".html", ".css", ".js", ".svg"), StaticFrontendTest::notAsciiIn)).isEmpty();
     }
 
     // ------------------------------------------------------------------ each rule fails when it is broken
@@ -277,6 +301,7 @@ class StaticFrontendTest {
                 "const isWeb = /^https?:\\/\\//i.test(text);",
                 "fetch(path, options)",
                 "import * as api from './api.js';",
+                "{id: 'audit', label: 'Audit', load: () => import('./audit.js')},",
                 "return send('/api/mode');")) {
             assertThat(loadsFromElsewhereIn(new Source("x", line))).as(line).isEmpty();
         }
@@ -285,9 +310,9 @@ class StaticFrontendTest {
     @Test
     void theMarkupRuleSeesEveryWayOfBuildingMarkupOrCodeFromAString() {
         for (String line : List.of(
-                "node.innerHTML = card.summary;",
-                "node.innerHTML += '<b>' + text + '</b>';",
-                "node.outerHTML = text;",
+                "node." + "inner" + "HTML = card.summary;",
+                "node." + "inner" + "HTML += '<b>' + text + '</b>';",
+                "node." + "outer" + "HTML = text;",
                 "node.insertAdjacentHTML('beforeend', text);",
                 "document.write(text);",
                 "document.writeln(text);",
@@ -357,7 +382,7 @@ class StaticFrontendTest {
                 "<body onload='start()'>")) {
             assertThat(inlineCodeIn(new Source("index.html", line))).as(line).hasSize(1);
         }
-        assertThat(inlineCodeIn(new Source("index.html", "<p class=\"plain-statement\">One sentence.</p>"))).isEmpty();
+        assertThat(inlineCodeIn(new Source("index.html", "<p class=\"stub-line\">One sentence.</p>"))).isEmpty();
         assertThat(styleAttributeFromScriptIn(new Source("js/x.js", "node.setAttribute('style', 'width: 40%');"))).hasSize(1);
         assertThat(styleAttributeFromScriptIn(new Source("js/x.js", "node.style.cssText = 'width: 40%';"))).hasSize(1);
         assertThat(styleAttributeFromScriptIn(new Source("js/x.js", "node.style.setProperty('width', '40%');"))).isEmpty();
@@ -374,6 +399,16 @@ class StaticFrontendTest {
     void theAsciiRuleSeesATypographicCharacter() {
         assertThat(notAsciiIn(new Source("js/x.js", "const text = 'caf" + (char) 0xE9 + "';"))).hasSize(1);
         assertThat(notAsciiIn(new Source("js/x.js", "const text = 'plain';\n\tconst more = 1;\r\n"))).isEmpty();
+    }
+
+    @Test
+    void theOneCallerRuleSeesEveryOtherWayOfTalkingToAServer() {
+        for (String line : List.of("const answer = await fetch(path);", "const request = new XMLHttpRequest();",
+                "new EventSource('/api/runs');", "navigator.sendBeacon('/api/runs', data);", "new WebSocket(address);")) {
+            assertThat(CALLER.matcher(line).find()).as(line).isTrue();
+        }
+        assertThat(CALLER.matcher("const answer = await call('GET', '/api/mode');").find()).isFalse();
+        assertThat(CALLER.matcher("// Fetch questionnaire is the button of step 2, and a fetch of it is a call.").find()).isFalse();
     }
 
     // ------------------------------------------------------------------ the rules
@@ -515,23 +550,5 @@ class StaticFrontendTest {
         Set<String> out = new LinkedHashSet<>();
         Arrays.stream(policy.split(";")).map(String::strip).filter(part -> !part.isEmpty()).forEach(out::add);
         return out;
-    }
-
-    private static Source read(String name) throws IOException {
-        return new Source(name, Files.readString(ROOT.resolve(name), StandardCharsets.UTF_8));
-    }
-
-    private static List<Source> sources(String... extensions) throws IOException {
-        assertThat(Files.isDirectory(ROOT)).as("the test runs from the project directory and the frontend exists").isTrue();
-        List<Source> found = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(ROOT)) {
-            for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
-                String name = ROOT.relativize(file).toString().replace('\\', '/');
-                if (Arrays.stream(extensions).anyMatch(name::endsWith)) {
-                    found.add(new Source(name, Files.readString(file, StandardCharsets.UTF_8)));
-                }
-            }
-        }
-        return found;
     }
 }

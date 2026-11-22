@@ -1,112 +1,127 @@
-// The only place this tool's pages talk to its server. Every answer comes back in one shape, so a
-// tab never looks at a status code itself:
+// The only place this page talks to PAVE's server. Every answer comes back in one shape and this
+// function never throws, so no view reads a status code or a parse failure its own way:
 //
-//   kind 'ok'          a completed call (2xx). body is what the endpoint documents
-//   kind 'result'      a 403 or a 500 whose body is a run result (it has a runId). The run was
-//                      refused by the production guardrail, or the tool failed after the call.
-//                      It is rendered as a result, because it holds the run id and the receipt
-//   kind 'form'        a 422: something on the form cannot be used. body.fieldErrors names the
-//                      fields. The result area is left as it was
-//   kind 'conflict'    a 409: the tool would not do this now. The configuration changed, nothing
-//                      is configured for the operation, or something else is running. body says
-//                      which in words, and the caller re-reads /api/mode
-//   kind 'error'       any other answer. body is the shared error shape
-//   kind 'unreachable' no answer at all: the tool is not running, or the connection was lost. Whether
-//                      a request reached the server before that is not known
+//   {ok: true, status, data}     a 2xx answer. data is the JSON the endpoint documents, or null
+//                                when the answer has no body
+//   {ok: false, status, error}   any other answer. error is the server's ErrorView (kind, heading,
+//                                title, action, fieldErrors, issues, reference, cause). A run the
+//                                production guardrail refused (403) and a run whose answer this
+//                                tool failed to read (500) are answered with the whole run: then
+//                                error is the run's own error and data is the run, drawn as a
+//                                result because it holds the run id and what the ledger did
+//   error {kind: 'NOT_JSON', status}   the answer could not be read as JSON: an HTML page, or a
+//                                failure with no body, as PAVE gives when its classes were rebuilt
+//                                under it while it ran
+//   error {kind: 'UNREACHABLE'}  no answer came, with status 0. Whether a request reached PAVE
+//                                before the connection was lost is not known
+//   error {kind: 'PAGE_FAULT'}   this page could not build the request. Nothing was sent
 //
-// body is always an object. When the server did not send the error shape, one is made here that
-// says what the browser saw, so a caller can render body.title and body.action without checking.
+// Bodies are JSON only. No screen sends a file as multipart: a file is read in the page
+// (files.js) and its text is sent as JSON.
 
-const JSON_ACCEPT = {Accept: 'application/json'};
+const listeners = new Set();
 
-export function get(path) {
-    return send(path, {method: 'GET', headers: JSON_ACCEPT});
+/**
+ * Hears every answer, after the caller's own call has it: {method, path, answer}. The frame uses
+ * it to say once, under the top bar, that PAVE is not answering, and to read the configuration
+ * again at once after a change made from this page. Returns a function that stops it.
+ */
+export function watch(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
 }
 
-export function postJson(path, payload) {
-    return send(path, {
-        method: 'POST',
-        headers: {...JSON_ACCEPT, 'Content-Type': 'application/json'},
-        body: JSON.stringify(payload === undefined ? {} : payload)
-    });
-}
-
-/** Posts multipart form data: an uploaded file with its plain fields. */
-export function postForm(path, formData) {
-    return send(path, {method: 'POST', headers: JSON_ACCEPT, body: formData});
-}
-
-export function post(path) {
-    return send(path, {method: 'POST', headers: JSON_ACCEPT});
-}
-
-/** Replaces something the configuration holds, such as which request an operation uses. */
-export function putJson(path, payload) {
-    return send(path, {
-        method: 'PUT',
-        headers: {...JSON_ACCEPT, 'Content-Type': 'application/json'},
-        body: JSON.stringify(payload === undefined ? {} : payload)
-    });
-}
-
-/** Removes something the configuration holds: an uploaded environment or collection. */
-export function del(path) {
-    return send(path, {method: 'DELETE', headers: JSON_ACCEPT});
-}
-
-async function send(path, options) {
-    let response;
+/**
+ * Calls PAVE. method: GET, POST, PUT or DELETE. path: an address of this tool, its own segments
+ * already encoded by the caller. query: values to add to the address (null and undefined left
+ * out, a list repeated). body: sent as JSON when given.
+ */
+export async function call(method, path, options) {
+    const {query, body} = options || {};
+    let answer;
+    let request;
     try {
-        // no-store: an answer can hold a member's name and date of birth, and the browser's cache
-        // is storage too. The server says the same in its headers; this is the second lock.
-        response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', redirect: 'error'});
-    } catch (failure) {
-        return {
-            kind: 'unreachable',
-            status: 0,
-            body: {
-                // The page cannot know how far a request got before the connection was lost, so it does not say.
-                title: 'This page could not reach the PAVE server, or lost it before an answer arrived.',
-                action: 'Check that the tool is still running in its terminal window. If a run was on its way, it may or may not '
-                    + 'have been made: look for it in the ledger before sending it again.',
-                fieldErrors: [],
-                issues: []
-            }
+        request = {
+            method,
+            headers: body === undefined ? {Accept: 'application/json'} : {Accept: 'application/json', 'Content-Type': 'application/json'},
+            body: body === undefined ? undefined : JSON.stringify(body),
+            // no-store: an answer can hold a member's name and date of birth, and the browser's cache
+            // is storage too. The server says the same in its headers; this is the second lock.
+            cache: 'no-store',
+            credentials: 'same-origin',
+            redirect: 'error'
         };
+        request.address = address(path, query);
+    } catch (defect) {
+        answer = {ok: false, status: 0, error: {kind: 'PAGE_FAULT'}};
     }
-    const text = await response.text();
-    let body = null;
-    if (text.length > 0) {
+    if (!answer) {
+        answer = await exchange(request);
+    }
+    for (const listener of listeners) {
         try {
-            body = JSON.parse(text);
-        } catch (notJson) {
-            body = null;
+            listener({method, path, answer});
+        } catch (ignored) {
+            // A listener's own fault must not change what the caller is given.
         }
     }
+    return answer;
+}
+
+async function exchange(request) {
+    let response;
+    let text;
+    try {
+        response = await fetch(request.address, {
+            method: request.method, headers: request.headers, body: request.body, cache: request.cache,
+            credentials: request.credentials, redirect: request.redirect
+        });
+        text = await response.text();
+    } catch (lost) {
+        return {ok: false, status: 0, error: {kind: 'UNREACHABLE'}};
+    }
     const status = response.status;
+    const read = parse(text);
     if (response.ok) {
-        return {kind: 'ok', status, body: body === null ? {} : body};
+        if (text.length === 0) {
+            return {ok: true, status, data: null};
+        }
+        return read.json ? {ok: true, status, data: read.value} : {ok: false, status, error: {kind: 'NOT_JSON', status}};
     }
-    if (body === null || typeof body !== 'object') {
-        return {
-            kind: 'error',
-            status,
-            body: {
-                title: 'The PAVE server answered HTTP ' + status + ' with a body this page cannot read.',
-                action: 'Look at the terminal window the tool is running in, and report what it shows.',
-                fieldErrors: [],
-                issues: []
+    const body = read.json ? read.value : null;
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+        return {ok: false, status, error: {kind: 'NOT_JSON', status}};
+    }
+    if (typeof body.runId === 'string' && body.error && typeof body.error === 'object') {
+        return {ok: false, status, error: body.error, data: body};
+    }
+    return {ok: false, status, error: body};
+}
+
+function parse(text) {
+    if (typeof text !== 'string' || text.length === 0) {
+        return {json: false};
+    }
+    try {
+        return {json: true, value: JSON.parse(text)};
+    } catch (notJson) {
+        return {json: false};
+    }
+}
+
+function address(path, query) {
+    if (!query) {
+        return path;
+    }
+    const params = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+        const values = Array.isArray(value) ? value : [value];
+        for (const each of values) {
+            if (each !== undefined && each !== null) {
+                params.append(name, String(each));
             }
-        };
+        }
     }
-    if ((status === 403 || status === 500) && typeof body.runId === 'string') {
-        return {kind: 'result', status, body};
-    }
-    if (status === 422) {
-        return {kind: 'form', status, body};
-    }
-    if (status === 409) {
-        return {kind: 'conflict', status, body};
-    }
-    return {kind: 'error', status, body};
+    const text = params.toString();
+    return text.length === 0 ? path : path + (path.includes('?') ? '&' : '?') + text;
 }

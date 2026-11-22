@@ -1,23 +1,15 @@
-// Start-up, the frame, the tab switcher, and the poll of /api/mode with the configuration epoch.
+// The frame: the top bar, the three tabs and their addresses, the lines under the top bar, and
+// the poll of /api/mode and /api/runs/health every 4 s and whenever the window comes back.
 //
-// The frame says what this tool is and what it is pointed at on every tab: name and version on
-// the left, the environment strip on the right, the same facts in the browser tab title, and a
-// banner that cannot be scrolled past for production, for UAT and for the mock profile.
+// The top bar says what this tool is and where it is pointed, whatever view is open: the active
+// environment by its whole name and its kind, MOCK or LIVE, how calls sign in, and the build. On
+// an environment of kind prod the whole bar turns purple and the line under it says whether writes
+// go, with the guardrail's own sentence, never folded and never cut.
 
-import * as api from './api.js';
-import {el, fill, clear, button, token, named} from './dom.js';
-import {createCaseContext} from './case-context.js';
-import {createChain} from './chain.js';
-import {openLegend} from './legend.js';
-import {useServerWords} from './result.js';
-import {withoutMasks} from './masks.js';
-import crdTab from './tab-crd.js';
-import dtrTab from './tab-dtr.js';
-import pasTab from './tab-pas.js';
-import historyTab from './tab-history.js';
-import configTab from './tab-config.js';
-
-const TABS = [crdTab, dtrTab, pasTab, historyTab, configTab];
+import {call, watch} from './api.js';
+import {el, clear, fill, button, chip} from './dom.js';
+import {UNREACHABLE_LINE, PAGE_FAULT_LINE, notJsonLine} from './fault.js';
+import {useEpoch} from './words.js';
 
 // The one thing this tool keeps in browser storage: which tab was open. It holds no member data,
 // and StaticFrontendTest fails the build if any script stores under another key.
@@ -25,556 +17,597 @@ const TAB_KEY = 'pave.tab';
 
 const POLL_MILLIS = 4000;
 
+// A view is drawn once the profile is known, so nothing that exists on mock only is drawn on a
+// guess. A server that hangs must not hold the page blank, so the wait ends after this long.
+const FIRST_ANSWER_WAIT_MILLIS = 5000;
+
+// A view is loaded the first time its tab opens: a defect in the scripts of one view then leaves
+// the frame and the other views working, where a static import would leave a blank page.
+const TABS = [
+    {id: 'workbench', label: 'Workbench', load: () => import('./workbench.js')},
+    {id: 'audit', label: 'Audit', load: () => import('./audit.js')},
+    {id: 'configuration', label: 'Configuration', load: () => import('./configuration.js')}
+];
+
+const CONFIG_CHANGED = 'The configuration changed in another window. This page now shows it.';
+const WRITES_RELOCKED = 'Production writes were locked again from another window.';
+
 const state = {
-    mode: null,           // the last answer of /api/mode that was drawn
-    active: null,         // the id of the tab on screen
-    tabs: new Map(),      // tab id -> {tab, panel, control, built}
-    carried: new Map(),   // tab id -> what the previous step handed on
-    pollFailed: false,
-    ledger: null,         // what the ledger did with the latest run this page knows of
-    health: null,         // the last answer of /api/runs/health, or null before the first
-    healthUnread: false,  // true when the last ask of /api/runs/health got no usable answer
-    stripKey: null,       // what the environment strip was last drawn from, so a poll that changes nothing is silent
-    stripSaid: undefined, // what was last announced about the strip; undefined until it is first drawn
-    operations: new Map(), // operation name -> its row of /api/config/effective, as the server sent it
-    operationsRead: false, // true once /api/config/effective has answered at least once
-    configListeners: [],   // parts of the page told after each change of the configuration, once the operations are read again
-    placeholderList: null, // true when the code list in use is a placeholder, from the self-check; null before it is read
-    codeListSource: null   // where the code list in use was read from, as the self-check names it; null before it is read
+    mode: null,               // the last answer of /api/mode, as drawn
+    answering: true,          // false from the first call that got no answer until the next that did
+    health: null,             // the last answer of /api/runs/health
+    healthRead: true,         // false when the last ask of /api/runs/health got an answer that could not be used
+    environments: null,       // the last answer of /api/config/environments
+    chooserKey: null,         // what the chooser was last drawn from, so a poll that changes nothing leaves it alone
+    activating: false,        // an activation chosen in the top bar is on its way
+    madeHere: [],             // epochs answered to changes made from this page, which need no notice
+    writesMadeHere: null,     // the write access answered to an unlock or a lock made from this page
+    failing: new Set(),       // calls whose last answer was not JSON, already said under the top bar
+    notice: null,             // {text, id, row} of the line under the top bar, or null
+    view: null,               // {tab, root, handle, route} of the view on screen
+    showing: 0,               // counts view changes, so a view that loads late is not drawn over a newer one
+    announced: undefined,     // what was last said about the environment; undefined until the first drawing
+    busy: {},                 // the poll of each address that is on its way, so polls never pile up
+    again: {}                 // a poll asked for while one was on its way, run when it ends
 };
 
-const app = {
-    /** The last /api/mode answer that the screen was drawn from. */
-    mode: () => state.mode,
-    /** The configuration epoch the screen was drawn from. Sent with every run as configEpoch. */
-    epoch: () => (state.mode ? state.mode.epoch : null),
-    isMock: () => Boolean(state.mode) && state.mode.mode === 'mock',
-    navigate,
-    /** Leaves something for a tab to pick up when it is next shown: the hand-over between steps. */
-    carryTo(tabId, payload) {
-        // A value that holds a mask is never handed on. It is kept apart, as masked, so the tab that takes the hand-over says which and why.
-        const split = withoutMasks(payload ? payload.carry : null);
-        state.carried.set(tabId, payload ? {...payload, carry: split.carry, masked: split.masked} : payload);
+const listeners = {mode: new Set(), config: new Set(), writes: new Set()};
+
+export const app = {
+    /** The last answer of GET /api/mode, or null before the first. */
+    mode() {
+        return state.mode;
     },
-    /** What was carried to a tab, or null. It stays until the next hand-over replaces it or a new case starts. */
-    carriedTo(tabId) {
-        return state.carried.get(tabId) || null;
+    /** True on the mock profile. False before the first answer, so nothing that exists on mock only is drawn on a guess. */
+    isMock() {
+        return Boolean(state.mode) && state.mode.mode === 'mock';
     },
-    /** Forgets every hand-over. What one case carried to the next step is not for the case after it. */
-    forgetCarried() {
-        state.carried.clear();
-    },
-    notice,
-    clearNotices: () => clear(document.getElementById('notices')),
-    /**
-     * Re-reads /api/mode now. Used after the server says the configuration changed.
-     * options.quiet: the caller has said on screen what it changed (the Config tab after one of its
-     * own actions), so no notice is raised for it, except that production writes were locked again,
-     * which is said wherever the tester is.
-     */
-    refreshMode: options => poll(true, options),
-    /**
-     * Tells the frame what the ledger did with the latest run, for the indicator in the masthead.
-     * The ledger's own state is read again at once, so the count and any failure are current.
-     */
-    ledgerReceipt(receipt) {
-        state.ledger = {recorded: Boolean(receipt && receipt.recorded), runsToday: receipt ? receipt.runsToday : undefined,
-            message: receipt ? receipt.message : undefined};
-        drawStrip();
-        readHealth();
-    },
-    /** Tells the frame that runs made elsewhere, such as by a suite, were not recorded. */
-    ledgerProblem(message) {
-        state.ledger = {recorded: false, message};
-        drawStrip();
-        readHealth();
+    /** The configuration epoch the screens are drawn from. A run sends it back as configEpoch. */
+    epoch() {
+        return state.mode && typeof state.mode.epoch === 'number' ? state.mode.epoch : null;
     },
     /**
-     * Hands the frame an answer of GET /api/runs/health that a tab has read itself, so the
-     * masthead says the same as the tab at the same moment. The frame reads it on its own as well.
+     * Calls fn(mode, before) on 'mode' (the answer of /api/mode changed in any way), 'config' (the
+     * epoch moved: the configuration changed) or 'writes' (the write access changed, with or
+     * without the epoch). Returns a function that stops it, for the view to call when unmounted.
      */
-    ledgerHealth(health) {
-        if (health && typeof health === 'object') {
-            state.health = health;
-            state.healthUnread = false;
-            drawStrip();
+    on(name, fn) {
+        const set = listeners[name];
+        if (!set || typeof fn !== 'function') {
+            return () => false;
+        }
+        set.add(fn);
+        return () => set.delete(fn);
+    },
+    /** Shows the view of an address, '#audit/runs/<runId>' or 'audit/runs/<runId>', as a new step of the browser's history. */
+    go(hash) {
+        const before = state.view ? state.view.tab : null;
+        show(routeOf(hash), true);
+        if (state.view && state.view.tab !== before) {
+            document.getElementById('main').focus({preventScroll: true});
+            window.scrollTo(0, 0);
         }
     },
-    /** The label of an operation as /api/config/effective words it, or null when the server has not listed it. */
-    operationLabel(name) {
-        const row = state.operations.get(name);
-        return row && row.label ? row.label : null;
-    },
     /**
-     * The row /api/config/effective gives for an operation, named as that endpoint names it
-     * ("CRD_ORDER_SIGN"): where it would be sent, and in "unavailable" the server's sentence when
-     * it cannot be sent as things stand. Null when the server has not answered yet or does not list it.
+     * One line under the top bar, in place of the line before it, with "Dismiss this notice".
+     * tone 'fault' frames it heavily, for a fault to report; any other tone is plain. With no
+     * text, the line is taken away.
      */
-    operationRow(name) {
-        return state.operations.get(name) || null;
-    },
-    /** True once /api/config/effective has answered, so that a missing row means "not listed" and not "not read yet". */
-    operationsRead: () => state.operationsRead,
-    /**
-     * Calls listener() after every change of the configuration, once the frame has read the
-     * operations again, so what it reads through operationRow() is current. Returns a function that stops it.
-     */
-    whenConfigChanges(listener) {
-        state.configListeners.push(listener);
-        return () => {
-            state.configListeners = state.configListeners.filter(each => each !== listener);
-        };
-    },
-    /**
-     * True when the code list in use is a placeholder, false when it is not, null while that is not
-     * known. A placeholder is the one that ships with the tool or any list whose rows say of
-     * themselves that they are not from a P32H export: the self-check decides, not this page.
-     */
-    codeListIsPlaceholder: () => state.placeholderList,
-    /** Where the code list in use was read from, in the self-check's words, or null. */
-    codeListSource: () => state.codeListSource,
-    /** Lets a tab update the address when it changes view, so the back button and a reload return to it. */
-    addressChanged() {
-        const address = '#' + addressOf(state.active);
-        if (window.location.hash !== address) {
-            window.history.replaceState(null, '', address);
+    notice(text, tone) {
+        if (text === undefined || text === null || String(text) === '') {
+            unsay(null);
+            return;
         }
-    },
-    /** The case shared by the protocol tabs, and the chain it is followed under. Set at start-up. */
-    caseContext: null,
-    chain: null
+        say(String(text), tone, 'view');
+    }
 };
+
+/* ---------- start ---------- */
 
 async function start() {
-    // A defect in this page must not leave a tester looking at a screen that silently stopped
-    // half way. The detail stays in the browser console; it is not put on screen, because an
-    // error message can quote what it was handling.
-    const ownFault = () => notice('This page hit an error of its own and may be showing an incomplete answer. '
-        + 'Reload the page. A run that was sent was made whether or not its result was drawn here: look for it in the ledger.');
-    window.addEventListener('error', ownFault);
-    window.addEventListener('unhandledrejection', ownFault);
-
-    document.getElementById('legend-open').addEventListener('click', () => openLegend(document.getElementById('legend')));
-    app.caseContext = createCaseContext();
-    app.chain = createChain(app, document.getElementById('chain-bar'));
-
-    // The result view words an operation and the code list the way the server does. It reads them
-    // through the frame, which keeps them current, so no tab has to pass them in.
-    useServerWords({operationLabel: name => app.operationLabel(name), codeListIsPlaceholder: () => app.codeListIsPlaceholder(),
-        codeListSource: () => app.codeListSource()});
-
-    const first = await api.get('/api/mode');
-    if (first.kind === 'ok') {
-        state.mode = first.body;
-    } else {
-        state.pollFailed = true;
-    }
-    // Both are awaited before any tab is drawn, so the first result already has its words.
-    await Promise.all([readHealth(), readOperations(), readCodeList()]);
-    drawFrame();
-    buildTabs();
-    const wanted = tabFromAddress() || rememberedTab() || TABS[0].id;
-    showTab(state.tabs.has(wanted.split('/')[0]) ? wanted : TABS[0].id, {replace: true});
-    if (state.pollFailed) {
-        serverSilent(first.body);
-    }
-    window.addEventListener('hashchange', () => {
-        const target = tabFromAddress();
-        if (target && target !== addressOf(state.active)) {
-            showTab(target, {fromAddress: true});
+    // A defect of this page must not leave a tester looking at a screen that silently stopped half
+    // way. The detail stays in the browser console: an error message can quote what it handled.
+    window.addEventListener('error', () => say(PAGE_FAULT_LINE, 'fault', 'page'));
+    window.addEventListener('unhandledrejection', () => say(PAGE_FAULT_LINE, 'fault', 'page'));
+    useEpoch(() => app.epoch());
+    watch(heard);
+    wireTabs();
+    wireChooser();
+    await Promise.race([poll('/api/mode'), pause(FIRST_ANSWER_WAIT_MILLIS)]);
+    poll('/api/runs/health');
+    poll('/api/config/environments');
+    show(routeOf(window.location.hash), false);
+    window.addEventListener('hashchange', () => show(routeOf(window.location.hash), false));
+    window.setInterval(() => {
+        if (!document.hidden) {
+            tick();
         }
-    });
-    window.setInterval(() => poll(false), POLL_MILLIS);
+    }, POLL_MILLIS);
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
-            poll(false);
+            tick();
         }
     });
+    window.addEventListener('focus', tick);
 }
 
-/* ---------- /api/mode and the epoch ---------- */
+function tick() {
+    poll('/api/mode');
+    poll('/api/runs/health');
+}
 
-async function poll(announceSame, options) {
-    const quiet = Boolean(options && options.quiet);
-    // The ledger is asked on the same beat as the mode, and on its own: a ledger that stops
-    // recording is news whether or not the configuration moved.
-    readHealth();
-    const answer = await api.get('/api/mode');
-    if (answer.kind !== 'ok') {
-        if (!state.pollFailed) {
-            state.pollFailed = true;
-            serverSilent(answer.body);
+function pause(millis) {
+    return new Promise(resolve => window.setTimeout(resolve, millis));
+}
+
+/* ---------- reading the server ---------- */
+
+const READERS = {
+    '/api/mode': received,
+    '/api/runs/health': health => {
+        state.health = health;
+        state.healthRead = true;
+        drawLedger();
+    },
+    '/api/config/environments': list => {
+        state.environments = list;
+        drawChooser();
+    }
+};
+
+/** Reads an address the frame draws from. One read of each at a time; one asked for meanwhile runs after it. */
+function poll(path) {
+    if (state.busy[path]) {
+        state.again[path] = true;
+        return state.busy[path];
+    }
+    state.busy[path] = (async () => {
+        try {
+            do {
+                state.again[path] = false;
+                const answer = await call('GET', path);
+                if (answer.ok && answer.data && typeof answer.data === 'object') {
+                    READERS[path](answer.data);
+                } else if (path === '/api/runs/health' && answer.error && answer.error.kind !== 'UNREACHABLE') {
+                    // An answer, and not the ledger's: what the ledger is doing cannot be said, which is not "recording".
+                    state.healthRead = false;
+                    drawLedger();
+                }
+            } while (state.again[path]);
+        } finally {
+            state.busy[path] = null;
+        }
+    })();
+    return state.busy[path];
+}
+
+/**
+ * Hears every answer the page gets. PAVE not answering, or answering with something that is not
+ * JSON, is said once under the top bar, whichever view asked. A change of the configuration made
+ * from this page is read again at once, and its epoch is kept, so it is not announced as a change
+ * made in another window.
+ */
+function heard({method, path, answer}) {
+    const kind = !answer.ok && answer.error ? answer.error.kind : null;
+    if (kind === 'UNREACHABLE') {
+        if (state.answering) {
+            state.answering = false;
+            say(UNREACHABLE_LINE, 'fault', 'unreachable');
         }
         return;
     }
-    const before = state.mode;
-    const recovered = state.pollFailed;
-    state.pollFailed = false;
-    state.mode = answer.body;
-    const changed = !before || before.epoch !== answer.body.epoch || before.mode !== answer.body.mode;
-    // The write access can change without the epoch moving, when writes are unlocked or locked again.
-    const frameChanged = changed || JSON.stringify(before) !== JSON.stringify(answer.body);
-    if (frameChanged || recovered) {
-        drawFrame();
+    if (!state.answering) {
+        state.answering = true;
+        unsay('unreachable');
     }
-    if (recovered) {
-        app.clearNotices();
+    const key = method + ' ' + path;
+    if (kind === 'NOT_JSON') {
+        if (!state.failing.has(key)) {
+            state.failing.add(key);
+            say(notJsonLine(answer.error.status), 'fault', 'not-json');
+        }
+    } else if (state.failing.delete(key) && state.failing.size === 0) {
+        unsay('not-json');
     }
-    if (changed) {
-        if (before && (!quiet || relocked(before, answer.body))) {
-            notice('The configuration changed. ' + environmentSentence(answer.body) + ' Every tab now shows it.'
-                + (relocked(before, answer.body) ? ' Writes to production were unlocked and are locked again: the server locks them on any change '
-                    + 'to the configuration. Unlock them again on the Config tab if they are still needed.' : ''));
-        }
-        // A new collection can carry operations under other words; they are read before any tab redraws.
-        await readOperations();
-        for (const listener of state.configListeners) {
-            listener();
-        }
-        // Every tab that has been drawn is redrawn now, whichever one is on screen. A tab that has
-        // not been opened yet draws from the new configuration when it is.
-        for (const entry of state.tabs.values()) {
-            if (entry.built && entry.tab.onConfigChange) {
-                entry.tab.onConfigChange(answer.body, before);
+    if (kind === 'PAGE_FAULT') {
+        say(PAGE_FAULT_LINE, 'fault', 'page');
+    }
+    if (answer.status === 409) {
+        poll('/api/mode');
+    }
+    if (method !== 'GET') {
+        if (path.startsWith('/api/config/')) {
+            if (answer.ok && answer.data && typeof answer.data === 'object') {
+                if (typeof answer.data.epoch === 'number') {
+                    state.madeHere = state.madeHere.concat(answer.data.epoch).slice(-20);
+                }
+                if (path === '/api/config/writes') {
+                    state.writesMadeHere = JSON.stringify(answer.data);
+                }
             }
+            poll('/api/mode');
+            poll('/api/config/environments');
         }
-        app.chain.refresh();
-    } else if (before && JSON.stringify(before.writeAccess) !== JSON.stringify(answer.body.writeAccess)) {
-        // Writes were unlocked or locked again with no change of the configuration. A lock from any
-        // browser ends the unlock of every session and leaves the epoch where it was, so without this
-        // a panel drawn while unlocked would go on saying so beside a banner that says locked.
-        if (!quiet && relocked(before, answer.body)) {
-            notice('Writes to production were locked again. This browser did not lock them, so it may have been done from another '
-                + 'browser: locking from any browser ends the unlock of every session. Every tab now shows them as locked. '
-                + 'Unlock them again on the Config tab if they are still needed.');
-        }
-        for (const entry of state.tabs.values()) {
-            if (entry.built && entry.tab.onWriteAccessChange) {
-                entry.tab.onWriteAccessChange(answer.body, before);
-            }
-        }
-    } else if (announceSame && before && !quiet) {
-        // Asked for after a refusal. Saying nothing would leave the tester wondering whether the screen is current.
-        notice('The screen shows the configuration now in force. ' + environmentSentence(answer.body), {plain: true});
+        poll('/api/runs/health');
     }
 }
 
-/** True when production writes were unlocked in the earlier answer and the later one, still on production, has them locked. */
+function received(next) {
+    const before = state.mode;
+    if (before && before.mode !== next.mode) {
+        // PAVE was started again on the other profile. Everything this page drew belongs to the
+        // profile it was drawn for, and a view must never keep what exists on mock only on live.
+        window.location.reload();
+        return;
+    }
+    if (before && JSON.stringify(before) === JSON.stringify(next)) {
+        return;
+    }
+    state.mode = next;
+    const epochMoved = Boolean(before) && before.epoch !== next.epoch;
+    const writesChanged = Boolean(before) && JSON.stringify(before.writeAccess) !== JSON.stringify(next.writeAccess);
+    drawFrame();
+    if (epochMoved) {
+        if (!state.madeHere.includes(next.epoch)) {
+            say(CONFIG_CHANGED, 'plain', 'config');
+        }
+        poll('/api/config/environments');
+    } else if (writesChanged && relocked(before, next) && JSON.stringify(next.writeAccess) !== state.writesMadeHere) {
+        say(WRITES_RELOCKED, 'plain', 'writes');
+    }
+    if (writesChanged) {
+        state.writesMadeHere = null;
+    }
+    emit('mode', next, before);
+    if (epochMoved) {
+        emit('config', next, before);
+    }
+    if (writesChanged) {
+        emit('writes', next, before);
+    }
+}
+
+/** True when production writes were unlocked before and the later answer, still on production, has them locked. */
 function relocked(before, after) {
     const was = before.writeAccess || {};
     const now = after.writeAccess || {};
     return was.production === true && was.writesAllowed === true && now.production === true && now.writesAllowed !== true;
 }
 
-/** Reads whether the ledger is recording. A failure to read it is drawn as such, never as "recording". */
-async function readHealth() {
-    const answer = await api.get('/api/runs/health');
-    if (answer.kind === 'ok') {
-        state.health = answer.body;
-        state.healthUnread = false;
-    } else {
-        state.healthUnread = true;
-    }
-    drawStrip();
-}
-
-/**
- * Reads each operation's row: its label, where it would be sent, and why it cannot be sent when it
- * cannot. Kept from the last good answer when a read fails; until one answer has arrived nothing is
- * assumed about any operation.
- */
-async function readOperations() {
-    const answer = await api.get('/api/config/effective');
-    if (answer.kind === 'ok' && Array.isArray(answer.body.operations)) {
-        state.operations = new Map(answer.body.operations.map(row => [row.operation, row]));
-        state.operationsRead = true;
+function emit(name, mode, before) {
+    for (const fn of Array.from(listeners[name])) {
+        try {
+            fn(mode, before);
+        } catch (defect) {
+            say(PAGE_FAULT_LINE, 'fault', 'page');
+        }
     }
 }
 
-/** Reads once whether the code list is a placeholder, and where it came from. Neither can change without a restart. */
-async function readCodeList() {
-    const answer = await api.get('/api/procedure-codes/self-check');
-    if (answer.kind === 'ok' && typeof answer.body.placeholder === 'boolean') {
-        state.placeholderList = answer.body.placeholder;
-        state.codeListSource = typeof answer.body.source === 'string' ? answer.body.source : null;
-    }
+/* ---------- the top bar ---------- */
+
+function activeEnvironment() {
+    const environment = state.mode && state.mode.environment;
+    return environment && environment.active ? environment : null;
 }
 
-function serverSilent(error) {
-    notice(error.title + ' ' + error.action + ' This page keeps asking, and says so when the tool answers again.');
-    drawStrip();
+function writesUnlocked() {
+    const access = (state.mode && state.mode.writeAccess) || {};
+    return access.production === true && access.writesAllowed === true;
 }
-
-function environmentSentence(mode) {
-    const environment = mode.environment || {};
-    return environment.active
-        ? 'The active environment is ' + named(environment.name) + ' (' + environment.kind + '), on the ' + mode.mode + ' profile.'
-        : 'No environment is active, on the ' + mode.mode + ' profile.';
-}
-
-/* ---------- the frame ---------- */
 
 function drawFrame() {
     const mode = state.mode;
-    if (mode) {
-        document.getElementById('tool-name').textContent = mode.name;
-        document.getElementById('tool-version').textContent = mode.version;
-        const environment = mode.environment || {};
-        // The browser tab carries the same facts as the masthead, so it can be told apart from the
-        // other tools on the programme when it is narrowed to a few words.
-        const access = mode.writeAccess || {};
-        const unlocked = environment.active && environment.kind === 'prod' && access.production === true && access.writesAllowed === true;
-        document.title = mode.name + ' ' + mode.version + ' | '
-            + (environment.active ? named(environment.name) + ' (' + environment.kind + ')' : 'no environment')
-            + (unlocked ? ' | writes UNLOCKED' : '') + ' | ' + mode.mode;
+    const environment = activeEnvironment();
+    const prod = Boolean(environment) && environment.kind === 'prod';
+    document.getElementById('topbar').classList.toggle('topbar--prod', prod);
+    document.getElementById('tool-name').textContent = mode.name || 'PAVE';
+    // The browser tab carries the same facts as the top bar, so it can be told apart from the
+    // other tools of the programme when it is narrowed to a few words.
+    document.title = (mode.name || 'PAVE') + ' ' + version(mode) + ' | '
+        + (environment ? environment.name + ' (' + environment.kind + ')' : 'no environment')
+        + (prod && writesUnlocked() ? ' | writes UNLOCKED' : '') + ' | ' + mode.mode;
+
+    const kind = document.getElementById('kind');
+    kind.hidden = !environment;
+    kind.className = environment ? 'badge badge--' + environment.kind : 'badge';
+    kind.textContent = environment ? environment.kind : '';
+
+    const profile = document.getElementById('profile');
+    const mock = mode.mode === 'mock';
+    const live = mode.mode === 'live';
+    profile.hidden = false;
+    profile.className = mock ? 'badge badge--mock' : live ? 'badge badge--live' : 'badge';
+    // The server's own word when it is neither: a profile this page does not know is not called live.
+    profile.textContent = mock ? 'MOCK' : live ? 'LIVE' : String(mode.mode);
+    profile.title = mock ? 'Mock profile: scenarios answer and nothing leaves this machine.'
+        : live ? 'Live profile: calls go to the active environment\'s service.' : '';
+
+    // How calls sign in, in the server's words. Before the server says it, nothing is drawn for it.
+    const signIn = mode.signIn && typeof mode.signIn === 'object' && mode.signIn.short ? mode.signIn : null;
+    const signInHost = document.getElementById('sign-in');
+    signInHost.hidden = !signIn;
+    fill(signInHost, signIn ? chip(signIn.short, {tone: signIn.state === 'FAILED' ? 'fault' : null, title: signIn.detail || null}) : null);
+
+    drawStamp(mode);
+    drawChooser();
+    drawEnvironmentLine();
+    announce(environment ? 'The active environment is ' + environment.name + ' (' + environment.kind + ').' : 'No environment is active.');
+}
+
+function version(mode) {
+    return mode.build && typeof mode.build === 'object' && mode.build.version ? String(mode.build.version) : String(mode.version || '');
+}
+
+/** "build 1.0.0, 2026-11-23 06:10 UTC" where there is room, the version alone below that, the whole in the title. */
+function drawStamp(mode) {
+    const stamp = document.getElementById('stamp');
+    const shown = version(mode);
+    const time = mode.build && typeof mode.build === 'object' && mode.build.time ? stampTime(mode.build.time) : null;
+    const full = 'build ' + shown + (time ? ', ' + time : '');
+    stamp.hidden = shown === '';
+    stamp.title = full;
+    fill(stamp, el('span', {class: 'stamp-full'}, full), el('span', {class: 'stamp-short'}, shown));
+}
+
+function stampTime(text) {
+    const date = new Date(text);
+    if (Number.isNaN(date.getTime())) {
+        return String(text);
     }
-    drawStrip();
-    drawBanners();
+    const iso = date.toISOString();
+    return iso.slice(0, 10) + ' ' + iso.slice(11, 16) + ' UTC';
 }
 
 /**
- * The strip is not a live region: a new count of today's runs after every run would be read out
- * on top of the result's own status line. What is announced, from a small region of its own, is a
- * change of where the tool is pointed or of what the ledger is doing, once, and only after the
- * first drawing, which describes the page as it opens.
+ * The chooser lists every environment by its whole name: the unlock of production asks for the
+ * name exactly as it is shown, and two names can differ only at their end. It is drawn again only
+ * when what it lists changes, so a poll never closes it under the tester's pointer.
  */
-function announceStrip(text) {
-    if (state.stripSaid === undefined) {
-        state.stripSaid = text;
+function drawChooser() {
+    const select = document.getElementById('environment');
+    const environment = activeEnvironment();
+    const list = state.environments && Array.isArray(state.environments.environments) ? state.environments.environments : null;
+    const key = JSON.stringify([environment ? [environment.name, environment.kind] : null,
+        list ? list.map(each => [each.id, each.name]) : null, state.activating]);
+    if (key === state.chooserKey) {
         return;
     }
-    if (text === state.stripSaid) {
-        return;
+    state.chooserKey = key;
+    const options = [];
+    if (!environment) {
+        options.push(el('option', {value: '', selected: true, disabled: true}, 'No environment active'));
     }
-    state.stripSaid = text;
-    const region = document.getElementById('strip-news');
-    if (region) {
-        region.textContent = text;
+    if (list) {
+        for (const each of list) {
+            options.push(el('option', {value: each.id, selected: Boolean(environment) && each.name === environment.name}, each.name));
+        }
     }
+    if (environment && (!list || !list.some(each => each.name === environment.name))) {
+        // The list could not be read, or does not hold the active one yet: the active one is still named.
+        options.push(el('option', {value: '', selected: true}, environment.name));
+    }
+    fill(select, options);
+    select.disabled = state.activating || !list || list.length === 0;
+    select.title = environment ? environment.name : 'No environment active';
 }
 
-function stripItem(label, value, extraClass) {
-    return el('span', {class: 'strip-item' + (extraClass ? ' ' + extraClass : '')},
-        el('span', {class: 'strip-item__label'}, label), el('span', {class: 'strip-item__value'}, value));
+function wireChooser() {
+    const select = document.getElementById('environment');
+    select.addEventListener('change', async () => {
+        const list = state.environments && Array.isArray(state.environments.environments) ? state.environments.environments : [];
+        const chosen = list.find(each => each.id === select.value);
+        const environment = activeEnvironment();
+        if (!chosen || (environment && chosen.name === environment.name)) {
+            return;
+        }
+        state.activating = true;
+        drawChooser();
+        const answer = await call('POST', '/api/config/environments/' + encodeURIComponent(chosen.id) + '/activate');
+        state.activating = false;
+        state.chooserKey = null;
+        if (answer.ok) {
+            const warnings = answer.data && Array.isArray(answer.data.addressWarnings) ? answer.data.addressWarnings.filter(Boolean) : [];
+            if (warnings.length > 0) {
+                say(warnings.join(' '), 'plain', 'activate');
+            }
+        } else if (answer.error && answer.error.title) {
+            // Refused by the server, in its words. No answer at all is said by the frame already.
+            say([answer.error.title, answer.error.action].filter(Boolean).join(' '), 'plain', 'activate');
+        }
+        drawChooser();
+        await Promise.all([poll('/api/mode'), poll('/api/config/environments')]);
+    });
 }
 
-function drawStrip() {
-    const strip = document.getElementById('environment-strip');
-    const mode = state.mode;
-    // The strip is a live region. It is redrawn only when what it says changes, so a poll that
-    // finds everything as it was is not read out again.
-    const key = JSON.stringify([mode, state.pollFailed, state.ledger, state.health, state.healthUnread]);
-    if (key === state.stripKey) {
-        return;
+/* ---------- the lines under the top bar ---------- */
+
+function drawEnvironmentLine() {
+    const host = document.getElementById('line-environment');
+    const environment = activeEnvironment();
+    if (environment && environment.kind === 'prod') {
+        const access = state.mode.writeAccess || {};
+        const unlocked = writesUnlocked();
+        // Whether writes go is said in two words before the guardrail's own sentence, from the
+        // server's flag. The name is whole: the unlock asks for it exactly as it is written here.
+        fill(host, el('div', {class: 'line line--prod'},
+            el('strong', {class: 'line__kind'}, 'Production'),
+            el('span', {class: 'line__name environment-name'}, environment.name),
+            el('span', {class: unlocked ? 'line__writes line__writes--unlocked' : 'line__writes'},
+                unlocked ? 'Writes UNLOCKED for this browser session' : 'Writes locked'),
+            access.reason ? el('span', {class: 'line__reason'}, access.reason) : null,
+            el('a', {class: 'line__link', href: '#configuration/production-writes'}, 'Production writes')));
+    } else if (environment && environment.kind === 'uat') {
+        fill(host, el('div', {class: 'line line--uat'},
+            el('strong', {class: 'line__kind'}, 'UAT'),
+            el('span', {class: 'line__name environment-name'}, environment.name)));
+    } else {
+        clear(host);
     }
-    state.stripKey = key;
-    if (!mode) {
-        fill(strip, stripItem('Server', 'not answering', 'strip-item--alarm'));
-        return;
-    }
-    const environment = mode.environment || {};
-    const ledger = ledgerItem();
-    announceStrip([state.pollFailed ? 'The server is not answering.' : null,
-        'Profile ' + mode.mode + ', target ' + mode.target + ', '
-        + (environment.active ? 'environment ' + named(environment.name) + ' (' + environment.kind + ').' : 'no environment active.'),
-        ledger.state].filter(Boolean).join(' '));
-    const items = [];
-    if (state.pollFailed) {
-        items.push(stripItem('Server', 'not answering', 'strip-item--alarm'));
-    }
-    items.push(stripItem('Profile', [mode.mode === 'mock' ? el('span', {class: 'hatch', aria: {hidden: 'true'}}) : null, mode.mode]));
-    items.push(stripItem('Target', mode.target));
-    items.push(stripItem('Environment', environment.active
-        // The name is given whole: the unlock of production asks for it exactly as the strip shows
-        // it, and two production environments may differ only at the end of their names. One a file
-        // made long wraps and then scrolls in a box of its own (environment-name in pave.css), so it
-        // pushes neither the other facts nor the page aside.
-        ? [el('span', {class: 'environment-name'}, environment.name), el('span', {class: 'kind kind--' + token(environment.kind)}, environment.kind)]
-        : 'none active', 'strip-item--environment'));
-    items.push(ledger.node);
-    fill(strip, items);
 }
 
 /**
- * The ledger indicator, drawn from GET /api/runs/health, which is read on every poll.
- *
- * Quiet while the ledger is recording: the count of today's runs, where today is the UTC day the
- * ledger files runs under, and it says so. Loud, in words, when tracking is off, when the ledger
- * cannot write, when today's count cannot be read, and when the latest run made from this page was
- * not recorded: the receipt of a run is the last word about that run, whatever the ledger says of
- * itself. A write that failed earlier, while the ledger records again now, is said in visible words
- * beside the quiet count, never only in a tooltip, and not in the heavy frame: the frame means the
- * ledger is not recording now. The words lead to the History tab, whose health panel says what each
- * state means and what to do.
- *
- * Returns {node, state}: state is a short sentence of what the ledger is doing, without the count,
- * so a change of it can be announced and a new count alone is not.
+ * The count of today's runs on the Audit tab, and a line under the top bar, with no dismiss, while
+ * the ledger is not recording: the failure that matters is tracking that silently stopped.
  */
-function ledgerItem() {
+function drawLedger() {
+    const count = document.getElementById('audit-count');
+    const host = document.getElementById('line-ledger');
     const health = state.health;
-    const receipt = state.ledger;
-    const problems = [];
-    if (state.healthUnread) {
-        problems.push(['state cannot be read', 'The tool did not answer when asked whether the ledger is recording.']);
+    let problem = null;
+    if (!state.healthRead) {
+        problem = 'PAVE did not answer when asked whether the ledger is recording.';
+    } else if (health && health.enabled === false) {
+        problem = 'Tracking is switched off: runs made now are not recorded anywhere.';
+    } else if (health && health.writable === false) {
+        problem = 'The ledger cannot write to its folder: runs made now are NOT recorded.';
     }
-    let failed = null;
-    let unreadable = null;
-    if (health) {
-        if (health.unreadableLines > 0) {
-            unreadable = health.unreadableLines.toLocaleString() + (health.unreadableLines === 1 ? ' line unreadable' : ' lines unreadable');
-        }
-        if (!health.enabled) {
-            problems.push(['tracking is OFF', 'Tracking is switched off: runs made now are not recorded anywhere.']);
-        } else if (!health.writable) {
-            problems.push(['cannot write, runs NOT recorded', 'The ledger cannot write to its folder: runs made now are NOT recorded.']);
-        }
-        if (health.failedWrites > 0) {
-            failed = health.failedWrites.toLocaleString() + (health.failedWrites === 1 ? ' write failed' : ' writes failed');
-        }
-        if (health.enabled && typeof health.runsToday !== 'number') {
-            problems.push(['today\'s count unreadable', 'The ledger could not read today\'s file, so it cannot say how many runs it holds. That is not the same as none.']);
-        }
-    }
-    if (receipt && !receipt.recorded) {
-        problems.push(['latest run here NOT recorded', 'The latest run made from this page was NOT recorded. Its result quotes what the ledger said.']);
-    }
-    const toHistory = ' The History tab says what it means and what to do.';
-    if (problems.length > 0) {
-        if (failed) {
-            problems.push([failed, failed.charAt(0).toUpperCase() + failed.slice(1) + ' since the tool started. Those runs are not in the ledger.']);
-        }
-        if (unreadable) {
-            problems.push([unreadable, unreadable.charAt(0).toUpperCase() + unreadable.slice(1) + ': left out of History and of the export.']);
-        }
-        const words = problems.map(([each]) => each).join('; ');
-        const sentence = problems.map(([, each]) => each).join(' ') + toHistory;
-        return {node: ledgerLink(words, 'strip-item--alarm', sentence), state: 'Ledger: ' + words + '.'};
-    }
-    const counted = health && typeof health.runsToday === 'number' ? health.runsToday
-        : receipt && typeof receipt.runsToday === 'number' ? receipt.runsToday : null;
-    if (counted === null) {
-        return {node: stripItem('Ledger', 'not read yet'), state: null};
-    }
-    const day = new Date().toISOString().slice(0, 10);
-    const recording = 'Recording. Counted over the UTC day ' + day + ', which is how the ledger files its runs, not the date on your clock.';
-    // Said after the count, in visible words: runs that were made and that History cannot show.
-    const earlier = [failed ? failed + ' earlier, since the tool started' : null, unreadable].filter(Boolean).join('; ') || null;
-    const sentence = recording + (failed ? ' ' + failed.charAt(0).toUpperCase() + failed.slice(1)
-        + ' earlier, since the tool started: those runs are not in the ledger. It records again now.' : '')
-        + (unreadable ? ' ' + unreadable.charAt(0).toUpperCase() + unreadable.slice(1)
-            + ': a line of the ledger that cannot be read is left out of History and of the export.' : '') + toHistory;
-    return {node: ledgerLink(counted.toLocaleString() + (counted === 1 ? ' run' : ' runs') + ' today (UTC)', null, sentence, earlier),
-        state: 'Ledger recording.' + (earlier ? ' ' + earlier.charAt(0).toUpperCase() + earlier.slice(1) + '.' : '')};
-}
-
-/**
- * The indicator as a link to the History tab, where the health of the ledger is set out in full.
- * The sentence is the title for a mouse, and is part of the link's name for assistive technology,
- * so a keyboard or screen reader user is not left without it. earlier, when given, is said in
- * visible words after the link.
- */
-function ledgerLink(text, extraClass, sentence, earlier) {
-    return el('span', {class: 'strip-item' + (extraClass ? ' ' + extraClass : ''), title: sentence},
-        el('span', {class: 'strip-item__label'}, 'Ledger'),
-        el('a', {class: 'strip-item__value strip-item__link', href: '#history'}, text, el('span', {class: 'visually-hidden'}, '. ' + sentence)),
-        earlier ? el('span', {class: 'strip-item__earlier'}, '; ' + earlier) : null);
-}
-
-function drawBanners() {
-    const host = document.getElementById('banners');
-    const mode = state.mode;
-    clear(host);
-    if (!mode) {
+    if (problem) {
+        // The ledger's own sentence about its last failed write, when it has one, follows the page's.
+        const said = health && health.writable === false && typeof health.lastError === 'string' && health.lastError !== ''
+            ? health.lastError : null;
+        fill(host, el('div', {class: 'line line--alarm'}, el('p', {class: 'line__text'}, problem),
+            said ? el('p', {class: 'line__detail'}, said) : null));
+        fill(count, el('span', {'aria-hidden': 'true'}, '!'), el('span', {class: 'visually-hidden'}, ' ' + problem));
+        count.className = 'tabs__count tabs__count--alarm';
+        count.title = problem;
+        count.hidden = false;
         return;
     }
-    const environment = mode.environment || {};
-    const access = mode.writeAccess || {};
-    if (environment.active && environment.kind === 'prod') {
-        // Whether writes go is the first thing a tester on production needs, so it is said in two
-        // words before the server's sentence, from the server's own flag. Unlocked is framed, so it
-        // reads differently from across the room as well.
-        const unlocked = access.production === true && access.writesAllowed === true;
-        host.append(banner('prod', 'Production', environment.name, access.reason,
-            el('span', {class: 'banner__writes' + (unlocked ? ' banner__writes--unlocked' : '')},
-                unlocked ? 'Writes UNLOCKED for this browser session' : 'Writes locked')));
-    } else if (environment.active && environment.kind === 'uat') {
-        host.append(banner('uat', 'UAT', environment.name, access.reason));
+    clear(host);
+    if (!health) {
+        count.hidden = true;
+        return;
     }
-    if (mode.mode === 'mock') {
-        host.append(el('div', {class: 'banner banner--mock'}, el('div', {class: 'banner__inner'},
-            el('span', {class: 'hatch', aria: {hidden: 'true'}}),
-            el('span', null, el('strong', null, 'Mock profile.'),
-                ' Scenario files answer in place of the service. No answer on this profile is about a real member, and nothing leaves this machine.'))));
+    const failed = typeof health.failedWrites === 'number' && health.failedWrites > 0
+        ? ' ' + health.failedWrites + (health.failedWrites === 1 ? ' write' : ' writes')
+          + ' failed earlier, since PAVE started: those runs are not in the ledger.' : '';
+    if (typeof health.runsToday === 'number') {
+        const sentence = health.runsToday + (health.runsToday === 1 ? ' run' : ' runs') + ' recorded today (UTC).' + failed;
+        fill(count, el('span', {'aria-hidden': 'true'}, String(health.runsToday)), el('span', {class: 'visually-hidden'}, ' ' + sentence));
+        count.title = sentence;
+    } else {
+        // Not none: unknown. A count that cannot be read is never drawn as 0.
+        const sentence = 'The ledger could not read today\'s file, so it cannot say how many runs it holds. That is not the same as none.'
+            + failed;
+        fill(count, el('span', {'aria-hidden': 'true'}, '?'), el('span', {class: 'visually-hidden'}, ' ' + sentence));
+        count.title = sentence;
     }
+    count.className = failed ? 'tabs__count tabs__count--failed' : 'tabs__count';
+    count.hidden = false;
 }
 
-function banner(kind, label, name, reason, writes) {
-    return el('div', {class: 'banner banner--' + kind}, el('div', {class: 'banner__inner'},
-        el('span', {class: 'banner__kind'}, label),
-        el('span', {class: 'banner__name environment-name'}, name),
-        writes || null,
-        reason ? el('span', {class: 'banner__reason'}, reason) : null));
-}
-
-function notice(message, options) {
-    const host = document.getElementById('notices');
-    const row = el('div', {class: 'notice' + (options && options.plain ? ' notice--plain' : '')}, el('span', null, message));
-    row.append(button('Dismiss this notice', () => row.remove(), {class: 'button--quiet button--small'}));
-    // One notice at a time: a newer statement about the tool replaces the older one.
+/** One line under the top bar at a time: a newer one replaces the older, and the same line is not drawn twice. */
+function say(text, tone, id) {
+    if (state.notice && state.notice.text === text) {
+        return;
+    }
+    const host = document.getElementById('line-notice');
+    const row = el('div', {class: tone === 'fault' ? 'line line--notice line--fault' : 'line line--notice'},
+        el('p', {class: 'line__text'}, text));
+    row.append(button('Dismiss this notice', () => {
+        row.remove();
+        if (state.notice && state.notice.row === row) {
+            state.notice = null;
+        }
+    }, {small: true, quiet: true}));
     fill(host, row);
+    state.notice = {text, id, row};
 }
 
-/* ---------- tabs ---------- */
-
-function buildTabs() {
-    const list = document.getElementById('tabs');
-    const main = document.getElementById('main');
-    for (const tab of TABS) {
-        const control = el('button', {
-            type: 'button', class: 'tab', id: 'tab-' + tab.id, role: 'tab', tabIndex: -1,
-            aria: {selected: 'false', controls: 'panel-' + tab.id},
-            on: {click: () => showTab(tab.id)}
-        }, tab.label);
-        const panel = el('section', {id: 'panel-' + tab.id, role: 'tabpanel', hidden: true, aria: {labelledby: 'tab-' + tab.id}});
-        list.append(control);
-        main.append(panel);
-        state.tabs.set(tab.id, {tab, panel, control, built: false});
+/** Takes the line away when it is the one named, or whichever it is when no id is given. */
+function unsay(id) {
+    if (state.notice && (id === null || state.notice.id === id)) {
+        state.notice.row.remove();
+        state.notice = null;
     }
-    list.addEventListener('keydown', event => {
-        const ids = TABS.map(tab => tab.id);
-        const at = ids.indexOf(state.active);
+}
+
+/** Says a change of where the tool is pointed to assistive technology, once, after the first drawing. */
+function announce(text) {
+    if (state.announced === undefined) {
+        state.announced = text;
+        return;
+    }
+    if (text !== state.announced) {
+        state.announced = text;
+        document.getElementById('frame-news').textContent = text;
+    }
+}
+
+/* ---------- tabs and addresses ---------- */
+
+function wireTabs() {
+    const nav = document.getElementById('tabs');
+    nav.addEventListener('keydown', event => {
+        const links = Array.from(nav.querySelectorAll('.tabs__tab'));
+        const at = links.indexOf(document.activeElement);
+        if (at < 0) {
+            return;
+        }
         let next = null;
         if (event.key === 'ArrowRight') {
-            next = ids[(at + 1) % ids.length];
+            next = links[(at + 1) % links.length];
         } else if (event.key === 'ArrowLeft') {
-            next = ids[(at + ids.length - 1) % ids.length];
+            next = links[(at + links.length - 1) % links.length];
         } else if (event.key === 'Home') {
-            next = ids[0];
+            next = links[0];
         } else if (event.key === 'End') {
-            next = ids[ids.length - 1];
+            next = links[links.length - 1];
         }
         if (next) {
             event.preventDefault();
-            showTab(next);
-            state.tabs.get(next).control.focus();
+            next.focus();
+            show([next.dataset.tab], true);
         }
     });
 }
 
-function tabFromAddress() {
-    const hash = window.location.hash.replace(/^#/, '');
-    try {
-        return hash.length > 0 ? decodeURIComponent(hash) : null;
-    } catch (malformed) {
-        // An address typed or pasted wrongly is not an error to report. The first tab is shown.
-        return null;
+/** The parts of an address after '#', each decoded. A part that cannot be decoded is kept as written. */
+function routeOf(hash) {
+    let text = String(hash || '');
+    if (text.startsWith('#')) {
+        text = text.slice(1);
     }
+    const parts = [];
+    for (const part of text.split('/')) {
+        if (part !== '') {
+            try {
+                parts.push(decodeURIComponent(part));
+            } catch (malformed) {
+                parts.push(part);
+            }
+        }
+    }
+    return parts;
 }
 
-function addressOf(tabId) {
-    const entry = state.tabs.get(tabId);
-    const view = entry && entry.tab.address ? entry.tab.address() : null;
-    return view ? tabId + '/' + view : tabId;
+/** The address of a view as this page writes it, or null for a tab it does not have. Addresses of the earlier screens lead to their new places. */
+function canonical(parts) {
+    const [tab, ...rest] = parts;
+    if (tab === 'workbench' || tab === 'audit' || tab === 'configuration') {
+        return parts;
+    }
+    if (tab === 'history') {
+        if (rest[0] === 'runs' && rest[1]) {
+            return ['audit', 'runs', rest[1]];
+        }
+        if (rest[0] === 'chains' && rest[1]) {
+            return ['audit', 'journeys', rest[1]];
+        }
+        return ['audit'];
+    }
+    if (tab === 'config') {
+        return ['configuration'];
+    }
+    if (tab === 'crd' || tab === 'dtr' || tab === 'pas') {
+        return ['workbench'];
+    }
+    return null;
+}
+
+function addressOf(route) {
+    return '#' + route.map(part => encodeURIComponent(part)).join('/');
 }
 
 function rememberedTab() {
@@ -585,51 +618,76 @@ function rememberedTab() {
     }
 }
 
-function rememberTab(tabId) {
+function rememberTab(tab) {
     try {
-        window.localStorage.setItem(TAB_KEY, tabId);
+        window.localStorage.setItem(TAB_KEY, tab);
     } catch (storageOff) {
         // Storage can be switched off in the browser. Remembering the tab is a convenience only.
     }
 }
 
-/** Shows a tab. target is a tab id, optionally followed by a slash and a view inside the tab. */
-function showTab(target, options) {
-    const [tabId, ...rest] = String(target).split('/');
-    const entry = state.tabs.get(tabId);
-    if (!entry) {
-        return;
-    }
-    for (const other of state.tabs.values()) {
-        const selected = other === entry;
-        other.control.setAttribute('aria-selected', selected ? 'true' : 'false');
-        other.control.tabIndex = selected ? 0 : -1;
-        other.panel.hidden = !selected;
-    }
-    state.active = tabId;
-    if (!entry.built) {
-        entry.tab.mount(entry.panel, app);
-        entry.built = true;
-    }
-    if (entry.tab.onShow) {
-        entry.tab.onShow(rest.join('/') || null);
-    }
-    app.chain.showFor(tabId);
-    rememberTab(tabId);
-    const address = '#' + addressOf(tabId);
+/** Shows the view of a route; push makes it a new step of the browser's history, otherwise the address is replaced. */
+async function show(parts, push) {
+    const route = canonical(parts) || canonical([rememberedTab() || '']) || ['workbench'];
+    const address = addressOf(route);
     if (window.location.hash !== address) {
-        if (options && (options.replace || options.fromAddress)) {
-            window.history.replaceState(null, '', address);
-        } else {
+        if (push) {
             window.history.pushState(null, '', address);
+        } else {
+            window.history.replaceState(null, '', address);
         }
     }
+    const [tab, ...rest] = route;
+    for (const link of document.querySelectorAll('#tabs .tabs__tab')) {
+        if (link.dataset.tab === tab) {
+            link.setAttribute('aria-current', 'page');
+        } else {
+            link.removeAttribute('aria-current');
+        }
+    }
+    rememberTab(tab);
+    if (state.view && state.view.tab === tab) {
+        state.view.route = rest;
+        if (state.view.handle && typeof state.view.handle.update === 'function') {
+            guarded(() => state.view.handle.update(rest));
+        }
+        return;
+    }
+    if (state.view && state.view.handle && typeof state.view.handle.unmount === 'function') {
+        const leaving = state.view.handle;
+        guarded(() => leaving.unmount());
+    }
+    state.showing += 1;
+    const showing = state.showing;
+    const entry = TABS.find(each => each.id === tab);
+    const root = el('section', {class: 'view view--' + tab, 'aria-label': entry.label});
+    fill(document.getElementById('main'), root);
+    state.view = {tab, root, handle: null, route: rest};
+    let module;
+    try {
+        module = await entry.load();
+    } catch (failed) {
+        if (showing === state.showing) {
+            root.append(el('div', {class: 'page'}, el('p', {class: 'stub-line'}, PAGE_FAULT_LINE)));
+            say(PAGE_FAULT_LINE, 'fault', 'page');
+        }
+        return;
+    }
+    if (showing !== state.showing) {
+        return;
+    }
+    guarded(() => {
+        const handle = module.mount(root, state.view.route);
+        state.view.handle = handle && typeof handle === 'object' ? handle : null;
+    });
 }
 
-function navigate(target) {
-    showTab(target);
-    document.getElementById('main').focus({preventScroll: true});
-    window.scrollTo(0, 0);
+function guarded(work) {
+    try {
+        work();
+    } catch (defect) {
+        say(PAGE_FAULT_LINE, 'fault', 'page');
+    }
 }
 
 start();

@@ -11,42 +11,46 @@
 <title>PAVE</title>
 <link rel="icon" type="image/svg+xml" href="img/pave.svg">
 <link rel="stylesheet" href="css/pave.css">
-<link rel="stylesheet" href="css/case.css">
+<link rel="stylesheet" href="css/workbench.css">
+<link rel="stylesheet" href="css/audit.css">
 <link rel="stylesheet" href="css/config.css">
-<link rel="stylesheet" href="css/history.css">
-<link rel="stylesheet" href="css/pas.css">
-<link rel="stylesheet" href="css/dtr.css">
-<link rel="stylesheet" href="css/crd-compare.css">
 <script type="module" src="js/app.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to the working area</a>
 
-<header class="masthead">
-  <p class="masthead__identity">
-    <span class="masthead__name" id="tool-name">PAVE</span>
-    <span class="masthead__version" id="tool-version"></span>
-  </p>
-  <div class="masthead__strip" id="environment-strip" role="group" aria-label="Where this tool is pointed"></div>
-  <p class="visually-hidden" id="strip-news" role="status" aria-live="polite"></p>
+<header class="topbar" id="topbar">
+  <a class="topbar__brand" href="#workbench">Point32Health<span class="topbar__product" id="tool-name">PAVE</span></a>
+  <nav class="tabs" id="tabs" aria-label="Sections of the tool">
+    <a class="tabs__tab" href="#workbench" data-tab="workbench">Workbench</a>
+    <a class="tabs__tab" href="#audit" data-tab="audit">Audit<span class="tabs__count" id="audit-count" hidden></span></a>
+    <a class="tabs__tab" href="#configuration" data-tab="configuration">Configuration</a>
+  </nav>
+  <div class="topbar__end">
+    <div class="topbar__env">
+      <label for="environment">Environment</label>
+      <select class="select" id="environment" disabled></select>
+      <span class="badge" id="kind" title="Kind of environment, as stated when it was stored" hidden></span>
+    </div>
+    <span class="badge" id="profile" hidden></span>
+    <span id="sign-in" hidden></span>
+    <span class="topbar__stamp mono" id="stamp" hidden></span>
+  </div>
 </header>
 
-<div id="banners" aria-live="polite"></div>
-
-<div class="tab-row">
-  <div class="tabs" id="tabs" role="tablist" aria-label="Sections of the tool"></div>
-  <button type="button" class="button button--quiet button--small" id="legend-open" aria-haspopup="dialog">Colour key</button>
+<div class="lines">
+  <div id="line-environment"></div>
+  <div class="lines__boxed">
+    <div id="line-ledger" aria-live="polite"></div>
+    <div id="line-notice" role="status" aria-live="polite"></div>
+  </div>
 </div>
+<p class="visually-hidden" id="frame-news" role="status" aria-live="polite"></p>
 
-<div id="notices" role="status" aria-live="polite"></div>
-<div id="chain-bar" aria-live="polite" hidden></div>
-
-<main id="main" tabindex="-1">
+<main id="main" class="main" tabindex="-1">
   <noscript>
-    <p class="plain-statement">PAVE needs JavaScript to run. Its scripts are loaded from this tool only, never from another site.</p>
+    <p class="stub-line">PAVE needs JavaScript to run. Its scripts are loaded from this tool only, never from another site.</p>
   </noscript>
 </main>
-
-<dialog id="legend" class="legend" aria-labelledby="legend-title"></dialog>
 </body>
 </html>
