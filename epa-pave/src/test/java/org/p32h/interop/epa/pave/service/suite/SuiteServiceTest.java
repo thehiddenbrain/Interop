@@ -238,7 +238,7 @@ class SuiteServiceTest {
         assertThat(refused.status()).isEqualTo(CaseStatus.INVALID);
         assertThat(refused.reason()).isEqualTo("caseId: The case id holds the member's last name. The ledger keeps it as written and may "
                 + "not hold member data, so leave it out. Nothing was sent.");
-        assertThat(refused.caseId()).isEqualTo("case-2");
+        assertThat(refused.caseId()).isEqualTo("case-2 [id not shown]");
         assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-1");
         assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
     }
@@ -254,11 +254,25 @@ class SuiteServiceTest {
         SuiteRunView run = bed.service().start("cases.csv", suite(row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"),
                 row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"), row("TC-3", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
         assertThat(run.headline()).isEqualTo("Finished: 3 cases. 1 passed, 2 not valid.");
-        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1", "case-2", "TC-3");
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1 [id not shown]", "case-2 [id not shown]", "TC-3");
         assertThat(run.results().get(1).reason()).isEqualTo("This case id is already used by case 1 of the file. Each case needs its own "
                 + "id, because results are matched to cases by it.");
         assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-3");
         assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
+    }
+
+    /**
+     * A row refused for a case id holding member data is named by its position in a name no case id
+     * can have, so a case of the tester's own named after a position is never shown, or compared, as
+     * the same case.
+     */
+    @Test
+    void theNameOfARowWhoseCaseIdWasRefusedCannotBeTheIdOfAnotherCase() {
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"),
+                row("case-1", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1 [id not shown]", "case-1");
+        assertThat(run.results()).extracting(SuiteCaseResult::status).containsExactly(CaseStatus.INVALID, CaseStatus.COMPLETED);
+        assertThat(SuiteResultsCsv.of(run)).contains(",case-1 [id not shown],").doesNotContain("Surname");
     }
 
     /**
@@ -277,7 +291,7 @@ class SuiteServiceTest {
         assertThat(preview.headline()).isEqualTo("3 cases: 1 can be run, 1 cannot be run in this build and will be reported as not "
                 + "runnable, and 1 has a problem and will be reported as not valid.");
         SuiteRunView run = bed.service().start("cases.csv", file, null, null, null);
-        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1", "plain-sub", "TC-3");
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1 [id not shown]", "plain-sub", "TC-3");
         assertThat(run.results()).extracting(SuiteCaseResult::status).containsExactly(CaseStatus.INVALID, CaseStatus.NOT_RUNNABLE,
                 CaseStatus.COMPLETED);
         assertThat(run.results().get(0).reason()).startsWith("Subscription create works on a subscription this tool holds")

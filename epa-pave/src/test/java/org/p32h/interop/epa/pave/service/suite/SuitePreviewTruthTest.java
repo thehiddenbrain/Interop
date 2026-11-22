@@ -93,7 +93,7 @@ class SuitePreviewTruthTest {
         assertThat(rows.get(2).problems()).hasSize(2).anySatisfy(p -> assertThat(p).startsWith("The NPI is not valid"))
                 .contains("caseId: The case id holds the member's last name. The ledger keeps it as written and may not hold member data, "
                         + "so leave it out. Nothing was sent.");
-        assertThat(rows.get(2).caseId()).isEqualTo("case-3");
+        assertThat(rows.get(2).caseId()).isEqualTo("case-3 [id not shown]");
         assertThat(rows.get(3).problems()).containsExactly("expected: The expectation holds the member's first name. The ledger keeps it "
                 + "as written and may not hold member data, so leave it out. Nothing was sent.");
         assertThat(rows).allSatisfy(row -> assertThat(row.spec()).isNull());

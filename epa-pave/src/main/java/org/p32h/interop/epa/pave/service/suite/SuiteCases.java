@@ -311,8 +311,8 @@ public final class SuiteCases {
         }
         if (problems.stream().anyMatch(MemberInText::refusesCaseId)) {
             // A case id that holds member data is not repeated on screen or in the results, which a
-            // tester downloads: the row is named by its position, as for a case id that cannot be read.
-            caseId = "case-" + source.number();
+            // tester downloads: the row is named by its position, in a name no case id of the file can have.
+            caseId = withheldCaseId(source.number());
         }
         // The service's own check, made once the member is looked up, can refuse the expectation for
         // a name or a date of birth, and says so in the words MemberInText gives it.
@@ -324,6 +324,15 @@ public final class SuiteCases {
         }
         return new SuiteRow(source.number(), caseId, target.what(), target.chain(), target.write(), shownExpected,
                 problems.isEmpty() ? spec : null, problems, problems.isEmpty() ? cannotRun : null);
+    }
+
+    /**
+     * The name a row is shown by when its case id was refused for holding member data. It holds
+     * square brackets, which a case id may not ({@link #CASE_ID}), so it can never be the id of
+     * another row of the file, or of a case of an earlier run that results are compared with.
+     */
+    public static String withheldCaseId(int number) {
+        return "case-" + number + " [id not shown]";
     }
 
     /**
