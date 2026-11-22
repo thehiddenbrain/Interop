@@ -247,18 +247,35 @@ a:hover {
     font: 500 var(--text-lg)/1 var(--font-display);
 }
 
+/* The end of the bar gives way before the bar grows wider than the window: the environment's
+   chooser shrinks and cuts the name, which its title and its options hold whole. The brand, the
+   tabs, the badges and the sign-in chip keep their size, so their few words are never cut. */
+.topbar__brand,
+.tabs {
+    flex: none;
+}
+
 .topbar__end {
     display: flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: var(--s-3);
+    min-width: 0;
     margin-left: auto;
     white-space: nowrap;
 }
 
+.topbar__signin {
+    display: flex;
+    flex: none;
+}
+
 .topbar__env {
     display: flex;
+    flex: 0 1 auto;
     align-items: center;
     gap: var(--s-2);
+    min-width: 0;
 }
 
 .topbar__env label {
@@ -267,7 +284,9 @@ a:hover {
 }
 
 .topbar__env .select {
+    flex: 0 1 200px;
     width: 200px;
+    min-width: 96px;
 }
 
 .topbar__stamp {
@@ -2014,6 +2033,7 @@ a:hover {
     }
 
     .topbar__env .select {
+        flex-basis: 176px;
         width: 176px;
     }
 
@@ -2107,6 +2127,7 @@ a:hover {
     }
 
     .topbar__env .select {
+        flex-basis: 160px;
         width: 160px;
     }
 
