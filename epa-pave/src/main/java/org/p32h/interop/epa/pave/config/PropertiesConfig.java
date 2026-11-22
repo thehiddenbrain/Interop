@@ -8,7 +8,8 @@ import org.springframework.context.annotation.Configuration;
 /** Registers every configuration properties record and the clock the rest of the tool reads time from. */
 @Configuration
 @EnableConfigurationProperties({EpaProperties.class, ConfigStoreProperties.class, TrackingProperties.class,
-        CodelistProperties.class, AppProperties.class, OnyxProperties.class, LookupProperties.class})
+        CodelistProperties.class, AppProperties.class, OnyxProperties.class, LookupProperties.class,
+        TestListProperties.class})
 public class PropertiesConfig {
 
     /** One clock for the whole tool, so tests can fix the time and the ledger's day boundary is testable. */
