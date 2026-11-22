@@ -167,15 +167,17 @@ function notText(bytes, name, words) {
 }
 
 /**
- * Whether what could not be read is a folder given in place of a file (I-25): the browser gives a
- * folder no type and a size of 0 or a whole number of 4096-byte blocks, and refuses to read it as
- * not found or not readable. Anything else keeps the line for a file that changed.
+ * Whether what could not be read is a folder given in place of a file (I-25): the browser refuses
+ * to read a folder as not found or not readable, and gives it a size of 0 or a whole number of
+ * 4096-byte blocks. Its type comes from its name (a folder named a-folder.json is given
+ * application/json, AU-4), so a type says nothing; only a size of 0 with a type is taken for a
+ * file that went. Anything else keeps the line for a file that changed.
  */
 function looksLikeFolder(file, failure) {
     const name = failure && typeof failure.name === 'string' ? failure.name : '';
     const size = Number(file.size);
-    return (name === 'NotFoundError' || name === 'NotReadableError') && file.type === ''
-        && Number.isFinite(size) && size % 4096 === 0;
+    return (name === 'NotFoundError' || name === 'NotReadableError')
+        && Number.isFinite(size) && size % 4096 === 0 && (size > 0 || file.type === '');
 }
 
 function refuse(input, line) {

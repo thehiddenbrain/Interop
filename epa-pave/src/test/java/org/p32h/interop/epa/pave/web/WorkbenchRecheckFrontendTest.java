@@ -82,4 +82,11 @@ class WorkbenchRecheckFrontendTest {
                 "[true,false,false,\"Not asked until q-1 is Yes.\",[[\"q-2\",[\"2\"]]]]",
                 "[true,true]");
     }
+
+    @Test
+    void aResponseTableWrapsItsCellsInsideTheFold() throws Exception {
+        // Layout is not run here; the rule that lets a cell wrap is what a browser needs to fit it (critic-2).
+        String css = StaticSources.withoutComments(StaticSources.read("css/workbench.css"));
+        assertThat(StaticSources.body(css, ".detail .table td {")).contains("white-space: normal;", "overflow-wrap: anywhere;");
+    }
 }
