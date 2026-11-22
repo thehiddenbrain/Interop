@@ -122,7 +122,10 @@ class MemberLookupServiceTest {
         assertThat(client.asked).hasSize(2);
         // And nowhere to keep one. The service holds the client, and the gateway it reads the environment's rule from.
         Field[] fields = MemberLookupService.class.getDeclaredFields();
-        assertThat(fields).extracting(Field::getType).containsExactly(MemberLookupClient.class, ObjectProvider.class);
+        // A typed list, not extracting(Field::getType): the Eclipse compiler in STS cannot infer the
+        // wildcard capture of that form and reports an error javac does not (STS-3).
+        List<Class<?>> types = Arrays.stream(fields).<Class<?>>map(Field::getType).toList();
+        assertThat(types).containsExactly(MemberLookupClient.class, ObjectProvider.class);
         assertThat(fields).allSatisfy(field -> {
             assertThat(Modifier.isFinal(field.getModifiers())).isTrue();
             assertThat(Modifier.isStatic(field.getModifiers())).isFalse();
