@@ -55,6 +55,7 @@ import org.p32h.interop.epa.pave.service.config.ConfigViews.TokenRow;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.VariableRow;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.VariableView;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
+import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.springframework.stereotype.Component;
 
@@ -98,9 +99,16 @@ public class ConfigService {
     // ------------------------------------------------------------------------------------------
 
     public EnvironmentUploaded uploadEnvironment(String fileName, byte[] content, EnvironmentKind kind, boolean acknowledgeNotProd) {
+        if (kind == null) {
+            throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
+        }
+        // The file is read inside its own guard (R-07); the checks that follow, the production
+        // guardrail above all, run outside it and keep their own answers.
+        org.p32h.interop.epa.pave.postman.PostmanEnvironment parsed = guardedRead(fileName,
+                () -> org.p32h.interop.epa.pave.postman.PostmanParser.environment(org.p32h.interop.epa.pave.postman.PostmanParser.decode(content)));
         // The view is built inside the upload, before the commit, so a view that could not be built stores nothing.
-        ConfigStore.Described<ConfigStore.EnvironmentUpload, EnvironmentView> described = store.uploadEnvironment(fileName, content, kind,
-                acknowledgeNotProd, this::environmentView);
+        ConfigStore.Described<ConfigStore.EnvironmentUpload, EnvironmentView> described = store.uploadEnvironment(fileName, content, parsed,
+                kind, acknowledgeNotProd, this::environmentView);
         ConfigStore.EnvironmentUpload upload = described.upload();
         return new EnvironmentUploaded(described.view(), upload.replaced(), upload.warnings(), upload.epoch());
     }
@@ -115,7 +123,7 @@ public class ConfigService {
     /** @param unlock the session's unlock. A switch drops it, and the answer says whether a write would be sent now */
     public Activated activate(String nameOrId, ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.activate(nameOrId);
-        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), AddressChecks.of(snapshot.active(), snapshot));
+        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), addressChecks(snapshot.active(), snapshot));
     }
 
     public Removed removeEnvironment(String nameOrId) {
@@ -137,7 +145,31 @@ public class ConfigService {
         environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         return new EnvironmentView(environment.id(), environment.name(), environment.kind(), environment.name().equals(snapshot.activeName()),
                 environment.uploadedAt(), environment.originalFileName(), store.directory().resolve(environment.file()).toString(),
-                environment.acknowledgedNotProd(), environment.productionSigns(), variables, AddressChecks.of(environment, snapshot));
+                environment.acknowledgedNotProd(), environment.productionSigns(), variables, addressChecks(environment, snapshot));
+    }
+
+    /** The address checks of one snapshot, by environment name. */
+    private record AddressCache(ConfigSnapshot snapshot, Map<String, List<String>> byName) {
+    }
+
+    private volatile AddressCache addressCache;
+
+    /**
+     * The address checks of an environment, worked out once per snapshot (hunt-files 12): every
+     * refresh of the environment list read every address of every environment through the
+     * production rules again, which took close to a minute with large environments stored. A
+     * snapshot never changes, so what was worked out for it stays true until the next epoch.
+     */
+    private List<String> addressChecks(StoredEnvironment environment, ConfigSnapshot snapshot) {
+        if (environment == null) {
+            return List.of();
+        }
+        AddressCache cache = addressCache;
+        if (cache == null || cache.snapshot() != snapshot) {
+            cache = new AddressCache(snapshot, new java.util.concurrent.ConcurrentHashMap<>());
+            addressCache = cache;
+        }
+        return cache.byName().computeIfAbsent(environment.name(), name -> List.copyOf(AddressChecks.of(environment, snapshot)));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -190,6 +222,31 @@ public class ConfigService {
         warnings.addAll(SettingsInput.plainSecretWarnings(input, saved.environment().name(), store.directory()));
         return new SettingsViews.SettingsSaved(environmentView(saved.environment(), saved.after()), described.view(), warnings,
                 saved.epoch());
+    }
+
+    /**
+     * Reads one uploaded file inside its own guard (R-07). A refusal of the file is thrown as it
+     * was, so its answer keeps its status and its action; any other failure of reading it answers
+     * the guard's line with the reference it is logged under and the cause by types.
+     */
+    private static <T> T guardedRead(String fileName, java.util.function.Supplier<T> reader) {
+        RuntimeException[] refused = new RuntimeException[1];
+        org.p32h.interop.epa.pave.service.error.FileGuard.Read<T> read = org.p32h.interop.epa.pave.service.error.FileGuard.read(fileName, () -> {
+            try {
+                return reader.get();
+            } catch (BadInputException | ValidationException e) {
+                refused[0] = e;
+                return null;
+            }
+        });
+        if (refused[0] != null) {
+            throw refused[0];
+        }
+        if (!read.ok()) {
+            throw new BadInputException(read.line(), read.reference() == null ? "Nothing was stored."
+                    : "Nothing was stored. Reference " + read.reference() + (read.cause() == null ? "" : ", cause " + read.cause()) + ".");
+        }
+        return read.value();
     }
 
     /** One export of a save, read inside its own guard; a refusal or a failure becomes a field error at its slot. */
@@ -336,8 +393,10 @@ public class ConfigService {
     // ------------------------------------------------------------------------------------------
 
     public CollectionUploaded uploadCollection(String fileName, byte[] content) {
+        org.p32h.interop.epa.pave.postman.PostmanCollection parsed = guardedRead(fileName,
+                () -> org.p32h.interop.epa.pave.postman.PostmanParser.collection(org.p32h.interop.epa.pave.postman.PostmanParser.decode(content)));
         // The view is built inside the upload, before the commit, so a view that could not be built stores nothing.
-        ConfigStore.Described<ConfigStore.CollectionUpload, CollectionView> described = store.uploadCollection(fileName, content,
+        ConfigStore.Described<ConfigStore.CollectionUpload, CollectionView> described = store.uploadCollection(fileName, content, parsed,
                 this::collectionView);
         ConfigStore.CollectionUpload upload = described.upload();
         return new CollectionUploaded(described.view(), upload.replaced(), upload.warnings(), upload.epoch());
@@ -506,7 +565,11 @@ public class ConfigService {
     public Effective effective(ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.snapshot();
         // Worked out once: every row and the checklist above the rows read the same names.
-        boolean signInOff = !epa.mock() && !onyx.auth().enabled();
+        // The environment's own sign-in decides when it states a method: an environment that signs
+        // in is never said to send without sign-in, and one whose sign-in is None is.
+        SignInSettings stated = snapshot.active() == null ? null : snapshot.active().settings().signIn();
+        boolean signsIn = stated == null ? onyx.auth().enabled() : stated.method() != SignInSettings.Method.NONE;
+        boolean signInOff = !epa.mock() && !signsIn;
         List<String> signInNames = signInOff ? environmentSignInVariables(snapshot) : List.of();
         List<OperationRow> rows = new ArrayList<>();
         for (EpaOperation operation : EpaOperation.values()) {
@@ -514,7 +577,35 @@ public class ConfigService {
         }
         return new Effective(epa.mode(), snapshot.activeRef(), snapshot.epoch(), store.problems(), store.allowProdWrites(),
                 gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot),
-                readiness(snapshot, rows, signInNames));
+                readiness(snapshot, rows, signInNames),
+                store.unreadable().stream().map(each -> new ConfigViews.UnreadableView(each.file(), each.line())).toList());
+    }
+
+    /** "Forget this production address" (R-35): only for an address whose environment is no longer stored as prod, named exactly. */
+    public ConfigViews.Forgotten forgetDestination(String destination, String environment) {
+        List<org.p32h.interop.epa.pave.model.FieldError> errors = new ArrayList<>();
+        if (Texts.blank(destination)) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError("destination", "Name the address to forget, as the list of addresses "
+                    + "remembered as production gives it."));
+        }
+        if (Texts.blank(environment)) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError("environment", "Type the name of the environment the address was "
+                    + "remembered from, exactly as it was written."));
+        }
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
+        ConfigStore.Forgotten forgotten = store.forgetDestination(destination, environment);
+        return new ConfigViews.Forgotten(forgotten.forgotten(), forgotten.epoch());
+    }
+
+    /** "Remove it from the store": the unreadable file moves aside into the store's unreadable folder and leaves store.json. */
+    public ConfigViews.UnreadableRemoved removeUnreadable(String file) {
+        if (Texts.blank(file)) {
+            throw ValidationException.of("file", "Name the stored file to remove, as the list of unreadable files gives it.");
+        }
+        ConfigStore.UnreadableRemoved removed = store.removeUnreadable(file);
+        return new ConfigViews.UnreadableRemoved(removed.removed(), removed.movedTo(), removed.epoch());
     }
 
     /** The names a variable is matched against, lower case with underscores, hyphens and dots taken out. */
@@ -550,8 +641,14 @@ public class ConfigService {
 
     private ConfigViews.SignIn signIn(ConfigSnapshot snapshot, List<OperationRow> rows, List<String> signInNames) {
         OnyxProperties.Auth auth = onyx.auth();
-        if (auth.enabled()) {
-            return new ConfigViews.SignIn(true, List.of(), List.of(), 0, signInProblem(auth), null);
+        StoredEnvironment active = snapshot.active();
+        SignInSettings stated = active == null ? null : active.settings().signIn();
+        if (stated != null && stated.method() != SignInSettings.Method.NONE) {
+            return new ConfigViews.SignIn(true, List.of(), List.of(), 0, environmentSignInProblem(active, stated), null,
+                    Timeouts.FROM_ENVIRONMENT, stated.method().name());
+        }
+        if (stated == null && auth.enabled()) {
+            return new ConfigViews.SignIn(true, List.of(), List.of(), 0, signInProblem(auth), null, Timeouts.FROM_APPLICATION, null);
         }
         Set<String> helpers = new LinkedHashSet<>();
         int withHelper = 0;
@@ -565,7 +662,37 @@ public class ConfigService {
                 withHelper++;
             }
         }
-        return new ConfigViews.SignIn(false, signInNames, List.copyOf(helpers), withHelper, null, howToSwitchOn(signInNames));
+        if (stated != null) {
+            // The environment states None: its own form is where that changes, not the start-up arguments.
+            return new ConfigViews.SignIn(false, signInNames, List.copyOf(helpers), withHelper, null, null, Timeouts.FROM_ENVIRONMENT,
+                    stated.method().name());
+        }
+        return new ConfigViews.SignIn(false, signInNames, List.copyOf(helpers), withHelper, null, howToSwitchOn(signInNames),
+                Timeouts.FROM_APPLICATION, null);
+    }
+
+    /**
+     * The first setting of the environment's own sign-in that has no value, and why, or null when
+     * every one it needs resolves. Names only, never a value.
+     */
+    private String environmentSignInProblem(StoredEnvironment active, SignInSettings stated) {
+        String[][] settings = stated.method() == SignInSettings.Method.BEARER_TOKEN
+                ? new String[][] {{"The bearer token", stated.bearerToken()}}
+                : new String[][] {{"The token url", stated.tokenUrl()}, {"The client id", stated.clientId()},
+                        {"The client secret", stated.clientSecret()}};
+        for (String[] setting : settings) {
+            String where = setting[0] + " of the sign-in of \"" + Names.shown(active.name()) + "\"";
+            if (Texts.blank(setting[1])) {
+                return where + " has no value: it is not set. Set it in Configuration > Environments.";
+            }
+            Resolution resolution = gateway.resolutionUnder(active, setting[1]);
+            if (!resolution.text().resolved() || Texts.blank(resolution.text().value())) {
+                String reason = resolution.text().unresolved().stream().map(name -> resolution.explanations().get(name))
+                        .filter(Texts::present).findFirst().orElse("it resolves to nothing.");
+                return where + " has no value: " + reason;
+            }
+        }
+        return null;
     }
 
     /** The first onyx.auth setting that does not resolve, with the reason the resolver gives, or null when all do. */
@@ -671,14 +798,14 @@ public class ConfigService {
         for (ConfigSnapshot.KnownDestination known : snapshot.remembered()) {
             StoredEnvironment stored = snapshot.byName(known.environment());
             // A destination whose host or port is built from a secret is listed without it.
-            String destination = known.secret() ? "an address whose host is built from a secret of the environment, not shown"
-                    : known.destination().everyPortAndPath() ? "every port and every path of the host " + known.destination().host()
-                    + ", because an address of this environment could not be read the way the HTTP client reads it"
-                    : known.destination().shown();
+            String destination = known.listed();
+            boolean storedAsProd = stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD;
             // The environment's name is held to the rule of a sentence: each address repeats it, and the
             // answer gives the name of a stored environment whole once already, as its label.
-            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination,
-                    stored != null && stored.kind() == org.p32h.interop.epa.pave.model.EnvironmentKind.PROD));
+            // Forget is offered only where no stored prod environment holds the address and the
+            // address can be named back: one built from a secret is never written down to forget.
+            views.add(new ConfigViews.ProductionDestinationView(Names.shown(known.environment()), destination, storedAsProd,
+                    !storedAsProd && !known.secret()));
         }
         return views;
     }

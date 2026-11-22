@@ -1,4 +1,120 @@
 /*
- * Audit's own classes, prefixed .audit-, beside the shared components of pave.css. Empty until
- * Audit is built (batch B of the plan).
+ * Audit's own classes, prefixed .audit-, beside the shared components of pave.css: the run id
+ * box, the filters' fold and foot, the list's foot, the replay report and the note editor.
  */
+
+.audit-ledger {
+    margin-bottom: var(--s-3);
+}
+
+.audit-open {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.audit-open .field {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.audit-open .field__label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.audit-open .input {
+    width: 220px;
+    height: 32px;
+}
+
+.audit-open__said:not(:empty) {
+    margin-bottom: var(--s-3);
+}
+
+.audit-filters {
+    margin-bottom: var(--s-3);
+}
+
+.audit-filters .fold {
+    margin-top: var(--s-2);
+}
+
+.audit-filters__more {
+    flex-wrap: wrap;
+}
+
+.audit-filters__clear {
+    flex: 0 0 auto;
+    padding-bottom: 2px;
+}
+
+.audit-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    align-self: center;
+    white-space: nowrap;
+}
+
+.audit-when {
+    white-space: nowrap;
+}
+
+.audit-empty {
+    padding: var(--s-4);
+    color: var(--ink-soft);
+}
+
+.audit-list__foot {
+    margin-top: var(--s-2);
+}
+
+.audit-replay-slot:not(:empty) {
+    margin-bottom: var(--s-3);
+}
+
+.audit-replay__group,
+.audit-replay .fold {
+    margin-top: var(--s-3);
+}
+
+.audit-replay__one {
+    display: grid;
+    gap: var(--s-1);
+}
+
+.audit-replay__line {
+    font-weight: 600;
+}
+
+.audit-replay__line.muted {
+    font-weight: 400;
+}
+
+.audit-run__replay:not(:empty) {
+    margin-top: var(--s-3);
+}
+
+.audit-confirm {
+    display: grid;
+    gap: var(--s-2);
+    max-width: 60ch;
+}
+
+.audit-run__note {
+    margin-top: var(--s-4);
+}
+
+.audit-note__said:not(:empty) {
+    margin-top: var(--s-2);
+}
+
+.audit-note .form-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.audit-note__missing {
+    font-weight: 600;
+}

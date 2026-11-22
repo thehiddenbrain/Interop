@@ -42,7 +42,7 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
         Map<String, List<ProductionDestinations.Found>> production = new java.util.LinkedHashMap<>();
         for (StoredEnvironment environment : environments) {
             if (environment.kind() == EnvironmentKind.PROD) {
-                production.put(environment.name(), ProductionDestinations.production(environment.content(), context));
+                production.put(environment.name(), ProductionDestinations.production(environment.scanned(), context));
             }
         }
         // An address the environment leaves to a collection or application.yml is shared by every
@@ -93,6 +93,21 @@ record ConfigSnapshot(long epoch, List<StoredEnvironment> environments, String a
 
         KnownDestination(String environment, UrlNormal.Destination destination) {
             this(environment, destination, false);
+        }
+
+        /**
+         * The destination as the list of production addresses shows it, and as Forget is given it
+         * back: an address built from a secret is not shown, and a whole host says why it is one.
+         */
+        String listed() {
+            if (secret) {
+                return "an address whose host is built from a secret of the environment, not shown";
+            }
+            if (destination.everyPortAndPath()) {
+                return "every port and every path of the host " + destination.host()
+                        + ", because an address of this environment could not be read the way the HTTP client reads it";
+            }
+            return destination.shown();
         }
 
         /** Prints the environment only: the destination can be one built from a secret. */

@@ -5,16 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
-import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * An environment uploaded as prod by a slip of the mouse, and removed, leaves its addresses
@@ -41,20 +36,6 @@ class ProductionSlipTest {
         fixture.store.uploadEnvironment(name + ".json", environment(name, baseUrl), kind, true);
     }
 
-    /** What the refusal's way out asks the tester to do with PAVE stopped: take out the entries remembered from that environment. */
-    private void forget(String environment) throws IOException {
-        Path state = directory.resolve(ConfigStore.STATE_FILE);
-        ObjectNode root = (ObjectNode) JsonSafe.mapper().readTree(Files.readString(state));
-        ArrayNode kept = JsonSafe.mapper().createArrayNode();
-        for (JsonNode entry : JsonSafe.elements(root, "productionDestinations")) {
-            if (!environment.equals(JsonSafe.presentText(entry, "environment"))) {
-                kept.add(entry);
-            }
-        }
-        root.set("productionDestinations", kept);
-        Files.writeString(state, JsonSafe.pretty(root));
-    }
-
     @Test
     void aSlipToProdThatWasRemovedIsNamedAsSuchAndTheWayOutItGivesWorks() throws IOException {
         ConfigFixture fixture = ConfigFixture.mock(directory);
@@ -71,8 +52,7 @@ class ProductionSlipTest {
                 assertThat(e.fieldErrors()).singleElement().satisfies(note -> {
                     assertThat(note.field()).isEqualTo("kind");
                     assertThat(note.message()).isEqualTo("\"" + SLIPPED + "\" is no longer stored. If it was uploaded as prod by mistake, "
-                            + "stop PAVE, delete the entries whose environment is \"" + SLIPPED + "\" from productionDestinations in "
-                            + directory.resolve(ConfigStore.STATE_FILE) + ", start PAVE again and upload this environment again. "
+                            + "forget the address in Configuration > Production writes and upload this environment again. "
                             + "An address that this installation knows as production stays production, even after its environment is "
                             + "deleted. If this environment is production, upload it with the kind prod. If it is not, point its "
                             + "variables at the " + kind.wire() + " service and upload it again.");
@@ -81,10 +61,11 @@ class ProductionSlipTest {
         }
         assertThat(restarted.store.snapshot().environments()).isEmpty();
 
-        // The way out, followed as written: PAVE stopped, the entries taken out, PAVE started again.
-        forget(SLIPPED);
+        // The way out, followed as written, with PAVE running: Forget, confirmed by the environment's name (R-35).
+        String listed = restarted.service.environments().productionDestinations().get(0).destination();
+        restarted.service.forgetDestination(listed, SLIPPED);
+        upload(restarted, SLIPPED, ADDRESS, EnvironmentKind.SANDBOX);
         ConfigFixture afterwards = ConfigFixture.mock(directory);
-        upload(afterwards, SLIPPED, ADDRESS, EnvironmentKind.SANDBOX);
         assertThat(afterwards.store.snapshot().byName(SLIPPED).kind()).isEqualTo(EnvironmentKind.SANDBOX);
     }
 
@@ -116,7 +97,7 @@ class ProductionSlipTest {
                     assertThat(e.getMessage()).contains("is an address of the production environments \"Payer Live A\" and \"Payer Live B\"")
                             .doesNotContain("removed");
                     assertThat(e.fieldErrors().get(0).message()).startsWith("An address that this installation knows as production stays "
-                            + "production").doesNotContain("productionDestinations");
+                            + "production").doesNotContain("Production writes");
                 });
     }
 
@@ -133,8 +114,8 @@ class ProductionSlipTest {
                     assertThat(e.getMessage()).contains("is an address of the production environments \"Payer Live A\" and "
                             + "\"Payer Live B\", or lies above or beneath one.").doesNotContain("removed");
                     assertThat(e.fieldErrors().get(0).message()).startsWith("\"Payer Live A\" and \"Payer Live B\" are no longer stored. "
-                            + "If they were uploaded as prod by mistake, stop PAVE, delete the entries whose environment is "
-                            + "\"Payer Live A\" or \"Payer Live B\" from productionDestinations in ")
+                            + "If they were uploaded as prod by mistake, forget their addresses in Configuration > Production writes and "
+                            + "upload this environment again. ")
                             .endsWith("If it is not, point its variables at the sandbox service and upload it again.");
                 });
     }

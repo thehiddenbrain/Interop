@@ -240,4 +240,30 @@ public interface OperationGateway {
     default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
         return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
     }
+
+    /**
+     * The connect and read timeouts a call to the vendor's services is given now, both present,
+     * each with its source: the active environment's own where it states them, else
+     * application.yml's. For words about a timeout when the call itself is not at hand.
+     */
+    default Timeouts vendorTimeouts() {
+        return Timeouts.APPLICATION;
+    }
+
+    /**
+     * The sign-in method the active environment's settings state, or null when it states none and
+     * {@code onyx.auth} applies. A method only, never a value.
+     */
+    default SignInSettings.Method activeSignInMethod() {
+        return null;
+    }
+
+    /**
+     * The active environment's sign-in with each value resolved as a call's would be, or null when
+     * it states no method and {@code onyx.auth} applies. Holds secrets: for the token service only,
+     * never for a view, a log or the ledger.
+     */
+    default SignInSettings activeSignIn() {
+        return null;
+    }
 }

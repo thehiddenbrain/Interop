@@ -4,6 +4,8 @@ import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.IsoDates;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
@@ -182,6 +184,17 @@ public final class CaseResources {
     public static String patientId(MemberDetail member) {
         String vendor = member == null ? null : Texts.trimToNull(member.vendorPatientId());
         return vendor == null ? PATIENT_ID : vendor;
+    }
+
+    /**
+     * The member ID as typed and as the call's rule sends it, for the wire view and the preview, or
+     * null when the request names none. The ledger keeps the packed form whatever this gives (R-10).
+     *
+     * @param rule the call's member ID rule; null reads as packed
+     */
+    public static MemberIdForms memberIdForms(MemberDetail member, MemberIdRule rule) {
+        String typed = member == null ? null : member.memberId();
+        return Texts.present(typed) ? MemberIds.forms(typed, rule) : null;
     }
 
     public static String patientRef(MemberDetail member) {
@@ -545,8 +558,8 @@ public final class CaseResources {
         return "\"" + (cut ? cell.substring(0, cell.offsetByCodePoints(0, QUOTED_LENGTH)) + "..." : cell) + "\"";
     }
 
-    private static ObjectNode memberIdentifier(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes,
-                                               boolean note) {
+    private static ObjectNode memberIdentifier(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables,
+                                               List<String> notes, boolean note) {
         ObjectNode identifier = JSON.objectNode();
         identifier.putObject("type").putArray("coding").addObject().put("system", IDENTIFIER_TYPES).put("code", "MB");
         String system = value(variables, VAR_MEMBER_ID_SYSTEM);
@@ -555,8 +568,8 @@ public final class CaseResources {
         } else if (note) {
             notes.add("The member ID was sent without an identifier system: the variable " + VAR_MEMBER_ID_SYSTEM + " is not set.");
         }
-        // The no-space form, which is the only form the service accepts.
-        identifier.put("value", MemberIds.noSpace(member.memberId()));
+        // The form the environment's member ID rule gives (R-10); packed, the form the vendor's sandbox accepts, when none is stated.
+        identifier.put("value", MemberIds.sent(member.memberId(), rule));
         return identifier;
     }
 
@@ -592,11 +605,17 @@ public final class CaseResources {
      */
     public ObjectNode crdPatient(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes,
                                  List<Required> missing) {
+        return crdPatient(member, MemberIdRule.PACKED, variables, notes, missing);
+    }
+
+    /** @param rule the member ID rule of the call (R-10); null reads as packed */
+    public ObjectNode crdPatient(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables, List<String> notes,
+                                 List<Required> missing) {
         ObjectNode patient = JSON.objectNode();
         patient.put("resourceType", "Patient");
         patient.put("id", patientId(member));
         ArrayNode identifiers = patient.putArray("identifier");
-        identifiers.add(memberIdentifier(member, variables, notes, false));
+        identifiers.add(memberIdentifier(member, rule, variables, notes, false));
         if (value(variables, VAR_MEMBER_ID_SYSTEM) == null) {
             missing.add(new Required("Patient.identifier.system (the member ID)", "profile-patient", "the variable " + VAR_MEMBER_ID_SYSTEM));
             notes.add(CRD_VERSION + " profile-patient requires a system on every identifier. The member ID was sent without one: the "
@@ -660,6 +679,12 @@ public final class CaseResources {
      */
     public ObjectNode crdCoverage(MemberDetail member, Function<String, ResolvedText> variables, List<String> notes,
                                   List<Required> missing) {
+        return crdCoverage(member, MemberIdRule.PACKED, variables, notes, missing);
+    }
+
+    /** @param rule the member ID rule of the call (R-10); null reads as packed */
+    public ObjectNode crdCoverage(MemberDetail member, MemberIdRule rule, Function<String, ResolvedText> variables, List<String> notes,
+                                  List<Required> missing) {
         ObjectNode coverage = JSON.objectNode();
         coverage.put("resourceType", "Coverage");
         coverage.put("id", COVERAGE_ID);
@@ -674,7 +699,7 @@ public final class CaseResources {
                     : CRD_VERSION + " profile-coverage requires a status. None was sent, because none was supplied: a status nobody "
                             + "stated is not taken to be active.");
         }
-        coverage.putArray("identifier").add(memberIdentifier(member, variables, notes, false));
+        coverage.putArray("identifier").add(memberIdentifier(member, rule, variables, notes, false));
         if (Texts.present(member.subscriberId())) {
             coverage.put("subscriberId", member.subscriberId().strip());
         }

@@ -58,8 +58,18 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
         REQUEST,
         /** A url built from application.yml. */
         FALLBACK,
+        /**
+         * The address the active environment's settings type for the operation (R-02). It is one
+         * of that environment's own addresses: no collection request's url, headers or body go with it.
+         */
+        TYPED,
         /** The CDS Hooks discovery url, cut out of the url of a mapped hook request. */
         DERIVED,
+        /**
+         * A lookup saved on screen (R-11), with its own method and headers. It is a read whatever
+         * its method, so it is judged by what its address reads as, never by its method alone.
+         */
+        LOOKUP,
         /** Nothing. The operation has nowhere to go. */
         NONE
     }
@@ -72,7 +82,8 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
      * @param resolved   the template that is resolved. The same as {@code template} except when a
      *                   subscription is listed, where the trailing id segment is left off
      * @param headers    the headers to send, as written: those of the collection request, or those
-     *                   configured for a lookup whose url came from application.yml. Otherwise empty
+     *                   configured for a lookup whose url came from application.yml or was saved
+     *                   on screen. Otherwise empty
      * @param described  where the template came from, in words
      * @param absent     why there is no url, in words. Null when there is one
      */

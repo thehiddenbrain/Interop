@@ -111,9 +111,37 @@ public final class ConfigViews {
      *                    its start and its length ({@link org.p32h.interop.epa.pave.postman.Names#shown})
      * @param destination scheme, host, port and base path. Never a query or user information
      * @param stored      false when that environment has been deleted and the address is remembered
+     * @param forgettable true when "Forget this production address" is offered: no environment stored
+     *                    as prod holds it, and it is not built from a secret (R-35)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ProductionDestinationView(String environment, String destination, boolean stored) {
+    public record ProductionDestinationView(String environment, String destination, boolean stored, boolean forgettable) {
+
+        /** A row as it was before Forget, for an address of a stored prod environment: never forgettable. */
+        public ProductionDestinationView(String environment, String destination, boolean stored) {
+            this(environment, destination, stored, !stored);
+        }
+    }
+
+    /** What "Forget this production address" answers: the address as it was listed, and the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Forgotten(String forgotten, long epoch) {
+    }
+
+    /**
+     * A stored file that could not be read at the start and is left out (R-32).
+     *
+     * @param file the file as the store names it, relative to the store folder: what
+     *             {@code POST /api/config/unreadable/remove} is given back
+     * @param line what is wrong and what to do, in words. The same sentence is among the problems
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableView(String file, String line) {
+    }
+
+    /** What "Remove it from the store" answers: the file as listed, where it was moved (absent when it was not there), the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableRemoved(String removed, String movedTo, long epoch) {
     }
 
     /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
@@ -468,11 +496,13 @@ public final class ConfigViews {
      *                      without signing in although something suggests it should not: a Postman
      *                      helper on the request used, or sign-in settings in the active environment.
      *                      Names only, never a value. Absent otherwise, and always on mock
+     * @param shortLabel    the operation in a word or two (plan 7.5), served as "short"
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(EpaOperation operation, String label, Protocol protocol, boolean write, boolean outbound, String method,
                                TargetView target, List<AvailableRequest> requests, String unavailable, String blocked, String note,
-                               String blockedShort, Boolean lookupEnabled, String defaultRule, String withoutSignIn) {
+                               String blockedShort, Boolean lookupEnabled, String defaultRule, String withoutSignIn,
+                               @com.fasterxml.jackson.annotation.JsonProperty("short") String shortLabel) {
 
         public OperationRow {
             requests = requests == null ? List.of() : List.copyOf(requests);
@@ -553,7 +583,8 @@ public final class ConfigViews {
 
             public OperationRow build() {
                 return new OperationRow(operation, operation.label(), operation.protocol(), operation.write(), operation.outbound(), method,
-                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule, withoutSignIn);
+                        target, requests, unavailable, blocked, note, blockedShort, lookupEnabled, defaultRule, withoutSignIn,
+                        operation.shortLabel());
             }
         }
     }
@@ -585,9 +616,11 @@ public final class ConfigViews {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
                             WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings,
-                            List<ProductionDestinationView> productionDestinations, Readiness readiness) {
+                            List<ProductionDestinationView> productionDestinations, Readiness readiness,
+                            List<UnreadableView> unreadable) {
 
         public Effective {
+            unreadable = unreadable == null ? List.of() : List.copyOf(unreadable);
             productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
             problems = problems == null ? List.of() : List.copyOf(problems);
             operations = operations == null ? List.of() : List.copyOf(operations);
@@ -629,11 +662,16 @@ public final class ConfigViews {
      * @param problem                    while sign-in is on, the first onyx.auth setting with no value
      *                                   and why. Absent when all of them resolve
      * @param howToSwitchOn              the start-up arguments that would switch sign-in on, with the
-     *                                   environment's own variable names in place. An instruction, never a value
+     *                                   environment's own variable names in place. An instruction, never a value.
+     *                                   Absent when the environment's own settings decide, which are changed on its form
+     * @param from                       where the sign-in in force is decided: "this environment" when the active
+     *                                   environment's settings state a method, else "application.yml"
+     * @param method                     the method the active environment states (NONE, CLIENT_CREDENTIALS or
+     *                                   BEARER_TOKEN), absent when it states none
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SignIn(boolean enabled, List<String> environmentSignInVariables, List<String> requestHelpers, int operationsWithHelper,
-                         String problem, String howToSwitchOn) {
+                         String problem, String howToSwitchOn, String from, String method) {
 
         public SignIn {
             environmentSignInVariables = environmentSignInVariables == null ? List.of() : List.copyOf(environmentSignInVariables);

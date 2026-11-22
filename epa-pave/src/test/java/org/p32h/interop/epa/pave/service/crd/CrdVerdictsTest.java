@@ -510,4 +510,87 @@ class CrdVerdictsTest {
     void anAnswerThatIsNotCdsHooksIsNotRecordedAsOneWithNoBody() {
         assertThat(CrdOutcome.MALFORMED_RESPONSE.label()).contains("something other than a CDS Hooks response");
     }
+
+    // ---- the coverage information handed on, and the 400 that names draftOrders.type (R-37) ----
+
+    /** A CRD exchange whose request carried this body, answered with this status and answer. */
+    private static VendorExchange sentAndAnswered(String sentBody, int status, String answer) {
+        org.p32h.interop.epa.pave.model.WireRequest request = org.p32h.interop.epa.pave.client.support.Exchanges.wireRequest(
+                TestPreparedCalls.to(EpaOperation.CRD_ORDER_SIGN, "https://onyx.example.invalid/cds-services/order-sign"),
+                ResolvedText.plain(sentBody), org.p32h.interop.epa.pave.client.support.ExchangeOptions.json("application/json"), true, null);
+        VendorExchange exchange = org.p32h.interop.epa.pave.client.support.Exchanges.fromResponse(request, status, List.of(), answer, 12L, true);
+        return exchange.withSignals(org.p32h.interop.epa.pave.client.crd.OnyxCrdConventions.signals(exchange));
+    }
+
+    private static final String WITH_TYPE = "{\"hook\":\"order-sign\",\"context\":{\"draftOrders\":{\"resourceType\":\"Bundle\","
+            + "\"type\":\"collection\",\"entry\":[]}}}";
+    private static final String WITHOUT_TYPE = "{\"hook\":\"order-sign\",\"context\":{\"draftOrders\":{\"resourceType\":\"Bundle\","
+            + "\"entry\":[]}}}";
+    /** The answer the strict stand-in gives, as the vendor's sandbox did (history V7). */
+    private static final String REFUSES_TYPE = "{\"summary\":\"invalid hook request\",\"detail\":\"context.draftOrders.type is not allowed\"}";
+
+    private NextStepView nextAfter(VendorExchange exchange, String environmentName) {
+        return CrdVerdicts.nextStep(mapper.read(exchange), exchange, "run-1", environmentName);
+    }
+
+    @Test
+    void aRefusalThatNamesDraftOrdersTypeSendsTheTesterToTheSettingOfTheEnvironmentByName() {
+        NextStepView next = nextAfter(sentAndAnswered(WITH_TYPE, 400, REFUSES_TYPE), "Vendor sandbox");
+        assertThat(next.action()).isEqualTo(NextAction.OPEN_CONFIG);
+        assertThat(next.headline()).isEqualTo("Set draftOrders type to Left out for Vendor sandbox in Configuration > Environments, then run "
+                + "the check again.");
+        assertThat(next.reason()).isEqualTo("The service answered HTTP 400 and its answer names draftOrders.type, which this request sent. "
+                + "FHIR requires Bundle.type, and the setting draftOrders type of the environment leaves it out for a vendor whose sandbox "
+                + "refuses it.");
+        assertThat(NextAction.OPEN_CONFIG.button()).isEqualTo("Open Configuration");
+        // With no environment active there is no name to give, and none is made up.
+        assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 400, REFUSES_TYPE), null).headline())
+                .isEqualTo("Set draftOrders type to Left out for the active environment in Configuration > Environments, then run the check again.");
+        // The same refusal in an OperationOutcome, as a FHIR server words it.
+        String outcome = "{\"resourceType\":\"OperationOutcome\",\"issue\":[{\"severity\":\"error\",\"code\":\"invalid\","
+                + "\"diagnostics\":\"Unexpected element context.draftOrders.type\"}]}";
+        assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 400, outcome), "Vendor sandbox").action()).isEqualTo(NextAction.OPEN_CONFIG);
+    }
+
+    @Test
+    void aRefusalOfARequestThatLeftTypeOutOrThatNamesSomethingElseKeepsItsOwnNextStep() {
+        // Already left out: the setting would change nothing, so the 400 is about something else and the issues say what.
+        NextStepView leftOut = nextAfter(sentAndAnswered(WITHOUT_TYPE, 400, REFUSES_TYPE), "Vendor sandbox");
+        assertThat(leftOut.action()).isEqualTo(NextAction.FIX_REQUEST);
+        assertThat(leftOut.headline()).isEqualTo("Next: read the issues below and correct the request.");
+        String other = "{\"summary\":\"invalid hook request\",\"detail\":\"prefetch.coverageBundle.entry must not be empty\"}";
+        assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 400, other), "Vendor sandbox").action()).isEqualTo(NextAction.FIX_REQUEST);
+        // Only a 400 names a refused element; credentials and addresses keep their own next steps.
+        assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 422, REFUSES_TYPE), "Vendor sandbox").action()).isEqualTo(NextAction.FIX_REQUEST);
+        assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 401, REFUSES_TYPE), "Vendor sandbox").headline())
+                .isEqualTo("Next: check the credentials on the Config tab.");
+        // A body that is not JSON shows no type either way.
+        assertThat(nextAfter(sentAndAnswered("not json", 400, REFUSES_TYPE), "Vendor sandbox").action()).isEqualTo(NextAction.FIX_REQUEST);
+    }
+
+    @Test
+    void theCoverageInformationOfEachAnswerTiedToAnOrderIsHandedOnExactlyAsReceived() {
+        String extension = "{\"url\":\"" + EXT + "\",\"extension\":[{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},{\"url\":\"doc-needed\",\"valueCode\":\"clinical\"},"
+                + "{\"url\":\"coverage-assertion-id\",\"valueString\":\"a-1\"}]}";
+        String body = "{\"cards\":[],\"systemActions\":[{\"type\":\"update\",\"resource\":{\"resourceType\":\"ServiceRequest\","
+                + "\"id\":\"service-request-1\",\"extension\":[" + extension + "]}}]}";
+        VendorExchange exchange = TestExchanges.crd(200, body);
+        NextStepView next = CrdVerdicts.nextStep(mapper.read(exchange, List.of(new SentOrder("ServiceRequest/service-request-1", "95810"))),
+                exchange);
+        List<String> handed = next.carry().get(NextStepView.CARRY_COVERAGE_INFORMATION);
+        assertThat(handed).hasSize(1);
+        tools.jackson.databind.JsonNode value = org.p32h.interop.epa.pave.model.JsonSafe.parse(handed.get(0)).node();
+        assertThat(value.get("order").asString()).isEqualTo("ServiceRequest/service-request-1");
+        assertThat(value.get("extension")).isEqualTo(org.p32h.interop.epa.pave.model.JsonSafe.parse(extension).node());
+        assertThat(next.carryLabels()).containsEntry(NextStepView.CARRY_COVERAGE_INFORMATION, "Coverage information CRD returned");
+
+        // An answer in a card names no order, so nothing is handed on: rebuilding one would be this tool's own statement of coverage.
+        VendorExchange noOrder = TestExchanges.crd(200, "{\"cards\":[{\"summary\":\"Documentation is required\",\"indicator\":\"info\","
+                + "\"source\":{\"label\":\"Payer\"}}]}");
+        assertThat(CrdVerdicts.nextStep(mapper.read(noOrder), noOrder).carry()).doesNotContainKey(NextStepView.CARRY_COVERAGE_INFORMATION);
+        // A fault hands nothing on.
+        VendorExchange fault = TestExchanges.crd(500, "{}");
+        assertThat(CrdVerdicts.nextStep(mapper.read(fault), fault).carry()).doesNotContainKey(NextStepView.CARRY_COVERAGE_INFORMATION);
+    }
 }

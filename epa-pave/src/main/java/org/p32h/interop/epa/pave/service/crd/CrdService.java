@@ -132,14 +132,16 @@ public class CrdService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call));
+            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call), call.memberIdRule());
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
             incomplete = built.incomplete();
         }
 
+        // A mock scenario is chosen by the packed form, so a sentinel picks its scenario under every rule.
         VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
+        MemberIdForms sentMemberId = CaseResources.memberIdForms(request.member(), call.memberIdRule());
 
         // From here on the call has been made, so whatever happens next the run is recorded. The id is
         // settled now because the next step hands it on, so that the step after this one is linked to it.
@@ -192,7 +194,7 @@ public class CrdService {
                 .detail(read.reading().detail().withRequest(requestNotes, !ownBody))
                 .findings(read.findings())
                 .additionalFields(read.reading().additionalFields())
-                .wire(exchange.wire(memberId.typed().isEmpty() ? null : memberId))
+                .wire(exchange.wire(sentMemberId))
                 .error(read.error())
                 .ledger(receipt)
                 .timing(read.timing())
@@ -233,7 +235,7 @@ public class CrdService {
 
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId), runId), exchange);
+        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call)), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
@@ -245,7 +247,8 @@ public class CrdService {
         }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
-        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
+        // The call's own read timeout words a timeout: a save since the gateway was last asked may have changed the active one.
+        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues(), call) : null;
 
         Map<String, String> correlation = new LinkedHashMap<>();
         reading.detail().coverageInformation().stream().map(CoverageInformationView::satisfiedPaId).filter(Shown::hasValue)
@@ -272,6 +275,11 @@ public class CrdService {
         return new NextStepView(next.action(), next.headline(), next.reason(), carry);
     }
 
+    /** The name of the environment the call went to, for a next step that names where to change a setting of it. */
+    private static String environmentName(PreparedCall call) {
+        return call == null || call.environment() == null ? null : call.environment().name();
+    }
+
     /**
      * The request shapes the call was prepared with: the environment's setting, or the evidence
      * of the collection request the call came from, or the default, each with its source.
@@ -285,14 +293,14 @@ public class CrdService {
     public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
         validate(request);
         EpaOperation operation = operation(CrdRequestBuilder.hook(request));
-        MemberIdForms memberId = RunSupport.memberId(request);
-        MemberIdForms shown = memberId.typed().isEmpty() ? null : memberId;
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            // No call carries a rule: the active environment's is the one it would have gone by.
+            return RequestPreview.blocked(operation, refusal, CaseResources.memberIdForms(request.member(), gateway.memberIdRule()));
         }
+        MemberIdForms shown = CaseResources.memberIdForms(request.member(), call.memberIdRule());
         String body;
         List<String> notes;
         if (RunSupport.ownBody(request)) {
@@ -304,7 +312,7 @@ public class CrdService {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call));
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call), call.memberIdRule());
             body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");

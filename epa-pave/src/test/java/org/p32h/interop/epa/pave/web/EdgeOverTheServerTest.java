@@ -250,7 +250,7 @@ class EdgeOverTheServerTest {
         // The whole request over its limit is refused before it is read.
         Answer whole = RawHttp.send(port, RawHttp.multipartHead("/api/suites/preview", port, boundary, 31 * MB), new byte[0]);
         assertThat(whole.status()).isEqualTo(413);
-        assertThat(whole.title()).isEqualTo("The request is larger than this tool accepts, which is 30MB in all. Nothing was done.");
+        assertThat(whole.title()).isEqualTo("The upload is larger than this tool accepts, which is 25MB for one file and 30MB in all. Nothing was done.");
     }
 
     @Test
@@ -273,7 +273,7 @@ class EdgeOverTheServerTest {
         assertThat(stated.status()).isEqualTo(413);
         assertThat(stated.title()).isEqualTo("The request is larger than this tool accepts, which is 30MB in all. Nothing was done.");
         assertThat(stated.json().get("action").asString())
-                .isEqualTo("Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size in application.yml.");
+                .isEqualTo("Send a smaller body. To accept larger ones, raise spring.servlet.multipart.max-request-size and spring.servlet.multipart.max-file-size together in application.yml.");
         stated.assertTheFiveHeaders();
 
         // Sent in chunks, with no length stated: counted as it is read.
