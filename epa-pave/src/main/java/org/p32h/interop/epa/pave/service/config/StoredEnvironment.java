@@ -4,6 +4,7 @@ import java.util.List;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
+import org.p32h.interop.epa.pave.postman.PostmanVariable;
 
 /**
  * One uploaded environment as the store holds it.
@@ -61,6 +62,38 @@ record StoredEnvironment(String id, String name, EnvironmentKind kind, PostmanEn
         }
         return new StoredEnvironment(id, name, kind, content, file, originalFileName, uploadedAt, acknowledgedNotProd, productionSigns,
                 previous.settings, previous.settingsProblem, previous.unreadSettings);
+    }
+
+    /**
+     * The export as the production checks read it: its variables, then each value its settings
+     * type (which wins over the export's of the same name, as it does when a call is resolved),
+     * then each address its settings type. A typed address is one of the environment's own
+     * addresses (plan 5.1): under the kind prod it is among the production destinations and
+     * remembered as they are, and under another kind it is held to the same checks as the
+     * export's own addresses.
+     */
+    PostmanEnvironment scanned() {
+        return withSettings(content, settings);
+    }
+
+    /** As {@link #scanned()}, for an export and settings not yet stored together. */
+    static PostmanEnvironment withSettings(PostmanEnvironment content, EnvironmentSettings settings) {
+        if (content == null || settings == null || (settings.values().isEmpty() && settings.addresses().isEmpty())) {
+            return content;
+        }
+        List<PostmanVariable> variables = new java.util.ArrayList<>(content.variables());
+        settings.values().forEach((name, value) -> variables.add(new PostmanVariable(name, value, true, null)));
+        settings.addresses().forEach((operation, address) -> variables.add(new PostmanVariable(addressName(operation), address, true, null)));
+        return new PostmanEnvironment(content.postmanId(), content.name(), content.scope(), variables, content.notes());
+    }
+
+    /**
+     * The name a typed address is read under by the production checks, as a refusal names it. It
+     * holds spaces, so it is never the name of a variable a request refers to.
+     */
+    static String addressName(org.p32h.interop.epa.pave.model.EpaOperation operation) {
+        return "address typed for " + (operation == org.p32h.interop.epa.pave.model.EpaOperation.SUBSCRIPTION_CREATE ? "Subscription"
+                : operation.label());
     }
 
     EnvironmentRef ref() {

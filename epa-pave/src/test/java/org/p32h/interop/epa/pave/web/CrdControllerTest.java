@@ -314,14 +314,14 @@ class CrdControllerTest {
         assertThat(answer.get("counts")).hasSize(5);
         assertThat(answer.at("/counts/0/group").asString()).isEqualTo("BUILD");
         assertThat(answer.at("/counts/0/label").asString()).isEqualTo("How the request is built");
-        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(25);
+        assertThat(answer.at("/counts/0/count").asInt()).isEqualTo(27);
         assertThat(answer.at("/counts/0/description").asString()).isNotBlank();
         // The caveat is said once, as its own component, and not again among the notes.
         assertThat(answer.at("/caveat").asString()).startsWith("This comparison shows where the two requests differ. It cannot show which one "
                 + "the service expects");
         assertThat(answer.get("notes").toString()).doesNotContain("This comparison shows where the two requests differ");
         // One difference, in full.
-        assertThat(answer.get("differences")).hasSize(34);
+        assertThat(answer.get("differences")).hasSize(36);
         JsonNode first = answer.at("/differences/0");
         assertThat(first.get("path").asString()).isEqualTo("hookInstance");
         assertThat(first.get("kind").asString()).isEqualTo("DIFFERENT_VALUE");

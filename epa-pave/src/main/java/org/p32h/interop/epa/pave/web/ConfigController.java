@@ -98,6 +98,38 @@ public class ConfigController {
         }
     }
 
+    /**
+     * What {@code POST /api/config/environments} takes as JSON (R-06): the export as the page read it.
+     *
+     * @param fileName           the name the file was chosen under, for display only
+     * @param text               the file's text, decoded as UTF-8 by the page
+     * @param kind               sandbox, uat or prod; never guessed
+     * @param acknowledgeNotProd the confirmation that an environment that reads as production is not
+     */
+    public record EnvironmentUploadRequest(String fileName, String text, String kind, Boolean acknowledgeNotProd) {
+
+        /** Names the file and the kind, never the text: an export can hold credentials and member data. */
+        @Override
+        public String toString() {
+            return "EnvironmentUploadRequest[" + kind + "]";
+        }
+    }
+
+    /**
+     * What {@code POST /api/config/collections} takes as JSON (R-06).
+     *
+     * @param fileName the name the file was chosen under, for display only
+     * @param text     the file's text, decoded as UTF-8 by the page
+     */
+    public record CollectionUploadRequest(String fileName, String text) {
+
+        /** Never the text: a collection can hold credentials and member data. */
+        @Override
+        public String toString() {
+            return "CollectionUploadRequest[]";
+        }
+    }
+
     private final ConfigService service;
 
     public ConfigController(ConfigService service) {
@@ -123,6 +155,19 @@ public class ConfigController {
         EnvironmentKind declared = Params.optional("kind", kind, EnvironmentKind::parse, "sandbox, uat or prod");
         Boolean acknowledged = Params.optional("acknowledgeNotProd", acknowledgeNotProd, ConfigController::trueOrFalse, "true or false");
         return service.uploadEnvironment(file.getOriginalFilename(), bytes(file), declared, Boolean.TRUE.equals(acknowledged));
+    }
+
+    /**
+     * As the multipart upload, with the export posted as the text the page read from the file
+     * (R-06): one parser, on the server, and no multipart machinery on the screen's path.
+     */
+    @PostMapping(path = "/environments", consumes = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public EnvironmentUploaded uploadEnvironmentText(@RequestBody EnvironmentUploadRequest body) {
+        if (Texts.blank(body.kind())) {
+            throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
+        }
+        EnvironmentKind declared = Params.optional("kind", body.kind(), EnvironmentKind::parse, "sandbox, uat or prod");
+        return service.uploadEnvironment(body.fileName(), text("text", body.text()), declared, Boolean.TRUE.equals(body.acknowledgeNotProd()));
     }
 
     @GetMapping("/environments")
@@ -166,6 +211,12 @@ public class ConfigController {
     @PostMapping("/collections")
     public CollectionUploaded uploadCollection(@RequestParam("file") MultipartFile file) {
         return service.uploadCollection(file.getOriginalFilename(), bytes(file));
+    }
+
+    /** As the multipart upload, with the export posted as the text the page read from the file (R-06). */
+    @PostMapping(path = "/collections", consumes = org.springframework.http.MediaType.APPLICATION_JSON_VALUE)
+    public CollectionUploaded uploadCollectionText(@RequestBody CollectionUploadRequest body) {
+        return service.uploadCollection(body.fileName(), text("text", body.text()));
     }
 
     @GetMapping("/collections")
@@ -251,6 +302,14 @@ public class ConfigController {
                     + "to use the one the operation uses by default.");
         }
         return service.resolve(operation, request, body.variables(), body.urlValues(), SessionUnlock.from(http));
+    }
+
+    /** The posted text as the bytes the store keeps: the text as the page decoded it (R-06). */
+    private static byte[] text(String field, String text) {
+        if (text == null) {
+            throw ValidationException.of(field, "The file holds no text. Choose it again.");
+        }
+        return text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static byte[] bytes(MultipartFile file) {
