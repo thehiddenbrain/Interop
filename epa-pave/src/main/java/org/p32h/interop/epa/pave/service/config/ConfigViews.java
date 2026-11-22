@@ -111,9 +111,21 @@ public final class ConfigViews {
      *                    its start and its length ({@link org.p32h.interop.epa.pave.postman.Names#shown})
      * @param destination scheme, host, port and base path. Never a query or user information
      * @param stored      false when that environment has been deleted and the address is remembered
+     * @param forgettable true when "Forget this production address" is offered: no environment stored
+     *                    as prod holds it, and it is not built from a secret (R-35)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ProductionDestinationView(String environment, String destination, boolean stored) {
+    public record ProductionDestinationView(String environment, String destination, boolean stored, boolean forgettable) {
+
+        /** A row as it was before Forget, for an address of a stored prod environment: never forgettable. */
+        public ProductionDestinationView(String environment, String destination, boolean stored) {
+            this(environment, destination, stored, !stored);
+        }
+    }
+
+    /** What "Forget this production address" answers: the address as it was listed, and the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Forgotten(String forgotten, long epoch) {
     }
 
     /**

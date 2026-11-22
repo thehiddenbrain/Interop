@@ -404,6 +404,59 @@ public class ConfigStore {
         return unreadable;
     }
 
+    /** What forgetting a production address did: the address as it was listed, and the new epoch. */
+    record Forgotten(String forgotten, long epoch) {
+    }
+
+    /**
+     * Forgets a production address remembered from an environment that is no longer stored as
+     * prod (R-35): the way back from a slip of the mouse. The name must be typed exactly as the
+     * address was remembered under, and an address a stored prod environment holds is never
+     * forgotten, whoever else it was remembered from.
+     *
+     * @param listed      the address as the list of production addresses shows it
+     * @param environment the environment's name, typed
+     */
+    synchronized Forgotten forgetDestination(String listed, String environment) {
+        ConfigSnapshot before = current;
+        String wanted = listed.strip();
+        List<ConfigSnapshot.KnownDestination> matching = before.remembered().stream()
+                .filter(known -> !known.secret() && (known.listed().equals(wanted) || known.destination().shown().equals(wanted))).toList();
+        if (matching.isEmpty()) {
+            throw new NotFoundException("No address of that text is remembered as production. It may have been forgotten already.",
+                    "Read the list again.");
+        }
+        List<ConfigSnapshot.KnownDestination> named = matching.stream().filter(known -> known.environment().equals(environment)).toList();
+        if (named.isEmpty()) {
+            throw ValidationException.of("environment", "That is not the name this address was remembered from. Type the name exactly as "
+                    + "the list gives it, letter case and spaces included.");
+        }
+        StoredEnvironment owner = before.byName(environment);
+        if (owner != null && owner.kind() == EnvironmentKind.PROD) {
+            throw ValidationException.of("destination", "This address belongs to the production environment \"" + quoted(environment)
+                    + "\", which is stored. An address of a stored production environment is never forgotten.");
+        }
+        List<ConfigSnapshot.KnownDestination> remembered = new ArrayList<>(before.remembered());
+        remembered.removeAll(named);
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, before.environments(), before.activeName(), before.collections(),
+                remembered, before.applicationYml());
+        // The snapshot adds back every address of the prod environments stored now: one that comes
+        // back is held by one of them, and stays.
+        for (ConfigSnapshot.KnownDestination known : next.remembered()) {
+            StoredEnvironment holder = next.byName(known.environment());
+            if (holder != null && holder.kind() == EnvironmentKind.PROD
+                    && named.stream().anyMatch(gone -> gone.destination().equals(known.destination()))) {
+                throw ValidationException.of("destination", "This address belongs to the production environment \""
+                        + quoted(known.environment()) + "\", which is stored. An address of a stored production environment is never "
+                        + "forgotten.");
+            }
+        }
+        commit(next, null, null);
+        // The environment's name only, which the list shows. The address is no secret, but nothing more is needed.
+        log.info("Forgot a production address remembered from \"{}\"", quoted(environment));
+        return new Forgotten(named.get(0).listed(), current.epoch());
+    }
+
     /** What removing an unreadable stored file did: the file as listed, where it was moved (null when it was not there), the new epoch. */
     record UnreadableRemoved(String removed, String movedTo, long epoch) {
     }
@@ -1126,8 +1179,8 @@ public class ConfigStore {
      * begins with that fact and a way out that works at that moment, then gives its old sentences
      * unchanged (R-35). An environment uploaded as prod by a slip and then removed leaves its
      * addresses refused for good, and the old note alone, pointing the variables at the sandbox,
-     * cannot help when they point there already. Nothing is forgotten here: the way out is the
-     * tester's own edit, made with PAVE stopped.
+     * cannot help when they point there already. Nothing is forgotten here: the way out is
+     * "Forget this production address", which the tester confirms by the environment's name.
      */
     private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
@@ -1171,12 +1224,10 @@ public class ConfigStore {
         // An owner that is no longer stored is known only as a name the store remembers the address by.
         boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
         if (removed) {
-            // The store keeps no way to forget an address while it runs, so the way out is the
-            // one that works: the remembered entries taken out of store.json while PAVE is stopped.
-            String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+            // The way out that works while PAVE runs: Forget, offered for exactly these addresses (R-35).
             note = named + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was") + " uploaded as "
-                    + "prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
-                    + directory.resolve(STATE_FILE) + ", start PAVE again and upload this environment again. " + note;
+                    + "prod by mistake, forget " + (several ? "their addresses" : "the address") + " in Configuration > Production writes "
+                    + "and upload this environment again. " + note;
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));

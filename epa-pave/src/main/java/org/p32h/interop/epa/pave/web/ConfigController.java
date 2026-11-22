@@ -291,6 +291,19 @@ public class ConfigController {
     }
 
     /** What a request would be, before it is sent. Nothing is sent and nothing is recorded. */
+    /** The address as the list of addresses remembered as production gives it, and the name of the environment it was remembered from. */
+    public record ForgetRequest(String destination, String environment) {
+    }
+
+    /**
+     * "Forget this production address" (R-35): offered only for an address whose environment is no
+     * longer stored as prod, and done only when that environment's name is typed exactly.
+     */
+    @PostMapping("/production-destinations/forget")
+    public ConfigViews.Forgotten forgetDestination(@RequestBody ForgetRequest body) {
+        return service.forgetDestination(body.destination(), body.environment());
+    }
+
     /** The file as the list of unreadable stored files names it. */
     public record UnreadableRemoveRequest(String file) {
     }
