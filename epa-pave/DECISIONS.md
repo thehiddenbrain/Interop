@@ -66,6 +66,7 @@ entry.
 | D-301 | Release 2: the trail, Audit's request and answer, Journeys and Suites, a reload that redraws the case, lookups set up on screen, answers from the case, Forget, the store's lock and its damaged files, the Advanced Trail page | Built on release 1's candidate before its corrections (A2c, B5, B4b, C2c, D3, D6, E4, F4, G3, G4, H4, I4). The trail keeps member data on disk within D-298's bounds and never a secret. The sweep of old place names was not made |
 | D-302 | Release 1, its corrections and the PAS 2.0.1 decision merged into release 2 by one agent (`86d4807`) | Every place both sides changed was settled one way, said in this entry; a whole build and one walk on mock held it |
 | D-303 | The one check of release 2, its five findings, their corrections (`c31ae00`), and the limit: no recheck | **Release 2 was closed with five agents and no second check of the corrections**, to keep spending low. It rests on its tests, its whole build and one independent look. Nothing ran on Windows or against the vendor's service |
+| D-305 | A correction after release 2: the sign-in is read from the collection's token request and from wider variable names, several candidates are offered as buttons, an empty value is said; a refused sign-in says what the token endpoint said and names the setting (`80962e5`, `c0f9cf1`, `27e3a96`, `b7a1770`) | On the operator's first run against the vendor's UAT the files filled no sign-in and a refused sign-in said only "HTTP 401". The scripts of a collection are still never read. The service's words are shown made safe and never logged. Seen on live against the stand-in and a token endpoint of the builder's own, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8180,3 +8181,119 @@ round of corrections; the code handed over.**
   Eclipse compiler check at `c31ae00`: 0 errors. The gates of section 0 before the hand-over (two whole
   builds from clean, a build from a fresh clone, a start and the two proofs) are run by the integrator on
   the commit that carries these records, after them; their result is reported with the hand-over.
+
+**D-305. A correction after release 2: the sign-in from the files, and a refused sign-in that says why.**
+- **What happened.** Release 2 (`777fd1e`) was handed over, and the operator ran it against the vendor's
+  UAT for the first time. They chose the vendor's Postman files, found the sign-in fields of the form
+  empty, typed them, and the first call answered "Not sent: this tool could not sign in" with "No access
+  token: the token endpoint answered HTTP 401. The request was not sent." They asked why the tool could
+  not take all of it from the files. Their files were not seen and were not asked for: they hold
+  credentials. Two faults of the tool lay behind it. "Fill the form from these files" read a sign-in in
+  two cases only: Postman's OAuth2 or bearer helper on the collection, or variables named exactly
+  `tokenUrl`, `clientId`, `clientSecret` or `scope` (case, `_`, `-`, `.` and spaces aside, R-08). The usual
+  vendor collection does neither: it asks for its token with a request of its own (a form body with
+  `grant_type`, `client_id`, `client_secret` and `scope`) and a script that stores the answer, and its
+  variables carry a prefix or another word (`uat_client_id`, `tokenEndpoint`). And the token service threw
+  the token endpoint's answer away: a tester could not tell a wrong secret from credentials sent in the
+  wrong place (PAVE sends them in a Basic header unless the environment says "In the form body", D-233).
+  What the vendor's endpoint answered, and why, is still not known.
+- **Where the sign-in is read from** (decided by the integrator, `TASK_SIGNIN_FILL.md`), in this order,
+  the first that gives a whole client credentials sign-in winning, with a line that says where it came
+  from and which fields it filled ("Sign-in filled from the collection's token request "Auth / Get
+  token": Token url, Client id, Client secret, Scope and Client authentication."):
+  (a) the collection's OAuth2 helper, as before;
+  (b) the collection's token request: a request whose form body (`urlencoded`, or a `raw` body that reads
+  as a form as a whole) or url query carries `grant_type`. With `client_credentials` it gives the url as
+  written, placeholders kept; `client_id`, `client_secret` and `scope` from the body, and then "In the form
+  body"; or the request's Basic helper, its own or inherited from a folder or the collection, and then
+  "Basic header". Switched off fields and headers are left out. The first such request in the file fills;
+  "The collection holds 1 other token request. Sign-in was filled from "<name>", the first in the file."
+  Another grant type is said as the helper's is ("The collection's token request "<name>" uses the grant
+  type password, so sign-in was not filled from it. PAVE signs in with client credentials."). What the
+  request sends that PAVE's sign-in does not is said by name and never by value: "The token request also
+  sends audience and the header Ocp-Apim-Subscription-Key. PAVE's sign-in does not send them: if the
+  sign-in is refused, that is the first thing to look at." (a method other than POST: "is sent with the
+  method GET");
+  (c) the environment's variables by name: an exact name as before wins; else every variable whose name
+  holds the field's words is a candidate (client id `clientid`; client secret `clientsecret`; token url
+  `tokenurl`, `tokenuri`, `tokenendpoint`, `accesstokenurl`, `authurl`, `oauthurl`; scope: ends with `scope`
+  or `scopes`). One candidate fills its field. Several fill nothing: "Several variables could be the client
+  id: {{uat_client_id}}, {{prod_client_id}}. Choose one.", and each is a button under the field that fills
+  its reference with one press; a client secret is filled as the reference, as the draft fills one. On
+  Edit with no environment export chosen, the stored environment's variable names are read.
+  A collection's bearer helper gives no client credentials, so it is used only when none of the three
+  does; when one does, "The collection's bearer helper was not used: PAVE asks for a token itself, with the
+  client credentials filled below." This reads "the first that gives a whole client credentials sign-in
+  wins" over "as today" for the helper: a vendor's bearer helper usually sends `{{accessToken}}`, which
+  the vendor's script fills and an export leaves empty.
+  A filled reference whose variable the export leaves empty is said: "{{clientSecret}} is empty in this
+  export. Postman exports a variable's initial value only: type the value here, or set the initial value
+  in Postman and export again." A secret is filled only as one `{{variable}}` or `{{env:NAME}}` reference
+  (R-08); a secret typed into the file is never filled and never shown, and the line that says so stays.
+- **Why scripts are still not read.** A script is code the vendor wrote for Postman; reading one to guess
+  what it stores would be running its meaning without running it, and its values would be guesses. The
+  token request itself says what is sent; the script only keeps the answer, which PAVE asks for itself.
+  No script of a collection is ever run (the rule since the specification), and none is read.
+- **A refused sign-in says what the token endpoint said.** When the token endpoint answers anything but a
+  success with a JSON object whose `error` is a text, the sentence carries it, and its `error_description`
+  when there is one: "No access token: the token endpoint answered HTTP 401 (invalid_client). It said:
+  <the description>. The request was not sent." Without such a body the sentence is as before. The
+  service's text is not trusted: only those two fields, only as text; line breaks and tabs made spaces,
+  every other control or format character and any half of a character taken out; every secret this
+  sign-in holds (the client secret it was sent, the tokens held) replaced by its mask, as the wire view
+  replaces a secret a service repeats back (D-280), searched before and after the control characters go,
+  so a secret split by one is found too; a client secret too short for that search that still appears
+  hides the description ("(not shown: it holds the client secret)"); each field cut at 300 characters with
+  " ... (cut at 300 characters)". It is shown on the run card, in "Test the sign-in" and in the trail's line
+  of that run, which already carried the sentence; the log keeps "Access token request failed" and nothing
+  of the answer.
+- **The advice names the setting.** After a 400 or 401 with `invalid_client`, or a 401 that gave no reason,
+  "what to do" says, after "Check the sign-in of the active environment in Configuration > Environments:
+  its token url, client id and client secret, or its bearer token, and the variables they name.": "The
+  client id and secret were sent in a Basic header: if the service wants them in the form body, choose In
+  the form body under Client authentication in Configuration > Environments > Sign-in." (or the mirror:
+  "The client id and secret were sent in the form body: if the service wants them in a Basic header,
+  choose Basic header under Client authentication in Configuration > Environments > Sign-in."); after an
+  `invalid_scope`: "The token endpoint refused the scope: check Scope under Sign-in in Configuration >
+  Environments, which PAVE sends as it stands there, and not at all when it is empty." Each advice is one
+  sentence, where the integrator's words were two: the error panel shows the first sentence of "what to
+  do" and one more without a click, and folds anything longer under "Why", where it was missed on the
+  first look. The advice is read back from the start of the sentence the token service wrote, never from
+  the service's words. `onyx.auth` sends a Basic header and offers no other way, so its refusals get no
+  advice. "Test the sign-in" gives the same sentence and the advice below it.
+- **What holds it.** `TokenRefusalTest` (the fields read, the masks, the cut, the characters taken out,
+  each advice and where none is given); `OnyxTokenServiceTest` (a secret and a held token repeated back are
+  masked; its old sentence "HTTP 401." became "HTTP 401 (invalid_client [secret client secret])." because the
+  endpoint's error is now said); `SignInRefusalTest` (the started application on live with a token endpoint
+  on loopback: invalid_client with a description, the body way, a 401 with no body, invalid_scope, a body
+  that is not JSON, a description that repeats the client secret, one of 5000 characters, control
+  characters; on the run card, in "Test the sign-in" and not in the captured log); `SignInTestEndpointTest`
+  (its refusal now says "(invalid_client)" and the advice); `ConfigPagesFrontendTest` (the advice drawn under
+  the test's line, and gone after a success); `DraftSignInTest` (the token request in an `urlencoded` body,
+  a raw form body and the url query, the url as text and as an object, switched off fields and headers left
+  out, the Basic helper own, inherited and cut off by noauth, another grant type, two token requests, a
+  bearer helper set aside, 150 folders deep, a secret typed into the file, prefixed names, several
+  candidates, an empty value; no value of a secret in any answer); `ConfigFrontendTest` (the buttons, the
+  press, the lines and what is saved). Not shown to fail without the change, apart from the tests whose
+  old sentences changed. The walks of the jar of the main code hold no recursion: the token requests are
+  found with a stack of their own (`RecursionGuardTest` and `RegexStackGuardTest` unchanged).
+- **What was seen.** On the jar of these commits on live at 1440 by 900 in Chromium: a token endpoint of the
+  builder's own on loopback answering 401 with `invalid_client` and a description, then one that repeats
+  the client secret (shown as "[secret client secret]"), then one with no body: each on the coverage
+  check's card and in "Test the sign-in", with the advice; the secret in no log or ledger file. A token
+  endpoint that takes the credentials only in the body: refused with the Basic advice, then "In the form
+  body" chosen and saved, and signed in. The stand-in on loopback (which takes either way) with a client
+  secret holding `+`, which its Basic reading decodes as a space: refused in a Basic header with the same
+  advice, signed in once "In the form body" was chosen, and the coverage check sent. Files written for the
+  check (placeholders only): a collection with a token request in an `urlencoded` body and an environment
+  with prefixed names filled every field ("Sign-in filled from the collection's token request "Auth / Get
+  access token": ..."), saved, made active and signed in at the stand-in with no value typed; an environment
+  with two client ids offered both as buttons, one pressed, saved, made active and signed in; an empty
+  client secret said. Not seen: the vendor's own files or service, Windows, the IDE.
+- **Left.** A collection in format v2.0 is still refused as a whole by the parser ("This tool reads format
+  v2.1 only"), so its token request is not read; the shapes v2.0 wrote, inside a v2.1 file, are. A token
+  request whose body is JSON is not read. PAVE sends the client id and secret in a Basic header as they
+  are, not form-encoded first as RFC 6749 section 2.3.1 asks; a secret holding `+`, `%` or `:` can be refused
+  there by a strict endpoint and taken in the form body: not changed here, since endpoints that do not
+  decode would then refuse every such secret. What PAVE's sign-in does not send (an audience, a
+  subscription key header) can still not be added to it: the line names it so the tester knows.

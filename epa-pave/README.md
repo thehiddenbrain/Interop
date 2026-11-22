@@ -13,6 +13,27 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**A correction after release 2: the sign-in.** On the first run against the vendor's UAT, "Fill
+the form from these files" left the sign-in empty: the vendor's collection asks for its token with a
+request of its own and its variables carry a prefix, and PAVE read neither. Typed by hand, the
+sign-in was refused, and PAVE said only "the token endpoint answered HTTP 401". The code of commits
+`80962e5`, `c0f9cf1`, `27e3a96` and `b7a1770`, on top of release 2 (`777fd1e`), with this README after them, changes
+that:
+
+- The form fills the sign-in from the collection's token request (its url, client id, client secret,
+  scope and how the credentials are sent), else from the environment's variables by wider names
+  (`uat_client_id`, `tokenEndpoint`). Where several variables could fill one field, each is a button
+  under it; a value the export leaves empty is said. See step 3 of
+  [Setting up a service](#setting-up-a-service).
+- A refused sign-in says what the token endpoint said, for example "No access token: the token
+  endpoint answered HTTP 401 (invalid_client). It said: ...", and names the setting to change: "The
+  client id and secret were sent in a Basic header: if the service wants them in the form body, choose
+  In the form body under Client authentication in Configuration > Environments > Sign-in." "Test the
+  sign-in" on Configuration > Access token says the same.
+
+Seen on live against the stand-in and a token endpoint on a loopback port, never against the vendor's
+service (D-305).
+
 **Release 2 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
 ledger) is the one PAVE had. Release 1 was handed over on 2026-11-22 at 16:00 UTC. Release 2 adds to
@@ -259,7 +280,31 @@ by the next call.
    the field reads "Choose a kind" until you choose.
    An environment whose name or address reads as production cannot be saved as sandbox or uat until
    "This environment is not production" is ticked.
-3. **Sign-in**, filled from the export's variable names:
+3. **Sign-in**, filled from the files in this order, the first that gives client credentials winning:
+   the collection's OAuth2 helper; the collection's token request (a request whose form body or url
+   query carries `grant_type=client_credentials`: its url as written, its `client_id`, `client_secret`
+   and `scope` with "In the form body", or its Basic helper with "Basic header"); the environment's
+   variables by name (`tokenUrl`, `clientId`, `clientSecret`, `scope` exactly, else a name that holds
+   `tokenurl`, `tokenendpoint`, `authurl`, `oauthurl`, `clientid` or `clientsecret`, or ends with `scope`,
+   with case, `_`, `-`, `.` and spaces aside). A bearer helper of the collection is used only when none
+   of these gives client credentials. One line says where it came from: "Sign-in filled from the
+   collection's token request "Auth / Get token": Token url, Client id, Client secret, Scope and Client
+   authentication." Where it cannot fill, a line says why:
+   - several variables could be one field: "Several variables could be the client id:
+     {{uat_client_id}}, {{prod_client_id}}. Choose one.", and each is a button under the field that
+     fills it with one press;
+   - a value the export leaves empty: "{{clientSecret}} is empty in this export. Postman exports a
+     variable's initial value only: type the value here, or set the initial value in Postman and export
+     again.";
+   - a secret typed into the file is never filled or shown ("... typed into the file. It was not filled:
+     type it in Client secret, or a {{variable}} or {{env:PAVE_NAME}} reference.");
+   - another grant type: "The collection's token request "Token" uses the grant type password, so
+     sign-in was not filled from it. PAVE signs in with client credentials.";
+   - what the token request sends that PAVE's sign-in does not, by name only: "The token request also
+     sends audience and the header Ocp-Apim-Subscription-Key. PAVE's sign-in does not send them: if the
+     sign-in is refused, that is the first thing to look at."
+
+   The collection's scripts are never read or run. The methods:
    "As PAVE was started" (the `onyx.auth` settings of `application.yml`),
    "None", "Client credentials" (token url, client id, client secret, scope, client authentication
    "Basic header" or "In the form body") or "Bearer token". A 401 from the service drops the token,
@@ -293,6 +338,13 @@ copy of the sample environment export with the stand-in's addresses, and the sam
 saved and made active, a coverage check refused with HTTP 400, draftOrders type
 set to Left out and saved, and the same check answered "Documentation is required." with no
 restart.
+**A refused sign-in says what the token endpoint said** when it answered with an OAuth `error`: "No
+access token: the token endpoint answered HTTP 401 (invalid_client). It said: <its description>. The
+request was not sent." Only its `error` and `error_description` are shown, without control
+characters, cut at 300 characters, with any secret of the sign-in replaced by its mask ("[secret client
+secret]"); they are never logged. After an `invalid_client`, or a 401 with no reason, "what to do" says
+where the client id and secret were sent and how to send them the other way; after an `invalid_scope`,
+it points at Scope. "Test the sign-in" says the same.
 When a sign-in fails, "Open Configuration" opens the active environment's form at Sign-in; when an
 answer points at the address (404, unknown host, refused connection), at Addresses. A token url
 that does not answer is named first: "Check the token url of the environment <name>, set in
