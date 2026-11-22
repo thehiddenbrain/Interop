@@ -202,6 +202,52 @@
     margin: var(--s-3) 0 0;
 }
 
+/* What a reload read back (R-38): one line under the banner, and a result the step's module does not draw. */
+.readback:not(:empty) {
+    margin: 0;
+}
+
+.readback__line {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+    border-left: 3px solid var(--line-strong);
+    background: var(--surface-sunk);
+}
+
+.step-restored:not(:empty) {
+    display: grid;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+}
+
+/* Values for one run: shown only after a refusal names placeholders with no value. */
+.run-values {
+    display: grid;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-box);
+    background: var(--surface);
+}
+
+.run-values[hidden] {
+    display: none;
+}
+
+.run-values__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--s-3);
+}
+
+.run-values > .btn {
+    justify-self: start;
+}
+
+.wire__download:empty {
+    display: none;
+}
+
 /* ---------- the result ---------- */
 
 .result {
