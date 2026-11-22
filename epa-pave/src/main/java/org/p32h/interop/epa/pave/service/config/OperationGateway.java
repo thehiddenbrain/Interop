@@ -266,4 +266,14 @@ public interface OperationGateway {
     default SignInSettings activeSignIn() {
         return null;
     }
+
+    /**
+     * Why a sign-in may not be sent to this token url, resolved as it would be sent, or null when
+     * it may (I-28): a token url that is, or lies beneath, an address a production environment
+     * uses for a call is refused whatever was stored, since a sign-in posts the client secret.
+     * The words name the address by its scheme, host and port only. This default refuses nothing.
+     */
+    default String tokenUrlRefusal(String tokenUrl) {
+        return null;
+    }
 }

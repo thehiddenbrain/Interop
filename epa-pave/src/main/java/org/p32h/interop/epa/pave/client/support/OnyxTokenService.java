@@ -382,6 +382,10 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
             // Said as what an address this tool can use is, so the sentence is true of a port no connection can use as well.
             return refused(TOKEN_URL_NOT_USABLE);
         }
+        String production = gateway.tokenUrlRefusal(tokenUrl.value());
+        if (production != null) {
+            return refused(production);
+        }
         boolean noId = !clientId.resolved() || Texts.blank(clientId.value());
         boolean noSecret = !clientSecret.resolved() || Texts.blank(clientSecret.value());
         if (noId || noSecret) {
@@ -406,6 +410,12 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
         }
         if (!absoluteHttpAddress(tokenUrl)) {
             return refused(ENVIRONMENT_TOKEN_URL_NOT_USABLE);
+        }
+        // Asked at the moment of sending, whatever was stored: an older store or a value changed
+        // underneath can point the sign-in at a production call's address (I-28).
+        String production = gateway.tokenUrlRefusal(tokenUrl);
+        if (production != null) {
+            return refused(production);
         }
         String clientId = setting(settings.clientId());
         String clientSecret = setting(settings.clientSecret());

@@ -153,6 +153,14 @@ public class ConfigStoreGateway implements OperationGateway {
         if (encoded != null) {
             throw encodedSeparator(plan, encoded);
         }
+        // A path compared with production as a server reads it, every escape decoded once, must
+        // mean the same after that one decoding (I-29).
+        if (escapedPercentIn(plan)) {
+            throw new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds a percent-escape "
+                    + "of an escape (%25), which came from " + encodedFrom(plan, true) + ". " + UrlNormal.NO_ESCAPE_OF_AN_ESCAPE
+                    + " A server that decodes the path twice would read another address than the one this tool judged.",
+                    "Nothing was sent. Write the character itself, or one escape of it, in that value.");
+        }
         // A url whose address reads well and which is not a valid url after it is refused for what
         // it is, naming the value whose text made it so. On mock a read is never sent, so only a
         // write, which the guardrail would refuse, is refused there.
@@ -303,6 +311,20 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     @Override
+    public String tokenUrlRefusal(String tokenUrl) {
+        UrlNormal.Destination destination = UrlNormal.destination(tokenUrl);
+        if (destination == null) {
+            return null;
+        }
+        ConfigSnapshot snapshot = store.snapshot();
+        StoredEnvironment active = snapshot.active();
+        // The active production environment's own addresses are its own: its sign-in is not a write to another.
+        String exempt = active != null && active.kind() == EnvironmentKind.PROD ? active.name() : null;
+        List<String> owners = TokenUrlGuard.owners(snapshot, destination, exempt);
+        return owners.isEmpty() ? null : TokenUrlGuard.atSending(destination, owners);
+    }
+
+    @Override
     public Timeouts vendorTimeouts() {
         return timeoutsFor(store.snapshot().active(), EpaOperation.CRD_ORDER_SIGN);
     }
@@ -437,14 +459,37 @@ public class ConfigStoreGateway implements OperationGateway {
         return plan.filled() == null || !plan.filled().complete() ? null : UrlNormal.encodedSeparator(plan.filled().send());
     }
 
+    /**
+     * True when the url as configured, its variables filled and before the url parts typed for a
+     * run, holds an escaped percent sign in its path. A url part's own percent sign is sent as
+     * {@code %25} and means itself, so the parts are not read.
+     */
+    private static boolean escapedPercentIn(CallPlan plan) {
+        Resolution resolution = plan.urlVariables();
+        if (resolution == null) {
+            return plan.url() != null && UrlNormal.escapedPercent(plan.url().template());
+        }
+        StringBuilder configured = new StringBuilder();
+        for (Resolution.Piece piece : resolution.pieces()) {
+            configured.append(piece.send() == null ? "" : piece.send());
+        }
+        return UrlNormal.escapedPercent(configured.toString());
+    }
+
     /** What put the encoded separator into the path, in words: a variable with its layer, a url part, or the url as written. */
     private static String encodedFrom(CallPlan plan) {
+        return encodedFrom(plan, false);
+    }
+
+    /** As above; with {@code escapedPercent}, what put an escaped percent sign there, url parts left out. */
+    private static String encodedFrom(CallPlan plan, boolean escapedPercent) {
         List<String> found = new ArrayList<>();
         Resolution resolution = plan.urlVariables();
         if (resolution != null) {
             Map<String, VariableSource> sources = sources(resolution);
             for (Resolution.Piece piece : resolution.pieces()) {
-                if (piece.name() != null && piece.send() != null && UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null) {
+                if (piece.name() != null && piece.send() != null && (escapedPercent ? UrlNormal.escapedPercent("/" + withoutQuery(piece.send()))
+                        : UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null)) {
                     VariableSource source = sources.get(piece.name());
                     String named = "the variable \"" + ConfigStore.quoted(piece.name()) + "\""
                             + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
@@ -455,7 +500,7 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         new TreeMap<>(plan.intent().urlValues()).forEach((name, value) -> {
-            if (Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
+            if (!escapedPercent && Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
                 found.add("the url part {" + name + "}");
             }
         });

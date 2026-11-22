@@ -361,6 +361,33 @@ final class ProductionDestinations {
         return scheme > 0 && value.substring(0, scheme).matches("[A-Za-z][A-Za-z0-9+.-]*") && authorityEnd(value) > scheme + 3;
     }
 
+    /**
+     * Where a text of this environment that is not one of its variables, such as the token url of
+     * its Sign-in, points, resolved through the layers a call resolves through: one entry for each
+     * list of layers under which it resolves to an address. A secret in it marks the entry as
+     * secret, so it is never quoted.
+     */
+    static List<Found> resolvedText(PostmanEnvironment environment, String text, Context context) {
+        Set<Found> found = new LinkedHashSet<>();
+        if (environment == null || text == null || text.isBlank()) {
+            return List.of();
+        }
+        VariableLayer own = VariableLayer.environment(environment.name(), environment.inForce());
+        for (List<VariableLayer> after : context.after()) {
+            List<VariableLayer> layers = new ArrayList<>();
+            layers.add(own);
+            layers.addAll(after);
+            Resolution resolved = WITHIN.resolve(text.strip(), layers);
+            String value = resolved.send();
+            UrlNormal.Destination destination = value == null ? null : UrlNormal.destination(value);
+            if (destination != null) {
+                boolean secret = resolved.pieces().stream().anyMatch(piece -> piece.kind() == Resolution.Kind.SECRET);
+                found.add(new Found(destination, secret));
+            }
+        }
+        return new ArrayList<>(found);
+    }
+
     /** The destinations alone, for comparing with the addresses another environment would use. */
     static List<UrlNormal.Destination> destinations(PostmanEnvironment environment, Context context) {
         return of(environment, context).stream().map(Found::destination).toList();
