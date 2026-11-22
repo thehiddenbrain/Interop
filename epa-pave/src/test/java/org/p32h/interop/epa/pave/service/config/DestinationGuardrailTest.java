@@ -341,8 +341,8 @@ class DestinationGuardrailTest {
                                         + "lies above or beneath one. It was not stored.");
                                 assertThat(e.fieldErrors().get(0).field()).isEqualTo("kind");
                                 assertThat(e.fieldErrors().get(0).message()).startsWith("\"vendor-live-two\" is no longer stored. If it "
-                                        + "was uploaded as prod by mistake, forget the address in Configuration > Production writes "
-                                        + "and upload this environment again.");
+                                        + "was uploaded as prod by mistake, forget the address " + LIVE_TWO + " in Configuration > "
+                                        + "Production writes and upload this environment again.");
                             });
                 }
             }

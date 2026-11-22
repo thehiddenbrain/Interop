@@ -1192,8 +1192,16 @@ public class ConfigStore {
      */
     private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
+        // The remembered addresses that block, as Production writes lists them: forgetting one of several
+        // leaves the others refusing, so the note names each.
+        Set<ConfigSnapshot.KnownDestination> blocking = new LinkedHashSet<>();
         ProductionDestinations.Found quoted = null;
         for (ProductionDestinations.Found found : ProductionDestinations.of(parsed, before.context())) {
+            for (ConfigSnapshot.KnownDestination known : before.remembered()) {
+                if (known.destination().overlaps(found.destination())) {
+                    blocking.add(known);
+                }
+            }
             List<String> overlapping = before.productionOverlaps(found.destination());
             if (!overlapping.isEmpty() && quoted == null && !found.secret()) {
                 quoted = found;
@@ -1233,9 +1241,15 @@ public class ConfigStore {
         boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
         if (removed) {
             // The way out that works while PAVE runs: Forget, offered for exactly these addresses (R-35).
+            // Forget takes one row, an address and the environment it is remembered for, so each row is named.
+            List<String> rows = blocking.stream().map(known -> oneLine(known.listed())
+                    + (several ? " (for \"" + quoted(known.environment()) + "\")" : "")).distinct().toList();
+            String forget = rows.size() == 1
+                    ? "forget the address " + rows.get(0) + " in Configuration > Production writes and upload this environment again. "
+                    : "forget each of these " + rows.size() + " addresses in Configuration > Production writes, then upload this "
+                            + "environment again: " + String.join("; ", rows) + ". ";
             note = named + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was") + " uploaded as "
-                    + "prod by mistake, forget " + (several ? "their addresses" : "the address") + " in Configuration > Production writes "
-                    + "and upload this environment again. " + note;
+                    + "prod by mistake, " + forget + note;
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));

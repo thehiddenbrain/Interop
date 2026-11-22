@@ -52,7 +52,8 @@ class ProductionSlipTest {
                 assertThat(e.fieldErrors()).singleElement().satisfies(note -> {
                     assertThat(note.field()).isEqualTo("kind");
                     assertThat(note.message()).isEqualTo("\"" + SLIPPED + "\" is no longer stored. If it was uploaded as prod by mistake, "
-                            + "forget the address in Configuration > Production writes and upload this environment again. "
+                            + "forget the address " + ADDRESS + " in Configuration > Production writes and upload this environment "
+                            + "again. "
                             + "An address that this installation knows as production stays production, even after its environment is "
                             + "deleted. If this environment is production, upload it with the kind prod. If it is not, point its "
                             + "variables at the " + kind.wire() + " service and upload it again.");
@@ -114,8 +115,9 @@ class ProductionSlipTest {
                     assertThat(e.getMessage()).contains("is an address of the production environments \"Payer Live A\" and "
                             + "\"Payer Live B\", or lies above or beneath one.").doesNotContain("removed");
                     assertThat(e.fieldErrors().get(0).message()).startsWith("\"Payer Live A\" and \"Payer Live B\" are no longer stored. "
-                            + "If they were uploaded as prod by mistake, forget their addresses in Configuration > Production writes and "
-                            + "upload this environment again. ")
+                            + "If they were uploaded as prod by mistake, forget each of these 2 addresses in Configuration > Production "
+                            + "writes, then upload this environment again: " + ADDRESS + " (for \"Payer Live A\"); " + ADDRESS
+                            + " (for \"Payer Live B\"). ")
                             .endsWith("If it is not, point its variables at the sandbox service and upload it again.");
                 });
     }

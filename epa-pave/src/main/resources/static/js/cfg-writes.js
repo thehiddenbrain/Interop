@@ -174,7 +174,7 @@ export function mount(root, route) {
             title: 'Forget this production address?',
             body: [el('p', null, el('span', {class: 'mono'}, row.destination || '')),
                 el('p', null, 'It is remembered as production for ', el('strong', {class: 'environment-name'}, row.environment || ''),
-                    ', which is no longer stored as production. Once it is forgotten, an environment of kind sandbox or uat can use this address.'),
+                    ', which is no longer stored as production. Once it is forgotten, an environment of kind sandbox or uat can use this address, unless another remembered address lies above or beneath it.'),
                 nameField, problem],
             footer: dialog => {
                 const forget = button('Forget this production address', () => during(forget, busy, 'Forgetting', async () => {

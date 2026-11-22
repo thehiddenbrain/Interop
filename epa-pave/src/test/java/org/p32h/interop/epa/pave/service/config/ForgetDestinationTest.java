@@ -82,6 +82,23 @@ class ForgetDestinationTest {
     }
 
     @Test
+    void theRefusalNamesTheRememberedAddressAboveTheOneTypedSoForgettingItIsTheWayOut() {
+        // An address beneath a remembered one is refused for the one above it; forgetting the typed
+        // address alone would change nothing, so the note names the one to forget.
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        String base = "https://slip.vendor.example.invalid/fhir";
+        String submit = base + "/Claim/$submit";
+        upload(fixture, "Slipped Sandbox", base, EnvironmentKind.PROD);
+        fixture.store.removeEnvironment("Slipped Sandbox");
+        assertThatThrownBy(() -> upload(fixture, "Vendor Sandbox", submit, EnvironmentKind.SANDBOX))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message()).startsWith(
+                        "\"Slipped Sandbox\" is no longer stored. If it was uploaded as prod by mistake, forget the address " + base
+                                + " in Configuration > Production writes and upload this environment again. "));
+        fixture.service.forgetDestination(base, "Slipped Sandbox");
+        upload(fixture, "Vendor Sandbox", submit, EnvironmentKind.SANDBOX);
+    }
+
+    @Test
     void anAddressAStoredProdEnvironmentAlsoHoldsStaysWhenTheRemovedOneIsForgotten() {
         ConfigFixture fixture = ConfigFixture.mock(directory);
         upload(fixture, "Payer Live A", ADDRESS, EnvironmentKind.PROD);
@@ -102,8 +119,8 @@ class ForgetDestinationTest {
         fixture.store.removeEnvironment("Slipped Sandbox");
         assertThatThrownBy(() -> upload(fixture, "Slipped Sandbox", ADDRESS, EnvironmentKind.SANDBOX))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors().get(0).message()).startsWith(
-                        "\"Slipped Sandbox\" is no longer stored. If it was uploaded as prod by mistake, forget the address in "
-                                + "Configuration > Production writes and upload this environment again. ")
+                        "\"Slipped Sandbox\" is no longer stored. If it was uploaded as prod by mistake, forget the address " + ADDRESS
+                                + " in Configuration > Production writes and upload this environment again. ")
                         .doesNotContain("store.json"));
         MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
 
