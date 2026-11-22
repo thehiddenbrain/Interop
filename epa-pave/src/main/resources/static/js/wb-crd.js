@@ -151,11 +151,6 @@ export function mount(root, ctx) {
         },
         hide() {},
         caseChanged() {},
-        /** A result read back after a reload is the step's latest: drawn as one that just arrived. */
-        restored() {
-            clear(refusal);
-            draw();
-        },
         /** Start a new case: the refusal and the result of the case before are taken away. */
         reset() {
             clear(refusal);

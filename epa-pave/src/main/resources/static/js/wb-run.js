@@ -5,9 +5,7 @@
 //
 //   a 2xx, and a 403 or 500 that carries a run   the result card; the journey hears of it
 //   a 422                                        each field error at its field (folds opened); the
-//                                                result before it stays; the journey is unchanged. A
-//                                                placeholder with no value gets a field in "Values for
-//                                                this run", and every later run sends what is typed there
+//                                                result before it stays; the journey is unchanged
 //   anything else                                the error panel, in one visible place
 //
 // Every send button is disabled while its call is in flight, so one click never sends twice.
@@ -15,7 +13,6 @@
 import {call} from './api.js';
 import {el, button} from './dom.js';
 import {errorPanel} from './fault.js';
-import {withRunValues, operationOf} from './wb-values.js';
 
 /**
  * The text a send is refused for, or empty when it may go: what was typed in the procedure code box
@@ -100,8 +97,7 @@ export async function sendRun(spec) {
     let answer;
     try {
         // A read or a delete of a subscription sends its facts as parameters; everything else as a JSON body.
-        // The values typed for this run go with every run that has a body; a read sends parameters only.
-        answer = await call(spec.method || 'POST', spec.path, spec.body === undefined ? {query: spec.query} : {body: withRunValues(spec.body)});
+        answer = await call(spec.method || 'POST', spec.path, spec.body === undefined ? {query: spec.query} : {body: spec.body});
     } finally {
         spec.busy.stop();
         for (const control of spec.buttons) {
@@ -111,10 +107,6 @@ export async function sendRun(spec) {
     if (answer.ok || (answer.data && typeof answer.data.runId === 'string')) {
         spec.onResult(answer.data);
     } else if (answer.status === 422 && answer.error && Array.isArray(answer.error.fieldErrors)) {
-        // Fields for the placeholders first, so their sentences are placed there and not in a panel.
-        if (typeof spec.ctx.needValues === 'function') {
-            spec.ctx.needValues(answer.error.fieldErrors, operationOf(spec.path, spec.body));
-        }
         spec.onRefused(answer.error, spec.ctx.placeErrors(answer.error.fieldErrors));
     } else {
         spec.onFailed(answer.error);

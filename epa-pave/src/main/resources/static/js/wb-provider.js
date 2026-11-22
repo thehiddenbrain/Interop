@@ -3,7 +3,7 @@
 // and, last in "Edit provider fields", the servicing provider that Submit alone sends.
 
 import {el, fold, button, fill, clear} from './dom.js';
-import {caseField, caseChanged, fieldsOf, restoreFields, MARKS} from './wb-case.js';
+import {caseField, caseChanged, fieldsOf, MARKS} from './wb-case.js';
 import {cardHead, latestOnly, lookUp, fillFromLookup, clearLookedUp, statusChip, lookupLine, returnedFold} from './wb-lookup.js';
 
 const PRACTITIONER_HINT = 'The vendor\'s own id for this practitioner. Sent as Practitioner/<id>.';
@@ -195,21 +195,6 @@ export function createProviderCard(env) {
             }
             servicing.clear();
             draw();
-        },
-        /** The provider and servicing provider of a case read back after a reload, marked where they came from; nothing looked up. */
-        restore(given, overrides, servingGiven, mark) {
-            picker.value = '';
-            answer = null;
-            const values = given && typeof given === 'object' ? given : {};
-            npi.clear();
-            if (typeof values.npi === 'string' && values.npi !== '') {
-                npi.set(values.npi, mark);
-            }
-            const rest = restoreFields(fields, values, overrides, mark);
-            delete rest.npi;
-            extra = rest;
-            servicing.restore(servingGiven, mark);
-            draw();
         }
     };
 }
@@ -290,10 +275,6 @@ function createServicing(env) {
             control.input.focus();
             return true;
         },
-        clear: forget,
-        restore(given, mark) {
-            picker.value = '';
-            restoreFields(fields, given, [], mark);
-        }
+        clear: forget
     };
 }

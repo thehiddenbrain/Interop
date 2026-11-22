@@ -14,7 +14,6 @@ import {errorPanel} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
-import {call} from './api.js';
 
 // The facts the card shows before the rest go into a fold inside it, so the card stays short.
 const MOST_FACTS = 8;
@@ -313,7 +312,7 @@ function folds(envelope) {
     if (returned.length > 0) {
         out.push(fold({summary: 'Returned but not interpreted (' + returned.length + ')', body: () => returnedTable(returned, envelope.wire)}));
     }
-    out.push(wireFold(envelope.wire, {profile: envelope.profile, error: envelope.error, answeredBy: envelope.answeredBy, runId: envelope.runId}));
+    out.push(wireFold(envelope.wire, {profile: envelope.profile, error: envelope.error, answeredBy: envelope.answeredBy}));
     return out;
 }
 
@@ -418,9 +417,6 @@ function wireBody(wire, facts) {
             headers(response.headers),
             response.body !== undefined && response.body !== null ? jsonView(response.body, {label: 'Response body'}) : null));
     }
-    if (request && typeof facts.runId === 'string' && facts.runId !== '') {
-        parts.push(downloadSlot(facts.runId));
-    }
     const forms = wire.memberId;
     if (forms && forms.sent) {
         parts.push(el('p', {class: 'small'}, 'Member ID as typed ', el('span', {class: 'mono'}, forms.typed || ''),
@@ -428,55 +424,6 @@ function wireBody(wire, facts) {
             forms.note ? el('span', {class: 'muted'}, ' ' + forms.note) : null));
     }
     return el('div', {class: 'wire'}, parts);
-}
-
-/**
- * The link "Download request and answer", shown only once the trail says it keeps the run: a run
- * the trail does not keep (or a trail switched off) has nothing to download, and a link that could
- * only answer "not found" is never drawn. Asked when the fold opens, so a closed fold asks nothing.
- */
-export function downloadSlot(runId) {
-    const slot = el('p', {class: 'small wire__download'});
-    call('GET', '/api/trail/' + encodeURIComponent(runId)).then(answer => {
-        if (answer.ok && answer.data && answer.data.kept === true) {
-            fill(slot, downloadLink(runId));
-        }
-    }, () => null);
-    return slot;
-}
-
-/** The download of a run's kept request and answer, as the trail masked them, named run-<runId>.json. */
-export function downloadLink(runId) {
-    return el('a', {href: '/api/trail/' + encodeURIComponent(runId) + '/download', attrs: {download: 'run-' + runId + '.json'}},
-        'Download request and answer');
-}
-
-/**
- * A card from a run's ledger line, for a run the trail no longer keeps: its chips, the outcome in
- * the vocabulary's words, and only what the line holds. The line keeps codes and identifiers, never
- * the request, the answer or the sentences the result was worded in, so the card says no more.
- */
-export function ledgerCard(record, words) {
-    const run = record && typeof record === 'object' ? record : {};
-    const outcomes = words && words.outcomes ? words.outcomes[run.protocol] || [] : [];
-    const outcome = outcomes.find(each => each.code === run.outcome) || null;
-    const who = words && Array.isArray(words.answeredBy) ? words.answeredBy.find(each => each.code === run.answeredBy) : null;
-    const expected = run.expected ? outcomes.find(each => each.code === run.expected) || null : null;
-    const codes = Array.isArray(run.procedureCodes) ? run.procedureCodes : [];
-    return el('div', {class: 'result result--ledger'},
-        el('div', {class: 'result__meta'},
-            typeof run.httpStatus === 'number' ? chip('HTTP ' + run.httpStatus) : null,
-            who && who.chip ? chip(who.chip, {hatched: run.answeredBy === 'SCENARIO', dashed: run.answeredBy !== 'SCENARIO'}) : null,
-            typeof run.elapsedMillis === 'number' ? chip(run.elapsedMillis + ' ms') : null,
-            typeof run.runId === 'string' ? el('a', {class: 'push small', href: '#audit/runs/' + encodeURIComponent(run.runId)}, 'Open in Audit') : null),
-        el('div', {class: ['verdict', 'verdict--' + (outcome && toneName(outcome.tone) ? toneName(outcome.tone) : 'neutral')]},
-            el('p', {class: 'verdict__headline'}, outcome ? outcome.label : run.outcome || 'No outcome recorded'),
-            kv([
-                {key: 'Outcome', value: run.outcome ? chip(outcome && outcome.short ? outcome.short : run.outcome, {mono: !outcome || !outcome.short})
-                    : chip('not recorded', {dashed: true})},
-                {key: 'Code', value: codes.length > 0 ? el('span', {class: 'mono'}, codes.join(', ')) : chip('not recorded', {dashed: true})},
-                {key: 'Expected', value: run.expected ? (expected ? expected.label : el('span', {class: 'mono'}, run.expected)) : chip('Not set', {dashed: true})}
-            ])));
 }
 
 function headers(list) {
