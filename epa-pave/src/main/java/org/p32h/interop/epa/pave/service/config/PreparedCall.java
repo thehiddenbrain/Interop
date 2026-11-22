@@ -105,4 +105,20 @@ public sealed interface PreparedCall permits IssuedCall {
     default Timeouts timeouts() {
         return Timeouts.APPLICATION;
     }
+
+    /**
+     * The rule this call's member IDs are sent by: the environment's when it states one, else
+     * packed, which the vendor's sandbox requires and this tool always applied.
+     */
+    default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
+        return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
+    }
+
+    /**
+     * The shape each request shape takes in this call, each with its source: the environment's
+     * setting, the vendor's sample in the collection, or the default FHIR requires.
+     */
+    default org.p32h.interop.epa.pave.model.RequestShapes shapes() {
+        return org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
+    }
 }

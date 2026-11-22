@@ -18,13 +18,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The resources of a PAS request bundle, each in the shape of its PAS 2.0.1 profile: the
+ * The resources of a PAS request bundle, each in the shape of its Da Vinci PAS 2.2.1 profile: the
  * beneficiary, the coverage, the insurer, the requestor (a practitioner in a role, or an
- * organization), the order behind each item and an attached document.
+ * organization), the servicing provider, the order behind each item and an attached document.
+ * Where a PAS 2.2.1 profile is built on US Core, its parent is US Core 7.0.0, and a note that names a
+ * requirement of the parent names that version.
  *
  * <p>PAS has profiles of its own for every one of these, so they are built here and not taken
  * from {@link CaseResources}, which builds the shapes CRD and DTR send. The local ids are the
@@ -51,19 +54,19 @@ final class PasResources {
     static final String REQUESTOR_REF = "Organization/" + REQUESTOR_ID;
 
     /**
-     * HCPCS Level II as PAS 2.0.1 names it in the value set X12278RequestedServiceType, which is
+     * HCPCS Level II as PAS 2.2.1 names it in the value set X12278RequestedServiceType, which is
      * bound, required, to Claim.item.productOrService: http, and no s. CRD 2.0.1 and the ballots
      * write other forms, so the variable {@link #VAR_HCPCS_SYSTEM} can override it.
      */
     static final String HCPCS = "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets";
 
-    /** The code systems PAS 2.0.1 X12278RequestedServiceType takes its codes from. */
+    /** The code systems PAS 2.2.1 X12278RequestedServiceType takes its codes from. */
     private static final Set<String> REQUESTED_SERVICE_SYSTEMS = Set.of("https://codesystem.x12.org/005010/1365", CaseResources.CPT, HCPCS,
             "http://terminology.hl7.org/CodeSystem/icd9cm", "http://www.cms.gov/Medicare/Coding/ICD10", "http://hl7.org/fhir/sid/ndc");
 
     private static final String RELATIONSHIPS = "http://terminology.hl7.org/CodeSystem/subscriber-relationship";
 
-    /** The same labels {@link CaseResources} knows, mapped to the uris PAS 2.0.1 names. */
+    /** The same labels {@link CaseResources} knows, mapped to the uris PAS 2.2.1 names. */
     private static final Map<String, String> LABELS = Map.of("cpt", CaseResources.CPT, "cpt4", CaseResources.CPT, "hcpcs", "HCPCS",
             "hcpcslevelii", "HCPCS", "hcpcsii", "HCPCS");
 
@@ -81,7 +84,7 @@ final class PasResources {
     // The member and the coverage
     // ---------------------------------------------------------------------------------------------
 
-    /** The member as PASBeneficiary, whose parent is US Core 3.1.1 Patient. */
+    /** The member as PASBeneficiary, whose parent is US Core 7.0.0 Patient. */
     ObjectNode patient(MemberDetail member, Function<String, ResolvedText> variables, PasNotes notes) {
         ObjectNode patient = JSON.objectNode();
         patient.put("resourceType", "Patient");
@@ -96,8 +99,8 @@ final class PasResources {
                 name.putArray("given").add(member.firstName().strip());
             }
         } else {
-            notes.missing("PASBeneficiary name", "No member name was sent, because none was supplied. PAS 2.0.1 PASBeneficiary, on US Core "
-                    + "3.1.1 Patient, requires one: look the member up, or enter the name on the form.");
+            notes.missing("PASBeneficiary name", "No member name was sent, because none was supplied. PAS 2.2.1 PASBeneficiary, on US Core "
+                    + "7.0.0 Patient, requires one: look the member up, or enter the name on the form.");
         }
         if (Texts.present(member.dateOfBirth())) {
             patient.put("birthDate", member.dateOfBirth().strip());
@@ -111,7 +114,7 @@ final class PasResources {
             notes.missing("PASBeneficiary gender", (Texts.present(member.gender())
                     ? "The gender \"" + member.gender().strip() + "\" is not one this tool can map to a FHIR code, so none was sent."
                     : "No gender was sent, because none was supplied.")
-                    + " PAS 2.0.1 PASBeneficiary, on US Core 3.1.1 Patient, requires one: look the member up, or enter it on the form.");
+                    + " PAS 2.2.1 PASBeneficiary, on US Core 7.0.0 Patient, requires one: look the member up, or enter it on the form.");
         }
         return patient;
     }
@@ -124,7 +127,7 @@ final class PasResources {
             identifier.put("system", system);
         } else if (note) {
             notes.missing("PASBeneficiary identifier.system", "The member ID was sent without an identifier system: the variable "
-                    + CaseResources.VAR_MEMBER_ID_SYSTEM + " is not set. PAS 2.0.1 PASBeneficiary, on US Core 3.1.1 Patient, requires a "
+                    + CaseResources.VAR_MEMBER_ID_SYSTEM + " is not set. PAS 2.2.1 PASBeneficiary, on US Core 7.0.0 Patient, requires a "
                     + "system on every identifier.");
         }
         // The no-space form, which is the only form the service accepts.
@@ -151,12 +154,12 @@ final class PasResources {
             notes.missing("PASCoverage status", (Texts.present(member.coverageStatus())
                     ? "The coverage status \"" + member.coverageStatus().strip() + "\" is not one this tool can map to a FHIR code, so none was sent."
                     : "No coverage status was sent, because none was supplied.")
-                    + " PAS 2.0.1 PASCoverage requires a status and allows only \"active\". Looking the member up, or stating the "
+                    + " PAS 2.2.1 PASCoverage requires a status and allows only \"active\". Looking the member up, or stating the "
                     + "coverage status on the form, supplies it.");
         } else {
             coverage.put("status", status);
             if (!"active".equals(status)) {
-                notes.add("The coverage status was sent as \"" + status + "\", as it was supplied. PAS 2.0.1 PASCoverage allows only "
+                notes.add("The coverage status was sent as \"" + status + "\", as it was supplied. PAS 2.2.1 PASCoverage allows only "
                         + "\"active\", so the service may refuse the request for that alone.");
             }
         }
@@ -170,15 +173,19 @@ final class PasResources {
             // subscriber is the member already in the bundle and nothing is assumed.
             coverage.putObject("subscriber").put("reference", CaseResources.PATIENT_REF);
         } else {
-            notes.add("No subscriber was named on the coverage: nothing supplied says who the subscriber is. PAS 2.0.1 PASCoverage marks "
-                    + "it must-support. Setting the variable " + VAR_RELATIONSHIP + " to self names the member as the subscriber.");
+            // PAS 2.2.1 PASCoverage rule self-beneficiary: unless the relationship carries the X12
+            // code 18 (self), a subscriber SHALL be present. This tool names a subscriber only for
+            // self, so without self the rule is broken and counted.
+            notes.missing("PASCoverage subscriber (rule self-beneficiary)", "No subscriber was named on the coverage: nothing supplied says "
+                    + "who the subscriber is. PAS 2.2.1 PASCoverage rule self-beneficiary requires one unless the relationship is self. "
+                    + "Setting the variable " + VAR_RELATIONSHIP + " to self names the member as the subscriber.");
         }
         coverage.putObject("beneficiary").put("reference", CaseResources.PATIENT_REF);
         if (relationship != null) {
             ObjectNode concept = coverage.putObject("relationship");
             concept.putArray("coding").addObject().put("system", RELATIONSHIPS).put("code", relationship.toLowerCase(Locale.ROOT));
             if ("self".equalsIgnoreCase(relationship)) {
-                // X12 1069 code 18 is "Self", the code PAS 2.0.1 asks for beside the FHIR one.
+                // X12 1069 code 18 is "Self", the code PAS 2.2.1 asks for beside the FHIR one.
                 concept.withArray("coding").addObject().put("system", OnyxPasConventions.X12_RELATIONSHIP).put("code", "18");
             } else {
                 notes.add("The relationship was sent as \"" + relationship + "\" with no X12 code beside it: this tool knows the X12 code "
@@ -186,13 +193,13 @@ final class PasResources {
             }
         } else {
             notes.add("No relationship of the member to the subscriber was sent: the variable " + VAR_RELATIONSHIP + " is not set. "
-                    + "PAS 2.0.1 PASCoverage marks it must-support, and the 2.2.0 ballot requires it.");
+                    + "PAS 2.2.1 PASCoverage marks it must-support.");
         }
         if (insurerSent) {
             coverage.putArray("payor").addObject().put("reference", INSURER_REF);
         } else {
             notes.missing("PASCoverage payor", "No payer was named on the coverage: neither " + CaseResources.VAR_PAYER_ID + " nor "
-                    + CaseResources.VAR_PAYER_NAME + " is set. FHIR R4 Coverage requires a payor, and PAS 2.0.1 PASCoverage points it at "
+                    + CaseResources.VAR_PAYER_NAME + " is set. FHIR R4 Coverage requires a payor, and PAS 2.2.1 PASCoverage points it at "
                     + "the insurer Organization.");
         }
         if (Texts.present(member.planName())) {
@@ -205,20 +212,23 @@ final class PasResources {
     }
 
     /**
-     * The payer as PASInsurer, or null, with a note, when no variable names it.
+     * The payer as PASInsurer, or null, with a note, when no value names it. The values are the
+     * environment's (payerName, payerIdentifier, payerIdentifierSystem), typed under Values or held
+     * by the Postman environment; they reach this method as variables like any other.
      *
      * <p>Two values are not taken from a variable. The type PR says the organization is the
-     * payer, which is the role it has in this request. And US Core 3.1.1 Organization requires
-     * {@code active}: this is the organization the request is addressed to for a decision, so it
-     * is sent as an organization in active use.
+     * payer, which is the role it has in this request. And PAS 2.2.1 PASInsurer fixes
+     * {@code active} to true: this is the organization the request is addressed to for a decision,
+     * so it is sent as an organization in active use.
      */
     static ObjectNode insurer(Function<String, ResolvedText> variables, String claimProfile, PasNotes notes) {
         String payerId = CaseResources.value(variables, CaseResources.VAR_PAYER_ID);
         String payerName = CaseResources.value(variables, CaseResources.VAR_PAYER_NAME);
         if (payerId == null && payerName == null) {
             notes.missing(claimProfile + " insurer", "No insurer organization was sent: neither " + CaseResources.VAR_PAYER_ID + " nor "
-                    + CaseResources.VAR_PAYER_NAME + " is set. PAS 2.0.1 " + claimProfile + " requires the insurer (PASClaimBase, which "
-                    + "PASClaim and PASClaimInquiry share, makes it 1..1).");
+                    + CaseResources.VAR_PAYER_NAME + " is set. PAS 2.2.1 " + claimProfile + " requires the insurer (PASClaimBase, which "
+                    + "PASClaim and PASClaimInquiry share, makes it 1..1): add Payer name and Payer identifier under Values in "
+                    + "Configuration > Environments.");
             return null;
         }
         ObjectNode organization = JSON.objectNode();
@@ -230,6 +240,11 @@ final class PasResources {
             String payerSystem = CaseResources.value(variables, CaseResources.VAR_PAYER_ID_SYSTEM);
             if (payerSystem != null) {
                 identifier.put("system", payerSystem);
+            } else {
+                notes.missing("PASInsurer identifier.system", "The payer identifier was sent without an identifier system: the variable "
+                        + CaseResources.VAR_PAYER_ID_SYSTEM + " is not set. PAS 2.2.1 gives the identifiers of a PAS organization the "
+                        + "profile PASIdentifier, which requires a system: add Payer identifier system under Values in Configuration > "
+                        + "Environments.");
             }
             identifier.put("value", payerId);
         }
@@ -239,7 +254,7 @@ final class PasResources {
             organization.put("name", payerName);
         } else {
             notes.missing("PASInsurer name", "The insurer organization was sent without a name: the variable " + CaseResources.VAR_PAYER_NAME
-                    + " is not set. PAS 2.0.1 PASInsurer, on US Core 3.1.1 Organization, requires one.");
+                    + " is not set. PAS 2.2.1 PASInsurer, on US Core 7.0.0 Organization, requires one.");
         }
         return organization;
     }
@@ -266,24 +281,98 @@ final class PasResources {
             organization.put("id", REQUESTOR_ID);
             // The organization is the one making this request now, so it is in active use.
             organization.put("active", true);
-            organization.putArray("identifier").addObject().put("system", CaseResources.NPI_SYSTEM).put("value", provider.npi().strip());
+            npiIdentifier(organization, provider);
             String type = CaseResources.value(variables, VAR_REQUESTOR_TYPE);
             if (type != null) {
                 organization.putArray("type").addObject().putArray("coding").addObject().put("system", OnyxPasConventions.X12_ENTITY_TYPES)
                         .put("code", type);
             } else {
-                notes.add("The requesting organization was sent with no type: the variable " + VAR_REQUESTOR_TYPE + " is not set. PAS 2.0.1 "
+                notes.add("The requesting organization was sent with no type: the variable " + VAR_REQUESTOR_TYPE + " is not set. PAS 2.2.1 "
                         + "PASRequestor marks it must-support, with codes from X12 entity identifier codes, such as 1P for a provider.");
             }
             organization.put("name", provider.organizationName().strip());
+            telecom(organization, provider);
             notes.add("The provider was sent as the requesting organization " + REQUESTOR_REF + ", because only an organization name was "
-                    + "supplied. PAS 2.0.1 lets PASRequestor stand as the claim's provider.");
+                    + "supplied. PAS 2.2.1 lets PASRequestor stand as the claim's provider.");
             return List.of(organization);
         }
+        ObjectNode practitioner = practitioner(CaseResources.PRACTITIONER_ID, provider);
+        if (Texts.blank(provider.lastName())) {
+            notes.missing("PASPractitioner name.family", "No family name of the provider was sent, because none was supplied. PAS 2.2.1 "
+                    + "PASPractitioner, on US Core 7.0.0 Practitioner, requires one: look the provider up, or enter the name on the form.");
+        }
+        ObjectNode role = JSON.objectNode();
+        role.put("resourceType", "PractitionerRole");
+        role.put("id", CaseResources.PRACTITIONER_ROLE_ID);
+        role.putObject("practitioner").put("reference", CaseResources.PRACTITIONER_REF);
+        if (!telecom(role, provider)) {
+            notes.missing("PASPractitionerRole telecom (rule pd-1)", "Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit "
+                    + "provider fields. PAS 2.2.1 PASPractitionerRole, on US Core 7.0.0 PractitionerRole, needs a phone, a fax or an "
+                    + "endpoint on the requesting provider's role.");
+        }
+        notes.add("The practitioner role names no organization: nothing supplied says which organization the provider acts for. PAS "
+                + "2.2.1 PASPractitionerRole marks it must-support.");
+        return List.of(practitioner, role);
+    }
+
+    /**
+     * The servicing provider, when the tester chose one, as a member of the claim's care team: a
+     * PractitionerRole with a Practitioner of its own, or an Organization when only an
+     * organization name was given. PAS 2.2.1 PASClaimBase lets careTeam.provider be either. The
+     * resources have ids of their own, so the servicing provider is never mistaken for the
+     * requesting one even when the two are the same person.
+     *
+     * @return the care team member's reference and its resources, or null when no servicing provider was given
+     */
+    static Servicing servicing(ProviderDetail provider, PasNotes notes) {
+        if (provider == null || (Texts.blank(provider.npi()) && Texts.blank(provider.lastName()) && Texts.blank(provider.firstName())
+                && Texts.blank(provider.organizationName()))) {
+            return null;
+        }
+        if (requestorIsAnOrganization(provider)) {
+            ObjectNode organization = JSON.objectNode();
+            organization.put("resourceType", "Organization");
+            organization.put("id", OnyxPasConventions.SERVICING_ORGANIZATION_ID);
+            // The organization will perform the service, so it is in active use.
+            organization.put("active", true);
+            npiIdentifier(organization, provider);
+            organization.put("name", provider.organizationName().strip());
+            telecom(organization, provider);
+            notes.add("The servicing provider was sent as the care team member Organization/" + OnyxPasConventions.SERVICING_ORGANIZATION_ID
+                    + ", because only an organization name was given for it.");
+            return new Servicing("Organization/" + OnyxPasConventions.SERVICING_ORGANIZATION_ID, List.of(organization));
+        }
+        ObjectNode practitioner = practitioner(OnyxPasConventions.SERVICING_PRACTITIONER_ID, provider);
+        if (Texts.blank(provider.npi())) {
+            notes.missing("PASPractitioner identifier (servicing provider)", "The servicing provider was sent with no identifier, because no "
+                    + "NPI was given for it. PAS 2.2.1 PASPractitioner, on US Core 7.0.0 Practitioner, requires one.");
+        }
+        if (Texts.blank(provider.lastName())) {
+            notes.missing("PASPractitioner name.family (servicing provider)", "No family name of the servicing provider was sent, because none "
+                    + "was given. PAS 2.2.1 PASPractitioner, on US Core 7.0.0 Practitioner, requires one.");
+        }
+        ObjectNode role = JSON.objectNode();
+        role.put("resourceType", "PractitionerRole");
+        role.put("id", OnyxPasConventions.SERVICING_ROLE_ID);
+        role.putObject("practitioner").put("reference", "Practitioner/" + OnyxPasConventions.SERVICING_PRACTITIONER_ID);
+        if (!telecom(role, provider)) {
+            notes.missing("PASPractitionerRole telecom of the servicing provider (rule pd-1)", "Servicing provider phone or fax: none. PAS "
+                    + "rule pd-1 needs one: add it to the servicing provider. PAS 2.2.1 PASPractitionerRole, on US Core 7.0.0 "
+                    + "PractitionerRole, needs a phone, a fax or an endpoint.");
+        }
+        return new Servicing("PractitionerRole/" + OnyxPasConventions.SERVICING_ROLE_ID, List.of(practitioner, role));
+    }
+
+    /** A servicing provider as the care team names it, and the resources the bundle carries for it. */
+    record Servicing(String reference, List<ObjectNode> resources) {
+    }
+
+    /** A provider as PASPractitioner: the NPI when given, and the name as given. */
+    private static ObjectNode practitioner(String id, ProviderDetail provider) {
         ObjectNode practitioner = JSON.objectNode();
         practitioner.put("resourceType", "Practitioner");
-        practitioner.put("id", CaseResources.PRACTITIONER_ID);
-        practitioner.putArray("identifier").addObject().put("system", CaseResources.NPI_SYSTEM).put("value", provider.npi().strip());
+        practitioner.put("id", id);
+        npiIdentifier(practitioner, provider);
         if (Texts.present(provider.lastName()) || Texts.present(provider.firstName())) {
             ObjectNode name = practitioner.putArray("name").addObject();
             if (Texts.present(provider.lastName())) {
@@ -293,17 +382,35 @@ final class PasResources {
                 name.putArray("given").add(provider.firstName().strip());
             }
         }
-        if (Texts.blank(provider.lastName())) {
-            notes.missing("PASPractitioner name.family", "No family name of the provider was sent, because none was supplied. PAS 2.0.1 "
-                    + "PASPractitioner, on US Core 3.1.1 Practitioner, requires one: look the provider up, or enter the name on the form.");
+        return practitioner;
+    }
+
+    /** The NPI as an identifier, when one was given. No identifier array at all otherwise, because an empty one is invalid FHIR. */
+    private static void npiIdentifier(ObjectNode resource, ProviderDetail provider) {
+        if (Texts.present(provider.npi())) {
+            resource.putArray("identifier").addObject().put("system", CaseResources.NPI_SYSTEM).put("value", provider.npi().strip());
         }
-        ObjectNode role = JSON.objectNode();
-        role.put("resourceType", "PractitionerRole");
-        role.put("id", CaseResources.PRACTITIONER_ROLE_ID);
-        role.putObject("practitioner").put("reference", CaseResources.PRACTITIONER_REF);
-        notes.add("The practitioner role names no organization: nothing supplied says which organization the provider acts for. PAS "
-                + "2.0.1 PASPractitionerRole marks it must-support.");
-        return List.of(practitioner, role);
+    }
+
+    /**
+     * The provider's phone and fax as telecom, the contact US Core rule pd-1 asks of a role.
+     *
+     * @return true when at least one was given and written
+     */
+    private static boolean telecom(ObjectNode resource, ProviderDetail provider) {
+        boolean phone = Texts.present(provider.phone());
+        boolean fax = Texts.present(provider.fax());
+        if (!phone && !fax) {
+            return false;
+        }
+        ArrayNode telecom = resource.putArray("telecom");
+        if (phone) {
+            telecom.addObject().put("system", "phone").put("value", provider.phone().strip());
+        }
+        if (fax) {
+            telecom.addObject().put("system", "fax").put("value", provider.fax().strip());
+        }
+        return true;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -328,7 +435,12 @@ final class PasResources {
         if (!concept.path("coding").path(0).has("system")) {
             notes.missing("PASServiceRequest code system (code " + code.code().strip() + ")", "The order ServiceRequest/"
                     + CaseResources.serviceRequestId(position) + " carries the code " + code.code().strip() + " with no system, as its "
-                    + "item does. PAS 2.0.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
+                    + "item does. PAS 2.2.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
+        }
+        // The same quantity as its item: it is one order, and PASServiceRequest takes a PASQuantity too.
+        ObjectNode quantity = quantity(code);
+        if (quantity != null) {
+            resource.set("quantityQuantity", quantity);
         }
         resource.putObject("subject").put("reference", CaseResources.PATIENT_REF);
         if (Texts.present(dateOfService)) {
@@ -340,11 +452,30 @@ final class PasResources {
     }
 
     /**
+     * The quantity of a code as PASQuantity: the value as typed, and the X12 673 unit as code and
+     * system when a unit was chosen. Null when no quantity was given, because PASQuantity requires a
+     * value and none is assumed; a unit given without a quantity is then not sent, and the item's
+     * note says so.
+     */
+    static ObjectNode quantity(CodeInput code) {
+        if (code.quantity() == null) {
+            return null;
+        }
+        ObjectNode quantity = JSON.objectNode();
+        quantity.put("value", code.quantity());
+        if (Texts.present(code.unit())) {
+            quantity.put("system", OnyxPasConventions.X12_UNITS);
+            quantity.put("code", code.unit().strip());
+        }
+        return quantity;
+    }
+
+    /**
      * A procedure code as a CodeableConcept with one coding, as an item and its order carry it.
      *
      * <p>The coding system is the one the tester stated, else the one the code list states, else
      * the one the format of the code decides, as {@link CaseResources#codingSystem} explains. HCPCS
-     * Level II is written as PAS 2.0.1 names it. A system outside the value set PAS binds the
+     * Level II is written as PAS 2.2.1 names it. A system outside the value set PAS binds the
      * element to is still sent, with a note, because the tester or the code list said so.
      */
     ObjectNode codeableConcept(CodeInput code, String lineOfBusiness, Function<String, ResolvedText> variables, String claimProfile,
@@ -358,11 +489,11 @@ final class PasResources {
             coding.put("system", system);
             if (!REQUESTED_SERVICE_SYSTEMS.contains(system)) {
                 notes.add("The code " + value + " was sent with the system " + system + ", which is not one of the systems of the value set "
-                        + "X12278RequestedServiceType that PAS 2.0.1 binds, required, to the item's code. The service may refuse it.");
+                        + "X12278RequestedServiceType that PAS 2.2.1 binds, required, to the item's code. The service may refuse it.");
             }
         } else {
             notes.missing(claimProfile + " item.productOrService system (code " + value + ")", "The code " + value + " was sent with no "
-                    + "system. PAS 2.0.1 binds the item's code, required, to the value set X12278RequestedServiceType, so the service may "
+                    + "system. PAS 2.2.1 binds the item's code, required, to the value set X12278RequestedServiceType, so the service may "
                     + "refuse it. State its system with the code.");
         }
         coding.put("code", value);
@@ -384,7 +515,7 @@ final class PasResources {
             if (labelled != null) {
                 String uri = "HCPCS".equals(labelled) ? hcpcs : labelled;
                 notes.add("The code list gives the coding system for " + value + " as the label \"" + stated + "\", which is not a uri. The uri "
-                        + "PAS 2.0.1 names for " + name(uri) + " was sent in its place: " + uri + "."
+                        + "PAS 2.2.1 names for " + name(uri) + " was sent in its place: " + uri + "."
                         + (byFormat != null && !byFormat.equals(uri) ? " By its format alone the code would have been sent as " + name(byFormat) + "." : ""));
                 return uri;
             }
@@ -430,9 +561,14 @@ final class PasResources {
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * An attached document as a DocumentReference. PAS 2.0.1 asks that a resource with a US Core
-     * profile meet it, and US Core 3.1.1 DocumentReference requires a type and a category. Both
-     * come from the tester; neither is chosen here.
+     * An attached document as PASDocumentReference, whose parent is US Core 7.0.0 DocumentReference.
+     * US Core requires a type and a category; both come from the tester, and neither is chosen here.
+     *
+     * <p>PAS 2.2.1 requires the content inline as {@code data} and forbids a {@code url}. A file the
+     * page read arrives as base64 with its size, and goes as it came. A text goes as the base64 of
+     * its UTF-8 bytes, with their count. A url, still accepted from a body sent from curl, is sent as
+     * a url, because sending a request that breaks the rule is a test a tester may mean to run; it is
+     * counted among what the request went out without, and the note says so.
      */
     static ObjectNode documentReference(String id, String title, PasAttachment attachment, int position, PasNotes notes) {
         ObjectNode document = JSON.objectNode();
@@ -442,15 +578,15 @@ final class PasResources {
         if (attachment.type() != null && Texts.present(attachment.type().code())) {
             document.set("type", coded(attachment.type()));
         } else {
-            notes.missing("US Core 3.1.1 DocumentReference type (attachment " + position + ")", "Attachment " + position + " was sent with no "
-                    + "document type, because none was given. PAS 2.0.1 asks that a document meet US Core 3.1.1 DocumentReference, which "
+            notes.missing("PASDocumentReference type (attachment " + position + ")", "Attachment " + position + " was sent with no "
+                    + "document type, because none was given. PAS 2.2.1 PASDocumentReference, on US Core 7.0.0 DocumentReference, "
                     + "requires one: give the attachment a type, such as a LOINC document code.");
         }
         if (attachment.category() != null && Texts.present(attachment.category().code())) {
             document.putArray("category").add(coded(attachment.category()));
         } else {
-            notes.missing("US Core 3.1.1 DocumentReference category (attachment " + position + ")", "Attachment " + position + " was sent "
-                    + "with no category, because none was given. PAS 2.0.1 asks that a document meet US Core 3.1.1 DocumentReference, which "
+            notes.missing("PASDocumentReference category (attachment " + position + ")", "Attachment " + position + " was sent "
+                    + "with no category, because none was given. PAS 2.2.1 PASDocumentReference, on US Core 7.0.0 DocumentReference, "
                     + "requires one: give the attachment a category, such as clinical-note.");
         }
         document.putObject("subject").put("reference", CaseResources.PATIENT_REF);
@@ -458,10 +594,21 @@ final class PasResources {
         ObjectNode content = document.putArray("content").addObject().putObject("attachment");
         content.put("contentType", attachment.contentType().strip());
         content.put("title", title);
-        if (Texts.present(attachment.text())) {
-            content.put("data", Base64.getEncoder().encodeToString(attachment.text().getBytes(StandardCharsets.UTF_8)));
+        if (Texts.present(attachment.data())) {
+            content.put("data", attachment.data().strip());
+            if (attachment.size() != null) {
+                content.put("size", attachment.size());
+            }
+        } else if (Texts.present(attachment.text())) {
+            byte[] bytes = attachment.text().getBytes(StandardCharsets.UTF_8);
+            content.put("data", Base64.getEncoder().encodeToString(bytes));
+            content.put("size", bytes.length);
         } else {
             content.put("url", attachment.url().strip());
+            notes.missing("PASDocumentReference content.attachment.data (attachment " + position + ")", "Attachment " + position
+                    + " was sent by its url, as it was given. PAS 2.2.1 PASDocumentReference requires the document inline as data and "
+                    + "forbids a url, so the service may refuse the request for that alone. Choose the file on the Submit step to send it "
+                    + "inline.");
         }
         return document;
     }

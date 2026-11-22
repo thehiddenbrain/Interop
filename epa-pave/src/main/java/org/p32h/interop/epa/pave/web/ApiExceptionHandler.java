@@ -21,6 +21,7 @@ import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.BusyException;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.EndpointNotConfiguredException;
+import org.p32h.interop.epa.pave.service.error.FaultAdvice;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
@@ -133,9 +134,19 @@ public class ApiExceptionHandler {
         return respond(HttpStatus.FORBIDDEN, ErrorView.of(ErrorKind.BLOCKED, e.getMessage() + " Nothing was sent.", e.action()));
     }
 
+    /** The heading of a store write that failed for a reason of this computer's files, which the tester can mend there and then. */
+    static final String THIS_COMPUTER_HEADING = "A problem with this computer's files";
+
     @ExceptionHandler(ConfigStoreException.class)
     public ResponseEntity<ErrorView> storeNotWritten(ConfigStoreException e) {
         // The message names the file the store could not write and says nothing was changed. It holds no content.
+        if (e.thisComputer()) {
+            // The message already says what to do about the file (clear Read-only, close the other
+            // program, free space), so a fixed action would only repeat it or contradict it. Not a
+            // failure of this tool: no reference, nothing to report.
+            return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.CONFIGURATION, e.getMessage(), null)
+                    .withHeading(THIS_COMPUTER_HEADING));
+        }
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.INTERNAL, e.getMessage(),
                 "Check the configuration store directory and its free space, then try again."));
     }
@@ -321,7 +332,11 @@ public class ApiExceptionHandler {
     /** The client went away while the answer was being written. There is nobody left to answer: one line at INFO. */
     @ExceptionHandler(AsyncRequestNotUsableException.class)
     public void clientWentAway(AsyncRequestNotUsableException e, HttpServletRequest request) {
-        ClientGone.log(request, e);
+        try {
+            ClientGone.log(request, e);
+        } catch (LinkageError broken) {
+            // A class of the line that cannot be linked after a rebuild: nobody is there to answer.
+        }
     }
 
     @ExceptionHandler(MultipartException.class)
@@ -368,18 +383,42 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorView> unexpected(Exception e, HttpServletRequest request) {
-        if (ClientGone.is(e)) {
+        if (clientGone(e, request)) {
             // Writing the answer failed because the client had closed the connection, and the framework
             // wrapped that in a failure to write the message, which is matched here before its cause.
             // Not a defect: one line at INFO and no answer, since nobody is there to read one.
-            ClientGone.log(request, e);
             return null;
         }
         String reference = UUID.randomUUID().toString();
         log.error("Unhandled exception, reference {}: {}", reference, describe(e));
+        // A heap too small, or classes rebuilt on disk under PAVE, is said as such: a report would
+        // send someone looking for a defect that is not there (R-24, R-36).
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, ErrorView.of(ErrorKind.INTERNAL,
-                "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION)
+                "This tool hit an internal error and could not complete the request.", FaultAdvice.action(e))
                 .withReference(reference).withCause(Faults.cause(e)));
+    }
+
+    /**
+     * True when the client went away, after its one line is written. A class of the question that
+     * cannot be linked, as when the IDE rebuilt the classes under PAVE, makes the answer false, so
+     * that the failure is logged under a reference and answered instead of thrown on to the server,
+     * which would log it with its message and answer in a shape of its own (R-34).
+     */
+    static boolean clientGone(Throwable e, HttpServletRequest request) {
+        boolean gone;
+        try {
+            gone = ClientGone.is(e);
+        } catch (LinkageError broken) {
+            return false;
+        }
+        if (gone) {
+            try {
+                ClientGone.log(request, e);
+            } catch (LinkageError broken) {
+                // The line is not worth a failure of its own, and nobody is there to answer.
+            }
+        }
+        return gone;
     }
 
     /** Exception types and the top frames of each, with no messages. */
