@@ -19,15 +19,22 @@
 // is which answers the server has seen: while a typed answer differs from the ones posted with the
 // last step that worked, "Continue to Submit" is withdrawn, because Submit would carry the response
 // as last completed, without them.
+//
+// Answers from the case (plan R-18): after a package or a turn puts questions on screen, the page
+// posts the questionnaire and the case to the server, which says which questions the case answers.
+// They go only into fields that hold nothing, never over the payer's answer or the tester's, each
+// marked with the server's words, and are sent as the tester's own answers unless changed or cleared.
+// A question the tester took such an answer out of is never filled again.
 
 import {el, chip, kv, fold, fill, clear, button, firstSentence} from './dom.js';
+import {call} from './api.js';
 import {vocabulary} from './words.js';
 import {withoutMasks, maskedLine, notHandedOnWords} from './masks.js';
 import {panelHead, busyLine, sendRun, failurePanel} from './wb-run.js';
 import {showPreview} from './wb-preview.js';
-import {wireFold} from './result.js';
+import {wireFold, resultCard} from './result.js';
 import {responseDetail, detailHint} from './detail.js';
-import {flatItems, heldByLinkId, questionField, itemLine, formChips, linkIdOf} from './wb-dtr-items.js';
+import {flatItems, heldByLinkId, questionField, itemLine, formChips, linkIdOf, isDateQuestion} from './wb-dtr-items.js';
 
 // The form's button carries the server's words for the next action it takes (plan 7.4, the
 // vocabulary's nextActions), so a next step and its button are one name. Until the vocabulary has
@@ -36,6 +43,10 @@ const LOOP_ACTION = 'ANSWER_NEXT_QUESTION';
 const RESPOND_ACTION = 'SUBMIT_RESPONSE';
 const UNTIL_WORDS = {ANSWER_NEXT_QUESTION: 'Send the answers', SUBMIT_RESPONSE: 'Put the response together'};
 const WITHDRAWN = 'Complete the response again before Submit.';
+const DATE_LINE = 'Date questions take the date of service from the Service card.';
+const CASE_PATH = '/api/dtr/case-answers';
+// The quiet time after the last change of the case before the answers from it are asked for again.
+const CASE_QUIET = 500;
 const SMART = 'There is no SMART launch here and no patient record: answers come from the case where a question asks for it, '
     + 'and you type the rest.';
 
@@ -136,7 +147,11 @@ export function createSession(envelope) {
                 baseline: new Map(),
                 inFlight: new Map(),
                 form: null,
-                steps: []
+                steps: [],
+                // Answers from the case: what went into each field, and the questions the tester took one out of.
+                fromCase: new Map(),
+                left: new Set(),
+                caseAsked: false
             };
         })
     };
@@ -209,6 +224,8 @@ export function applyResult(session, entry, kind, envelope) {
             // The answers went out and are in the response now, where the form shows them.
             entry.answers.clear();
             entry.baseline = new Map();
+            // The turn may ask new questions, which the case may answer.
+            entry.caseAsked = false;
         }
     }
     const carried = envelope.nextStep ? envelope.nextStep.carry : null;
@@ -269,6 +286,25 @@ export function stateWords(entry) {
     return entry.steps.length > 0 || entry.answers.size > 0 ? 'in progress' : 'not started';
 }
 
+/**
+ * What the page posts to ask which questions the case answers: the questionnaire on screen and the
+ * case fields R-18 names; a case field left blank is not sent, so the server never reads it as a value.
+ */
+export function caseAnswersBody(request, entry) {
+    const body = {
+        questionnaire: (entry.current && entry.current.json) || entry.view.json,
+        member: request.member,
+        provider: request.provider,
+        procedureCodes: request.procedureCodes || []
+    };
+    for (const name of ['dateOfService', 'placeOfService', 'levelOfService']) {
+        if (request[name]) {
+            body[name] = request[name];
+        }
+    }
+    return body;
+}
+
 /** mount(root, ctx), as every step module (plan 9.1). show({start: true}) fetches at once (R-27). */
 export function mount(root, ctx) {
     const expect = el('select', {class: 'select select--expect', id: 'dtr-expect'}, el('option', {value: ''}, 'Not set'));
@@ -294,6 +330,7 @@ export function mount(root, ctx) {
     let fields = new Map();
     let handedOn = false;
     let stepButtons = [];
+    let caseTimer = null;
 
     function own() {
         return {
@@ -425,6 +462,81 @@ export function mount(root, ctx) {
             session.entries.length > 1 ? questionnaireList() : null,
             questionnaireForm(entry));
         syncContinue();
+        drawCaseState(entry);
+        if (!entry.caseAsked) {
+            askCase(entry);
+        }
+    }
+
+    /**
+     * Asks which questions of the open questionnaire the case answers and fills the empty fields
+     * that may take them. An answer that comes back after another form went on screen is dropped,
+     * and asked for again when that questionnaire is open.
+     */
+    async function askCase(entry) {
+        entry.caseAsked = true;
+        const problems = Array.isArray(entry.view.problems) ? entry.view.problems : [];
+        if (problems.length > 0 || fields.size === 0 || !((entry.current && entry.current.json) || entry.view.json)) {
+            return;
+        }
+        const asked = session;
+        const drawn = fields;
+        const answer = await call('POST', CASE_PATH, {body: caseAnswersBody(ctx.request(), entry)});
+        if (session !== asked || fields !== drawn) {
+            entry.caseAsked = false;
+            return;
+        }
+        if (!answer.ok) {
+            entry.caseNote = 'No answers were taken from the case: '
+                + (answer.error && typeof answer.error.message === 'string' && answer.error.message !== ''
+                    ? firstSentence(answer.error.message)[0] : 'PAVE did not answer.');
+            drawCaseState(entry);
+            return;
+        }
+        entry.caseNote = null;
+        const answers = answer.data && Array.isArray(answer.data.answers) ? answer.data.answers : [];
+        for (const one of answers) {
+            const linkId = one && typeof one.linkId === 'string' ? one.linkId : null;
+            const field = linkId ? fields.get(linkId) : null;
+            if (!field || entry.left.has(linkId) || entry.answers.has(linkId) || typeof one.mark !== 'string') {
+                continue;
+            }
+            const values = Array.isArray(one.values) ? one.values.map(String) : [];
+            if (field.fillFromCase(values, one.mark)) {
+                entry.fromCase.set(linkId, {values, mark: one.mark});
+            }
+        }
+        drawCaseState(entry);
+    }
+
+    /** The "from the case" chip of the form's head, and the line for date questions the case cannot fill. */
+    function drawCaseState(entry) {
+        const chips = work.querySelector('.dtr-case-chip');
+        if (chips) {
+            const count = [...entry.fromCase.keys()].filter(linkId => fields.has(linkId)).length;
+            fill(chips, formChips({}, null, count));
+            chips.hidden = count === 0;
+        }
+        const note = work.querySelector('.dtr-case-note');
+        if (note) {
+            note.textContent = entry.caseNote || '';
+            note.hidden = !entry.caseNote;
+        }
+        const line = work.querySelector('.dtr-date-line');
+        if (line) {
+            line.hidden = !datesWaiting(entry);
+        }
+    }
+
+    /** True when a date question stays empty because the Service card has no date of service. */
+    function datesWaiting(entry) {
+        if (ctx.request().dateOfService) {
+            return false;
+        }
+        return flatItems(entry.current.items).some(row => {
+            const field = row.kind === 'question' && isDateQuestion(row.item) ? fields.get(linkIdOf(row.item)) : null;
+            return Boolean(field && field.takesCase());
+        });
     }
 
     function questionnaireList() {
@@ -448,7 +560,7 @@ export function mount(root, ctx) {
         const view = entry.current;
         const title = view.title && view.title.presence === 'VALUE' ? String(view.title.value) : entry.view.subject;
         const head = el('div', {class: 'form-head'}, el('h3', {class: 'form-head__title', tabindex: -1}, title),
-            formChips(entry.view, entry.start));
+            formChips(entry.view, entry.start), el('span', {class: 'dtr-case-chip', hidden: true}));
         const problems = Array.isArray(entry.view.problems) ? entry.view.problems : [];
         if (problems.length > 0) {
             return el('div', {class: 'panel__section'}, head,
@@ -469,6 +581,12 @@ export function mount(root, ctx) {
             const field = questionField({
                 item: row.item, depth: row.depth, held: linkId ? held.get(linkId) || null : null,
                 given: linkId ? entry.answers.get(linkId) : undefined,
+                fromCase: linkId ? entry.fromCase.get(linkId) : undefined,
+                onCaseLeft(id) {
+                    entry.fromCase.delete(id);
+                    entry.left.add(id);
+                    drawCaseState(entry);
+                },
                 onChange(id, values) {
                     if (values === null) {
                         entry.answers.delete(id);
@@ -508,20 +626,60 @@ export function mount(root, ctx) {
             send.title = blocked;
         }
         const latest = session.latest && session.latest.entry === entry.index ? session.latest.envelope : null;
+        const card = latest ? ctx.card(latest) : null;
+        const whyLines = () => [el('p', {class: 'small'}, SMART),
+            (entry.view.notApplied || []).map(line => el('p', {class: 'small muted'}, line)),
+            (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line))];
+        const whyOfCard = card ? cardWhy(card) : null;
+        if (whyOfCard) {
+            // One "Why" on the panel: the step's own lines go under the result's reasons.
+            let added = false;
+            whyOfCard.addEventListener('toggle', () => {
+                const content = whyOfCard.querySelector('.fold__body');
+                if (!added && whyOfCard.open && content) {
+                    added = true;
+                    content.append(...whyLines().flat());
+                }
+            });
+        }
+        if (card && latest.nextStep && latest.nextStep.action === action) {
+            // The form's own button takes this next action; the result does not offer it a second time.
+            const foot = card.querySelector('.verdict__foot');
+            if (foot) {
+                foot.hidden = true;
+            }
+        }
+        const unanswered = flatItems(view.items).filter(row => row.kind === 'question' && required.has(linkIdOf(row.item)))
+            .map(row => (row.item.text && row.item.text.presence === 'VALUE' ? String(row.item.text.value) : linkIdOf(row.item)));
         return el('div', {class: 'panel__section dtr-form'},
             head,
             changeLines(entry).map(words => el('p', {class: 'small dtr-change'}, words)),
+            el('p', {class: 'small dtr-date-line', hidden: true}, DATE_LINE, ' ',
+                button('Show the field', () => ctx.showField('dateOfService'), {small: true})),
+            el('p', {class: 'small muted dtr-case-note', hidden: true}),
             questions,
             count,
+            unanswered.length > 0 ? el('p', {class: 'small dtr-required'}, 'Required, no answer: ' + unanswered.join('; ')
+                + (['.', '?', '!'].includes(unanswered[unanswered.length - 1].slice(-1)) ? '' : '.')) : null,
             session.masked.map(one => maskedLine(notHandedOnWords(session.labels[one.key] || one.key))),
             el('div', {class: 'form-foot'}, send, preview),
             el('p', {class: 'small dtr-withdrawn', hidden: true}, el('strong', null, WITHDRAWN)),
             el('div', {class: 'step-refusal dtr-step-refusal'}),
             entry.steps.length > 0 ? stepsFold(entry) : null,
-            fold({summary: 'Why', body: () => el('div', null, el('p', {class: 'small'}, SMART),
-                (entry.view.notApplied || []).map(line => el('p', {class: 'small muted'}, line)),
-                (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line)))}),
-            el('div', {class: 'step-result dtr-step-result'}, latest ? ctx.card(latest) : null));
+            whyOfCard ? null : fold({summary: 'Why', body: () => el('div', null, whyLines())}),
+            el('div', {class: 'step-result dtr-step-result'}, card));
+    }
+
+    /** The result card's own "Why" fold, or null. */
+    function cardWhy(card) {
+        for (const details of card.querySelectorAll('details.fold')) {
+            const summary = details.querySelector('summary');
+            const words = summary && summary.firstChild ? String(summary.firstChild.textContent || '') : '';
+            if (words === 'Why') {
+                return details;
+            }
+        }
+        return null;
     }
 
     /** "Steps and changes": each step sent for the questionnaire, and what appeared, disappeared or was dropped. */
@@ -699,9 +857,47 @@ export function mount(root, ctx) {
         hide() {},
         caseChanged() {
             drawHanded();
+            // A date of service typed after the date line showed may now answer those questions.
+            const line = work.querySelector('.dtr-date-line');
+            if (session && line && !line.hidden) {
+                clearTimeout(caseTimer);
+                caseTimer = setTimeout(() => {
+                    const entry = session ? session.entries[session.active] : null;
+                    if (entry && ctx.request().dateOfService) {
+                        askCase(entry);
+                    }
+                }, CASE_QUIET);
+            }
+        },
+        /**
+         * The step's latest result read back after a reload. A package that holds questionnaires is
+         * drawn again as forms, as when it arrived, so the tester can go on answering. A turn or a
+         * completed response cannot be drawn as a form without the package before it, so it is drawn
+         * as its card; a next step inside this same step then has no form to act on and is said in
+         * words, while one that leads on (Submit) keeps its button.
+         */
+        restored(envelope) {
+            if (!envelope || typeof envelope !== 'object') {
+                return;
+            }
+            clear(refusal);
+            const rebuilt = envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? createSession(envelope) : null;
+            if (rebuilt) {
+                session = rebuilt;
+                handedOn = false;
+                drawPackage(envelope);
+                drawSession();
+                return;
+            }
+            session = null;
+            clear(work);
+            const action = envelope.nextStep ? envelope.nextStep.action : null;
+            fill(packageSlot, action === LOOP_ACTION || action === RESPOND_ACTION
+                ? resultCard(envelope, {context: 'workbench'}) : ctx.card(envelope));
         },
         /** Start a new case: the package, the questionnaires, the answers and every result are forgotten. */
         reset() {
+            clearTimeout(caseTimer);
             session = null;
             handedOn = false;
             fields = new Map();
@@ -711,6 +907,7 @@ export function mount(root, ctx) {
             drawHanded();
         },
         unmount() {
+            clearTimeout(caseTimer);
             busy.stop();
         },
         /** The words or the configuration changed. */

@@ -144,11 +144,20 @@ export function itemLine(row) {
     return el('p', {class: ['small', 'question__display', depth > 0 ? 'detail__depth-' + depth : null]}, text);
 }
 
+/** The types whose field a date of service can go into (plan R-18, the date line of 3.2). */
+export function isDateQuestion(item) {
+    const type = item && item.type ? item.type.code : null;
+    return type === 'date' || type === 'dateTime';
+}
+
 /**
  * One question as a field. spec: {item, depth, held (the ResponseItemView or null), given (what the
- * tester gave for it, or undefined), onChange(linkId, values)}: values null while the field holds what the response holds, else what the tester gave
- * ([] removes a held answer). Returns {node, linkId, input, setError(text), setMark(text, tone),
- * reset()}.
+ * tester gave for it, or undefined), fromCase ({values, mark} when an answer from the case went into
+ * it before the form was drawn again), onChange(linkId, values), onCaseLeft(linkId)}: values null
+ * while the field holds what the response holds, else what the tester gave ([] removes a held
+ * answer); onCaseLeft when the tester changes an answer from the case, which then is theirs.
+ * Returns {node, linkId, input, setError(text), setMark(text), prefilled, empty(), takesCase(),
+ * fillFromCase(values, mark)}.
  */
 export function questionField(spec) {
     const item = spec.item;
@@ -171,11 +180,21 @@ export function questionField(spec) {
         spec.depth > 0 ? 'detail__depth-' + Math.min(spec.depth, DEEPEST) : null], 'data-link-id': linkId});
 
     let control;
+    // The values an answer from the case put here, while the field still holds them: its mark says
+    // where they came from, and goes as soon as the tester makes the answer their own.
+    let fromCase = null;
     const report = () => {
         if (!linkId) {
             return;
         }
         const given = control.get();
+        if (fromCase && !sameValues(given, fromCase.values)) {
+            fromCase = null;
+            markSlot.textContent = prefilled ? 'payer prefilled' : '';
+            if (typeof spec.onCaseLeft === 'function') {
+                spec.onCaseLeft(linkId);
+            }
+        }
         spec.onChange(linkId, given === null || sameValues(given, start.values) ? null : given);
     };
     const options = (item.answerOptions || []).filter(option => option.answerAs);
@@ -198,6 +217,16 @@ export function questionField(spec) {
     if (prefilled) {
         control.prefilled(true);
     }
+    if (!prefilled && spec.fromCase && sameValues(control.get(), spec.fromCase.values)) {
+        fromCase = spec.fromCase;
+        markSlot.textContent = fromCase.mark;
+    }
+    const disabled = item.enabled === 'DISABLED';
+    const empty = () => {
+        const now = control.get();
+        return Array.isArray(now) && now.length === 0;
+    };
+    const takesCase = () => Boolean(linkId) && !prefilled && !readOnly && !disabled && empty();
     if (readOnly) {
         control.disable();
     }
@@ -205,7 +234,9 @@ export function questionField(spec) {
     if (start.unshown.length > 0) {
         node.append(el('span', {class: 'field__hint'}, 'In the response: ' + start.unshown.join(', ')));
     }
-    if (typeof item.enabledReason === 'string' && item.enabledReason !== '') {
+    // A question whose condition does not hold is greyed and says nothing of why; the reason is
+    // drawn only for a question asked because of another answer (plan 3.2).
+    if (!disabled && typeof item.enabledReason === 'string' && item.enabledReason !== '') {
         node.append(el('span', {class: 'field__hint'}, item.enabledReason));
     }
     if (!linkId) {
@@ -232,7 +263,34 @@ export function questionField(spec) {
         setMark(text) {
             markSlot.textContent = text || (prefilled ? 'payer prefilled' : '');
         },
-        prefilled
+        prefilled,
+        /** True while the field holds no answer at all. */
+        empty,
+        /**
+         * True when an answer from the case may go here: never over the payer's answer, a held or
+         * typed one, nor into a question that is read only, has no linkId or whose condition does
+         * not hold.
+         */
+        takesCase,
+        /**
+         * Puts an answer from the case into the field, marked, as an answer that will be sent and
+         * that the tester can change or clear. Returns false, changing nothing, when the field
+         * cannot show the values (an option it does not list).
+         */
+        fillFromCase(values, mark) {
+            if (!takesCase() || !Array.isArray(values) || values.length === 0) {
+                return false;
+            }
+            control.set(values.map(String));
+            if (!sameValues(control.get(), values.map(String))) {
+                control.set([]);
+                return false;
+            }
+            fromCase = {values: values.map(String), mark};
+            markSlot.textContent = mark;
+            spec.onChange(linkId, sameValues(fromCase.values, start.values) ? null : fromCase.values);
+            return true;
+        }
     };
 }
 
@@ -306,9 +364,9 @@ function textControl(id, type, repeats, report) {
     const input = long
         ? el('textarea', {class: 'input', id, rows: repeats ? 3 : 2, spellcheck: 'false'})
         : el('input', {class: ['input', type === 'date' || type === 'dateTime' || type === 'time' ? 'mono' : null], id, autocomplete: 'off',
-            type: type === 'date' ? 'date' : type === 'integer' || type === 'decimal' ? 'number' : 'text',
+            type: type === 'integer' || type === 'decimal' ? 'number' : 'text',
             step: type === 'decimal' ? 'any' : null,
-            placeholder: type === 'dateTime' ? '2026-01-31T09:30:00-05:00' : type === 'time' ? 'HH:MM' : null});
+            placeholder: type === 'date' ? 'YYYY-MM-DD' : type === 'dateTime' ? '2026-01-31T09:30:00-05:00' : type === 'time' ? 'HH:MM' : null});
     input.addEventListener('input', report);
     return {
         node: el('div', null, input, repeats ? el('span', {class: 'field__hint'}, 'One answer on each line.') : null),
@@ -403,8 +461,8 @@ function objectControl(id, report) {
     };
 }
 
-/** The chips of a questionnaire's head: (server) kindShort, "<n> required", "<n> prefilled". */
-export function formChips(view, response) {
+/** The chips of a questionnaire's head: (server) kindShort, "<n> required", "<n> prefilled", "<n> from the case". */
+export function formChips(view, response, fromCase) {
     const chips = [];
     if (typeof view.kindShort === 'string' && view.kindShort !== '') {
         chips.push(chip(view.kindShort, {tone: 'neutral'}));
@@ -415,6 +473,9 @@ export function formChips(view, response) {
     const prefilled = prefilledCount(response);
     if (prefilled > 0) {
         chips.push(chip(prefilled + ' prefilled'));
+    }
+    if (typeof fromCase === 'number' && fromCase > 0) {
+        chips.push(chip(fromCase + ' from the case'));
     }
     return chips;
 }

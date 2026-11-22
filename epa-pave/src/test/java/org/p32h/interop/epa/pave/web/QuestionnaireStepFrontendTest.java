@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.p32h.interop.epa.pave.service.dtr.CaseAnswers;
 import org.p32h.interop.epa.pave.service.dtr.DtrNextQuestionRequest;
 import org.p32h.interop.epa.pave.service.dtr.DtrPackageRequest;
 import org.p32h.interop.epa.pave.service.dtr.DtrResponseRequest;
@@ -23,8 +24,10 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
  * disappears gets one visible line; that the turn count follows the turns the server answered; that
  * "Continue to Submit" is withdrawn, and the hand-over to Submit taken back, while typed answers differ
  * from the completed response; that a payer's prefilled answer starts in its field, marked, and is
- * not sent back as the tester's; and that a request carries only the properties the server's DTR
- * request records have, since those are read strictly.
+ * not sent back as the tester's; that answers from the case (plan R-18) go only into empty fields,
+ * marked, never over the payer's answer or a typed one, and are never put back into a field the tester
+ * cleared; and that a request carries only the properties the server's request records have, since
+ * those are read strictly.
  */
 class QuestionnaireStepFrontendTest {
 
@@ -42,6 +45,16 @@ class QuestionnaireStepFrontendTest {
         assertThat(components(DtrResponseRequest.class)).contains("questionnaire", "questionnaireResponse", "answers")
                 .doesNotContain("scenarioId");
         assertThat(script).contains("body.wrapInParameter", "body.scenarioId", "body.questionnaires", "body.coverageAssertionId");
+    }
+
+    @Test
+    void theCaseAnswersPostCarriesExactlyTheCaseFieldsTheRequestRecordReads() throws IOException {
+        // The request is read strictly, so a property the record lacks would refuse every post.
+        assertThat(components(CaseAnswers.Request.class)).containsExactlyInAnyOrder("questionnaire", "member", "provider",
+                "procedureCodes", "dateOfService", "placeOfService", "levelOfService");
+        assertThat(StaticSources.script("wb-dtr.js")).contains("'/api/dtr/case-answers'",
+                "['dateOfService', 'placeOfService', 'levelOfService']", "questionnaire:", "member: request.member",
+                "provider: request.provider", "procedureCodes: request.procedureCodes");
     }
 
     private static Set<String> components(Class<?> record) {
@@ -95,6 +108,10 @@ class QuestionnaireStepFrontendTest {
                 globalThis.fetch = async (address, init) => {
                     const path = String(address);
                     const body = init && init.body ? JSON.parse(init.body) : null;
+                    // The case answers nothing here; that step is held by the test of answers from the case.
+                    if (path === '/api/dtr/case-answers') {
+                        return {ok: true, status: 200, text: async () => JSON.stringify({answers: []})};
+                    }
                     if (body) {
                         posted.push({path, body});
                     }
@@ -192,5 +209,219 @@ class QuestionnaireStepFrontendTest {
                 "[\"0 of 1 answered \u00b7 turn 1 \u00b7 in progress\",[\"Now asked: How many weeks?\"]]",
                 "[\"0 of 1 answered \u00b7 turn 2 \u00b7 in progress\",[\"Now asked: Which side.\",\"No longer asked: How many weeks?\"]]",
                 "[\"{\\\"turn\\\":1}\",false,false,false]");
+    }
+
+    @Test
+    void answersFromTheCaseGoOnlyIntoEmptyFieldsMarkedAndNeverOverThePayersOrTheTesters(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "answers from the case", """
+                import './browser.js';
+                const v = value => ({presence: 'VALUE', value});
+                const absent = {presence: 'ABSENT'};
+                const item = (linkId, text, code, extra) => Object.assign({path: 'item', linkId: v(linkId), text: v(text),
+                    prefix: absent, type: {presence: 'VALUE', code, recognised: true}, question: true, required: absent,
+                    repeats: absent, readOnly: absent, answerValueSet: absent, answerOptions: [], initial: [], prepopulated: [],
+                    enableBehavior: absent, enableWhen: [], enabled: 'ENABLED', extensions: [], items: [], lists: {}}, extra || {});
+                const held = (linkId, answer) => ({path: 'item', linkId: v(linkId), text: v(linkId), answers: [v(answer)],
+                    origins: [{source: v('auto'), author: absent, roles: []}], answerExtensions: [], items: []});
+                const pkg = {runId: 'run-1', protocol: 'DTR', operation: 'DTR_QUESTIONNAIRE_PACKAGE', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'Loaded.', outcomeCode: 'PACKAGE_LOADED'}, ledger: {recorded: true},
+                    nextStep: {action: 'SUBMIT_RESPONSE', headline: 'Next.', carry: {runId: ['run-1']}},
+                    detail: {questionnaires: [{position: 1, subject: 'Placeholder criteria', kind: 'STATIC', kindShort: 'static form',
+                        questionCount: 6, requiredCount: 0, title: v('Placeholder criteria'), arrivedWith: 'entry[1]',
+                        json: '{"resourceType":"Questionnaire","id":"placeholder"}', problems: [], notApplied: [], items: [
+                            item('q-dob', 'Date of birth', 'date'),
+                            item('q-spec', 'Specialty', 'string'),
+                            item('q-npi', 'Ordering provider NPI', 'string'),
+                            item('q-lob', 'Line of business', 'choice', {answerOptions: [{label: 'Medicare', answerAs: 'medicare', value: v('Medicare')},
+                                {label: 'Commercial', answerAs: 'commercial', value: v('Commercial')}]}),
+                            item('q-when', 'When was the last test done', 'date'),
+                            item('q-off', 'Date of the earlier test', 'date', {enabled: 'DISABLED', enabledReason: 'Disabled: its condition does not hold.'})]}],
+                        questionnaireResponses: [{foundAt: 'entry[1]', items: [held('q-spec', 'Medical genetics')],
+                            status: {presence: 'VALUE', code: 'in-progress', display: 'In progress'}, answeredCount: 1,
+                            json: '{"resourceType":"QuestionnaireResponse"}'}]}};
+                const done = Object.assign({}, pkg, {runId: 'run-2', verdict: {headline: 'Completed.', outcomeCode: 'RESPONSE_COMPLETED'},
+                    nextStep: {action: 'START_PAS', headline: 'Next.', carry: {runId: ['run-2'], questionnaireResponse: ['{}']}},
+                    detail: Object.assign({}, pkg.detail, {form: {questionCount: 6, answeredCount: 4, complete: true,
+                        status: {presence: 'VALUE', code: 'completed'}, requiredUnanswered: [], undetermined: [], asked: [], answers: []}})});
+                // What the server answers: every question it can, the payer's and a disabled one too, so the page is what keeps them.
+                const fromCase = date => ({answers: [
+                    {linkId: 'q-dob', values: ['1960-01-01'], field: 'member.dateOfBirth', mark: 'from the case'},
+                    {linkId: 'q-spec', values: ['Placeholder specialty'], field: 'provider.specialty', mark: 'from the case'},
+                    {linkId: 'q-npi', values: ['1234567893'], field: 'provider.npi', mark: 'from the case'},
+                    {linkId: 'q-lob', values: ['commercial'], field: 'member.lineOfBusiness', mark: 'from the case'},
+                    {linkId: 'q-off', values: ['1960-01-01'], field: 'member.dateOfBirth', mark: 'from the case'}]
+                    .concat(date ? [{linkId: 'q-when', values: [date], field: 'dateOfService', mark: 'default, change if needed'}] : [])});
+                const runs = [];
+                const posted = [];
+                const asked = [];
+                let release = null;
+                globalThis.fetch = async (address, init) => {
+                    const path = String(address);
+                    const body = init && init.body ? JSON.parse(init.body) : null;
+                    let data;
+                    if (path === '/api/dtr/case-answers') {
+                        asked.push(body);
+                        // The answer is held back until the test lets it go, so the tester can type first.
+                        data = await new Promise(go => { release = () => go(fromCase(body.dateOfService)); });
+                    } else if (path === '/api/vocabulary') {
+                        data = {outcomes: {DTR: []}, nextActions: [{code: 'SUBMIT_RESPONSE', button: 'Complete the response'}], answeredBy: []};
+                    } else {
+                        posted.push({path, body});
+                        data = runs.shift();
+                    }
+                    return {ok: true, status: 200, text: async () => JSON.stringify(data)};
+                };
+                let dateOfService = '';
+                const shown = [];
+                const ctx = {
+                    request: () => Object.assign({member: {memberId: 'S123456789', dateOfBirth: '1960-01-01', lineOfBusiness: 'commercial'},
+                        memberOverrides: [], provider: {npi: '1234567893', specialty: 'Placeholder specialty'}, providerOverrides: [],
+                        servicingProvider: {npi: '1234567893'}, procedureCodes: [{code: '81162'}], placeOfService: '', diagnosisCodes: 'Z80.3',
+                        levelOfService: 'U', certificationType: 'I', chainId: 'new', configEpoch: 3}, dateOfService ? {dateOfService} : {}),
+                    carry: () => null, handOn: () => null, option: () => '', optionsRow: () => null, optionsToggle: () => null,
+                    resulted: () => null, showField: name => { shown.push(name); return true; }, placeErrors: () => [], go: () => null,
+                    isMock: () => false, visible: () => true, typedCode: () => '', blocked: () => null, readinessLine: () => null,
+                    latest: () => null, refused: () => null, handedLine: () => null,
+                    card: () => globalThis.document.createElement('div')
+                };
+                const {mount} = await import('./js/wb-dtr.js');
+                const root = globalThis.document.createElement('div');
+                const step = mount(root, ctx);
+                const settle = () => new Promise(go => setTimeout(go, 30));
+                const say = value => console.log(JSON.stringify(value));
+                const button = words => root.querySelectorAll('button').find(each => each.textContent === words);
+                const input = linkId => root.querySelector('[data-link-id=' + linkId + '] input');
+                const mark = linkId => root.querySelector('[data-link-id=' + linkId + '] .mark').textContent;
+                const hints = linkId => root.querySelectorAll('[data-link-id=' + linkId + '] .field__hint').map(each => each.textContent);
+
+                runs.push(pkg);
+                await button('Fetch questionnaire').click();
+                await settle();
+                // Asked once, with the questionnaire on screen and only the case fields R-18 names; a blank one is not sent.
+                say([asked.length, Object.keys(asked[0]).sort().join(','), asked[0].questionnaire]);
+                // With no date of service on the Service card the date line shows; its button shows the field.
+                const line = root.querySelector('.dtr-date-line');
+                say([line.hidden, line.textContent]);
+                line.querySelector('button').click();
+                say(shown);
+                // The tester types an NPI before the answers from the case arrive.
+                input('q-npi').value = '1000000004';
+                input('q-npi').dispatchEvent({type: 'input'});
+                release();
+                await settle();
+                // The payer's answer and the typed one stay; the empty fields take the case's, marked; the disabled
+                // question takes nothing and says nothing of why.
+                say([input('q-dob').value, mark('q-dob'), input('q-spec').value, mark('q-spec'), input('q-npi').value, mark('q-npi'),
+                    root.querySelectorAll('[data-link-id=q-lob] input').filter(each => each.checked).map(each => each.value), mark('q-lob'),
+                    input('q-off').value, hints('q-off')]);
+                say([root.querySelector('.dtr-case-chip').hidden, root.querySelector('.dtr-case-chip').textContent, line.hidden]);
+                // The tester clears the date of birth: the mark goes, nothing is sent for it, and it is never filled again.
+                input('q-dob').value = '';
+                input('q-dob').dispatchEvent({type: 'input'});
+                say([mark('q-dob'), root.querySelector('.dtr-case-chip').textContent]);
+                // A date of service typed on the Service card: the answers are asked for again after the quiet time,
+                // and the date question takes it as a default; the cleared one stays empty.
+                dateOfService = '2026-01-10';
+                step.caseChanged();
+                await new Promise(go => setTimeout(go, 560));
+                release();
+                await settle();
+                say([asked.length, asked[1].dateOfService, input('q-when').value, mark('q-when'), input('q-dob').value, line.hidden]);
+                // Completing sends the answers from the case as the tester's own, beside the typed one; never the payer's.
+                runs.push(done);
+                await button('Complete the response').click();
+                await settle();
+                say(posted[posted.length - 1].body.answers.map(each => each.linkId + '=' + each.values.join('|')).sort());
+                // Drawn again after the step, each answer from the case keeps its mark.
+                say([mark('q-lob'), mark('q-when'), mark('q-spec'), mark('q-npi'), asked.length]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[1,\"levelOfService,member,procedureCodes,provider,questionnaire\",\"{\\\"resourceType\\\":\\\"Questionnaire\\\",\\\"id\\\":\\\"placeholder\\\"}\"]",
+                "[false,\"Date questions take the date of service from the Service card. Show the field\"]",
+                "[\"dateOfService\"]",
+                "[\"1960-01-01\",\"from the case\",\"Medical genetics\",\"payer prefilled\",\"1000000004\",\"\",[\"commercial\"],"
+                        + "\"from the case\",\"\",[]]",
+                "[false,\"2 from the case\",false]",
+                "[\"\",\"1 from the case\"]",
+                "[2,\"2026-01-10\",\"2026-01-10\",\"default, change if needed\",\"\",true]",
+                "[\"q-lob=commercial\",\"q-npi=1000000004\",\"q-when=2026-01-10\"]",
+                "[\"from the case\",\"default, change if needed\",\"payer prefilled\",\"\",2]");
+    }
+
+    @Test
+    void aResultReadBackAfterAReloadIsDrawnAgainAsFormsOrAsItsCard(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "a step 2 result read back", """
+                import './browser.js';
+                const v = value => ({presence: 'VALUE', value});
+                const absent = {presence: 'ABSENT'};
+                const item = (linkId, text, code) => ({path: 'item', linkId: v(linkId), text: v(text),
+                    prefix: absent, type: {presence: 'VALUE', code, recognised: true}, question: true, required: absent,
+                    repeats: absent, readOnly: absent, answerValueSet: absent, answerOptions: [], initial: [], prepopulated: [],
+                    enableBehavior: absent, enableWhen: [], enabled: 'ENABLED', extensions: [], items: [], lists: {}});
+                const pkg = {runId: 'run-1', protocol: 'DTR', operation: 'DTR_QUESTIONNAIRE_PACKAGE', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'Loaded.', outcomeCode: 'PACKAGE_LOADED'}, ledger: {recorded: true},
+                    nextStep: {action: 'SUBMIT_RESPONSE', headline: 'Answer the questions.', carry: {runId: ['run-1']}},
+                    detail: {questionnaires: [{position: 1, subject: 'Placeholder criteria', kind: 'STATIC', kindShort: 'static form',
+                        questionCount: 1, requiredCount: 0, title: v('Placeholder criteria'),
+                        json: '{"resourceType":"Questionnaire","id":"placeholder"}', problems: [], notApplied: [],
+                        items: [item('q-spec', 'Specialty', 'string')]}], questionnaireResponses: []}};
+                const turn = {runId: 'run-2', protocol: 'DTR', operation: 'DTR_NEXT_QUESTION', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'One more question.'}, ledger: {recorded: true},
+                    nextStep: {action: 'ANSWER_NEXT_QUESTION', headline: 'Answer the next question.', carry: {}}};
+                const done = {runId: 'run-3', protocol: 'DTR', operation: 'DTR_RESPONSE', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'Completed.'}, ledger: {recorded: true},
+                    nextStep: {action: 'START_PAS', headline: 'Next.', carry: {questionnaireResponse: ['{}']}}};
+                const posted = [];
+                globalThis.fetch = async (address, init) => {
+                    const path = String(address);
+                    if (init && init.body) {
+                        posted.push(path);
+                    }
+                    const data = path === '/api/vocabulary' ? {outcomes: {DTR: []}, answeredBy: [],
+                        nextActions: [{code: 'SUBMIT_RESPONSE', button: 'Complete the response'},
+                            {code: 'ANSWER_NEXT_QUESTION', button: 'Send the answers'}]}
+                        : path === '/api/dtr/case-answers' ? {answers: []} : {};
+                    return {ok: true, status: 200, text: async () => JSON.stringify(data)};
+                };
+                const carded = [];
+                const handed = [];
+                const ctx = {
+                    request: () => ({member: {memberId: 'S123456789'}, memberOverrides: [], provider: {npi: '1234567893'},
+                        providerOverrides: [], procedureCodes: [{code: '81162'}], chainId: 'chain-1', configEpoch: 3}),
+                    carry: () => null, handOn: (step, carry) => handed.push(step), option: () => '', optionsRow: () => null,
+                    optionsToggle: () => null, resulted: () => null, showField: () => true, placeErrors: () => [], go: () => null,
+                    isMock: () => false, visible: () => true, typedCode: () => '', blocked: () => null, readinessLine: () => null,
+                    latest: () => null, refused: () => null, handedLine: () => null,
+                    card: envelope => { carded.push(envelope.runId); const node = globalThis.document.createElement('div');
+                        node.className = 'frame-card'; return node; }
+                };
+                const {mount} = await import('./js/wb-dtr.js');
+                const root = globalThis.document.createElement('div');
+                const step = mount(root, ctx);
+                const settle = () => new Promise(go => setTimeout(go, 30));
+                const say = value => console.log(JSON.stringify(value));
+                await settle();
+                // A package read back is drawn again as its form, with the form's one button; nothing is sent for it but the case's answers.
+                step.restored(pkg, {at: '2026-11-22T10:00:00Z'});
+                await settle();
+                say([Boolean(root.querySelector('[data-link-id=q-spec] input')),
+                    root.querySelectorAll('button').filter(each => each.textContent === 'Complete the response').length,
+                    carded, posted, handed]);
+                // A turn read back has no form to answer on: its card says its next step in words, with no button.
+                step.restored(turn, {});
+                await settle();
+                say([Boolean(root.querySelector('[data-link-id=q-spec] input')), carded,
+                    root.querySelectorAll('.dtr-package button').filter(each => each.textContent === 'Send the answers').length,
+                    root.querySelector('.dtr-package').textContent.includes('One more question.')]);
+                // A completed response read back is the frame's card, whose Continue leads on to Submit.
+                step.restored(done, {});
+                say([carded, root.querySelectorAll('.dtr-package .frame-card').length]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[true,1,[],[\"/api/dtr/case-answers\"],[]]",
+                "[false,[],0,true]",
+                "[[\"run-3\"],1]");
     }
 }

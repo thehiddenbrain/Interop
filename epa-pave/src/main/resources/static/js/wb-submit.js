@@ -392,6 +392,14 @@ export function mount(root, ctx) {
                 askSoon();
             }
         },
+        /** The step's latest result read back after a reload: drawn as one that just arrived; the files sent with it are not read back. */
+        restored(envelope) {
+            if (!envelope || typeof envelope !== 'object') {
+                return;
+            }
+            clear(refusal);
+            fill(result, ctx.card(envelope));
+        },
         /** Start a new case: the files, the gaps and the result go. */
         reset() {
             files.clear();
