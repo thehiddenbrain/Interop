@@ -83,7 +83,7 @@ class DetailFrontendTest {
                     cardsPresence: 'EMPTY', cards: [], systemActionsPresence: 'ABSENT', systemActions: [],
                     coverageInformation: [{foundAt: 'cards[0].extension[0]', appliesTo: {presence: 'ABSENT'}, procedureCodes: ['81162'],
                         subject: '81162', outcome: 'PA_REQUIRED', covered: {presence: 'VALUE', code: 'covered', display: 'Covered'},
-                        paNeeded: {presence: 'NULL'}, docNeeded: null, docPurpose: [], infoNeeded: [],
+                        paNeeded: {presence: 'NULL'}, docNeeded: {presence: 'ABSENT'}, docPurpose: [], infoNeeded: [],
                         satisfiedPaId: {presence: 'EMPTY'}, coverage: {presence: 'ABSENT'}, coverageAssertionId: v('<b>P32H-CA-1</b>'),
                         date: {presence: 'ABSENT'}, questionnaires: [], responses: [], reasons: [], details: [],
                         delegatedVendor: 'Vendor Q', delegatedVendorBasis: 'the coverage assertion id', otherSubExtensions: [],
@@ -96,6 +96,13 @@ class DetailFrontendTest {
                 say([text.includes('returned as null'), text.includes('returned empty'), text.includes('sent with no value'),
                     text.includes('<b>P32H-CA-1</b>'), find(crdNode, 'b').length, text.includes('Prior authorization required')]);
                 say([find(crdNode, 'p').map(p => p.textContent).filter(line => line.startsWith('cards') || line.startsWith('systemActions'))]);
+                const notReturned = find(crdNode, 'details').find(each => each.querySelector('summary').textContent.startsWith('Not returned'));
+                const drawnBeforeOpening = find(notReturned, 'td').length;
+                notReturned.open = true;
+                notReturned.open = false;
+                say(drawnBeforeOpening);
+                say(find(crdNode, 'td').filter(cell => ['doc-needed', 'pa-needed', 'coverage'].includes(cell.textContent))
+                    .map(cell => cell.textContent + ' ' + (inClosedFold(cell) ? 'folded' : 'in view')));
                 say(detailHint(crd));
 
                 const decision = (subject, sequence, outcome) => ({subject, procedureCode: subject, sequence, foundAt: 'item[' + (sequence - 1) + ']',
@@ -155,6 +162,8 @@ class DetailFrontendTest {
                 "[\"Delegated vendor: Vendor Q Recognised from the coverage assertion id.\",false]",
                 "[true,true,true,true,0,true]",
                 "[[\"cards returned empty\",\"systemActions not returned\"]]",
+                "0",
+                "[\"pa-needed in view\",\"doc-needed folded\",\"coverage folded\"]",
                 "\"1 coverage information\"",
                 "[2,[false,false],[\"Approved\",\"Denied\"]]",
                 "[true,true,true,true]",

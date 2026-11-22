@@ -492,7 +492,9 @@ function codedRow(name, values, repeats, noValue) {
     }
     const lines = cells => (cells.length === 1 ? cells[0] : el('ul', {class: 'notes'}, cells.map(cell => el('li', null, cell))));
     const sentBare = index => noValue.has(repeats ? name + '[' + index + ']' : name);
-    return {notReturned: false, cells: [code(name),
+    // An element whose every entry says it was not returned is folded with the others the response did not carry.
+    const absent = list.every((value, index) => (value.presence || 'ABSENT') === 'ABSENT' && !sentBare(index));
+    return {notReturned: absent, cells: [code(name),
         lines(list.map((value, index) => (value.presence === 'VALUE' ? code(String(value.code))
             : sentBare(index) ? noValueMark() : presenceMark(value.presence || 'ABSENT')))),
         lines(list.map(value => (value.presence === 'VALUE'
