@@ -440,7 +440,7 @@ public class DtrService {
             verdict = masked.on(verdict);
             nextStep = masked.on(nextStep);
         }
-        return new Interpreted(reading, findings, verdict, expectation, nextStep, error(reading, exchange), timing, correlation);
+        return new Interpreted(reading, findings, verdict, expectation, nextStep, error(reading, exchange, call), timing, correlation);
     }
 
     private RunEnvelope<DtrDetail> finish(EpaOperation operation, RunRequest request, PreparedCall call, VendorExchange exchange,
@@ -485,11 +485,12 @@ public class DtrService {
      * status. A questionnaire that cannot be used arrived with a success status, so the shared
      * description of a transport fault has nothing to say about it, and it is described here.
      */
-    private ErrorView error(DtrReading reading, VendorExchange exchange) {
+    private ErrorView error(DtrReading reading, VendorExchange exchange, PreparedCall call) {
         if (!reading.outcome().fault()) {
             return null;
         }
-        ErrorView transport = support.faultView(exchange, reading.detail().issues());
+        // The call's own read timeout words a timeout: a save since the gateway was last asked may have changed the active one.
+        ErrorView transport = support.faultView(exchange, reading.detail().issues(), call);
         if (transport != null) {
             return transport;
         }

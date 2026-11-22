@@ -247,7 +247,8 @@ public class CrdService {
         }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
-        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
+        // The call's own read timeout words a timeout: a save since the gateway was last asked may have changed the active one.
+        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues(), call) : null;
 
         Map<String, String> correlation = new LinkedHashMap<>();
         reading.detail().coverageInformation().stream().map(CoverageInformationView::satisfiedPaId).filter(Shown::hasValue)
