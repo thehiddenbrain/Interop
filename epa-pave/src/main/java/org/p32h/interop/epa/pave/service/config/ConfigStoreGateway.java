@@ -837,6 +837,12 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "whether a target is production. Upload an environment, state its kind and activate it.");
         }
         if (active.kind() != EnvironmentKind.PROD) {
+            // Never "not blocked" while a send would be refused: an address of this environment
+            // remembered as production blocks its writes whatever environment is active (I-19).
+            String blocked = rememberedWriteBlock(snapshot);
+            if (blocked != null) {
+                return new WriteAccess(false, false, floor, blocked);
+            }
             // Worded so that it is true on the mock profile too, where nothing is sent at all.
             return new WriteAccess(false, true, floor, "\"" + Names.shown(active.name()) + "\" is a " + active.kind().wire()
                     + " environment, so writes are not blocked.");
@@ -1779,17 +1785,18 @@ public class ConfigStoreGateway implements OperationGateway {
         if (!owners.isEmpty() && !activeOwns) {
             String belongs = "the address it would go to belongs to the production environment" + (owners.size() > 1 ? "s " : " ")
                     + quotedAll(owners);
+            String remembered = rememberedNote(snapshot, intent.operation(), target, filled, owners);
             if (!store.allowProdWrites()) {
                 return new Refusal("Blocked: its address is a production address, and this installation is locked against production writes.", what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
                         + "writes." + why, "An owner has locked this installation against production writes (config-store.allow-prod-writes "
                         + "is false), so no unlock is possible. Only whoever owns the installation can change that. To test without "
-                        + "production, switch to a sandbox or uat environment.");
+                        + "production, switch to a sandbox or uat environment." + (remembered == null ? "" : " " + remembered));
             }
             String activeNow = active == null ? "no environment is active" : "the active environment is \"" + Names.shown(active.name()) + "\"";
             return new Refusal("Blocked: its address belongs to a production environment that is not the active one.", what + " is blocked: " + belongs + ", and " + activeNow + ". A write goes to a production address "
                     + "only from that production environment, active and unlocked." + why, "Nothing was sent. To write to "
                     + quotedAll(owners) + ", activate it on the Config tab and unlock writes there. A value typed for one run, "
-                    + "application.yml or another environment cannot send a write to it.");
+                    + "application.yml or another environment cannot send a write to it." + (remembered == null ? "" : " " + remembered));
         }
 
         // An address this tool cannot read as the HTTP client reads it is never taken as "not
@@ -1969,6 +1976,64 @@ public class ConfigStoreGateway implements OperationGateway {
             forgetEarlierEpochs(snapshot.epoch());
             return mintedEpoch == snapshot.epoch() && minted.stream().anyMatch(unlock -> active.name().equals(unlock.environmentName()));
         }
+    }
+
+    /**
+     * The note under the guardrail's own sentences when a write is refused because its address is
+     * remembered as production and no environment that can be made active would let it go (I-19):
+     * the floor is locked, or no environment that made it production is stored any more. It names
+     * the environment the address was remembered from and the way out that works today, the one
+     * the upload refusal gives (D0). Null when activating that production environment and
+     * unlocking it would send the write, which the guardrail's sentence already says.
+     */
+    private String rememberedNote(ConfigSnapshot snapshot, EpaOperation operation, Target target, UrlForms.Filled filled,
+                                  List<String> owners) {
+        boolean removed = owners.stream().noneMatch(owner -> snapshot.byName(owner) != null);
+        if (owners.isEmpty() || (store.allowProdWrites() && !removed)) {
+            return null;
+        }
+        boolean several = owners.size() > 1;
+        String operationWords = operation == EpaOperation.UNMAPPED && target != null && target.requestName() != null
+                ? "The request \"" + Names.shown(target.requestName()) + "\"" : capitalised(operation.shortLabel());
+        // The address as shown, secrets masked, scheme, host, port and path only: never a query.
+        UrlNormal.Destination shown = filled == null ? null : UrlNormal.destination(filled.display() == null ? filled.probe() : filled.display());
+        String address = shown == null ? "an address" : ConfigStore.oneLine(shown.shown());
+        String entries = owners.stream().map(owner -> "\"" + ConfigStore.quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+        return operationWords + " goes to " + address + ", which this installation remembers as an address of the production environment"
+                + (several ? "s " : " ") + quotedAll(owners) + (removed ? (several ? ", which are no longer stored" : ", which is no longer stored")
+                : "") + ". Writes to it stay blocked whatever environment is active. If " + (several ? "they were" : "it was") + " stored as "
+                + "prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
+                + store.directory().resolve(ConfigStore.STATE_FILE) + ", and start PAVE again.";
+    }
+
+    private static String capitalised(String words) {
+        return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
+    }
+
+    /**
+     * For a write access that is not production: the first write operation of the active
+     * environment whose address is remembered as production, said as its refusal will say it
+     * (I-19), or null when there is none.
+     */
+    private String rememberedWriteBlock(ConfigSnapshot snapshot) {
+        for (EpaOperation operation : EpaOperation.values()) {
+            if (!operation.outbound() || !operation.write() || operation == EpaOperation.UNMAPPED) {
+                continue;
+            }
+            CallPlan plan = plan(snapshot, CallIntent.of(operation));
+            UrlForms.Filled filled = plan.filled();
+            if (plan.refusal() == null || filled == null) {
+                continue;
+            }
+            UrlNormal.Destination destination = UrlNormal.destination(filled.complete() ? filled.send() : filled.probe());
+            List<String> owners = snapshot.productionOwners(destination);
+            if (owners.isEmpty()) {
+                continue;
+            }
+            String note = rememberedNote(snapshot, operation, plan.target(), filled, owners);
+            return note != null ? note : plan.refusal().reason();
+        }
+        return null;
     }
 
     private static String quotedAll(List<String> names) {
