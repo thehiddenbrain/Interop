@@ -14,10 +14,17 @@ import java.util.function.Function;
 import org.p32h.interop.epa.pave.config.TestListProperties;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.MemberIds;
+import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.TestListStore;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.NotFoundException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.Counts;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.Finds;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundCode;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundMember;
+import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundProvider;
+import org.p32h.interop.epa.pave.service.lists.TestListViews.CodeList;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRow;
@@ -29,17 +36,21 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Saved test members and providers: added, replaced and removed one at a time, or imported from a
+ * Saved test members, providers and procedure codes: added, replaced and removed one at a time, or imported from a
  * CSV file with a dry run first. Entries are kept as given: nothing is looked up, nothing derived.
  * They exist on both profiles, never reach the ledger, and the log holds counts only.
  *
- * <p>One member ID (in its no-space form), one NPI and one vendor practitioner id name at most one
- * entry, so that a re-import knows which entry a row replaces.
+ * <p>One member ID (in its no-space form), one vendor patient id, one NPI, one vendor practitioner id
+ * and one code in one code system name at most one entry, so that a re-import knows which entry a
+ * row replaces.
  */
 @Service
 public class TestListService {
 
     private static final Logger log = LoggerFactory.getLogger(TestListService.class);
+
+    /** The file of the saved procedure codes, beside the two the store names. */
+    static final String CODES = "codes.json";
 
     static final String OFF = "Saved test lists are switched off on this installation (test-lists.enabled).";
     private static final String OFF_ACTION = "Set test-lists.enabled to true in application.yml, then start PAVE again.";
@@ -49,11 +60,13 @@ public class TestListService {
      *
      * @param sameEntry   the field that two entries share when they are the same entry, or null
      *                    when they are different ones
+     * @param duplicate   the refusal of an entry that shares that field with a saved one, by the field
+     * @param twoEntries  the refusal of an imported row whose identifying fields belong to two saved entries
      */
     private record Kind<E extends TestListEntry, I>(String file, Class<E> type, String idPrefix, String what, List<String> columns,
             Function<Map<String, String>, I> input, BiFunction<I, String, E> withId, Function<E, Map<String, String>> values,
             Function<I, Map<String, String>> inputValues, Function<I, List<FieldError>> rules, BiFunction<Map<String, String>,
-            Map<String, String>, String> sameEntry, List<String> keyColumns, String duplicate) {
+            Map<String, String>, String> sameEntry, List<String> keyColumns, Function<String, String> duplicate, String twoEntries) {
     }
 
     private final TestListProperties properties;
@@ -61,6 +74,7 @@ public class TestListService {
     private final Clock clock;
     private final Kind<TestMember, TestMemberInput> members;
     private final Kind<TestProvider, TestProviderInput> providers;
+    private final Kind<TestCode, TestCodeInput> codes;
 
     public TestListService(TestListProperties properties, TestListStore store, Clock clock) {
         this.properties = properties;
@@ -68,18 +82,53 @@ public class TestListService {
         this.clock = clock;
         this.members = new Kind<>(TestListStore.MEMBERS, TestMember.class, "m-", "member", TestMember.COLUMNS, TestMemberInput::of,
                 TestMemberInput::withId, TestMember::values, input -> input.withId(null).values(),
-                input -> TestListRules.member(input, LocalDate.now(this.clock)), TestListService::sameMember, List.of("memberId"),
-                "A saved member has this member ID already. Edit that entry instead.");
+                input -> TestListRules.member(input, LocalDate.now(this.clock)), TestListService::sameMember,
+                List.of("memberId", "vendorPatientId"),
+                field -> "A saved member has this " + ("memberId".equals(field) ? "member ID" : "vendor patient id")
+                        + " already. Edit that entry instead.",
+                "Its member ID and its vendor patient id belong to two different saved members. Correct one of them.");
         this.providers = new Kind<>(TestListStore.PROVIDERS, TestProvider.class, "p-", "provider", TestProvider.COLUMNS,
                 TestProviderInput::of, TestProviderInput::withId, TestProvider::values, input -> input.withId(null).values(),
                 TestListRules::provider, TestListService::sameProvider, List.of("npi", "vendorPractitionerId"),
-                "A saved provider has this %s already. Edit that entry instead.");
+                field -> "A saved provider has this " + ("npi".equals(field) ? "NPI" : "vendor practitioner id")
+                        + " already. Edit that entry instead.",
+                "Its NPI and its vendor practitioner id belong to two different saved providers. Correct one of them.");
+        this.codes = new Kind<>(CODES, TestCode.class, "c-", "procedure code", TestCode.COLUMNS, TestCodeInput::of,
+                TestCodeInput::withId, TestCode::values, input -> input.withId(null).values(), TestListRules::code,
+                TestListService::sameCode, List.of("code"),
+                field -> "A saved procedure code has this code and code system already. Edit that entry instead.",
+                "This row matches two saved procedure codes. Correct one of them.");
     }
 
+    /**
+     * The same procedure code: the same code in the same system as written, a code with no system
+     * being its own entry. 97110 of CPT and 97110 stated with no system are two entries, because
+     * the Service card sends the system with the code and the two are sent differently.
+     */
+    private static String sameCode(Map<String, String> a, Map<String, String> b) {
+        String code = a.get("code");
+        if (code == null || !code.equals(b.get("code"))) {
+            return null;
+        }
+        String system = a.get("system") == null ? "" : a.get("system");
+        return system.equals(b.get("system") == null ? "" : b.get("system")) ? "code" : null;
+    }
+
+    /**
+     * The same member: the same member ID in its no-space form, or the same vendor patient id. The
+     * vendor's id counts since an entry may hold it alone (see {@link TestListRules#member}), and
+     * a second entry for the one patient of the vendor's server would only be a second name for it.
+     */
     private static String sameMember(Map<String, String> a, Map<String, String> b) {
         String one = a.get("memberId");
         String other = b.get("memberId");
-        return one != null && other != null && MemberIds.noSpace(one).equals(MemberIds.noSpace(other)) ? "memberId" : null;
+        if (one != null && other != null && MemberIds.noSpace(one).equals(MemberIds.noSpace(other))) {
+            return "memberId";
+        }
+        if (a.get("vendorPatientId") != null && a.get("vendorPatientId").equals(b.get("vendorPatientId"))) {
+            return "vendorPatientId";
+        }
+        return null;
     }
 
     private static String sameProvider(Map<String, String> a, Map<String, String> b) {
@@ -110,6 +159,30 @@ public class TestListService {
         }
         TestListStore.Loaded<TestProvider> loaded = store.read(providers.file(), TestProvider.class);
         return new ProviderList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public CodeList codes() {
+        if (!enabled()) {
+            return new CodeList(false, List.of(), 0, null);
+        }
+        TestListStore.Loaded<TestCode> loaded = store.read(codes.file(), TestCode.class);
+        return new CodeList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public TestCode addCode(TestCodeInput input) {
+        return add(codes, input);
+    }
+
+    public TestCode replaceCode(String id, TestCodeInput input) {
+        return replace(codes, id, input);
+    }
+
+    public boolean removeCode(String id) {
+        return remove(codes, id);
+    }
+
+    public ImportResult importCodes(ImportRequest request) {
+        return importRows(codes, request);
     }
 
     public TestMember addMember(TestMemberInput input) {
@@ -144,6 +217,106 @@ public class TestListService {
         return importRows(providers, request);
     }
 
+    /**
+     * What adding the entries a collection states did, by list.
+     *
+     * @param notAdded each entry a list's rules refused, with the reason
+     */
+    public record FoundAdd(Counts members, Counts providers, Counts codes, List<String> notAdded) {
+
+        public FoundAdd {
+            notAdded = notAdded == null ? List.of() : List.copyOf(notAdded);
+        }
+
+        @Override
+        public String toString() {
+            return "FoundAdd[" + members + ", " + providers + ", " + codes + "]";
+        }
+    }
+
+    /**
+     * Adds what a collection states to the saved lists. An entry a list holds already (the same
+     * member ID or vendor patient id, NPI or vendor practitioner id) is left as it is; an entry
+     * that does not fit a full list is counted, never dropped in silence. A procedure code is the
+     * same when its code and its code system are. Each entry is labelled
+     * with the request it was found in, so that it is told apart from one typed by hand.
+     */
+    public synchronized FoundAdd addFound(Finds finds) {
+        requireEnabled();
+        List<String> notAdded = new ArrayList<>();
+        List<TestMemberInput> memberInputs = new ArrayList<>();
+        List<String> memberFrom = new ArrayList<>();
+        for (FoundMember found : finds.members()) {
+            memberInputs.add(new TestMemberInput(label(found.from()), found.memberId(), found.firstName(), found.lastName(),
+                    found.dateOfBirth(), found.gender(), null, found.plan(), found.subscriberId(), found.coverageStatus(),
+                    found.coverageStart(), found.coverageEnd(), found.vendorPatientId()));
+            memberFrom.add(found.from());
+        }
+        List<TestProviderInput> providerInputs = new ArrayList<>();
+        List<String> providerFrom = new ArrayList<>();
+        for (FoundProvider found : finds.providers()) {
+            providerInputs.add(new TestProviderInput(label(found.from()), found.npi(), found.vendorPractitionerId(), found.firstName(),
+                    found.lastName(), null, null, null, null, null));
+            providerFrom.add(found.from());
+        }
+        Counts memberCounts = addAll(members, memberInputs, memberFrom, notAdded);
+        Counts providerCounts = addAll(providers, providerInputs, providerFrom, notAdded);
+        List<TestCodeInput> codeInputs = new ArrayList<>();
+        List<String> codeFrom = new ArrayList<>();
+        for (FoundCode found : finds.codes()) {
+            codeInputs.add(new TestCodeInput(label(found.from()), found.code(), found.system(), found.description()));
+            codeFrom.add(found.from());
+        }
+        Counts codeCounts = addAll(codes, codeInputs, codeFrom, notAdded);
+        return new FoundAdd(memberCounts, providerCounts, codeCounts, notAdded);
+    }
+
+    /** The label of an entry found in a collection: where it came from, in the tester's list of labels. */
+    static String label(String from) {
+        return "From " + (Texts.present(from) ? from : "the collection");
+    }
+
+    private <E extends TestListEntry, I> Counts addAll(Kind<E, I> kind, List<I> inputs, List<String> from, List<String> notAdded) {
+        List<E> entries = current(kind);
+        int added = 0;
+        int already = 0;
+        int full = 0;
+        int refused = 0;
+        for (int i = 0; i < inputs.size(); i++) {
+            I input = inputs.get(i);
+            Map<String, String> values = kind.inputValues().apply(input);
+            boolean there = false;
+            for (E entry : entries) {
+                there = there || kind.sameEntry().apply(values, kind.values().apply(entry)) != null;
+            }
+            if (there) {
+                already++;
+                continue;
+            }
+            List<FieldError> errors = kind.rules().apply(input);
+            if (!errors.isEmpty()) {
+                List<String> reasons = new ArrayList<>();
+                errors.forEach(error -> reasons.add(error.message()));
+                notAdded.add("A " + kind.what() + " found in \"" + from.get(i) + "\" was not added: " + String.join(" ", reasons));
+                refused++;
+                continue;
+            }
+            if (entries.size() >= TestListRules.MAX_ENTRIES) {
+                full++;
+                continue;
+            }
+            entries.add(kind.withId().apply(input, newId(kind, entries)));
+            added++;
+        }
+        if (added > 0) {
+            store.write(kind.file(), entries);
+        }
+        // Counts only. Never an entry.
+        log.info("Test {} from a collection: {} added, {} there already, {} did not fit, {} refused", kind.what() + "s", added, already,
+                full, refused);
+        return new Counts(added, already, full, refused);
+    }
+
     /** The members template: the header and three rows of placeholders, never a real member. */
     public static String memberTemplate() {
         List<Map<String, String>> rows = List.of(
@@ -158,6 +331,17 @@ public class TestListService {
                         "dateOfBirth", "1990-11-02", "gender", "unknown", "lineOfBusiness", "Commercial", "subscriberId", "S123456787",
                         "vendorPatientId", "patient-sample-3"));
         return ListCsv.write(TestMember.COLUMNS, rows);
+    }
+
+    /** The procedure codes template: a code of each common system, and one with no system stated. */
+    public static String codeTemplate() {
+        List<Map<String, String>> rows = List.of(
+                row("label", "Therapy, needs prior authorization", "code", "97110", "system", "http://www.ama-assn.org/go/cpt",
+                        "description", "Therapeutic exercise"),
+                row("label", "Equipment", "code", "E0601", "system", "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+                        "description", "Continuous positive airway pressure device"),
+                row("label", "No system stated", "code", "95810", "description", "Sleep study, attended"));
+        return ListCsv.write(TestCode.COLUMNS, rows);
     }
 
     /** The providers template: an NPI, then two vendor practitioner ids without one. */
@@ -259,8 +443,7 @@ public class TestListService {
         for (E entry : entries) {
             String field = entry.id().equals(exceptId) ? null : kind.sameEntry().apply(values, kind.values().apply(entry));
             if (field != null) {
-                String words = "npi".equals(field) ? "NPI" : "vendor practitioner id";
-                throw ValidationException.of(field, kind.duplicate().formatted(words));
+                throw ValidationException.of(field, kind.duplicate().apply(field));
             }
         }
     }
@@ -335,8 +518,7 @@ public class TestListService {
                 }
             }
             if (matches.size() > 1) {
-                rows.add(new ImportRow(row.line(), Status.REFUSED, label, "Its NPI and its vendor practitioner id belong to two "
-                        + "different saved providers. Correct one of them."));
+                rows.add(new ImportRow(row.line(), Status.REFUSED, label, kind.twoEntries()));
                 refused++;
                 continue;
             }

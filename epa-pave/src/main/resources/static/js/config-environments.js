@@ -18,6 +18,8 @@ import {el, clear, fill, chip, badge, fold, button, field, setFieldError, modal,
 import {errorPanel, faultReport} from './fault.js';
 import {readText} from './files.js';
 import {filesChangedNote, chooserInField, shownFile, labelsOf} from './cfg-parts.js';
+// The saved lists: what the chosen collection states, added on save when the box stays ticked.
+import {createFoundPart} from './cfg-found.js';
 
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
@@ -232,8 +234,8 @@ function createPage(root) {
             environment,
             settings,
             section: sectionName,
-            onSaved: (saved, warnings) => {
-                fill(status, said('Saved "' + named(saved.name) + '".', warnings));
+            onSaved: (saved, warnings, addedToLists) => {
+                fill(status, said('Saved "' + named(saved.name) + '".', warnings), addedToLists || null);
                 read();
             },
             onRemove: () => confirmRemoval(environment, () => {
@@ -326,6 +328,8 @@ export function createEditor(options) {
     };
     const fileLines = el('div', {class: 'config-file-lines'});
     const fillButton = button('Fill the form from these files', () => runDraft());
+    // The saved lists (cfg-found.js): read with Fill, added after a save, cleared when a file changes.
+    const found = createFoundPart({mode: 'box'});
 
     const inputs = {
         name: el('input', {class: 'input', type: 'text', autocomplete: 'off', spellcheck: false}),
@@ -367,6 +371,7 @@ export function createEditor(options) {
         files[slot].addEventListener('change', () => {
             // A new choice makes the last draft stale: what was read is read again at the next press.
             delete exportsRead[slot];
+            found.clear();
             fixName();
         });
     }
@@ -415,7 +420,8 @@ export function createEditor(options) {
                 chooserInField(field({label: 'Collection export', input: files.collectionExport}), files.collectionExport, 'Collection export'),
                 fillButton),
             el('p', {class: 'field__hint'}, 'The fields below are filled for review. Nothing is saved until Save environment.'),
-            fileLines));
+            fileLines,
+            found.node));
 
         const profileWords = view && view.profile && view.profile.words ? view.profile.words
             : PROFILE_WORDS[(app.mode() || {}).mode] || null;
@@ -748,6 +754,7 @@ export function createEditor(options) {
         }
         draft = answer.data || {};
         applyDraft(lines);
+        await found.read(request.collectionExport ? request : null);
     }
 
     function applyDraft(lines) {
@@ -979,6 +986,9 @@ export function createEditor(options) {
         const data = answer.data || {};
         const warnings = Array.isArray(data.warnings) ? data.warnings : [];
         const saved = data.settings || data.environment || {};
+        // The saved lists, once the environment is saved: the same files read again and added.
+        const addedToLists = found.wanted() ? await found.add() : null;
+        found.clear();
         if (isNew() && data.settings) {
             // A new environment stays open as its own form, so the parts a new one could not show can be set now.
             settings = data.settings;
@@ -992,7 +1002,7 @@ export function createEditor(options) {
             clear(fileLines);
             resetParts();
             drawAll();
-            fill(banner, said('Saved "' + named(saved.name || '') + '". Its other settings can be set now.', warnings));
+            fill(banner, said('Saved "' + named(saved.name || '') + '". Its other settings can be set now.', warnings), addedToLists);
             if (typeof onSaved === 'function') {
                 onSaved(saved, []);
             }
@@ -1000,7 +1010,7 @@ export function createEditor(options) {
         }
         dialog.close();
         if (typeof onSaved === 'function') {
-            onSaved(saved.name ? saved : {name: settings ? settings.name : environment ? environment.name : ''}, warnings);
+            onSaved(saved.name ? saved : {name: settings ? settings.name : environment ? environment.name : ''}, warnings, addedToLists);
         }
     }
 

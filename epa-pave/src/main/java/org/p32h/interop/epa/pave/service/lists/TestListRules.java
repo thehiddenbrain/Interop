@@ -21,15 +21,21 @@ final class TestListRules {
 
     private static final int MAX_MEMBER_ID = 30;
     private static final int MAX_RESOURCE_ID = 64;
+    static final int MAX_CODE = 40;
+    private static final int MAX_SYSTEM = 255;
+    private static final int MAX_DESCRIPTION = 500;
 
     private TestListRules() {
     }
 
     static List<FieldError> member(TestMemberInput member, LocalDate today) {
         List<FieldError> errors = new ArrayList<>();
-        if (member.memberId() == null) {
-            errors.add(new FieldError("memberId", "Enter the member ID as it is on the card."));
-        } else if (member.memberId().length() > MAX_MEMBER_ID) {
+        // A vendor patient id alone is enough: a collection often names its test patient only by
+        // the vendor's id, which is what a tester cannot guess, and the member ID is then typed in
+        // the Member card.
+        if (member.memberId() == null && member.vendorPatientId() == null) {
+            errors.add(new FieldError("memberId", "Enter the member ID as it is on the card, or the vendor patient id."));
+        } else if (member.memberId() != null && member.memberId().length() > MAX_MEMBER_ID) {
             errors.add(new FieldError("memberId", "A member ID is at most 30 characters. Check that nothing else was pasted with it."));
         }
         LocalDate born = date(errors, "dateOfBirth", "the date of birth", member.dateOfBirth());
@@ -59,6 +65,22 @@ final class TestListRules {
         return errors;
     }
 
+    static List<FieldError> code(TestCodeInput code) {
+        List<FieldError> errors = new ArrayList<>();
+        if (code.code() == null) {
+            errors.add(new FieldError("code", "Enter the code, for example 97110."));
+        } else if (!fitsCode(code.code())) {
+            errors.add(new FieldError("code", "A code is at most 40 characters, with no space in it."));
+        }
+        if (code.system() != null && code.system().length() > MAX_SYSTEM) {
+            errors.add(new FieldError("system", "A code system is at most 255 characters."));
+        }
+        if (code.description() != null && code.description().length() > MAX_DESCRIPTION) {
+            errors.add(new FieldError("description", "A description is at most 500 characters."));
+        }
+        return errors;
+    }
+
     /** The date, or null when it is absent or not a date as yyyy-MM-dd, in which case the error is added. */
     private static LocalDate date(List<FieldError> errors, String field, String words, String value) {
         if (value == null) {
@@ -78,13 +100,27 @@ final class TestListRules {
         if (value == null) {
             return;
         }
-        boolean fits = value.length() <= MAX_RESOURCE_ID;
+        if (!fitsResourceId(value)) {
+            errors.add(new FieldError(field, "The vendor's " + what + " id is letters, digits, - and . only, at most 64 characters."));
+        }
+    }
+
+    /** True when the text is what a FHIR resource id may be: letters, digits, - and . only, 1 to 64 of them. */
+    static boolean fitsResourceId(String value) {
+        boolean fits = value != null && !value.isEmpty() && value.length() <= MAX_RESOURCE_ID;
         for (int i = 0; fits && i < value.length(); i++) {
             char c = value.charAt(i);
             fits = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.';
         }
-        if (!fits) {
-            errors.add(new FieldError(field, "The vendor's " + what + " id is letters, digits, - and . only, at most 64 characters."));
+        return fits;
+    }
+
+    /** True when the text can be a procedure code: 1 to 40 characters, none of them white space. */
+    static boolean fitsCode(String value) {
+        boolean fits = value != null && !value.isEmpty() && value.length() <= MAX_CODE;
+        for (int i = 0; fits && i < value.length(); i++) {
+            fits = !Character.isWhitespace(value.charAt(i));
         }
+        return fits;
     }
 }

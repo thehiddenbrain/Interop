@@ -147,7 +147,7 @@ export function createMemberCard(env) {
         }
         if (saved.length > 0) {
             parts.push(el('optgroup', {label: 'Saved test members'},
-                saved.map(entry => el('option', {value: 'saved:' + entry.id}, (entry.label || entry.memberId) + ' (' + entry.memberId + ')'))));
+                saved.map(entry => el('option', {value: 'saved:' + entry.id}, savedMemberText(entry)))));
         }
         const before = picker.value;
         fill(picker, ...parts);
@@ -176,7 +176,10 @@ export function createMemberCard(env) {
             }
             clearAll();
             source = 'saved';
-            id.set(entry.memberId, MARKS.SAVED);
+            // An entry may hold only the vendor's patient id; the Member ID is then left for the tester to type.
+            if (entry.memberId) {
+                id.set(entry.memberId, MARKS.SAVED);
+            }
             for (const control of fields) {
                 const name = control.name === 'planName' ? 'plan' : control.name;
                 if (entry[name] !== undefined && entry[name] !== null && entry[name] !== '') {
@@ -319,6 +322,16 @@ export function createMemberCard(env) {
             return source;
         }
     };
+}
+
+/**
+ * A saved member as the picker names it: its label, then its member ID, or the vendor's patient id
+ * for an entry that holds only that (one read from a collection that names its patient by id).
+ */
+export function savedMemberText(entry) {
+    const key = entry.memberId ? entry.memberId : entry.vendorPatientId ? 'vendor patient id ' + entry.vendorPatientId : '';
+    const label = typeof entry.label === 'string' ? entry.label : '';
+    return label === '' ? key : key === '' ? label : label + ' (' + key + ')';
 }
 
 /** The member ID forms a lookup answer says were sent, or null: a lookup not set up sent nothing (B7). */

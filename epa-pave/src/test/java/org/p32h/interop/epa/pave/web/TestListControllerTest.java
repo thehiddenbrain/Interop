@@ -59,7 +59,13 @@ class TestListControllerTest {
         return "{\"label\": \"Needs prior authorization\", \"memberId\": \"" + memberId + "\", \"firstName\": \"Sample\", "
                 + "\"lastName\": \"Placeholder-One\", \"dateOfBirth\": \"1980-01-31\", \"gender\": \"female\", \"lineOfBusiness\": "
                 + "\"Commercial\", \"plan\": \"Gold\", \"subscriberId\": \"" + memberId + "\", \"coverageStatus\": \"active\", "
-                + "\"coverageStart\": \"2026-01-01\", \"coverageEnd\": \"2026-12-31\", \"vendorPatientId\": \"patient-7\"}";
+                + "\"coverageStart\": \"2026-01-01\", \"coverageEnd\": \"2026-12-31\", \"vendorPatientId\": \"" + vendorPatientId(memberId)
+                + "\"}";
+    }
+
+    /** Each sample member has a vendor patient id of its own: one vendor patient id names one saved member. */
+    private static String vendorPatientId(String memberId) {
+        return "S123456789".equals(memberId) ? "patient-7" : "patient-" + memberId.replace(" ", "").toLowerCase(java.util.Locale.ROOT);
     }
 
     private static String idOf(ResultActions result) throws Exception {
@@ -116,8 +122,9 @@ class TestListControllerTest {
     void eachMemberFieldIsRefusedAtItsFieldAndNothingIsSaved() throws Exception {
         MockMvc mvc = mvc();
         String base = member("S123456789");
-        refusedAt(mvc.perform(json(post(MEMBERS), base.replace("\"memberId\": \"S123456789\"", "\"memberId\": \"  \""))), "memberId",
-                "Enter the member ID as it is on the card.");
+        refusedAt(mvc.perform(json(post(MEMBERS), base.replace("\"memberId\": \"S123456789\"", "\"memberId\": \"  \"")
+                .replace("patient-7", " "))), "memberId",
+                "Enter the member ID as it is on the card, or the vendor patient id.");
         refusedAt(mvc.perform(json(post(MEMBERS), base.replace("\"memberId\": \"S123456789\"", "\"memberId\": \"S" + "1".repeat(30) + "\""))),
                 "memberId", "A member ID is at most 30 characters. Check that nothing else was pasted with it.");
         refusedAt(mvc.perform(json(post(MEMBERS), base.replace("1980-01-31", "01/31/1980"))), "dateOfBirth",
@@ -181,6 +188,27 @@ class TestListControllerTest {
     }
 
     @Test
+    void aMemberMayHoldAVendorPatientIdAloneAndOneVendorPatientIdNamesOneEntry() throws Exception {
+        MockMvc mvc = mvc();
+        mvc.perform(json(post(MEMBERS), "{\"label\": \"From Order sign\", \"vendorPatientId\": \"pat-001\"}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.memberId").doesNotExist()).andExpect(jsonPath("$.vendorPatientId").value("pat-001"));
+        refusedAt(mvc.perform(json(post(MEMBERS), "{\"memberId\": \"S123456789\", \"vendorPatientId\": \"pat-001\"}")), "vendorPatientId",
+                "A saved member has this vendor patient id already. Edit that entry instead.");
+        refusedAt(mvc.perform(json(post(MEMBERS), "{\"label\": \"Nothing to know it by\", \"firstName\": \"Sample\"}")), "memberId",
+                "Enter the member ID as it is on the card, or the vendor patient id.");
+        // A re-import finds the entry by its vendor patient id and fills the member ID the tester now knows.
+        mvc.perform(json(post(MEMBERS + "/import"), importBody("vendorPatientId,memberId\r\npat-001,S123456789\r\n", false)))
+                .andExpect(jsonPath("$.rows[0].status").value("REPLACE"));
+        mvc.perform(get(MEMBERS)).andExpect(jsonPath("$.count").value(1)).andExpect(jsonPath("$.members[0].memberId").value("S123456789"))
+                .andExpect(jsonPath("$.members[0].label").value("From Order sign"));
+        mvc.perform(json(post(MEMBERS), member("S123456788").replace("patient-s123456788", "pat-002"))).andExpect(status().isOk());
+        mvc.perform(json(post(MEMBERS + "/import"), importBody("vendorPatientId,memberId\r\npat-002,S123456789\r\n", true)))
+                .andExpect(jsonPath("$.rows[0].status").value("REFUSED"))
+                .andExpect(jsonPath("$.rows[0].reason").value("Its member ID and its vendor patient id belong to two different saved members. "
+                        + "Correct one of them."));
+    }
+
+    @Test
     void aMisspeltPropertyOrAnIdInTheBodyIsRefusedByName() throws Exception {
         MockMvc mvc = mvc();
         mvc.perform(json(post(MEMBERS), "{\"memberID\": \"S123456789\"}")).andExpect(status().isUnprocessableContent())
@@ -222,7 +250,7 @@ class TestListControllerTest {
                 .andExpect(jsonPath("$.rows[2].line").value(5)).andExpect(jsonPath("$.rows[2].status").value("REFUSED"))
                 .andExpect(jsonPath("$.rows[2].reason").value("Line 2 is the same member. Only the first of the two is imported."))
                 .andExpect(jsonPath("$.rows[3].status").value("REFUSED"))
-                .andExpect(jsonPath("$.rows[3].reason").value("Enter the member ID as it is on the card."))
+                .andExpect(jsonPath("$.rows[3].reason").value("Enter the member ID as it is on the card, or the vendor patient id."))
                 .andExpect(jsonPath("$.rows[4].status").value("REFUSED"))
                 .andExpect(jsonPath("$.rows[4].reason", startsWith("This row has more values than the header has columns.")))
                 .andExpect(jsonPath("$.rows[5].status").value("ADD"))
@@ -277,7 +305,8 @@ class TestListControllerTest {
     void anImportWithoutTheIdentifyingColumnOrWithoutDryRunIsRefusedWhole() throws Exception {
         MockMvc mvc = mvc();
         mvc.perform(json(post(MEMBERS + "/import"), importBody("label,plan\r\nFirst,Gold\r\n", true))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The file has no memberId column, so no row can be matched to a saved member."));
+                .andExpect(jsonPath("$.title").value("The file has no memberId or vendorPatientId column, so no row can be matched to a "
+                        + "saved member."));
         mvc.perform(json(post(PROVIDERS + "/import"), importBody("label\r\nFirst\r\n", true))).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("The file has no npi or vendorPractitionerId column, so no row can be matched to a saved "
                         + "provider."));

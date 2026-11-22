@@ -212,7 +212,7 @@ export function createCodePicker(spec) {
      * Adds a code to the case unless the case holds it already. Every way a code gets into the case
      * comes through here, so the same code is never sent twice. Returns false when nothing was added.
      */
-    function addEntry(candidate, rows) {
+    function addEntry(candidate, rows, mark) {
         if (!candidate || !candidate.code || entries.some(existing => existing.input.code === String(candidate.code))) {
             return false;
         }
@@ -223,7 +223,7 @@ export function createCodePicker(spec) {
         if (candidate.description) {
             kept.description = candidate.description;
         }
-        entries = entries.concat([{input: kept, rows: rows || null, check: rows ? 'listed' : 'pending'}]);
+        entries = entries.concat([{input: kept, rows: rows || null, check: rows ? 'listed' : 'pending', mark: mark || null}]);
         return true;
     }
 
@@ -255,7 +255,7 @@ export function createCodePicker(spec) {
     function draw(quiet) {
         fill(lines, ...entries.map(entry => {
             const description = entry.input.description || (entry.rows && entry.rows.length > 0 ? entry.rows[0].description : '');
-            return el('div', {class: 'code-line'},
+            const line = el('div', {class: 'code-line'},
                 chip(entry.input.code, {mono: true}),
                 description ? el('span', {class: 'code-line__text', title: description}, cutDescription(description)) : null,
                 entry.check === 'not-listed' ? chip('not on the list', {dashed: true}) : null,
@@ -267,6 +267,8 @@ export function createCodePicker(spec) {
                     draw();
                     input.focus({preventScroll: true});
                 }, {small: true, quiet: true, title: 'Remove ' + entry.input.code}));
+            // The mark of a pick from the saved list sits under its line: the line is full on a narrow case column.
+            return entry.mark ? [line, el('p', {class: 'field__hint code-line__mark'}, entry.input.code + ' ' + entry.mark)] : line;
         }));
         for (const remove of lines.querySelectorAll('button')) {
             remove.setAttribute('aria-label', remove.title);
@@ -307,6 +309,19 @@ export function createCodePicker(spec) {
         /** Text typed in the box and not added, trimmed. */
         typed() {
             return String(input.value || '').trim();
+        },
+        /**
+         * Adds one code with its system and description as a saved list gives it, marked so ("from
+         * saved list"). False when the case holds the code already, which the note then says.
+         */
+        addSaved(candidate, mark) {
+            const added = addEntry(candidate, null, mark);
+            repeated(added ? [] : [candidate && candidate.code]);
+            draw();
+            if (added) {
+                checkTyped();
+            }
+            return added;
         },
         replace(candidates) {
             entries = [];

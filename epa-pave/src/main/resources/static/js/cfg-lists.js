@@ -1,6 +1,6 @@
-// Configuration > Members and Providers: the saved test members and test providers (plan 3.4, R-12).
+// Configuration > Members, Providers and Procedure codes: the saved test lists (plan 3.4, R-12).
 //
-// One module serves both addresses, because the two lists differ only in their fields: the frame
+// One module serves the three addresses, because the lists differ only in their fields: the frame
 // mounts it once and calls update(['providers']) or update(['members']) when the tester moves
 // between them, so the page is drawn again for the other list. Entries are kept as the tester
 // typed them; nothing here looks a member up or fills a field the tester did not fill.
@@ -50,6 +50,8 @@ const LISTS = {
         columns: [
             {label: 'Label', value: entry => entry.label},
             {label: 'Member ID', value: entry => entry.memberId, mono: true},
+            // An entry read from a collection may hold the vendor's patient id alone.
+            {label: 'Vendor patient id', value: entry => entry.vendorPatientId, mono: true},
             {label: 'Name', value: entry => joined(entry.firstName, entry.lastName)},
             {label: 'Date of birth', value: entry => entry.dateOfBirth, mono: true},
             {label: 'Line of business', value: entry => entry.lineOfBusiness}
@@ -82,6 +84,28 @@ const LISTS = {
             {label: 'Name', value: entry => joined(joined(entry.firstName, entry.lastName), entry.organization, ', ')},
             {label: 'Place of service', value: entry => entry.placeOfService, mono: true}
         ]
+    },
+    codes: {
+        path: '/api/lists/codes',
+        entries: 'codes',
+        title: 'Test procedure codes',
+        line: 'Procedure codes the sandbox knows, picked in the Service card under Saved codes.',
+        one: 'procedure code',
+        many: 'procedure codes',
+        template: 'test-procedure-codes-template.csv',
+        empty: 'No procedure code is saved yet. Add one, import a CSV file, or read a collection in an environment\'s form.',
+        fields: [
+            {key: 'label', label: 'Label'},
+            {key: 'code', label: 'Code', mono: true, placeholder: '97110'},
+            {key: 'system', label: 'Code system', mono: true, placeholder: 'http://www.ama-assn.org/go/cpt'},
+            {key: 'description', label: 'Description'}
+        ],
+        columns: [
+            {label: 'Label', value: entry => entry.label},
+            {label: 'Code', value: entry => entry.code, mono: true},
+            {label: 'Code system', value: entry => entry.system, mono: true},
+            {label: 'Description', value: entry => entry.description}
+        ]
     }
 };
 
@@ -96,9 +120,10 @@ function joined(first, second, between) {
     return [first, second].filter(value => typeof value === 'string' && value.trim() !== '').join(between || ' ');
 }
 
-/** The list an address names: providers for #configuration/providers, members otherwise. */
+/** The list an address names: providers, procedure codes, or members for any other. */
 function kindOf(route) {
-    return Array.isArray(route) && route[0] === 'providers' ? 'providers' : 'members';
+    const first = Array.isArray(route) ? route[0] : null;
+    return first === 'providers' ? 'providers' : first === 'procedure-codes' ? 'codes' : 'members';
 }
 
 /** Draws the page into root. route: the parts of the address after #configuration. */
@@ -117,7 +142,7 @@ export function mount(root, route) {
         const add = button('Add ' + list.one, () => edit(list, null), {primary: true});
         const importing = button('Import CSV', () => importDialog(list));
         // A plain link: the template is a file of placeholders the browser saves, never member data.
-        const template = el('a', {class: 'btn', href: list.path + '/template.csv', download: 'test-' + list.many + '-template.csv'}, 'CSV template');
+        const template = el('a', {class: 'btn', href: list.path + '/template.csv', download: list.template || 'test-' + list.many + '-template.csv'}, 'CSV template');
         const controls = el('span', {class: 'inline-controls', hidden: true}, add, importing, template);
         fill(host, section(pageHead(list.title, list.line, controls, busy), outcome, table));
         return {list, controls, outcome, table, busy};
@@ -162,7 +187,7 @@ export function mount(root, route) {
                         ? (column.mono ? el('span', {class: 'mono'}, value) : value) : none('not given'));
                 }),
                 el('td', null, el('button', {type: 'button', class: 'btn btn--small',
-                    'aria-label': 'Edit ' + (entry.label || entry.memberId || entry.npi || entry.vendorPractitionerId || list.one),
+                    'aria-label': 'Edit ' + (entry.label || entry.memberId || entry.vendorPatientId || entry.npi || entry.vendorPractitionerId || entry.code || list.one),
                     on: {click: () => edit(list, entry)}}, 'Edit')))))));
     }
 
@@ -246,14 +271,14 @@ export function mount(root, route) {
             dialog.close();
             const saved = answer.data || {};
             fill(view.outcome, el('p', {role: 'status'}, (entry ? 'Saved the ' : 'Added the ') + list.one + ' "'
-                + named(saved.label || saved.memberId || saved.npi || saved.vendorPractitionerId || noun) + '".'));
+                + named(saved.label || saved.memberId || saved.vendorPatientId || saved.npi || saved.vendorPractitionerId || saved.code || noun) + '".'));
             await load();
         }
     }
 
     function confirmRemove(list, entry) {
         const line = el('span', {class: 'muted small', role: 'status'});
-        const name = named(entry.label || entry.memberId || entry.npi || entry.vendorPractitionerId || list.one);
+        const name = named(entry.label || entry.memberId || entry.vendorPatientId || entry.npi || entry.vendorPractitionerId || entry.code || list.one);
         modal({
             title: 'Remove the ' + list.one + ' "' + name + '"?',
             body: el('p', null, 'It is removed from the saved list. Runs already recorded are not changed.'),
