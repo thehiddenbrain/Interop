@@ -86,21 +86,33 @@ echo Install a JDK 21 and set JAVA_HOME to it, or put its bin folder first on th
 exit /b 1
 :javaok
 
-if exist "%JAR%" goto start
-echo %JAR% is not there yet. Building it once with the Gradle wrapper (tests are skipped here;
-echo run gradlew.bat clean build to run them).
+rem The jar is built before every start, not only when it is missing. Every build calls itself
+rem 1.0.0, so after a pull or an edit the jar of an older build would start as if it were the new
+rem one, and that old jar is what answered an upload with an internal error after a pull. Gradle's
+rem up-to-date check makes this quick when nothing changed.
+echo Building %JAR% with the Gradle wrapper. This is quick when nothing changed; tests are skipped
+echo here, run gradlew.bat clean build to run them.
 if "%MAJORNUM%"=="21" goto build
 echo Note: the build compiles with a JDK 21 toolchain when Gradle finds one. %JAVA% is Java %JVERSION%; 1>&2
 echo if Gradle finds no JDK 21, the build compiles for Java 21 with this Java when it is a JDK, and says so. 1>&2
 :build
 call gradlew.bat --console=plain bootJar
-if errorlevel 1 exit /b 1
+if errorlevel 1 goto buildfailed
 
-:start
-echo Starting %NAME% %VERSION% on http://localhost:%PORT%/ (%PROFILE% profile). Stop it with Ctrl+C,
+rem The time the jar was written tells a fresh build from an old one, which the version cannot.
+set "BUILT=at a time this system does not report"
+if exist "%JAR%" for %%F in ("%JAR%") do set "BUILT=%%~tF"
+echo Starting %NAME% %VERSION% from %JAR%, built %BUILT%.
+echo It answers on http://localhost:%PORT%/ (%PROFILE% profile). Stop it with Ctrl+C,
 echo then answer Y to "Terminate batch job (Y/N)?".
 "%JAVA%" -jar "%JAR%" "--spring.profiles.active=%PROFILE%" %*
 exit /b %errorlevel%
+
+:buildfailed
+echo run.cmd: the build failed, so %NAME% was not started: the jar in build\libs could be older than the source. 1>&2
+echo Gradle's lines above say why. A PAVE still running from this folder holds the jar open, which stops a build 1>&2
+echo that has to replace it. 1>&2
+exit /b 1
 
 :usage
 echo Usage: run.cmd [mock^|live] [application arguments]

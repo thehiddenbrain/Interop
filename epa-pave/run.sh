@@ -80,15 +80,24 @@ if [ "$major" -lt 21 ]; then
     exit 1
 fi
 
-if [ ! -f "$JAR" ]; then
-    echo "${JAR} is not there yet. Building it once with the Gradle wrapper (tests are skipped here;"
-    echo "run ./gradlew clean build to run them)."
-    if [ "$major" != "21" ]; then
-        echo "Note: the build compiles with a JDK 21 toolchain when Gradle finds one. ${JAVA} is Java ${version};" >&2
-        echo "if Gradle finds no JDK 21, the build compiles for Java 21 with this Java when it is a JDK, and says so." >&2
-    fi
-    ./gradlew --console=plain bootJar
+# The jar is built before every start, not only when it is missing. Every build calls itself
+# 1.0.0, so after a pull or an edit the jar of an older build would start as if it were the new
+# one, and that old jar is what answered an upload with an internal error after a pull. Gradle's
+# up-to-date check makes this quick when nothing changed.
+echo "Building ${JAR} with the Gradle wrapper. This is quick when nothing changed; tests are skipped"
+echo "here, run ./gradlew clean build to run them."
+if [ "$major" != "21" ]; then
+    echo "Note: the build compiles with a JDK 21 toolchain when Gradle finds one. ${JAVA} is Java ${version};" >&2
+    echo "if Gradle finds no JDK 21, the build compiles for Java 21 with this Java when it is a JDK, and says so." >&2
+fi
+if ! ./gradlew --console=plain bootJar; then
+    echo "run.sh: the build failed, so ${NAME} was not started: the jar in build/libs could be older than the source." >&2
+    echo "Gradle's lines above say why." >&2
+    exit 1
 fi
 
-echo "Starting ${NAME} ${VERSION} on http://localhost:${PORT}/ (${profile} profile). Stop it with Ctrl+C."
+# The time the jar was written tells a fresh build from an old one, which the version cannot.
+built="$(date -r "$JAR" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || true)"
+echo "Starting ${NAME} ${VERSION} from ${JAR}, built ${built:-at a time this system does not report}."
+echo "It answers on http://localhost:${PORT}/ (${profile} profile). Stop it with Ctrl+C."
 exec "$JAVA" -jar "$JAR" "--spring.profiles.active=${profile}" "$@"
