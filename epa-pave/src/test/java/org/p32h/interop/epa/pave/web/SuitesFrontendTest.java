@@ -146,7 +146,8 @@ class SuitesFrontendTest {
                         + "[\"No comparison\",\"earlier.csv, 2026-11-22 10:00:00 UTC: Finished: 2 cases. 2 passed.\"]]",
                 "[\"unreadable\",0,\"cases.csv is saved in another encoding (for example by Excel or Notepad). Save it as CSV UTF-8, then choose it "
                         + "again.\",\"\"]",
-                "[\"previewed\",[{\"fileName\":\"cases.csv\",\"text\":\"caseId,protocol,memberId\\nTC-001,crd,P32H-NO-AUTH\\n\"}],true,false,"
+                "[\"previewed\",[{\"fileName\":\"cases.csv\",\"text\":\"caseId,protocol,memberId\\nTC-001,crd,P32H-NO-AUTH\\n\",\"testerRef\":null,"
+                        + "\"compareWith\":null,\"configEpoch\":7}],true,false,"
                         + "\"1 case can be run.\"]",
                 "[\"other file\",true,false]",
                 "[\"started\",[{\"fileName\":\"cases.csv\",\"text\":\"caseId,protocol,memberId\\nTC-001,crd,P32H-NO-AUTH\\n\",\"testerRef\":\"QA-7\","
@@ -253,9 +254,11 @@ class SuitesFrontendTest {
         List<String> components = Arrays.stream(SuiteController.SuiteFileRequest.class.getRecordComponents())
                 .map(RecordComponent::getName).toList();
         assertThat(components).containsExactly("fileName", "text", "testerRef", "compareWith", "configEpoch");
-        assertThat(page).contains("{body: {fileName: got.fileName, text: got.text}}")
-                .contains("{body: {fileName: held.fileName, text: held.text,")
-                .contains("testerRef: ref === '' ? null : ref, compareWith: compare.value ? compare.value : null, configEpoch: held.epoch}");
+        // One body builder for the preview and the run, naming every component of the record.
+        assertThat(page).contains("'/api/suites/preview', {body: suiteBody(got.fileName, got.text, epoch)}")
+                .contains("'/api/suites', {body: suiteBody(held.fileName, held.text, held.epoch)}")
+                .contains("return {fileName, text, testerRef: ref === '' ? null : ref, compareWith: compare.value ? compare.value : null, "
+                        + "configEpoch: epoch};");
         // Read in the page through files.js, never sent as a file.
         assertThat(page).contains("readText(file, {maxBytes: MOST_BYTES, source: 'csv'})").doesNotContain("FormData").doesNotContain("multipart");
         for (String column : List.of("caseId", "protocol", "hook", "memberId", "npi", "procedureCodes", "dateOfService", "expected",

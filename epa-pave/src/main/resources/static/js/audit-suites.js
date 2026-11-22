@@ -155,7 +155,7 @@ export function mount(root, route) {
             return;
         }
         const epoch = app.epoch();
-        const answer = await call('POST', '/api/suites/preview', {body: {fileName: got.fileName, text: got.text}});
+        const answer = await call('POST', '/api/suites/preview', {body: suiteBody(got.fileName, got.text, epoch)});
         previewButton.disabled = false;
         clear(why);
         if (!mounted) {
@@ -207,6 +207,13 @@ export function mount(root, route) {
 
     /* ---------- starting, following and stopping a run ---------- */
 
+    // The server reads the preview and the run as one record (SuiteFileRequest), so both posts are
+    // built here and cannot drift apart; the preview uses only the file name and the text today.
+    function suiteBody(fileName, text, epoch) {
+        const ref = String(testerRef.value || '').trim();
+        return {fileName, text, testerRef: ref === '' ? null : ref, compareWith: compare.value ? compare.value : null, configEpoch: epoch};
+    }
+
     function drawStart() {
         const busy = Boolean(run) && run.state === 'RUNNING';
         runButton.disabled = sending || busy || !held;
@@ -221,9 +228,7 @@ export function mount(root, route) {
         sending = true;
         drawStart();
         clear(problem);
-        const ref = testerRef.value.trim();
-        const answer = await call('POST', '/api/suites', {body: {fileName: held.fileName, text: held.text,
-            testerRef: ref === '' ? null : ref, compareWith: compare.value ? compare.value : null, configEpoch: held.epoch}});
+        const answer = await call('POST', '/api/suites', {body: suiteBody(held.fileName, held.text, held.epoch)});
         sending = false;
         if (!mounted) {
             return;
