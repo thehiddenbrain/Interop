@@ -63,6 +63,9 @@ final class ProviderResponseMapping {
     static final List<Spelling> PHONE = Spelling.list("phone", "phoneNumber", "telephone", "telephoneNumber", "officePhone",
             "practicePhone", "contact.phone", "contact.phoneNumber");
 
+    /** A fax number, which PAS 2.2.1's rule pd-1 accepts in place of a phone on the requesting PractitionerRole. */
+    static final List<Spelling> FAX = Spelling.list("fax", "faxNumber", "officeFax", "practiceFax", "contact.fax", "contact.faxNumber");
+
     /** The names an address object may have. All parts are read from the first one found, never from two. */
     static final List<String> ADDRESS_OBJECTS = List.of("address", "practiceAddress", "locationAddress", "officeAddress",
             "primaryAddress", "addresses");
@@ -89,7 +92,7 @@ final class ProviderResponseMapping {
 
     /** Every field the mapping reads. Whether a record is a provider at all is read by which of them carry a value. */
     static final List<List<Spelling>> READ = List.of(NPI, FIRST_NAME, LAST_NAME, ORGANIZATION_NAME, NAME, SPECIALTY, TAXONOMY_CODE,
-            NETWORK_STATUS, IN_NETWORK, PHONE, LINE_1_IN_ADDRESS, LINE_2_IN_ADDRESS, CITY_IN_ADDRESS, STATE_IN_ADDRESS,
+            NETWORK_STATUS, IN_NETWORK, PHONE, FAX, LINE_1_IN_ADDRESS, LINE_2_IN_ADDRESS, CITY_IN_ADDRESS, STATE_IN_ADDRESS,
             POSTAL_CODE_IN_ADDRESS, PHONE_IN_ADDRESS, LINE_1_FLAT, LINE_2_FLAT, CITY_FLAT, STATE_FLAT, POSTAL_CODE_FLAT);
 
     /** The names a record and its address are found under. */
@@ -122,13 +125,19 @@ final class ProviderResponseMapping {
      * @param npi      the NPI that was asked for, already checked
      */
     static ProviderLookupResult map(VendorExchange received, String npi) {
-        ProviderLookupResult result = read(received, npi);
+        return map(received, npi, LookupReading.usual(WORDS));
+    }
+
+    /** The same, read where a lookup saved on screen says its matches and fields are (R-11). */
+    static ProviderLookupResult map(VendorExchange received, String npi, LookupReading reading) {
+        ProviderLookupResult result = read(received, npi, reading);
         // What the result concludes is read with the masks in place, so it says so where a mask fell on a value it rests on.
         org.p32h.interop.epa.pave.model.MaskedReading masked = LookupMasks.find(received, DECIDED_BY, READ, WRAPPED_IN);
         return masked == null ? result : result.withMaskedReading(masked.line());
     }
 
-    private static ProviderLookupResult read(VendorExchange received, String npi) {
+    private static ProviderLookupResult read(VendorExchange received, String npi, LookupReading reading) {
+        LookupWords words = reading.words();
         // What the view copies out of the body must not show a secret this tool holds, any more than the wire view does.
         VendorExchange exchange = received.withReturnedSecretsMasked();
         // First, so a body that could not be parsed and any note about the body are never left to the wire view alone.
@@ -136,35 +145,37 @@ final class ProviderResponseMapping {
         List<AdditionalField> additional = new ArrayList<>(TrackedJson.bodyFieldsWithRepeatedKeys(exchange));
         TrackedJson tracked = TrackedJson.of(exchange.json());
 
-        LookupOutcomes.Ending ending = LookupOutcomes.ofCall(exchange, WORDS, tracked);
+        LookupOutcomes.Ending ending = LookupOutcomes.ofCall(exchange, words, tracked);
         if (ending != null) {
             additional.addAll(tracked.unconsumed());
             return ended(ending, exchange, npi, additional);
         }
 
         // The envelope, apart from the fields.
-        LookupEnvelope.Opened opened = LookupEnvelope.open(tracked.root(), WRAPPERS);
+        LookupEnvelope.Opened opened = reading.open(tracked.root(), WRAPPERS);
         if (opened.kind() != LookupEnvelope.Kind.RECORD) {
             additional.addAll(tracked.unconsumed());
             return ended(switch (opened.kind()) {
-                case SEVERAL -> LookupOutcomes.several(WORDS, opened.count(), exchange);
-                case NOT_A_RECORD -> LookupOutcomes.notARecord(WORDS, exchange);
-                default -> LookupOutcomes.noRecord(WORDS);
+                case SEVERAL -> LookupOutcomes.several(words, opened.count(), exchange);
+                case NOT_A_RECORD -> LookupOutcomes.notARecord(words, exchange);
+                case NOT_THERE -> LookupOutcomes.notThere(words, exchange);
+                default -> LookupOutcomes.noRecord(words);
             }, exchange, npi, additional);
         }
 
         // The fields.
         LookupReader reader = new LookupReader(opened.scopes());
         LookupReader.Read returnedNpi = reader.read(NPI);
-        LookupReader.Read firstName = reader.read(FIRST_NAME);
-        LookupReader.Read lastName = reader.read(LAST_NAME);
-        LookupReader.Read organizationName = reader.read(ORGANIZATION_NAME);
+        LookupReader.Read firstName = reader.read(reading.spellings("firstName", FIRST_NAME));
+        LookupReader.Read lastName = reader.read(reading.spellings("lastName", LAST_NAME));
+        LookupReader.Read organizationName = reader.read(reading.spellings("organizationName", ORGANIZATION_NAME));
         LookupReader.Read name = reader.read(NAME);
-        LookupReader.Read specialty = reader.read(SPECIALTY);
+        LookupReader.Read specialty = reader.read(reading.spellings("specialty", SPECIALTY));
         LookupReader.Read taxonomyCode = reader.read(TAXONOMY_CODE);
         LookupReader.Read networkStatus = reader.read(NETWORK_STATUS);
         LookupReader.Read inNetwork = reader.read(IN_NETWORK);
-        LookupReader.Read phone = reader.read(PHONE);
+        LookupReader.Read phone = reader.read(reading.spellings("phone", PHONE));
+        LookupReader.Read fax = reader.read(reading.spellings("fax", FAX));
         TrackedJson.Node addressObject = reader.object(ADDRESS_OBJECTS);
         LookupReader address = addressObject == null ? reader : new LookupReader(List.of(addressObject));
         LookupReader.Read line1 = address.read(addressObject == null ? LINE_1_FLAT : LINE_1_IN_ADDRESS);
@@ -172,19 +183,19 @@ final class ProviderResponseMapping {
         LookupReader.Read city = address.read(addressObject == null ? CITY_FLAT : CITY_IN_ADDRESS);
         LookupReader.Read state = address.read(addressObject == null ? STATE_FLAT : STATE_IN_ADDRESS);
         LookupReader.Read postalCode = address.read(addressObject == null ? POSTAL_CODE_FLAT : POSTAL_CODE_IN_ADDRESS);
-        if (phone.source() == null && addressObject != null) {
+        if (phone.source() == null && addressObject != null && !reading.fieldPaths().containsKey("phone")) {
             phone = address.read(PHONE_IN_ADDRESS);
         }
 
         // Is this a provider at all? It is when it says something about one. The NPI alone does not
         // count, because a directory can hand the NPI back in the very answer that says it found nobody.
         List<LookupReader.Read> about = List.of(firstName, lastName, organizationName, name, specialty, taxonomyCode, networkStatus,
-                inNetwork, phone, line1, line2, city, state, postalCode);
+                inNetwork, phone, fax, line1, line2, city, state, postalCode);
         if (about.stream().noneMatch(read -> read.hasText() && !GENERIC.contains(read.spelling()))) {
             // Read again from the start, so nothing the abandoned reading touched is missing from the returned fields.
             additional.addAll(TrackedJson.of(exchange.json()).unconsumed());
-            return ended(LookupEnvelope.holdsAValue(opened.record().raw(), npi) ? LookupOutcomes.unrecognised(WORDS, exchange)
-                    : LookupOutcomes.hollowRecord(WORDS), exchange, npi, additional);
+            return ended(LookupEnvelope.holdsAValue(opened.record().raw(), npi) ? LookupOutcomes.unrecognised(words, exchange)
+                    : LookupOutcomes.hollowRecord(words), exchange, npi, additional);
         }
 
         // What needs a look. A found provider stays found: these are reasons to check before using them.
@@ -232,6 +243,7 @@ final class ProviderResponseMapping {
                 // A status in words is kept as the directory wrote it. A yes or a no has no word to keep.
                 .networkStatus(networkStatus.hasText() ? networkStatus.text() : statusFrom(inNetwork))
                 .phone(phone.text())
+                .fax(fax.text())
                 .address(postal)
                 .build();
 
@@ -246,6 +258,7 @@ final class ProviderResponseMapping {
                 networkStatus.field("networkStatus", "Network status"),
                 inNetwork.field("inNetwork", "In network"),
                 phone.field("phone", "Phone"),
+                fax.field("fax", "Fax"),
                 line1.field("addressLine1", "Address line 1"),
                 line2.field("addressLine2", "Address line 2"),
                 city.field("city", "City"),

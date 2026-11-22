@@ -81,7 +81,7 @@ export function createStepper(onPick) {
                         shown = {text: words.stepStates.NOT_RUN.text, tone: words.stepStates.NOT_RUN.tone || null};
                     }
                 }
-                fill(each.chipSlot, shown ? chip(shown.text, {tone: shown.tone, dashed: !shown.tone, title: shown.title}) : '');
+                fill(each.chipSlot, shown ? chip(shown.text, {tone: shown.tone, dashed: !shown.tone, title: shown.title || shown.text}) : '');
                 const tone = shown ? toneName(shown.tone) : null;
                 each.number.className = 'stepper__num' + (tone && ['action', 'clear', 'fault', 'stop', 'neutral'].includes(tone)
                     ? ' stepper__num--' + tone : '');
