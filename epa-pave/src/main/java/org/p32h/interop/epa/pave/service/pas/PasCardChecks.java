@@ -53,13 +53,35 @@ final class PasCardChecks {
         servicing(request.servicingProvider(), inputs);
     }
 
-    /** A servicing provider is optional; when its NPI is typed, its check digit is tested as the ordering provider's is. */
+    /**
+     * A servicing provider is optional. When its NPI is typed, its check digit is tested as the
+     * ordering provider's is; when its vendor practitioner id is typed, it must be one a FHIR
+     * resource id can be, because it becomes the id of its Practitioner (R-40).
+     */
     private static void servicing(ProviderDetail provider, RunInputs inputs) {
-        if (provider == null || Texts.blank(provider.npi())) {
+        if (provider == null) {
             return;
         }
-        String problem = Npi.problem(provider.npi());
-        inputs.require(problem == null, "servicingProvider.npi", problem);
+        if (Texts.present(provider.npi())) {
+            String problem = Npi.problem(provider.npi());
+            inputs.require(problem == null, "servicingProvider.npi", problem);
+        }
+        String vendorId = Texts.trimToNull(provider.vendorPractitionerId());
+        inputs.require(vendorId == null || resourceId(vendorId), "servicingProvider.vendorPractitionerId",
+                "A vendor practitioner id is up to 64 letters, digits, hyphens and dots, as a FHIR resource id is.");
+    }
+
+    private static boolean resourceId(String text) {
+        if (text.length() > 64) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '.')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void closed(RunInputs inputs, String field, String value, List<PasOptions.Option> list, String what) {

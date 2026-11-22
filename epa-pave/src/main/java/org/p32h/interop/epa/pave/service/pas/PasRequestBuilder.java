@@ -212,7 +212,7 @@ public final class PasRequestBuilder {
             } else {
                 String id = OnyxPasConventions.documentReferenceId(position);
                 boolean inline = Texts.present(attachment.data()) || Texts.present(attachment.text());
-                carried.add(PasResources.documentReference(id, title, attachment, position, notes));
+                carried.add(PasResources.documentReference(id, title, attachment, position, PasResources.patientRef(request.member()), notes));
                 supportingInfo.add(supporting(supportingInfo.size() + 1, JSON.objectNode().put("reference", "DocumentReference/" + id),
                         reportType, null));
                 notes.add("Attachment " + position + " (\"" + title + "\") travels in the bundle as DocumentReference/" + id
@@ -336,7 +336,7 @@ public final class PasRequestBuilder {
         ObjectNode coverage = resources.coverage(member, memberIdRule, variables, insurer != null, notes);
         String requester = PasResources.requestorReference(provider);
         List<ObjectNode> requestor = PasResources.requestor(provider, variables, notes);
-        PasResources.Servicing servicing = submission ? PasResources.servicing(card.servicingProvider(), notes) : null;
+        PasResources.Servicing servicing = submission ? PasResources.servicing(card.servicingProvider(), provider, notes) : null;
 
         ObjectNode claim = JSON.objectNode();
         claim.put("resourceType", "Claim");
@@ -367,7 +367,7 @@ public final class PasRequestBuilder {
         claim.putObject("type").putArray("coding").addObject().put("system", OnyxPasConventions.CLAIM_TYPES)
                 .put("code", chosen(variables, VAR_CLAIM_TYPE, OnyxPasConventions.DEFAULT_CLAIM_TYPE, "claim type", notes));
         claim.put("use", "preauthorization");
-        claim.putObject("patient").put("reference", CaseResources.PATIENT_REF);
+        claim.putObject("patient").put("reference", PasResources.patientRef(member));
         claim.put("created", instant());
         if (insurer != null) {
             claim.putObject("insurer").put("reference", PasResources.INSURER_REF);

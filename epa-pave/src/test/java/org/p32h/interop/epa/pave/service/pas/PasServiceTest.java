@@ -1490,12 +1490,13 @@ class PasServiceTest {
     @Test
     void eachServiceCardFieldThatCannotBeSentIsRefusedAtItsOwnFieldAndNothingIsSent() {
         PasSubmitRequest wrong = submission("P32H-PAS-APPROVED").certificationType("X").requestType("hs").levelOfService("Emergency")
-                .placeOfService("1").serviceType("medical").servicingProvider(ProviderDetail.builder().npi("1234567890").build())
+                .placeOfService("1").serviceType("medical").servicingProvider(ProviderDetail.builder().npi("1234567890").vendorPractitionerId("P 1/x").build())
                 .procedureCodes(List.of(new CodeInput("95810", null, null, java.math.BigDecimal.ZERO, "units"))).build();
         assertThatThrownBy(() -> service().runSubmit(wrong, RunOrigin.manual(), null))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field)
                         .containsExactlyInAnyOrder("certificationType", "requestType", "levelOfService", "placeOfService", "serviceType",
-                                "procedureCodes[0].quantity", "procedureCodes[0].unit", "servicingProvider.npi"));
+                                "procedureCodes[0].quantity", "procedureCodes[0].unit", "servicingProvider.npi",
+                                "servicingProvider.vendorPractitionerId"));
         assertThatThrownBy(() -> service().previewSubmit(wrong, null))
                 .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
                         .contains(new FieldError("certificationType", "A certification type is one of I (Initial), S (Revised), 4 (Extension), "

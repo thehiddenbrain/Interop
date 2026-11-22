@@ -597,4 +597,78 @@ class PasRequestBuilderTest {
         assertThat(builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry().build(), CLAIM, List.of(), null, BUNDLE, NO_VARIABLES).toComplete())
                 .isEmpty();
     }
+
+    // ---- the vendor's own patient and practitioner ids (R-40) ----
+
+    private static List<JsonNode> all(PasRequestBuilder.Built built, String type) {
+        List<JsonNode> out = new ArrayList<>();
+        for (JsonNode entry : bundle(built).get("entry")) {
+            if (type.equals(entry.get("resource").get("resourceType").asString())) {
+                out.add(entry.get("resource"));
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void theVendorsOwnIdsNameThePatientAndThePractitionerAndEveryReferenceToThemResolves() {
+        PasSubmitRequest request = complete()
+                .member(MemberDetail.builder().memberId("S12345678   01").firstName("Given").lastName("Placeholder-Surname").gender("female")
+                        .coverageStatus("active").vendorPatientId("PT-0001.a").build())
+                .provider(ProviderDetail.builder().npi("1234567893").lastName("Provider").phone("555-0100").vendorPractitionerId("P123").build())
+                .attachments(List.of(new PasAttachment("Report", "text/plain", REPORT, null))).build();
+        PasRequestBuilder.Built built = submit(request, ALL);
+        JsonNode claim = claim(built);
+        assertThat(resource(built, "Patient").get("id").asString()).isEqualTo("PT-0001.a");
+        assertThat(resource(built, "Practitioner").get("id").asString()).isEqualTo("P123");
+        // Every reference to the member and to the provider reaches the resource under the vendor's id.
+        Map<JsonNode, String> toPatient = new java.util.LinkedHashMap<>();
+        toPatient.put(claim, "/patient/reference");
+        toPatient.put(resource(built, "Coverage"), "/beneficiary/reference");
+        toPatient.put(resource(built, "ServiceRequest"), "/subject/reference");
+        toPatient.put(resource(built, "DocumentReference"), "/subject/reference");
+        toPatient.forEach((holder, path) -> assertThat(named(built, holder, holder.at(path).asString()).get("id").asString())
+                .as(holder.get("resourceType").asString() + path).isEqualTo("PT-0001.a"));
+        JsonNode coverage = resource(built, "Coverage");
+        assertThat(named(built, coverage, coverage.at("/subscriber/reference").asString()).get("id").asString()).isEqualTo("PT-0001.a");
+        JsonNode role = resource(built, "PractitionerRole");
+        assertThat(named(built, role, role.at("/practitioner/reference").asString()).get("id").asString()).isEqualTo("P123");
+        // The member ID stays an identifier: it is never the Patient's id.
+        assertThat(resource(built, "Patient").at("/identifier/0/value").asString()).isEqualTo("S1234567801");
+        assertThat(built.notes()).contains("The Patient was sent with the id PT-0001.a, the vendor patient id given, so every reference to the "
+                + "member reads Patient/PT-0001.a.", "The Practitioner was sent with the id P123, the vendor practitioner id given, so every "
+                + "reference to the provider reads Practitioner/P123.");
+
+        // Without them, this tool's own ids, and the Patient's note says how to send the vendor's.
+        PasRequestBuilder.Built own = submit(complete().build(), ALL);
+        assertThat(resource(own, "Patient").get("id").asString()).isEqualTo("patient-1");
+        assertThat(resource(own, "Practitioner").get("id").asString()).isEqualTo("practitioner-1");
+        assertThat(own.notes()).anyMatch(note -> note.startsWith("The Patient was sent with the id patient-1, this tool's own"));
+    }
+
+    @Test
+    void aProviderNamedByItsVendorIdAloneGoesWithoutAnIdentifierAndThatIsCounted() {
+        PasSubmitRequest request = complete().provider(ProviderDetail.builder().lastName("Provider").phone("555-0100")
+                .vendorPractitionerId("P124").build()).build();
+        PasRequestBuilder.Built built = submit(request, ALL);
+        assertThat(resource(built, "Practitioner").has("identifier")).isFalse();
+        assertThat(built.leftOut()).containsExactly("PASPractitioner identifier");
+    }
+
+    @Test
+    void aServicingProviderWithTheRequestersVendorIdSharesItsPractitionerAndAnotherVendorIdGetsItsOwn() {
+        ProviderDetail requester = ProviderDetail.builder().npi("1234567893").lastName("Provider").phone("555-0100").vendorPractitionerId("P123")
+                .build();
+        PasRequestBuilder.Built same = submit(complete().provider(requester).servicingProvider(ProviderDetail.builder().lastName("Provider")
+                .phone("555-0100").vendorPractitionerId("P123").build()).build(), ALL);
+        assertThat(all(same, "Practitioner")).extracting(p -> p.get("id").asString()).containsExactly("P123");
+        assertThat(all(same, "PractitionerRole")).extracting(r -> named(same, r, r.at("/practitioner/reference").asString()).get("id").asString())
+                .containsExactly("P123", "P123");
+
+        PasRequestBuilder.Built other = submit(complete().provider(requester).servicingProvider(ProviderDetail.builder().npi("1234567893")
+                .lastName("Servicing").phone("555-0102").vendorPractitionerId("P200").build()).build(), ALL);
+        assertThat(all(other, "Practitioner")).extracting(p -> p.get("id").asString()).containsExactly("P123", "P200");
+        assertThat(other.toComplete()).isEmpty();
+        assertThat(other.leftOut()).isEmpty();
+    }
 }
