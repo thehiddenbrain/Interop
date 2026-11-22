@@ -253,4 +253,33 @@ class TokenUrlAndEscapeGuardrailTest {
                 + "under Sign-in in Configuration > Environments.");
         assertThat(fixture.gateway.tokenUrlRefusal(HOST + "/token")).isNull();
     }
+
+    /**
+     * features-8: a production environment that shared the sandbox's token url, removed, takes its
+     * token url with it, while the addresses it called stay remembered. The refusal then keeps the
+     * guardrail's words and says what changed and the ways out, instead of only asking for another
+     * token url when the one typed is right.
+     */
+    @Test
+    void aTokenUrlRefusedAfterItsProductionEnvironmentWasRemovedSaysSoAndGivesTheWaysOut() throws Exception {
+        ConfigFixture fixture = ConfigFixture.live(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        ObjectNode body = clientCredentials(JsonSafe.mapper().createObjectNode(), HOST + "/token");
+        body.put("name", "vendor-live");
+        body.put("kind", "prod");
+        body.putObject("addresses").put("PAS_SUBMIT", HOST);
+        assertThat(save(mvc, body).getStatus()).isEqualTo(200);
+        String words = "Nothing was sent: the token url, at " + HOST + ", is an address of the production environment \"vendor-live\", "
+                + "or lies beneath one, and a sign-in sends the client secret to it. A token url is never an address a production "
+                + "environment uses for a call. Set the token url under Sign-in in Configuration > Environments.";
+        // Stored, it shares its token url with the sandbox, which is allowed.
+        assertThat(fixture.gateway.tokenUrlRefusal(HOST + "/token")).isNull();
+
+        fixture.service.removeEnvironment("vendor-live");
+
+        assertThat(fixture.gateway.tokenUrlRefusal(HOST + "/token")).isEqualTo(words + " \"vendor-live\" is no longer stored, so this "
+                + "tool no longer knows the token url it signed in with. To sign in at a token url shared with it, store it again. If it "
+                + "was stored as prod by mistake, stop PAVE, delete the entries whose environment is \"vendor-live\" from "
+                + "productionDestinations in " + fixture.store.directory().resolve(ConfigStore.STATE_FILE) + ", and start PAVE again.");
+    }
 }

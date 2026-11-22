@@ -331,7 +331,7 @@ class RunControllerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.kind").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.title").value("There is no run with that id."))
-                .andExpect(jsonPath("$.action").value("Copy the run id from the list on the History tab, or from the result that gave it, "
+                .andExpect(jsonPath("$.action").value("Copy the run id from the list in Audit, or from the result that gave it, "
                         + "and try again."));
         // Text that is not an id is not repeated back.
         mvc.perform(get("/api/runs/{runId}", "<b>not an id</b>".replace("/", ""))).andExpect(status().isNotFound())

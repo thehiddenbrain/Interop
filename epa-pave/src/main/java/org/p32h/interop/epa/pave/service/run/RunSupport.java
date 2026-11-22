@@ -452,8 +452,9 @@ public class RunSupport {
      */
     public static String notSignedInInstruction(String errorType) {
         return OnyxFailureType.TOKEN_ENDPOINT_FAULT.name().equals(errorType)
-                ? "Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing was sent to the service."
-                : "Correct the sign-in settings on the Config tab: nothing was sent.";
+                ? "Check the token url (the Sign-in of the environment in Configuration > Environments, or onyx.auth.token-url as PAVE "
+                        + "was started): it gave this tool no access token, so nothing was sent to the service."
+                : "Correct the sign-in settings in Configuration > Environments > Sign-in: nothing was sent.";
     }
 
     /**
