@@ -17,8 +17,10 @@ nothing leaves the machine, and no credential or configuration is needed.
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
 ledger) is the one PAVE had. The top bar shows the build's day and time in UTC; the same time is
 `build.time` in `GET /api/mode`.
-Release 1 is handed over on 2026-11-22 at 15:00 UTC: the release branch at `TO-FILL-HEAD`, the
-release candidate `7fc32c8` with two rounds of corrections. Its top bar reads `TO-FILL-STAMP`.
+Release 1 is handed over on 2026-11-22 at 15:00 UTC: the code of commit `22478b8` of the release
+branch, the release candidate `7fc32c8` with two rounds of corrections; this README and the records
+were committed after it. The top bar of a running build shows the day and time (UTC) that build
+was made.
 
 What release 1 holds:
 
@@ -89,16 +91,14 @@ for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip 
   fail: stop PAVE and start it again (release 2).
 - A replay sent from Audit that fails just after a pull does not say that PAVE's files changed:
   stop PAVE and start it again, then replay once more.
-- A folder whose name ends in `.json` or `.csv`, chosen in place of a file, is told the file "can
-  no longer be read": choose the exported file inside the folder.
 - The Date of service and the questionnaire's dates show in the browser's own form (for example
   01/10/2026); the value sent is the ISO date whatever it shows.
 - On live, answers are not filled from the case in release 1: type the questionnaire's dates (on
   the stand-in, the member's date of birth and the date of service) in step 2 yourself.
-- At a window 1024 pixels wide the top bar can cut the environment's name; the whole name is in the
-  list when you open it, and in Configuration > Environments.
-- "Save environment" on an empty new environment names the missing field (Kind) at the field only,
-  not in the panel at the top.
+- A sandbox on the same host as an environment saved as prod by mistake and then removed cannot
+  sign in, reads included: the refusal says that production environment "is no longer stored";
+  stop PAVE, delete its entries from `productionDestinations` in `store.json` and start again (see
+  [A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
 - A red `Failed to load resource: ... 422` line in the browser console after a refused form is
   expected: the page shows the refusal.
 
@@ -328,8 +328,14 @@ again; the upload refusal's field note says the same.
 A send refused for this reason says so under the guardrail's sentence, names the environment the
 address was remembered from and gives the same way out, and Configuration > Production writes and
 `GET /api/mode` say that writes to that address are blocked (seen again on the jar of `19ddf8e`).
-The sandbox's sign-in and reads go on: only a token url at an address a production environment
-uses for Submit or for a subscription change is refused.
+**A sandbox that cannot sign in after a slip.** An environment saved as prod by mistake on the same
+host as a working sandbox, and then removed, stops that sandbox from signing in, reads included,
+when the sandbox's token url is, or lies beneath, an address remembered from it. The refusal says
+"Nothing was sent: the token url, at <address>, is an address of the production environment ...",
+then that the environment "is no longer stored, so this tool no longer knows the token url it
+signed in with", and gives the two ways out: store it again, or, if it was stored as prod by
+mistake, stop PAVE, delete its entries from `productionDestinations` in `store.json` (the refusal
+names the file) and start PAVE again.
 From release 2 a button on Configuration > Production writes does it, for an address whose
 environment is no longer stored.
 
@@ -464,11 +470,13 @@ A PAS submit against production creates a real prior authorization request again
 - **A replay or a suite never carries an unlock**: a write in one against production is reported
   as blocked, with the next step to send it on its own.
 - **A value typed for one run may not move a write** to another scheme, host, port or base path.
-- **A token url is held against the production write addresses too**: a sign-in's token url that
-  is, or lies beneath, an address a production environment (stored or remembered) uses for Submit
-  or for a subscription create, update or delete is refused at its field (`signIn.tokenUrl`) and
-  never sent to. A token url shared with a production environment's own sign-in, or on the same
-  host as its reads, stays allowed.
+- **A token url is held against every production address**: a sign-in's token url that is, or
+  lies beneath, any address a production environment (stored or remembered) calls, reads included,
+  is refused at its field (`signIn.tokenUrl`) at save and never sent to. A token url that a stored
+  production environment itself signs in with stays allowed. So where a production environment's
+  address is the root of a host, no other environment can sign in on that host; after a slip this
+  stops a sandbox, see
+  [A production address remembered by mistake](#a-production-address-remembered-by-mistake).
 - **An address is compared as a server reads it**: each percent-escape of its path decoded once,
   so `%24submit` is `$submit`; an address that still holds a `%` after that is refused ("An address
   holds no percent-escape of an escape."). Seen again on the jar of `19ddf8e`, with every spelling
@@ -1025,8 +1033,9 @@ notice of a change in another window, STS-1).
 The release branch at `19ddf8e` was imported into the same IDE and started from the Boot
 Dashboard: the files-changed line and the restart behaved as "Start here" says. The Problems view
 showed one error, in a test line the Eclipse compiler rejects, which made STS ask before every
-start; that line was corrected, and every source set of the release is compiled with the Eclipse
-compiler STS 5.4.0 brings before it is handed over.
+start; that line was corrected (commit `1772d37`), and the Eclipse compiler STS 5.4.0 brings,
+run by the integrator over every source set of `22478b8`, found 0 errors. The release itself was
+not imported into STS again.
 What one Windows workstation reported is at the end of this section.
 
 **1. Which Spring Tools.** Spring Tools 5 for Eclipse: PAVE is a Spring Boot 4 application, and the
@@ -1084,8 +1093,8 @@ Package Explorer shows `epa-pave [boot]`.
 - **Red markers before Gradle has fetched the dependencies are normal.** If they stay, right click
   the project and choose Gradle, Refresh Gradle Project: that is the first thing to try.
 
-**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`, and on the release
-it shows no error. **Never apply the quick fix of
+**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`; on the release the
+Eclipse compiler STS brings finds 0 errors, so it should show none. **Never apply the quick fix of
 "Unnecessary path variable definition"**: without the names the controllers give their request
 parameters, calls such as the Audit list would answer HTTP 500, and `HandlerArgumentNamesTest`
 fails the build.
@@ -1189,10 +1198,9 @@ open item, the worst first, with the entry that gives the reason.
   at start), the first internal error within about 10 seconds after the IDE rebuilt the classes
   can ask you to report it instead of saying to restart, and the top bar's environment list can
   fail. Stop PAVE and start it again. Release 2 corrects it.
-- **A folder chosen in place of a file** is told "<name> is a folder. Choose the exported file
-  inside it.", but a folder whose name ends in `.json` or `.csv` is told that the file "can no
-  longer be read: it was moved, renamed, deleted or changed after you chose it". Choose the
-  exported file inside the folder.
+- **A sandbox that shares a host with a production environment removed after a slip** cannot sign
+  in until the remembered address is forgotten by hand; release 2 brings the button
+  ([A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
 - **A replay from Audit that fails just after a pull** does not add the files-changed line: stop
   PAVE and start it again, then replay once more.
 - **The Date of service and the questionnaire's dates** show in the browser's own form; the ISO
@@ -1207,12 +1215,18 @@ under a virtual display on Linux, with a Team > Pull under the running tool (`1a
 `9dbf61a`); Audit, every broken upload, and every feature of release 1 on mock and on live against
 a stand-in (`9dbf61a`); the production guardrail, what is sent on live, configuration on live and
 secrets (`0b69049`). A second agent confirmed or refuted each finding: 86 were confirmed (31
-major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-36 with I-28a,
-and three more of the integrator's own).
+major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-36, and
+three more of the integrator's own; a narrowing of the token url rule decided among them was
+withdrawn before the hand-over, so that rule stays as built).
 Four correctors then corrected the confirmed findings and the decisions (11:57 to 12:45 UTC), and
 agents that wrote no correction looked again on the jar of `19ddf8e` (the Workbench's screens on
 that of `e5d0972`): the guardrail, secrets, Audit and uploads, configuration and what is sent on
-live, and the real STS 5.4.0. A second, short round corrected what they left. What stays open on
+live, and the real STS 5.4.0. A second, short round corrected what they left, each corrector looking at its
+corrections on the running tool, among them a folder named like a file now told it is a folder, the
+environment's whole name at 1024 pixels, and a refused environment save that names each field in
+its panel and keeps that panel in view. The Eclipse compiler STS 5.4.0 brings, run by the
+integrator over every source set of `22478b8`, found 0 errors. The recheck of the final build had
+not reported when this was written. What stays open on
 purpose is in [This release](#this-release) and [Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
@@ -1233,4 +1247,4 @@ what they say was seen is what the rechecks name. Steps 3 and 4 of "Start here" 
 README; the lines step 4 shows are those `run.sh` prints at that head.
 Whole builds: the candidate `7fc32c8`, 3,519 tests, 0 failures, 0 errors, 2 skipped; `19ddf8e`,
 after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped. The release
-handed over, `TO-FILL-HEAD`, was built whole twice and once from a fresh clone: TO-FILL-COUNTS.
+handed over, `22478b8`, was built whole twice and once from a fresh clone: TO-FILL-COUNTS.
