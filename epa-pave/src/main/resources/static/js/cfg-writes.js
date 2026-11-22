@@ -10,7 +10,7 @@
 
 import {call} from './api.js';
 import {app} from './app.js';
-import {el, fill, clear, button, field, setFieldError} from './dom.js';
+import {el, fill, clear, button, field, setFieldError, modal} from './dom.js';
 import {errorPanel} from './fault.js';
 import {pageHead, section, part, during, none} from './cfg-parts.js';
 
@@ -151,9 +151,69 @@ export function mount(root, route) {
                     el('thead', null, el('tr', null, el('th', {scope: 'col'}, 'Address'), el('th', {scope: 'col'}, 'Environment'),
                         el('th', {scope: 'col'}, 'Environment still stored'))),
                     el('tbody', null, destinations.map(row => el('tr', null,
-                        el('td', null, el('span', {class: 'mono'}, row.destination || '')),
-                        el('td', null, row.environment || ''),
-                        el('td', null, row.stored === true ? 'Yes' : 'No, it was removed'))))))));
+                        // An address and a name can be long; they wrap, so the table stays within the page at 1024.
+                        el('td', {class: 'config-wrap'}, el('span', {class: 'mono'}, row.destination || '')),
+                        el('td', {class: 'config-wrap'}, row.environment || ''),
+                        // Forget sits under the fact that makes it possible, and only where the server offers it.
+                        el('td', null, el('div', null, row.stored === true ? 'Yes' : 'No, it was removed'), row.forgettable === true
+                            ? el('div', null, button('Forget this production address', () => confirmForget(row), {small: true})) : null))))))));
+    }
+
+    /**
+     * Forget asks for the name of the environment that made the address production, typed exactly
+     * as it was. The server decides whether the name matches and whether the address may be
+     * forgotten at all: this page sends what was typed, as typed.
+     */
+    function confirmForget(row) {
+        const name = el('input', {type: 'text', class: 'input', autocomplete: 'off', spellcheck: false});
+        const nameField = field({label: 'Type the name of the environment it was remembered for, exactly as it was', input: name});
+        const problem = el('div', {'aria-live': 'polite'});
+        const busy = el('span', {class: 'muted small', role: 'status'});
+        name.addEventListener('input', () => setFieldError(nameField, null));
+        modal({
+            title: 'Forget this production address?',
+            body: [el('p', null, el('span', {class: 'mono'}, row.destination || '')),
+                el('p', null, 'It is remembered as production for ', el('strong', {class: 'environment-name'}, row.environment || ''),
+                    ', which is no longer stored as production. Once it is forgotten, an environment of kind sandbox or uat can use this address.'),
+                nameField, problem],
+            footer: dialog => {
+                const forget = button('Forget this production address', () => during(forget, busy, 'Forgetting', async () => {
+                    if (await sendForget(row, name.value, nameField, problem)) {
+                        dialog.close();
+                    }
+                }), {primary: true});
+                name.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        forget.click();
+                    }
+                });
+                return [busy, button('Keep it', () => dialog.close()), forget];
+            }
+        });
+    }
+
+    /** Returns true when the server forgot the address. */
+    async function sendForget(row, typedName, nameField, problem) {
+        setFieldError(nameField, null);
+        clear(problem);
+        // The name goes exactly as it was typed, spaces and capitals included. The server compares it.
+        const answer = await call('POST', '/api/config/production-destinations/forget',
+            {body: {destination: row.destination, environment: typedName}});
+        if (!answer.ok) {
+            const atField = answer.error && Array.isArray(answer.error.fieldErrors)
+                ? answer.error.fieldErrors.find(each => each && each.field === 'environment') : null;
+            if (atField) {
+                setFieldError(nameField, atField.message);
+            } else {
+                fill(problem, errorPanel(answer.error));
+            }
+            return false;
+        }
+        if (!gone) {
+            fill(outcome, el('p', {role: 'status'}, el('span', {class: 'mono'}, row.destination || ''), ' is no longer remembered as production.'));
+            await load();
+        }
+        return true;
     }
 
     async function load() {
