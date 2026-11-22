@@ -240,3 +240,18 @@
 .code-lines .code-line {
     flex-wrap: wrap;
 }
+
+/* Whatever a fold of a result holds (a wide table of the response detail, a long url), it scrolls
+   inside the fold and never makes the page wider than the window. */
+.panel,
+.result,
+.result .fold,
+.verdict {
+    min-width: 0;
+}
+
+.result .fold__body {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-wrap: anywhere;
+}

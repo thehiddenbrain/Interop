@@ -243,7 +243,11 @@ export function createCodePicker(spec) {
             }
             const rows = answer.ok && Array.isArray(answer.data.codes) ? answer.data.codes.filter(row => row.code === entry.input.code) : [];
             entry.rows = rows;
-            entry.check = !answer.ok ? 'failed' : rows.length > 0 ? 'listed' : 'not-listed';
+            // exactCode: the list holds the code, under another line of business than the case's.
+            entry.line = spec.lineOfBusiness();
+            entry.check = !answer.ok ? 'failed' : rows.length > 0 ? 'listed'
+                : answer.data.exactCode ? 'other-lines' : 'not-listed';
+            entry.sentence = answer.ok && typeof answer.data.otherLines === 'string' ? answer.data.otherLines : null;
             draw(true);
         }
     }
@@ -255,6 +259,7 @@ export function createCodePicker(spec) {
                 chip(entry.input.code, {mono: true}),
                 description ? el('span', {class: 'code-line__text', title: description}, cutDescription(description)) : null,
                 entry.check === 'not-listed' ? chip('not on the list', {dashed: true}) : null,
+                entry.check === 'other-lines' ? chip('not on the list for ' + entry.line, {dashed: true, title: entry.sentence || null}) : null,
                 entry.check === 'failed' ? chip('not checked', {dashed: true, title: 'The code list did not answer.'}) : null,
                 entry.rows ? tags(forTheCase(entry.rows, spec.lineOfBusiness())) : null,
                 button('Remove', () => {
@@ -284,7 +289,20 @@ export function createCodePicker(spec) {
         },
         /** Draws the code lines again, as the case's line of business now chooses their rows. */
         redraw() {
+            // A code typed by hand was checked for one line of business; for another, it is asked again.
+            const line = spec.lineOfBusiness();
+            let again = false;
+            for (const entry of entries) {
+                if (entry.line !== undefined && entry.line !== line && entry.check !== 'asking') {
+                    entry.check = 'pending';
+                    entry.line = undefined;
+                    again = true;
+                }
+            }
             draw(true);
+            if (again) {
+                checkTyped();
+            }
         },
         /** Text typed in the box and not added, trimmed. */
         typed() {
