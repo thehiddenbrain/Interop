@@ -252,8 +252,9 @@ class SubscriptionServiceTest {
             assertThat(created.verdict().outcomeCode()).isEqualTo("CREATED");
             assertThat(created.nextStep().action()).isEqualTo(NextAction.DELIVER_SAMPLE_NOTIFICATION);
             assertThat(created.nextStep().action().label()).isEqualTo("Choose the Notifications call and Deliver a sample notification.");
-            assertThat(created.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
-                    + "the mock profile no notification arrives by itself.");
+            assertThat(created.nextStep().headline()).isEqualTo("Next: choose the Notifications call, choose a scenario "
+                    + "under Notification from scenario, and Deliver a sample notification. On the mock profile no notification arrives "
+                    + "by itself.");
             assertThat(created.nextStep().reason()).isEqualTo("A scenario answered this create, so no service holds the subscription and "
                     + "none will call back. A sample notification shows how this tool reads one; for one about a request, send a PAS "
                     + "request first.");
@@ -263,8 +264,8 @@ class SubscriptionServiceTest {
         RunEnvelope<SubscriptionDetail> updated = service(mockClient, "mock", Map.of()).run(UPDATE, about(ID).build(), RunOrigin.manual(), null);
         assertThat(updated.verdict().outcomeCode()).isEqualTo("UPDATED");
         assertThat(updated.nextStep().action()).isEqualTo(NextAction.DELIVER_SAMPLE_NOTIFICATION);
-        assertThat(updated.nextStep().headline()).isEqualTo("Next: choose the Notifications call and Deliver a sample notification. On "
-                + "the mock profile no notification arrives by itself.");
+        assertThat(updated.nextStep().headline()).isEqualTo("Next: choose the Notifications call, choose a scenario under "
+                + "Notification from scenario, and Deliver a sample notification. On the mock profile no notification arrives by itself.");
         assertThat(updated.nextStep().reason()).isEqualTo("A scenario answered this update, so no service holds the subscription and "
                 + "none will call back. A sample notification shows how this tool reads one; for one about a request, send a PAS "
                 + "request first.");

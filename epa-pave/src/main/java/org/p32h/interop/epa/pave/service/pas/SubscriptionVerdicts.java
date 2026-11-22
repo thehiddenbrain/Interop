@@ -219,9 +219,10 @@ public final class SubscriptionVerdicts {
      */
     private static NextStepView toTheSample(String call, Map<String, List<String>> carry) {
         // Its own action, so History, the export and every list that shows the action's words say what this step says.
-        return new NextStepView(NextAction.DELIVER_SAMPLE_NOTIFICATION, "Next: choose the Notifications call and Deliver a sample "
-                + "notification. On the mock "
-                + "profile no notification arrives by itself.", "A scenario answered this " + call + ", so no service holds the "
+        // The scenario is named in the step: left blank, the form uses the scenario of the latest
+        // submission, which may send no notification or may not exist, and Deliver is then refused.
+        return new NextStepView(NextAction.DELIVER_SAMPLE_NOTIFICATION, "Next: choose the Notifications call, choose a scenario under "
+                + "Notification from scenario, and Deliver a sample notification. On the mock profile no notification arrives by itself.", "A scenario answered this " + call + ", so no service holds the "
                 + "subscription and none will call back. A sample notification shows how this tool reads one; for one about a request, "
                 + "send a PAS request first.", carry);
     }
