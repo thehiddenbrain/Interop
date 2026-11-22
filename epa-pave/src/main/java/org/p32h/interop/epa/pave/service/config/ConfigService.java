@@ -123,7 +123,7 @@ public class ConfigService {
     /** @param unlock the session's unlock. A switch drops it, and the answer says whether a write would be sent now */
     public Activated activate(String nameOrId, ProdUnlock unlock) {
         ConfigSnapshot snapshot = store.activate(nameOrId);
-        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), AddressChecks.of(snapshot.active(), snapshot));
+        return new Activated(snapshot.activeRef(), snapshot.epoch(), gateway.writeAccess(unlock), addressChecks(snapshot.active(), snapshot));
     }
 
     public Removed removeEnvironment(String nameOrId) {
@@ -145,7 +145,31 @@ public class ConfigService {
         environment.content().variables().forEach(variable -> variables.add(variableView(variable, usage, inForce.get(variable.key()) == variable)));
         return new EnvironmentView(environment.id(), environment.name(), environment.kind(), environment.name().equals(snapshot.activeName()),
                 environment.uploadedAt(), environment.originalFileName(), store.directory().resolve(environment.file()).toString(),
-                environment.acknowledgedNotProd(), environment.productionSigns(), variables, AddressChecks.of(environment, snapshot));
+                environment.acknowledgedNotProd(), environment.productionSigns(), variables, addressChecks(environment, snapshot));
+    }
+
+    /** The address checks of one snapshot, by environment name. */
+    private record AddressCache(ConfigSnapshot snapshot, Map<String, List<String>> byName) {
+    }
+
+    private volatile AddressCache addressCache;
+
+    /**
+     * The address checks of an environment, worked out once per snapshot (hunt-files 12): every
+     * refresh of the environment list read every address of every environment through the
+     * production rules again, which took close to a minute with large environments stored. A
+     * snapshot never changes, so what was worked out for it stays true until the next epoch.
+     */
+    private List<String> addressChecks(StoredEnvironment environment, ConfigSnapshot snapshot) {
+        if (environment == null) {
+            return List.of();
+        }
+        AddressCache cache = addressCache;
+        if (cache == null || cache.snapshot() != snapshot) {
+            cache = new AddressCache(snapshot, new java.util.concurrent.ConcurrentHashMap<>());
+            addressCache = cache;
+        }
+        return cache.byName().computeIfAbsent(environment.name(), name -> List.copyOf(AddressChecks.of(environment, snapshot)));
     }
 
     // ------------------------------------------------------------------------------------------
