@@ -399,6 +399,16 @@ function build() {
         return true;
     }
 
+    // The procedure codes have no case field of their own, so their refusal line is kept here, to
+    // go when the codes change or a new case starts and never stay under codes it was not about.
+    let codesSaid = null;
+    function forgetCodesSaid() {
+        if (codesSaid) {
+            codesSaid.remove();
+            codesSaid = null;
+        }
+    }
+
     /** Opens the card fold that holds a case field and focuses it; a message is shown at it. */
     function showField(name, message) {
         const [head, ...rest] = String(name).split('.');
@@ -413,9 +423,10 @@ function build() {
             return provider.show(name, message);
         }
         if (head === 'procedureCodes' && message) {
-            const said = el('p', {class: 'field__error'}, message);
-            service.codeInput().closest('.field').append(said);
-            service.codeInput().addEventListener('input', () => said.remove(), {once: true});
+            forgetCodesSaid();
+            codesSaid = el('p', {class: 'field__error'}, message);
+            service.codeInput().closest('.field').append(codesSaid);
+            service.codeInput().addEventListener('input', forgetCodesSaid, {once: true});
         }
         return service.show(name, message) || member.show(name, message) || provider.show(name, message);
     }
@@ -471,6 +482,7 @@ function build() {
 
     /** "Start a new case": clears the case, every step's result, the journey and the chain id in the address. */
     function newCase() {
+        forgetCodesSaid();
         member.clear();
         provider.clear();
         service.clear();
@@ -502,6 +514,9 @@ function build() {
 
     onCaseChange(reason => {
         drawBanner();
+        if (reason === 'codes' || reason === 'lookup' || reason === 'picked') {
+            forgetCodesSaid();
+        }
         if (reason === 'lookup' || reason === 'picked' || reason === 'typed') {
             service.redrawCodes();
         }
