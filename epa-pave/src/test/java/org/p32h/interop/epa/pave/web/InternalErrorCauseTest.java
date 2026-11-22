@@ -7,13 +7,21 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.ServletException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.service.error.ClassesOnDisk;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.p32h.interop.epa.pave.testsupport.TestMvc;
+import org.p32h.interop.epa.pave.testsupport.HandClock;
 import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
@@ -47,6 +55,8 @@ class InternalErrorCauseTest {
                 case "missing-class-separators" -> throw new NoClassDefFoundError(MISSING + "\u2028second\u0085third\u2029fourth");
                 case "not-compiled" -> throw new Error("Unresolved compilation problem: \n\tPostmanEnvironmentReader cannot be resolved to a type\n");
                 case "stack" -> throw new StackOverflowError();
+                case "heap" -> throw new OutOfMemoryError("Java heap space");
+                case "no-method" -> throw new NoSuchMethodError("'java.lang.String org.p32h.interop.epa.pave.model.Texts.withoutLeading(java.lang.String)'");
                 case "plain-error" -> throw new Error("Could not read member " + MEMBER);
                 case "state" -> throw new IllegalStateException("No coverage for member " + MEMBER);
                 case "initializer" -> throw new ExceptionInInitializerError(new RuntimeException("Bad sample for member " + MEMBER));
@@ -68,16 +78,21 @@ class InternalErrorCauseTest {
     private final Logger handlerLog = (Logger) LoggerFactory.getLogger(ApiExceptionHandler.class);
     private final ListAppender<ILoggingEvent> captured = new ListAppender<>();
 
+    private ClassesOnDisk.Watch before;
+
     @BeforeEach
     void listen() {
         captured.start();
         handlerLog.addAppender(captured);
+        // Nothing changed on disk unless a test says so: the answer then depends on nothing outside the test.
+        before = ClassesOnDisk.install(ClassesOnDisk.Watch.unknown());
     }
 
     @AfterEach
     void stopListening() {
         handlerLog.detachAppender(captured);
         captured.stop();
+        ClassesOnDisk.install(before);
     }
 
     /** One failure as the tester and the log saw it. */
@@ -109,11 +124,15 @@ class InternalErrorCauseTest {
 
     /** What holds for every failure of this tool, whatever threw. */
     private static void commonTo(Seen seen, String expectedCause) {
+        commonTo(seen, expectedCause, "Copy the reference and the cause below with the button and report "
+                + "them with what you were doing. The server log holds the rest under the same reference.");
+    }
+
+    private static void commonTo(Seen seen, String expectedCause, String expectedAction) {
         assertThat(seen.status()).isEqualTo(500);
         assertThat(JsonSafe.text(seen.json(), "kind")).isEqualTo("INTERNAL");
         assertThat(JsonSafe.text(seen.json(), "title")).isEqualTo("This tool hit an internal error and could not complete the request.");
-        assertThat(JsonSafe.text(seen.json(), "action")).isEqualTo("Copy the reference and the cause below with the button and report "
-                + "them with what you were doing. The server log holds the rest under the same reference.");
+        assertThat(JsonSafe.text(seen.json(), "action")).isEqualTo(expectedAction);
         assertThat(seen.reference()).isNotBlank();
         assertThat(seen.cause()).isEqualTo(expectedCause);
         // The first line is the one an operator pastes: reference and cause, whole.
@@ -194,5 +213,36 @@ class InternalErrorCauseTest {
     void theCauseOnScreenIsTheFirstLineOfTheLogDescription() {
         Throwable error = new ServletException("Handler dispatch failed", new NoClassDefFoundError(MISSING));
         assertThat(Faults.describe(error).lines().findFirst().orElse("")).isEqualTo(Faults.cause(error));
+    }
+
+    @Test
+    void aClassThatCannotBeLinkedAfterTheClassesChangedOnDiskSaysToStartPaveAgain(@TempDir Path dir) throws Exception {
+        Path classes = dir.resolve("classes");
+        Path type = classes.resolve("A.class");
+        Files.createDirectories(classes);
+        Files.writeString(type, "x");
+        Files.setLastModifiedTime(type, FileTime.from(Instant.parse("2026-11-22T05:00:00Z")));
+        HandClock clock = new HandClock(Instant.parse("2026-11-22T06:00:00Z"));
+        ClassesOnDisk.install(ClassesOnDisk.Watch.ofFolder(classes, null, clock));
+        String cause = SERVLET + " <- java.lang.NoSuchMethodError; java.lang.NoSuchMethodError says: "
+                + "'java.lang.String org.p32h.interop.epa.pave.model.Texts.withoutLeading(java.lang.String)'";
+
+        // Unchanged on disk: a class that cannot be linked is a defect of the build, to report.
+        commonTo(fail("no-method"), cause);
+
+        Files.setLastModifiedTime(type, FileTime.from(Instant.parse("2026-11-22T06:00:05Z")));
+        clock.advance(Duration.ofSeconds(11));
+        Seen seen = fail("no-method");
+        // The cause is the same line, with no message added: only the action changes.
+        commonTo(seen, cause, "PAVE's classes changed on disk while it was running, as the IDE does when it rebuilds the project. "
+                + "Stop PAVE and start it again.");
+        // Any other failure after the change still asks for a report: only a link failure is a rebuild.
+        commonTo(fail("state"), "java.lang.IllegalStateException");
+    }
+
+    @Test
+    void aHeapThatRanOutSaysHowToStartPaveWithMore() throws Exception {
+        commonTo(fail("heap"), SERVLET + " <- java.lang.OutOfMemoryError; java.lang.OutOfMemoryError says: Java heap space",
+                "Start PAVE with -Xmx512m or more.");
     }
 }
