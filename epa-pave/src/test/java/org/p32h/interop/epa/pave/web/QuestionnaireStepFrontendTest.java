@@ -305,7 +305,7 @@ class QuestionnaireStepFrontendTest {
                 line.querySelector('button').click();
                 say(shown);
                 // The tester types an NPI before the answers from the case arrive.
-                input('q-npi').value = '1245319599';
+                input('q-npi').value = '1000000004';
                 input('q-npi').dispatchEvent({type: 'input'});
                 release();
                 await settle();
@@ -340,12 +340,12 @@ class QuestionnaireStepFrontendTest {
                 "[1,\"levelOfService,member,procedureCodes,provider,questionnaire\",\"{\\\"resourceType\\\":\\\"Questionnaire\\\",\\\"id\\\":\\\"placeholder\\\"}\"]",
                 "[false,\"Date questions take the date of service from the Service card. Show the field\"]",
                 "[\"dateOfService\"]",
-                "[\"1960-01-01\",\"from the case\",\"Medical genetics\",\"payer prefilled\",\"1245319599\",\"\",[\"commercial\"],"
+                "[\"1960-01-01\",\"from the case\",\"Medical genetics\",\"payer prefilled\",\"1000000004\",\"\",[\"commercial\"],"
                         + "\"from the case\",\"\",[]]",
                 "[false,\"2 from the case\",false]",
                 "[\"\",\"1 from the case\"]",
                 "[2,\"2026-01-10\",\"2026-01-10\",\"default, change if needed\",\"\",true]",
-                "[\"q-lob=commercial\",\"q-npi=1245319599\",\"q-when=2026-01-10\"]",
+                "[\"q-lob=commercial\",\"q-npi=1000000004\",\"q-when=2026-01-10\"]",
                 "[\"from the case\",\"default, change if needed\",\"payer prefilled\",\"\",2]");
     }
 }
