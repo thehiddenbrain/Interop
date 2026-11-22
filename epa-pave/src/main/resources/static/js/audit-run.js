@@ -17,6 +17,10 @@ import {replayLine, entryDetail} from './audit-replay.js';
 import {noteEditor} from './audit-note.js';
 import {keptEntry, trailFolds} from './audit-trail.js';
 
+function present(value) {
+    return typeof value === 'string' && value.trim() !== '';
+}
+
 // The replay statuses after which asking again gives the same answer: the line itself, or the
 // profile it was made on, is what stops it. Blocked and not configured can change with the
 // configuration, so the button stays after those.
@@ -68,6 +72,8 @@ export function runView(ctx) {
                 el('span', {class: 'page-head__note'}, el('span', {class: 'mono'}, run.runId)),
                 el('div', {class: 'page-head__end'}, copyButton('Copy run id', () => run.runId, {small: true}))),
             ctx.ledger(health),
+            // The request and answer come from the trail, or its line says they are not kept (B4b,
+            // replacing I-26's line of release 1, as I-26 itself foresaw).
             el('section', {class: 'panel'}, card, replaySlot,
                 el('div', {class: 'panel__section audit-run__note'}, noteEditor(run, kept => { run.note = kept.note; run.testerRef = kept.testerRef; })),
                 // A result card from page memory has a Why of its own, worded from the answer; the line's is for a run read from the ledger only.
@@ -114,6 +120,12 @@ export function runView(ctx) {
             // Replay refuses a line that lists an input it does not hold, so a button could only ask to be told so.
             return el('div', {class: 'verdict__foot'}, load, el('span', {class: 'muted small'},
                 'This run cannot be run again from its line: it also used ' + inputs.join(', ') + ', which the line does not hold.'));
+        }
+        if (!present(run.memberId) && present(run.memberToken)) {
+            // The server refuses a line whose member ID was kept only as a token (live, by default): no
+            // button that could only be told so, and no property name in a sentence a tester reads (I-20).
+            return el('div', {class: 'verdict__foot'}, load, el('span', {class: 'muted small'},
+                'This run cannot be run again: its member ID was not kept.'));
         }
         const control = button('Run again', () => replay(run, words, slot, control), {primary: true});
         return el('div', {class: 'verdict__foot'}, control, el('span', {class: 'muted small'}, 'Sends the same case again and compares the answers.'),

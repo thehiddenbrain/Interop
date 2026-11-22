@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.p32h.interop.epa.pave.client.lookup.MemberLookupClient;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.LookupStatus;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
 import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
@@ -34,15 +35,19 @@ public class MemberLookupService implements MemberLookup {
     private final MemberLookupClient client;
     private final ObjectProvider<OperationGateway> gateway;
 
+    /** With no environment to read a rule from: the packed rule, as every environment had before rules could be chosen. */
+    public MemberLookupService(MemberLookupClient client) {
+        this(client, null);
+    }
+
+    /**
+     * @param gateway where the active environment's member ID rule is read, asked at each lookup
+     *                and only when there is one: a lookup on mock works before any gateway exists
+     */
     @Autowired
     public MemberLookupService(MemberLookupClient client, ObjectProvider<OperationGateway> gateway) {
         this.client = client;
         this.gateway = gateway;
-    }
-
-    /** With no gateway: the forms follow the packed rule. */
-    public MemberLookupService(MemberLookupClient client) {
-        this(client, null);
     }
 
     @Override
@@ -56,14 +61,20 @@ public class MemberLookupService implements MemberLookup {
     }
 
     private MemberLookupResult lookup(String typedMemberId, LocalDate dateOfService) {
-        if (Texts.blank(MemberIds.noSpace(typedMemberId))) {
+        // The form the active environment's rule sends, as on every other call that carries the ID, so the card says what goes out.
+        MemberIdForms forms = MemberIds.forms(typedMemberId, rule());
+        if (Texts.blank(forms.sent())) {
             throw new ValidationException("There is no member ID to look up. Nothing was sent.",
                     List.of(new FieldError("memberId", "Enter a member ID. Nothing was looked up.")));
         }
-        MemberIdForms forms = MemberIds.forms(typedMemberId, rule());
         MemberLookupResult result = client.lookup(forms, dateOfService);
         if (result == null) {
             throw new IllegalStateException("The member lookup client returned no result.");
+        }
+        // Nothing was asked when no lookup is configured, so there is no form it was sent in to show.
+        if (result.status() == LookupStatus.DISABLED) {
+            return new MemberLookupResult(result.status(), null, result.member(), result.attention(), result.fields(),
+                    result.additionalFields(), null, result.error(), result.message(), result.maskedReading());
         }
         // Set here whatever the client did, so no client, present or future, can return a result that hides what was typed.
         WireView wire = result.wire() == null ? null : new WireView(result.wire().request(), result.wire().response(), forms);

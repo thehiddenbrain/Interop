@@ -45,8 +45,8 @@ class AttachmentsFrontendTest {
                 say([refused.ok, typeof refused.line === 'string' && refused.line.length > 0, 'attachments' in refused]);
                 // Without the server's kinds nothing is added.
                 say(admit(file('a.pdf', 'x'), {kinds: [], perFileBytes: 10, totalBytes: 10}, 0).line);
-                // A file just over a limit that rounds to the same words is told in bytes, never "5 MB; the limit is 5 MB".
-                say(admit({name: 'over-limit.pdf', size: 5242881}, {kinds: limits.kinds, perFileBytes: 5242880, totalBytes: 10485760}, 0).line);
+                // One byte over 5 MB never reads as "5 MB; the limit is 5 MB".
+                say(admit({name: 'over-limit.pdf', size: 5 * 1024 * 1024 + 1}, {kinds: [{extension: 'pdf'}], perFileBytes: 5 * 1024 * 1024, totalBytes: 0}, 0).line);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -58,6 +58,6 @@ class AttachmentsFrontendTest {
                 "\"PDF-placeholder\"",
                 "[false,true,false]",
                 "\"a.pdf: PAVE sends PDF, PNG, JPEG, TIFF, GIF, text and Word files. Not added.\"",
-                "\"over-limit.pdf is 5242881 bytes; the limit is 5242880 bytes. Not added.\"");
+                "\"over-limit.pdf is 5,242,881 bytes; the limit is 5 MB. Not added.\"");
     }
 }

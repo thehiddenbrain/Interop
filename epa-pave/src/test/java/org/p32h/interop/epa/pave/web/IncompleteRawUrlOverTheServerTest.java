@@ -94,7 +94,7 @@ class IncompleteRawUrlOverTheServerTest {
                     "{\"operation\": \"" + found[2] + "\", \"request\": " + ref + "}");
             assertThat(resolved.statusCode()).as(name + ": " + resolved.body()).isEqualTo(200);
             JsonNode notes = JsonSafe.parse(resolved.body()).node().get("notes");
-            assertThat(notes.toString()).as(name).contains("The url still needs a value for id").contains(REFUSED);
+            assertThat(notes.toString()).as(name).contains("No environment is active. Open Configuration and make one active.").contains(REFUSED);
 
             // The raw preview and the raw send refuse the same request, naming the part.
             for (String path : new String[] {"/api/raw/preview", "/api/raw"}) {

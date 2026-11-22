@@ -239,6 +239,16 @@ export function createPoll(spec) {
     };
 }
 
+const MATCHED = 'Matched to this submission';
+
+/** The notifications correlated to this case's submission, newest first; none without a submission. */
+export function ofThisCase(items, submissionRunId) {
+    if (typeof submissionRunId !== 'string' || submissionRunId === '') {
+        return [];
+    }
+    return (Array.isArray(items) ? items : []).filter(item => item && item.correlatedRunId === submissionRunId);
+}
+
 /** mount(root, ctx), as every step module: {show(how), hide(), caseChanged(), reset(), unmount(), redraw(words)}. */
 export function mount(root, ctx) {
     let words = null;
@@ -297,7 +307,9 @@ export function mount(root, ctx) {
         panelHead({title: 'Status', tag: 'PAS', lede: 'Ask for the decision, and follow notifications.', id: 'step-title-4',
             controls: toggle ? [toggle] : []}),
         optionsRow, readiness, handed, el('div', {class: 'calls'}, inquiryRow, subscriptionRow, notificationRow), receiverLine, busy.node,
-        notificationProblem, refusal, result, list, more
+        notificationProblem, refusal, result,
+        // What the receiver got for any case is kept apart from this case's row (I-18).
+        fold({summary: 'All notifications this tool received', body: el('div', null, list, more)})
     ];
     root.append(...panelNodes.filter(Boolean));
 
@@ -343,7 +355,7 @@ export function mount(root, ctx) {
 
     async function previewInquiry() {
         await showPreview('/api/pas/inquire/preview', inquiryBody(ctx.request(), own(), ctx.carry(4), submissionRunId()),
-            error => ctx.placeErrors(error.fieldErrors || []));
+            error => ctx.placeErrors(error.fieldErrors || []), ctx.labelOf);
     }
 
     /* ---------- the subscription ---------- */
@@ -373,7 +385,7 @@ export function mount(root, ctx) {
         const chosen = chosenCall();
         const made = subscriptionCall(chosen.value, ctx.request(), own(), submissionRunId());
         const path = chosen.value === 'update' ? made.path + '/preview' : '/api/pas/subscriptions/preview';
-        await showPreview(path, made.body, error => ctx.placeErrors(error.fieldErrors || []));
+        await showPreview(path, made.body, error => ctx.placeErrors(error.fieldErrors || []), ctx.labelOf);
     }
 
     /** Preview exists for the calls that send a body; a read, a list and a delete send none. */
@@ -410,7 +422,7 @@ export function mount(root, ctx) {
     function refused(error, placed) {
         ctx.refused(4, error);
         const all = (error.fieldErrors || []).every(each => placed.includes(each.field));
-        fill(refusal, all && !error.title ? null : failurePanel(error, placed));
+        fill(refusal, all && !error.title ? null : failurePanel(error, placed, ctx.labelOf));
     }
 
     /** A row's latest answer: its short chip, the headline's first sentence, its time as a link to Audit. */
@@ -521,17 +533,16 @@ export function mount(root, ctx) {
     }
 
     function drawNotificationLatest() {
-        const newest = held[0];
+        // The row speaks of this case's submission only; every other notification is in the fold.
+        const newest = ofThisCase(held, submissionRunId())[0];
         if (!newest) {
-            const received = counts && typeof counts.received === 'number' ? counts.received : 0;
             fill(notificationLatest, counts === null ? null
-                : el('span', {class: 'call__text'}, received > 0 ? received + ' arrived; none held now.' : 'Nothing has arrived.'));
+                : el('span', {class: 'call__text'}, 'Nothing has arrived for this case.'));
             return;
         }
         const verdict = newest.verdict || {};
-        const short = shortOf(words, 'NOTIFICATION', verdict.outcomeCode);
         fill(notificationLatest,
-            short ? chip(short.text, {tone: short.tone}) : null,
+            chip(MATCHED, {tone: 'clear'}),
             el('span', {class: 'call__text', title: verdict.headline || null}, firstSentence(verdict.headline || '')[0]),
             el('a', {class: 'call__when', href: '#audit/runs/' + encodeURIComponent(newest.id), title: 'Open in Audit'}, clock(newest.receivedAt)));
     }
@@ -682,7 +693,7 @@ export function mount(root, ctx) {
             fill(handed, ctx.handedLine ? ctx.handedLine(4) : '');
             drawSample();
         },
-        /** Start a new case: the answers of the case before go; the receiver's list is not the case's, and stays. */
+        /** Start a new case: the answers of the case before go, and the row says nothing of them; the receiver's list is not the case's, and stays in its fold. */
         reset() {
             latest.inquiry = null;
             latest.subscription = null;
@@ -692,6 +703,7 @@ export function mount(root, ctx) {
             subscriptionId.value = '';
             clear(refusal);
             draw();
+            drawNotificationLatest();
         },
         unmount() {
             poll.stop();

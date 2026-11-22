@@ -514,12 +514,11 @@ class ConfigServiceTest {
         assertThat(mockSign.requests()).isEmpty();
         // On mock a missing url is not a reason the operation cannot run, and the row says so.
         assertThat(mockSign.unavailable()).isNull();
-        assertThat(mockSign.note()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set. On the mock "
-                + "profile nothing is sent, so this still runs.");
+        assertThat(mockSign.note()).isEqualTo("No environment is active. Open Configuration and make one active. On the mock profile nothing is sent, so this still runs.");
         assertThat(mockSign.blocked()).isNull();
 
         OperationRow liveSign = row(live, EpaOperation.CRD_ORDER_SIGN);
-        assertThat(liveSign.unavailable()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set.");
+        assertThat(liveSign.unavailable()).isEqualTo("No environment is active. Open Configuration and make one active.");
         assertThat(liveSign.note()).isNull();
         // On live a write with no environment is refused whatever its target, and the row says that too.
         assertThat(row(live, EpaOperation.PAS_SUBMIT).blocked()).startsWith("PAS submit is blocked: no environment is active");
@@ -582,7 +581,7 @@ class ConfigServiceTest {
         OperationRow orderSelect = row(effective, EpaOperation.CRD_ORDER_SELECT);
         assertThat(orderSelect.target()).isNull();
         assertThat(orderSelect.requests()).isEmpty();
-        assertThat(orderSelect.note()).startsWith("No collection request is mapped to CRD order-select, and onyx.crd.url is not set.");
+        assertThat(orderSelect.note()).startsWith("No address for order-select. Type one under Addresses of the environment in Configuration.");
         // Discovery is derived from the hook, and says where it came from.
         assertThat(row(effective, EpaOperation.CRD_DISCOVERY).target().display()).isEqualTo("https://sandbox.onyx.example.invalid/cds-services");
         assertThat(row(effective, EpaOperation.CRD_DISCOVERY).target().requestName()).isNull();
@@ -647,16 +646,15 @@ class ConfigServiceTest {
         // The url is complete, so only the headers can say the run would be refused.
         OperationRow liveSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
         assertThat(liveSign.target().resolved()).isTrue();
-        assertThat(liveSign.unavailable()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
-                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". Give each of {{client_secret}}, {{traceId}} "
-                + "a value in an environment on the Config tab, or type them among the values for this run.");
+        // I-1: the values as the tester knows them, without braces, and where to type them.
+        assertThat(liveSign.unavailable()).isEqualTo("The order-sign request needs a value for client_secret, traceId. Add it under Values "
+                + "of the environment in Configuration.");
         // On mock a header with no value is refused too, so the row never says it still runs.
         OperationRow mockSign = row(mock.service.effective(null), EpaOperation.CRD_ORDER_SIGN);
         assertThat(mockSign.unavailable()).isNull();
-        assertThat(mockSign.note()).isEqualTo("The header Authorization still needs a value for {{client_secret}}, the header X-Trace "
-                + "still needs a value for {{traceId}}, and the active environment is \"Review Prod\". On the mock profile nothing is sent, "
-                + "but a header with no value is refused before a scenario answers, so a run is refused here too. Give each of "
-                + "{{client_secret}}, {{traceId}} a value in an environment on the Config tab, or type them among the values for this run.");
+        assertThat(mockSign.note()).isEqualTo("The order-sign request needs a value for client_secret, traceId. Add it under Values of the "
+                + "environment in Configuration. On the mock profile nothing is sent, but a header with no value is refused before a "
+                + "scenario answers, so a run is refused here too.");
         // The preview of the request says the same.
         assertThat(live.service.resolve(EpaOperation.CRD_ORDER_SIGN, null, Map.of(), Map.of(), null).unavailable())
                 .isEqualTo(liveSign.unavailable());
@@ -680,12 +678,11 @@ class ConfigServiceTest {
         assertThat(mockInquire.target().unresolved()).containsExactly("baseUrl");
         // Whatever did resolve is filled in and the rest is left as written.
         assertThat(mockInquire.target().display()).isEqualTo("{{baseUrl}}/Claim/$inquire");
-        assertThat(mockInquire.note()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active. On the mock "
-                + "profile nothing is sent, so this still runs.");
+        // I-1: with no environment active nothing about a url or a variable is said.
+        assertThat(mockInquire.note()).isEqualTo("No environment is active. Open Configuration and make one active. On the mock profile nothing is sent, so this still runs.");
         assertThat(mockInquire.unavailable()).isNull();
         OperationRow liveInquire = row(live.service.effective(null), EpaOperation.PAS_INQUIRE);
-        assertThat(liveInquire.unavailable()).isEqualTo("The url still needs a value for {{baseUrl}}, and no environment is active. Give {{baseUrl}} "
-                + "a value in an environment on the Config tab, or type it among the values for this run.");
+        assertThat(liveInquire.unavailable()).isEqualTo("No environment is active. Open Configuration and make one active.");
         assertThat(liveInquire.note()).isNull();
         // The service id comes from the collection's own variable, so only the base is missing.
         TargetView orderSign = row(live.service.effective(null), EpaOperation.CRD_ORDER_SIGN).target();
@@ -1061,23 +1058,19 @@ class ConfigServiceTest {
         assertThat(mockToken.url().unresolved()).containsExactly("id");
         assertThat(mockToken.urlShown()).isEqualTo("https://collection.example.invalid/fhir/Subscription/:id");
         assertThat(mockToken.unavailable()).isNull();
-        assertThat(mockToken.notes()).containsExactly("The url still needs a value for id, the header X-Trace still needs a value for "
-                + "{{traceId}}, and no environment is active. On the mock profile nothing is sent, but a header with no value is refused "
-                + "before a scenario answers, so a run is refused here too. Give {{traceId}} a value in an environment on the Config tab, "
-                + "or type it among the values for this run.");
+        assertThat(mockToken.notes()).containsExactly("No environment is active. Open Configuration and make one active. On the mock profile nothing is sent, but a header with no value is "
+                + "refused before a scenario answers, so a run is refused here too.");
         Resolved liveToken = live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, null, null, null);
-        assertThat(liveToken.unavailable()).isEqualTo("The url still needs a value for id, the header X-Trace still needs a value for "
-                + "{{traceId}}, and no environment is active. Give {{traceId}} a value in an environment on the Config tab, or type it among "
-                + "the values for this run.");
+        assertThat(liveToken.unavailable()).isEqualTo("No environment is active. Open Configuration and make one active.");
         assertThat(liveToken.notes()).isEmpty();
         // With the header given a value for the run, the url alone is short. On mock a run from the tab is still answered by
         // a scenario, and the same request sent as written is refused, as on live: the note says both.
         assertThat(mock.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).notes())
-                .containsExactly("The url still needs a value for id, and no environment is active. On the mock profile a run from its "
+                .containsExactly("No environment is active. Open Configuration and make one active. On the mock profile a run from its "
                         + "tab is still answered from a scenario, since nothing is sent. Sent as written from the Config tab, it is refused "
                         + "until every part of its url has a value, on the mock profile as on live, and nothing is sent.");
         assertThat(live.service.resolve(EpaOperation.SUBSCRIPTION_DELETE, null, Map.of("traceId", "t-1"), null, null).unavailable())
-                .isEqualTo("The url still needs a value for id, and no environment is active.");
+                .isEqualTo("No environment is active. Open Configuration and make one active.");
     }
 
     @Test
@@ -1087,7 +1080,7 @@ class ConfigServiceTest {
 
         for (Resolved resolved : List.of(mock, live)) {
             assertThat(resolved.url().configured()).isFalse();
-            assertThat(resolved.url().source()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set.");
+            assertThat(resolved.url().source()).isEqualTo("No address for order-sign. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
             assertThat(resolved.urlShown()).isNull();
             assertThat(resolved.request()).isNull();
             assertThat(resolved.requestName()).isNull();
@@ -1096,10 +1089,10 @@ class ConfigServiceTest {
             assertThat(resolved.headers()).isEmpty();
             assertThat(resolved.variables()).isEmpty();
         }
-        assertThat(live.unavailable()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set.");
+        assertThat(live.unavailable()).isEqualTo("No environment is active. Open Configuration and make one active.");
         assertThat(mock.unavailable()).isNull();
-        assertThat(mock.notes()).containsExactly("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set. On the mock "
-                + "profile nothing is sent, so the run is still answered from a scenario.");
+        assertThat(mock.notes()).containsExactly("No environment is active. Open Configuration and make one active. On the mock profile nothing is sent, so the run is still answered from a "
+                + "scenario.");
     }
 
     @Test

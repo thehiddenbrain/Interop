@@ -408,7 +408,7 @@ export function mount(root, ctx) {
 
     async function previewPackage() {
         await showPreview('/api/dtr/package/preview', packageBody(ctx.request(), own(), ctx.carry(2)),
-            error => ctx.placeErrors((error && error.fieldErrors) || []));
+            error => ctx.placeErrors((error && error.fieldErrors) || []), ctx.labelOf);
     }
 
     /** The package result: on one line when it holds a questionnaire to answer, else the whole card, which says what came back. */
@@ -627,21 +627,9 @@ export function mount(root, ctx) {
         }
         const latest = session.latest && session.latest.entry === entry.index ? session.latest.envelope : null;
         const card = latest ? ctx.card(latest) : null;
-        const whyLines = () => [el('p', {class: 'small'}, SMART),
+        const formWhy = () => el('div', {class: 'why__part dtr-why'}, el('p', {class: 'small'}, SMART),
             (entry.view.notApplied || []).map(line => el('p', {class: 'small muted'}, line)),
-            (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line))];
-        const whyOfCard = card ? cardWhy(card) : null;
-        if (whyOfCard) {
-            // One "Why" on the panel: the step's own lines go under the result's reasons.
-            let added = false;
-            whyOfCard.addEventListener('toggle', () => {
-                const content = whyOfCard.querySelector('.fold__body');
-                if (!added && whyOfCard.open && content) {
-                    added = true;
-                    content.append(...whyLines().flat());
-                }
-            });
-        }
+            (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line)));
         if (card && latest.nextStep && latest.nextStep.action === action) {
             // The form's own button takes this next action; the result does not offer it a second time.
             const foot = card.querySelector('.verdict__foot');
@@ -666,20 +654,32 @@ export function mount(root, ctx) {
             el('p', {class: 'small dtr-withdrawn', hidden: true}, el('strong', null, WITHDRAWN)),
             el('div', {class: 'step-refusal dtr-step-refusal'}),
             entry.steps.length > 0 ? stepsFold(entry) : null,
-            whyOfCard ? null : fold({summary: 'Why', body: () => el('div', null, whyLines())}),
+            joinWhy(card, formWhy) ? null : fold({summary: 'Why', body: formWhy}),
             el('div', {class: 'step-result dtr-step-result'}, card));
     }
 
-    /** The result card's own "Why" fold, or null. */
-    function cardWhy(card) {
-        for (const details of card.querySelectorAll('details.fold')) {
-            const summary = details.querySelector('summary');
-            const words = summary && summary.firstChild ? String(summary.firstChild.textContent || '') : '';
-            if (words === 'Why') {
-                return details;
-            }
+    /**
+     * A result has one Why fold (look-10): when the step's card has its own, the form's lines go at
+     * its end, drawn after the card's lines when it is first opened. Returns whether they were joined.
+     */
+    function joinWhy(card, lines) {
+        const why = card ? Array.from(card.querySelectorAll('.fold')).find(each => {
+            const summary = each.querySelector('summary');
+            return summary && summary.childNodes[0] && String(summary.childNodes[0].textContent).trim() === 'Why';
+        }) : null;
+        if (!why) {
+            return false;
         }
-        return null;
+        let joined = false;
+        const join = () => {
+            if (!joined && why.open) {
+                joined = true;
+                why.querySelector('.fold__body').append(lines());
+            }
+        };
+        why.addEventListener('toggle', join);
+        join();
+        return true;
     }
 
     /** "Steps and changes": each step sent for the questionnaire, and what appeared, disappeared or was dropped. */
@@ -783,7 +783,7 @@ export function mount(root, ctx) {
     /** The panel of a refusal, unless every reason of it is already shown at its field. */
     function refusedPanel(error, placed) {
         const all = (error.fieldErrors || []).every(each => placed.includes(each.field));
-        return all && (error.fieldErrors || []).length > 0 ? null : failurePanel(error, placed);
+        return all && (error.fieldErrors || []).length > 0 ? null : failurePanel(error, placed, ctx.labelOf);
     }
 
     /**
@@ -808,6 +808,11 @@ export function mount(root, ctx) {
         };
         mark();
         vocabulary().then(mark, () => null);
+        // While the card offers Continue to Submit, that is the one filled button (I-6): the form's
+        // own send is drawn plain, and filled again once the answers differ from the response.
+        for (const send of work.querySelectorAll('.dtr-send')) {
+            send.classList.toggle('btn--primary', !(completed && !pending));
+        }
     }
 
     function handOn(carry) {

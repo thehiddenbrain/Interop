@@ -36,9 +36,10 @@ export function mount(root, route) {
     });
 
     async function read() {
-        const [health, codes, effective, lookups] = await Promise.all([
+        // The lookups are among the operations of /api/config/effective: release 1 has no page of saved lookups to ask.
+        const [health, codes, effective] = await Promise.all([
             call('GET', '/api/runs/health'), call('GET', '/api/procedure-codes/self-check'),
-            call('GET', '/api/config/effective'), call('GET', '/api/config/lookups')]);
+            call('GET', '/api/config/effective')]);
         if (gone) {
             return;
         }
@@ -47,7 +48,7 @@ export function mount(root, route) {
             ledgerPart(health),
             codesPart(codes),
             modePart(app.mode(), settled, effective),
-            lookupsPart(settled, effective, lookups));
+            lookupsPart(settled, effective));
     }
 
     during(again, busy, 'Running the checks', read);
@@ -171,7 +172,7 @@ function modePart(mode, effective, effectiveAnswer) {
         effectiveAnswer.ok ? null : errorPanel(effectiveAnswer.error));
 }
 
-function lookupsPart(effective, effectiveAnswer, lookupsAnswer) {
+function lookupsPart(effective, effectiveAnswer) {
     const title = 'Member and provider lookup';
     if (!effective) {
         return noAnswer(title, 'The configuration did not answer, so the lookups are not known.', effectiveAnswer);
@@ -180,8 +181,6 @@ function lookupsPart(effective, effectiveAnswer, lookupsAnswer) {
     if (rows.length === 0) {
         return part(title, el('p', null, el('strong', null, 'PAVE listed no lookup operation.')));
     }
-    // The lookups saved on screen, where this copy has them (a 404 means it has no such page yet).
-    const saved = lookupsAnswer.ok ? lookupsAnswer.data || {} : null;
     return part(title,
         kv(rows.map(row => {
             const target = row.target || {};
@@ -194,6 +193,5 @@ function lookupsPart(effective, effectiveAnswer, lookupsAnswer) {
                 row.blocked ? el('div', null, row.blocked) : null,
                 row.note ? el('div', {class: 'small muted'}, row.note) : null
             ]};
-        })),
-        saved && saved.problem ? el('p', null, chip('to check', {tone: 'action'}), ' ', saved.problem) : null);
+        })));
 }

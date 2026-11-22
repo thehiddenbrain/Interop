@@ -759,7 +759,7 @@ class SubscriptionServiceTest {
                     .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::message)
                             .containsExactly("This is not a subscription id but a mask, [secret heldSub]: an answer gave the value masked "
                                     + "because it repeats a secret this tool holds. A mask is never sent. Type the value itself, or settle the "
-                                    + "secret in the Config tab."));
+                                    + "secret in Configuration."));
         }
         assertThat(client.calls.get()).isZero();
         assertThat(ledger.records()).isEmpty();
@@ -796,10 +796,10 @@ class SubscriptionServiceTest {
         for (RunEnvelope<SubscriptionDetail> done : List.of(read, list, updated, deleted)) {
             assertThat(done.nextStep().action()).as(done.verdict().outcomeCode()).isEqualTo(NextAction.NOTHING_FURTHER);
         }
-        assertThat(read.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
-        assertThat(list.nextStep().headline()).isEqualTo("Nothing follows from a read. Record this result.");
-        assertThat(updated.nextStep().headline()).isEqualTo("The update is done. Record this result.");
-        assertThat(deleted.nextStep().headline()).isEqualTo("The subscription is gone. Record this result.");
+        assertThat(read.nextStep().headline()).isEqualTo("Nothing follows from a read: nothing further to send.");
+        assertThat(list.nextStep().headline()).isEqualTo("Nothing follows from a read: nothing further to send.");
+        assertThat(updated.nextStep().headline()).isEqualTo("The update is done: nothing further to send.");
+        assertThat(deleted.nextStep().headline()).isEqualTo("The subscription is gone: nothing further to send.");
         assertThat(ledger.records()).extracting(RunRecord::nextAction).containsOnly("NOTHING_FURTHER");
         assertThat(ledger.records()).extracting(RunRecord::unrecordedInputs).containsExactly(List.of(), List.of(), List.of(RunRecord.INPUT_RUN_VALUES),
                 List.of());

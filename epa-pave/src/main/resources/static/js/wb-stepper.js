@@ -39,8 +39,9 @@ export function createStepper(onPick) {
         }
         if (next !== null) {
             event.preventDefault();
+            // Arrow keys move along the tab list, so focus stays on the tabs (plan 3.2 stepper).
+            onPick(next + 1, {keyboard: true});
             tabs[next].tab.focus();
-            onPick(next + 1);
         }
     });
     return {

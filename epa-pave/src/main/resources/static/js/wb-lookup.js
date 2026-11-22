@@ -14,6 +14,8 @@ import {maskedReading, returnedTable, wireFold} from './result.js';
 import {shown} from './shown.js';
 import {MARKS} from './wb-case.js';
 
+const NOT_CONFIGURED_LINE = 'Type the details.';
+
 /** The head of a case card: icon, title, and a slot for the chip that names what is chosen. */
 export function cardHead(title, icon) {
     const picked = el('span', {class: 'card__picked'});
@@ -111,8 +113,15 @@ export function statusChip(answer) {
 /**
  * The lookup's own line, its first sentence, when it did not find exactly one entry. A found entry
  * is said by the tick in the card's head; its sentence stays in "What the lookup returned".
+ * setUp: {words, href} of the lookup form that sets this lookup up, linked after a lookup not set up.
  */
-export function lookupLine(answer) {
+export function lookupLine(answer, setUp) {
+    if (answer && answer.status === 'DISABLED') {
+        // A lookup not set up is said by its chip and one plain line, never a property (I-1); the
+        // way to set it up is the lookup form of its Configuration page (C2c), linked by name.
+        return el('p', {class: 'small muted lookup-line'}, NOT_CONFIGURED_LINE,
+            setUp ? [' ', el('a', {class: 'line__link', href: setUp.href}, setUp.words)] : null);
+    }
     if (!answer || answer.status === 'FOUND' || typeof answer.message !== 'string' || answer.message === '') {
         return null;
     }

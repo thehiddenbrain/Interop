@@ -99,15 +99,7 @@ class ConfigFrontendTest {
                 say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Said above the form.'));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Type an absolute address.'));
-                // Every error placed at a field: the title still says what no field can (which address, which environment).
-                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION',
-                    title: 'This environment was declared as sandbox, and its address https://vendor.example.invalid/fhir/Claim/$submit is an address '
-                        + 'of the production environment "vendor-live". It was not stored.',
-                    fieldErrors: [{field: 'timeouts.readMs', message: 'An address of production stays production.'}]}};
-                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
-                await settle();
-                const banner = dialog.querySelector('.config-form__banner').textContent;
-                say([banner.includes('"vendor-live"'), banner.includes('An address of production stays production.')]);
+                say(dialog.querySelectorAll('.config-form__banner .error-fields li').map(each => each.textContent));
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -115,9 +107,116 @@ class ConfigFrontendTest {
                 "[[\"timeouts\",true],[\"shapes\",false],[\"values\",true]]",
                 "[\"Between 100 and 600000.\",\"Type an absolute address.\"]",
                 "true",
-                // A refusal placed at its field is not said a second time above the form.
-                "false",
-                "[true,false]");
+                // I-3 (live-config-8): the panel names each field by its label with its sentence, also when it is placed at the field.
+                "true",
+                "[\"Wait for a response up to (ms) Between 100 and 600000.\",\"FHIR server Type an absolute address.\",\"Said above the form.\"]");
+    }
+
+    @Test
+    void aRefusalWhoseFieldErrorsAreAllPlacedStillSaysItsTitleAboveTheForm(@TempDir Path folder) throws Exception {
+        // look-guardrail-1: a sandbox given a production address is refused at Kind; the title names the address.
+        NodeRun run = StaticSources.runModule(folder, "the title of a placed refusal", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION',
+                    title: 'This environment was declared as sandbox, and its address http://127.0.0.1:8950/fhir/Claim/$submit is an address of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'kind', message: 'Declared as sandbox.'}]}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
+                const banner = dialog.querySelector('.config-form__banner').textContent;
+                say([banner.includes('declared as sandbox'), banner.includes('vendor-live'), banner.includes('Declared as sandbox.')]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        // I-3 (live-config-8): the panel also names the field, Kind, with its sentence.
+        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,true]");
+    }
+
+    @Test
+    void aRefusalBringsThePanelThatSaysWhyIntoViewAndFocusesItNotAFieldFurtherDown(@TempDir Path folder) throws Exception {
+        // look-guardrail-8: the focus went to Kind, which scrolled the dialog body past the title naming the address.
+        NodeRun run = StaticSources.runModule(folder, "the refusal in view", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION', heading: 'A problem with what was submitted',
+                    title: 'This environment was declared as sandbox, and its address http://127.0.0.1:8950/fhir/Claim/$submit is an address of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'signIn.tokenUrl', message: 'Not the token url of a production environment.'}]}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                const banner = dialog.querySelector('.config-form__banner');
+                const scrolled = [];
+                banner.scrollIntoView = how => scrolled.push(how.block);
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const active = document.activeElement;
+                say([scrolled, Boolean(active) && banner.contains(active), active && active.getAttribute('tabindex'), active && active.textContent]);
+                say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"start\"],true,\"-1\",\"A problem with what was submitted\"]",
+                "[\"Not the token url of a production environment.\"]");
+    }
+
+    @Test
+    void theKindAndMethodOptionsSayWhatTheyDoInPlainWords(@TempDir Path folder) throws Exception {
+        // I-15: no "application.yml" and no "never guessed" in the options a tester picks from.
+        NodeRun run = StaticSources.runModule(folder, "the option words", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                const editor = createEditor({});
+                const options = value => editor.dialog.querySelectorAll('select')
+                    .find(each => each.querySelectorAll('option').some(o => o.value === value))
+                    .querySelectorAll('option').filter(o => o.value === '').map(o => o.textContent);
+                say([options('prod'), options('BEARER_TOKEN')]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[[\"Choose a kind\"],[\"As PAVE was started\"]]");
+    }
+
+    @Test
+    void operationsThatShareTheirShortWordsAreOneChipWithItsCount(@TempDir Path folder) throws Exception {
+        // I-22: four subscription operations were four chips that read "Subscription".
+        NodeRun run = StaticSources.runModule(folder, "the grouped chips", PRELUDE + """
+                const {groupedChips} = await import('./js/config-environments.js');
+                const chips = groupedChips([{words: 'PAS submit', title: 'submit Happy Path'},
+                    {words: 'Subscription', title: 'subscription-get Happy Path'}, {words: 'Subscription', title: 'subscription-create Happy Path'},
+                    {words: 'Subscription', title: 'subscription-update Happy Path'}, {words: 'Subscription', title: 'subscription-delete Happy Path'},
+                    {words: 'notification', title: null}, {words: 'order-sign', dashed: true}, {words: 'order-sign', dashed: false}]);
+                say(chips.map(each => [each.textContent, each.getAttribute('title') || each.title || null]));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[[\"PAS submit\",\"submit Happy Path\"],"
+                + "[\"Subscription x4\",\"subscription-get Happy Path, subscription-create Happy Path, subscription-update Happy Path, subscription-delete Happy Path\"],"
+                + "[\"notification\",null],[\"order-sign\",null],[\"order-sign\",null]]");
+    }
+
+    @Test
+    void aFileIsChosenWithTheChooserAndAnEmptyStoreIsOneLineAcrossTheGrid(@TempDir Path folder) throws Exception {
+        // look-11: a "Choose file" button and the chosen name, never the browser's own control.
+        // look-18: the line in place of the cards spans the grid, not one narrow column.
+        NodeRun run = StaticSources.runModule(folder, "the file chooser and the empty store", PRELUDE + """
+                const {createEditor, mount} = await import('./js/config-environments.js');
+                const editor = createEditor({});
+                const boxes = () => editor.dialog.querySelectorAll('.file').map(box => [box.querySelector('button').textContent,
+                    box.querySelector('.file__name').textContent, box.querySelector('input').className.includes('visually-hidden')]);
+                say(boxes());
+                const input = editor.dialog.querySelectorAll('input').find(each => each.type === 'file');
+                input.files = [new File(['{}'], 'env.json')];
+                input.value = 'C:/fakepath/env.json';
+                await input.dispatchEvent({type: 'change'});
+                say(boxes()[0]);
+                answers['GET /api/config/environments'] = {status: 200, body: {environments: [], epoch: 1}};
+                const root = document.createElement('div');
+                document.body.append(root);
+                mount(root, ['environments']);
+                await settle();
+                say(root.querySelectorAll('.config-grid-line').map(each => each.textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"Choose file\",\"No file chosen\",true],[\"Choose file\",\"No file chosen\",true]]",
+                "[\"Choose file\",\"env.json\",true]",
+                "[\"No environment is stored yet. Start with New environment.\"]");
     }
 
     @Test

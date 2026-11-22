@@ -204,7 +204,7 @@ class SuiteControllerTest {
         for (String path : new String[] {"/api/suites/suite-unknown", "/api/suites/suite-unknown/results.csv"}) {
             JsonNode missing = json(mvc.perform(get(path)).andExpect(status().isNotFound()).andReturn().getResponse());
             assertThat(missing.get("kind").stringValue()).isEqualTo("NOT_FOUND");
-            assertThat(missing.get("title").stringValue()).contains("History tab");
+            assertThat(missing.get("title").stringValue()).contains("in Audit");
         }
         mvc.perform(post("/api/suites/suite-unknown/stop")).andExpect(status().isNotFound());
         JsonNode badFlag = json(mvc.perform(get("/api/suites/suite-unknown").param("rows", "maybe")).andExpect(status().is(422))

@@ -93,6 +93,8 @@ export async function sendRun(spec) {
         spec.onRefused(error, placed);
         return null;
     }
+    // A disabled button loses focus to the page; it is given back after, so a keyboard user stays put.
+    const focused = typeof document !== 'undefined' ? document.activeElement : null;
     for (const control of spec.buttons) {
         control.disabled = true;
     }
@@ -107,6 +109,7 @@ export async function sendRun(spec) {
         for (const control of spec.buttons) {
             control.disabled = false;
         }
+        giveFocusBack(focused);
     }
     if (answer.ok || (answer.data && typeof answer.data.runId === 'string')) {
         spec.onResult(answer.data);
@@ -122,9 +125,23 @@ export async function sendRun(spec) {
     return answer;
 }
 
+function giveFocusBack(focused) {
+    if (!focused || typeof focused.focus !== 'function' || !focused.isConnected || focused.disabled) {
+        return;
+    }
+    const now = document.activeElement;
+    if (!now || now === document.body) {
+        focused.focus({preventScroll: true});
+    }
+}
+
 /** The error panel of a refused or failed send, placed in the step's one result place. */
-export function failurePanel(error, placed) {
-    return errorPanel(error, {fieldsPlaced: placed || []});
+export function failurePanel(error, placed, labelOf) {
+    // An answer that was not JSON is said once, in the line under the top bar (plan 3.1).
+    if (error && error.kind === 'NOT_JSON') {
+        return null;
+    }
+    return errorPanel(error, {fieldsPlaced: placed || [], labelOf: labelOf || null});
 }
 
 /** The "Options" button of a step's head, which shows and hides the row of the step's own options. */

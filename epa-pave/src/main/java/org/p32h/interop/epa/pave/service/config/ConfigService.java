@@ -840,21 +840,22 @@ public class ConfigService {
         }
         boolean mock = epa.mock();
         if (!plan.url().configured()) {
-            return (mock ? row.note(plan.target().absent() + " On the mock profile nothing is sent, so this still runs.")
-                    : row.unavailable(plan.target().absent())).build();
+            String missing = plan.incomplete();
+            return (mock ? row.note(missing + " On the mock profile nothing is sent, so this still runs.")
+                    : row.unavailable(missing)).build();
         }
         TargetView target = target(plan);
         row.target(target);
         // The url's tokens are filled per call and are not counted here, so every name left is a
         // placeholder an environment or a value for one run can supply.
         List<String> missing = new ArrayList<>(target.unresolved());
-        String stillNeeds = stillNeeds(plan, target.resolved() ? null : braced(target.unresolved()), missing);
+        String stillNeeds = stillNeeds(plan, target.resolved() ? List.of() : target.unresolved(), missing);
         if (stillNeeds != null) {
             if (mock) {
                 row.note(stillNeeds + (headersMissing(plan) ? onMockAHeaderIsRefused(missing)
                         : " On the mock profile nothing is sent, so this still runs."));
             } else {
-                row.unavailable(stillNeeds + whereToGive(missing));
+                row.unavailable(stillNeeds);
             }
         }
         if (signInOff && stillNeeds == null && plan.refusal() == null) {
@@ -876,36 +877,25 @@ public class ConfigService {
      * @param urlNames the url's missing names as the sentence gives them, or null when the url is complete
      * @param names    collects every placeholder named, for the sentence that says where to give them
      */
-    private static String stillNeeds(CallPlan plan, String urlNames, List<String> names) {
-        List<String> parts = new ArrayList<>();
-        if (urlNames != null) {
-            parts.add("the url still needs a value for " + urlNames);
-        }
+    private static String stillNeeds(CallPlan plan, List<String> urlNames, List<String> names) {
+        List<String> all = new ArrayList<>(urlNames);
         for (CallPlan.Header header : plan.headers()) {
             List<String> unresolved = header.header().unresolved();
             if (Texts.present(header.header().name()) && !unresolved.isEmpty()) {
-                parts.add("the header " + ConfigStore.quoted(header.header().name()) + " still needs a value for " + braced(unresolved));
+                unresolved.stream().filter(name -> !all.contains(name)).forEach(all::add);
                 unresolved.stream().filter(name -> !names.contains(name)).forEach(names::add);
             }
         }
-        if (parts.isEmpty()) {
+        if (all.isEmpty()) {
             return null;
         }
-        ConfigSnapshot snapshot = plan.snapshot();
-        String sentence = String.join(", ", parts) + ", and "
-                + (snapshot.active() == null ? "no environment is active" : "the active environment is \"" + Names.shown(snapshot.activeName()) + "\"") + ".";
-        return Character.toUpperCase(sentence.charAt(0)) + sentence.substring(1);
+        // In plain words (I-1): no braces, no property, and the place the value is typed.
+        return plan.snapshot().active() == null ? Readiness.NO_ENVIRONMENT
+                : Readiness.valuesMissing(plan.intent().operation(), all, !urlNames.isEmpty());
     }
 
     private static boolean headersMissing(CallPlan plan) {
         return plan.headers().stream().anyMatch(header -> Texts.present(header.header().name()) && !header.header().unresolved().isEmpty());
-    }
-
-    /** Where a placeholder gets a value, naming each, so that it cannot be read as a part of the url filled per call. */
-    private static String whereToGive(List<String> names) {
-        boolean one = names.size() == 1;
-        return " Give " + (one ? "" : "each of ") + braced(names) + " a value in an environment on the Config tab, or type "
-                + (one ? "it" : "them") + " among the values for this run.";
     }
 
     /**
@@ -914,7 +904,7 @@ public class ConfigService {
      */
     private static String onMockAHeaderIsRefused(List<String> names) {
         return " On the mock profile nothing is sent, but a header with no value is refused before a scenario answers, so a run is "
-                + "refused here too." + whereToGive(names);
+                + "refused here too.";
     }
 
     /**
@@ -1124,9 +1114,9 @@ public class ConfigService {
             // The url's own words when it alone is short, and the headers added when one is: a run
             // is refused for a header with no value on both profiles.
             List<String> missing = new ArrayList<>();
-            String stillNeeds = stillNeeds(plan, plan.url().resolved() ? null : String.join(", ", plan.url().unresolved()), missing);
+            String stillNeeds = stillNeeds(plan, plan.url().resolved() ? List.of() : plan.url().unresolved(), missing);
             if (stillNeeds != null && headersMissing(plan)) {
-                incomplete = stillNeeds + (epa.mock() ? onMockAHeaderIsRefused(missing) : whereToGive(missing));
+                incomplete = stillNeeds + (epa.mock() ? onMockAHeaderIsRefused(missing) : "");
             }
         }
         List<String> notes = new ArrayList<>(source == null ? List.of() : source.notes());

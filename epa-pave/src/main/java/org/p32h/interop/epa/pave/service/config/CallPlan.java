@@ -164,14 +164,14 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
      * or the url still needs a value. Null when there is a complete url.
      */
     String incomplete() {
-        if (!url.configured()) {
-            return target.absent();
+        if (url.configured() && url.resolved()) {
+            return null;
         }
-        if (!url.resolved()) {
-            String active = snapshot.active() == null ? "no environment is active" : "the active environment is \"" + Names.shown(snapshot.activeName()) + "\"";
-            return "The url still needs a value for " + String.join(", ", url.unresolved()) + ", and " + active + ".";
+        if (snapshot.active() == null) {
+            return Readiness.NO_ENVIRONMENT;
         }
-        return null;
+        return url.configured() ? Readiness.valuesMissing(intent.operation(), url.unresolved(), true)
+                : Readiness.noAddress(intent.operation());
     }
 
     /** Prints the operation, the method and the url template. Never a resolved form, which can hold an identifier or a secret. */

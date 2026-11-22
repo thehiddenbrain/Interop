@@ -56,6 +56,14 @@ public final class TestPreparedCalls {
                 issued.requestName(), issued.scripted(), issued::epoch, issued::resolve, issued.savedBody(), () -> held);
     }
 
+    /** The same call under the given request shapes, as an environment that states them gives every call. */
+    public static PreparedCall shaped(PreparedCall call, org.p32h.interop.epa.pave.model.RequestShapes shapes) {
+        IssuedCall issued = (IssuedCall) call;
+        return new IssuedCall(issued.operation(), issued.method(), issued.url(), issued.headers(), issued.environment(),
+                issued.requestName(), issued.scripted(), issued::epoch, issued::resolve, issued.savedBody(), issued::heldSecrets,
+                issued.timeouts(), new IssuedCall.Settings(issued.signIn(), issued.memberIdRule(), shapes, issued.callbackUrl()));
+    }
+
     /** A call on the mock profile with nothing configured, which is the out-of-the-box state. */
     public static PreparedCall unconfigured(EpaOperation operation) {
         return with(operation, operation.defaultMethod(), ResolvedUrl.notConfigured("not configured"), List.of(),

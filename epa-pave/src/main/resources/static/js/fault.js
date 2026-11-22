@@ -16,6 +16,23 @@ export function notJsonLine(status) {
     return 'PAVE did not answer as expected (HTTP ' + status + '). If PAVE runs from STS, stop it and start it again.';
 }
 
+/** Said under every refusal and failure while PAVE's files changed on disk since it started (I-12). */
+export const FILES_CHANGED_LINE = "PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.";
+
+// Set by the frame from each /api/mode answer. Between a pull and a restart the page can run new
+// scripts against old classes, and a refusal then names a cure that cannot help.
+let filesChanged = false;
+
+/** The frame tells this module whether /api/mode says build.changedOnDisk. */
+export function setFilesChanged(on) {
+    filesChanged = on === true;
+}
+
+/** The line under a refusal or failure while the files changed on disk, else null. */
+export function filesChangedNote() {
+    return filesChanged ? el('p', {class: 'files-changed-note small'}, FILES_CHANGED_LINE) : null;
+}
+
 /** Said when this page could not do what it was asked: a defect of the page, not of the server. */
 export const PAGE_FAULT_LINE = 'This page met a fault of its own. Reload the page.';
 
@@ -52,9 +69,10 @@ export function errorPanel(error, options) {
         return panel('fault', null, PAGE_FAULT_LINE, null);
     }
     const placed = new Set(options && options.fieldsPlaced ? options.fieldsPlaced : []);
+    const labelOf = options && typeof options.labelOf === 'function' ? options.labelOf : null;
     const box = panel(FRAMES[error.kind] || 'neutral', error.heading, error.title, error.action,
-        typeof error.httpStatus === 'number' ? 'HTTP ' + error.httpStatus : null);
-    const fieldErrors = Array.isArray(error.fieldErrors) ? error.fieldErrors.filter(each => each && !placed.has(each.field)) : [];
+        typeof error.httpStatus === 'number' ? 'HTTP ' + error.httpStatus : null, labelOf ? namedFields(error.fieldErrors, labelOf) : null);
+    const fieldErrors = labelOf ? [] : Array.isArray(error.fieldErrors) ? error.fieldErrors.filter(each => each && !placed.has(each.field)) : [];
     if (fieldErrors.length > 0) {
         box.append(el('ul', {class: 'notes error-fields'}, fieldErrors.map(each =>
             el('li', null, el('span', {class: 'mono'}, each.field), ' ', each.message))));
@@ -69,13 +87,79 @@ export function errorPanel(error, options) {
     return box;
 }
 
-function panel(frame, heading, title, action, status) {
+/** True for an error that is a service's own answer (4xx or 5xx), which a result card says in itself. */
+export function serviceFailure(error) {
+    return Boolean(error) && (error.kind === 'VENDOR_REJECTED' || error.kind === 'VENDOR_ERROR');
+}
+
+/**
+ * A service's failure inside its result card, so it is said once (plan 3.2 Failures): the card
+ * already has the headline, what the service said and the next step. Here: one chip per issue,
+ * the issues in full in a fold, the fault report and the line about changed files.
+ */
+export function failureInCard(error) {
+    if (!serviceFailure(error)) {
+        return [];
+    }
+    const issues = Array.isArray(error.issues) ? error.issues : [];
+    const chips = issues.map(issue => {
+        const severity = issue.severity && issue.severity.presence === 'VALUE' ? String(issue.severity.value) : null;
+        const code = issue.code && issue.code.presence === 'VALUE' ? String(issue.code.value) : null;
+        const words = [severity, code].filter(Boolean).join(' ');
+        return words ? chip(words, {tone: 'fail', mono: true}) : null;
+    }).filter(Boolean);
+    return [
+        chips.length > 0 ? el('div', {class: 'result-line issue-chips'}, chips) : null,
+        issues.length > 0 ? fold({summary: 'Issues the service sent (' + issues.length + ')', inline: true, body: () => issuesTable(issues)}) : null,
+        faultReport(error.reference, error.cause),
+        filesChangedNote()
+    ].filter(Boolean);
+}
+
+// A refused form names at most this many fields in its panel; the rest are counted.
+const MOST_FIELDS_NAMED = 3;
+
+/**
+ * The fields of a refused form by the labels the tester sees (I-3), each with its sentence: never a
+ * property path. A field the page has no label for is said by its sentence alone.
+ */
+function namedFields(fieldErrors, labelOf) {
+    const all = Array.isArray(fieldErrors) ? fieldErrors.filter(each => each && typeof each.message === 'string') : [];
+    if (all.length === 0) {
+        return null;
+    }
+    const items = all.slice(0, MOST_FIELDS_NAMED).map(each => {
+        const label = labelOf(each.field);
+        return el('li', null, label ? [el('strong', null, label), ' '] : null, each.message);
+    });
+    if (all.length > MOST_FIELDS_NAMED) {
+        items.push(el('li', null, 'and ' + (all.length - MOST_FIELDS_NAMED) + ' more'));
+    }
+    return el('ul', {class: 'notes error-fields'}, items);
+}
+
+/**
+ * What the action says after its first sentence: one sentence more is a second, quieter line, read
+ * without a click (I-34: "If the url is right, the sign-in service may be down: try again later.");
+ * more than that goes in a closed Why.
+ */
+function restOfAction(rest) {
+    if (!rest) {
+        return null;
+    }
+    return firstSentence(rest)[1] === '' ? el('p', {class: 'small muted action-rest'}, rest)
+        : fold({summary: 'Why', inline: true, body: el('p', null, rest)});
+}
+
+function panel(frame, heading, title, action, status, named) {
     const [first, rest] = firstSentence(action);
     return el('div', {class: 'verdict verdict--' + frame + ' error-panel'},
         heading || status ? el('p', {class: 'verdict__label'}, heading || null, heading && status ? ', ' : null, status || null) : null,
         el('p', {class: 'verdict__headline'}, title || null),
+        named || null,
         first ? el('p', {class: 'muted'}, first) : null,
-        rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null);
+        restOfAction(rest),
+        filesChangedNote());
 }
 
 /**

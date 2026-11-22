@@ -152,8 +152,8 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/throw/unresolved-both")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("Subscription get cannot be sent: {{baseUrl}}, {id} have no value, and the active "
                         + "environment is \"Onyx Sandbox\". Nothing was sent."))
-                .andExpect(jsonPath("$.action").value("Type a value for each marked variable, or define it in the active environment on "
-                        + "the Config tab."));
+                .andExpect(jsonPath("$.action").value("Type a value for each marked variable, or add it under Values of the active "
+                        + "environment in Configuration."));
     }
 
     @Test

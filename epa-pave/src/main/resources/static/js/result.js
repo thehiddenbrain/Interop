@@ -10,7 +10,7 @@
 
 import {el, append, chip, fold, kv, button, copyButton, firstSentence, toneName, fill, clear} from './dom.js';
 import {responseDetail} from './detail.js';
-import {errorPanel, faultReport} from './fault.js';
+import {errorPanel, failureInCard, serviceFailure} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
@@ -30,6 +30,8 @@ const LONGEST_NEXT_STEP = 90;
  * options.nextBlocked(action): the server's sentence when the step the button leads to cannot be
  *   sent as things stand (readiness), or null.
  * options.stale: true when the configuration changed since this run was sent.
+ * options.wordsOnly(action): true when the place around the card already offers that action's
+ *   button, so the card says the next step in words instead of repeating the button.
  * options.fieldsPlaced: names of fields whose errors the caller shows at the field itself.
  */
 export function resultCard(envelope, options) {
@@ -55,6 +57,11 @@ export function resultCard(envelope, options) {
     if (serviceSaid) {
         card.append(serviceSaid);
     }
+    const inCard = faultInCard(envelope);
+    if (inCard && envelope.error.heading) {
+        card.append(el('p', {class: 'verdict__label'}, envelope.error.heading));
+    }
+    card.append(...failureInCard(envelope.error));
     const facts = factRows(envelope);
     const shownFacts = facts.present.slice(0, MOST_FACTS);
     const moreFacts = facts.present.slice(MOST_FACTS);
@@ -63,10 +70,6 @@ export function resultCard(envelope, options) {
     const ledger = ledgerLine(envelope);
     if (ledger) {
         card.append(ledger);
-    }
-    const inCard = faultInCard(envelope);
-    if (inCard) {
-        append(card, faultFacts(envelope));
     }
     const nextSlot = el('div', {class: 'verdict__foot'});
     card.append(nextSlot);
@@ -229,48 +232,13 @@ function cdsRefusal(envelope) {
     return summary || detail ? [summary, summary && detail ? ': ' : null, detail].filter(Boolean).join('') : null;
 }
 
-// The kinds of failure that are the service's or its environment's, drawn inside the result card
-// itself (prototype 05a): one card, never a second framed box repeating its headline.
-const SERVICE_FAULTS = new Set(['VENDOR_ERROR', 'VENDOR_REJECTED', 'TIMEOUT', 'UNREACHABLE', 'MALFORMED_RESPONSE']);
-
-/** True when a run's failure is drawn inside its card: a service fault on a run that has a headline of its own. */
-export function faultInCard(envelope) {
-    const verdict = envelope && envelope.verdict;
-    return Boolean(envelope && envelope.error && SERVICE_FAULTS.has(envelope.error.kind) && verdict
-        && typeof verdict.headline === 'string' && verdict.headline !== '');
-}
-
 /**
- * The rest of a service fault, inside the card: who played it (the heading), each issue on one line
- * (severity, code, what it says, where), and the action's first sentence when the card has no next
- * step of its own. The title is the card's headline in other words and is not said again.
+ * True when a run's failure is drawn inside its card (prototype 05a): a service's own answer, 4xx
+ * or 5xx. Its card says who played it, the service's words, one chip per issue and the issues in a
+ * fold (fault.js failureInCard); any other failure keeps its own panel and report.
  */
-function faultFacts(envelope) {
-    const error = envelope.error;
-    const issues = Array.isArray(error.issues) ? error.issues : [];
-    const text = value => (value && value.presence === 'VALUE' && value.value !== undefined && value.value !== null ? String(value.value) : null);
-    // The first issue's diagnostics are already the card's "Service said" line; its own line keeps the rest.
-    const saidAbove = serviceLine(envelope) ? text(issues.length > 0 ? issues[0].diagnostics : null) : null;
-    const lines = issues.map((issue, index) => {
-        const said = index === 0 && saidAbove ? null : text(issue.diagnostics);
-        const details = text(issue.detailsText);
-        const where = Array.isArray(issue.expression) ? issue.expression.map(text).filter(Boolean) : [];
-        return el('li', {class: 'issue-line'},
-            text(issue.severity) ? chip(text(issue.severity), {mono: true}) : chip('severity not returned', {dashed: true}), ' ',
-            text(issue.code) ? chip(text(issue.code), {mono: true}) : null, ' ',
-            said || (details || (index === 0 && saidAbove) ? null : chip('diagnostics not returned', {dashed: true})),
-            details && details !== said && details !== saidAbove ? [said ? ' ' : null, el('span', {class: 'muted'}, details)] : null,
-            where.length > 0 ? [' ', el('span', {class: 'mono small'}, where.join(', '))] : null);
-    });
-    const hasNext = envelope.nextStep && envelope.nextStep.action;
-    const [first, rest] = firstSentence(error.action || '');
-    return [
-        error.heading ? el('p', {class: 'verdict__label'}, error.heading) : null,
-        lines.length > 0 ? el('ul', {class: 'issue-lines'}, lines) : null,
-        !hasNext && first ? el('p', {class: 'verdict__next'}, first) : null,
-        !hasNext && rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null,
-        faultReport(error.reference, error.cause)
-    ];
+export function faultInCard(envelope) {
+    return Boolean(envelope) && serviceFailure(envelope.error);
 }
 
 /**
@@ -309,11 +277,23 @@ function determinationValue(row) {
         return chip(presenceWords(row.presence), {dashed: true});
     }
     const code = row.code === undefined || row.code === null ? '' : String(row.code);
-    // The display is shown only when it adds words to the code.
-    const adds = typeof row.display === 'string' && row.display !== '' && row.display.toLowerCase() !== code.toLowerCase();
+    const adds = displayAddsWords(code, row.display);
     return el('span', null, chip(code, {mono: true, tone: row.tone || null}),
         adds ? el('span', {class: 'kv__display'}, ' ' + row.display) : null,
         row.recognised === false ? chip('not a code this tool knows', {dashed: true}) : null);
+}
+
+/**
+ * True when a display says more than its code (I-14): "in-progress" beside "In progress" is the
+ * code again in other letters and is not shown; "withpa" beside "Send with the prior
+ * authorization request" explains it and is.
+ */
+export function displayAddsWords(code, display) {
+    if (typeof display !== 'string' || display === '') {
+        return false;
+    }
+    const bare = text => String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return bare(display) !== bare(code);
 }
 
 /** An outcome code as its short label from the vocabulary, in its tone; the code itself until the words come. */
@@ -339,25 +319,28 @@ function ledgerLine(envelope) {
 
 /**
  * The next step: a primary button named by the vocabulary when its action has one and the caller
- * can act on it; otherwise the server's headline, whole when short, else its first sentence.
+ * can act on it; otherwise the server's headline, whole when short, else its first sentence. After
+ * a service's failure the headline is also the line above the button (look-3): it says what to
+ * change there, which the button's name alone does not. Any other error has its own panel, whose
+ * action says it already.
  */
 function nextStep(envelope, settings, words) {
     const step = envelope.nextStep;
     if (!step || !step.action) {
         return [];
     }
-    const action = words && Array.isArray(words.nextActions) ? words.nextActions.find(each => each.code === step.action) : null;
-    if (action && action.button && typeof settings.onNext === 'function') {
-        const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
-        return [button(action.button, () => settings.onNext(step.action, envelope),
-            {primary: true, disabled: Boolean(blocked), title: blocked || null})];
-    }
     const headline = typeof step.headline === 'string' ? step.headline : '';
-    if (headline === '') {
-        return [];
+    const line = headline === '' ? null
+        : el('p', {class: 'verdict__next'}, headline.length <= LONGEST_NEXT_STEP ? headline : firstSentence(headline)[0]);
+    const action = words && Array.isArray(words.nextActions) ? words.nextActions.find(each => each.code === step.action) : null;
+    const wordsOnly = typeof settings.wordsOnly === 'function' && settings.wordsOnly(step.action);
+    if (action && action.button && typeof settings.onNext === 'function' && !wordsOnly) {
+        const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
+        const go = button(action.button, () => settings.onNext(step.action, envelope),
+            {primary: true, disabled: Boolean(blocked), title: blocked || null});
+        return serviceFailure(envelope.error) && line ? [line, go] : [go];
     }
-    const shown = headline.length <= LONGEST_NEXT_STEP ? headline : firstSentence(headline)[0];
-    return [el('p', {class: 'verdict__next'}, shown)];
+    return line ? [line] : [];
 }
 
 /** One visible line when the code list and the service disagree, above the folds that explain it. */

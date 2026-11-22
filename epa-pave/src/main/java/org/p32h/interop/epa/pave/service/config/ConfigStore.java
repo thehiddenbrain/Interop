@@ -655,6 +655,7 @@ public class ConfigStore {
         }
         if (kind != EnvironmentKind.PROD) {
             refuseProductionAddresses(before, scanned, kind);
+            refuseProductionTokenUrl(before, scanned, previous == null ? null : previous.settings(), kind);
         } else {
             refuseUnreadableProduction(scanned, before.context(), "upload");
         }
@@ -838,6 +839,8 @@ public class ConfigStore {
         boolean checked = wholly || typedChanged;
         List<String> signs = ProductionSigns.in(scanned);
         boolean acknowledged = previous != null && kind == previous.kind() && previous.acknowledgedNotProd();
+        // Whatever else changed: the sign-in posts the client secret on the next call.
+        refuseProductionTokenUrl(before, scanned, settings, kind);
         if (checked) {
             List<String> reasonsToAsk = new ArrayList<>(wholly ? signs : typedSigns);
             if (previous != null && previous.kind() == EnvironmentKind.PROD && kind != EnvironmentKind.PROD) {
@@ -1156,6 +1159,11 @@ public class ConfigStore {
         return oneLine(Names.shown(name));
     }
 
+    /** Names in quotes, joined with "and". */
+    static String namedAll(List<String> names) {
+        return names.stream().map(name -> "\"" + quoted(name) + "\"").collect(java.util.stream.Collectors.joining(" and "));
+    }
+
     private static List<StoredCollection.Mapped> mapped(PostmanCollection collection, Map<String, EpaOperation> corrections) {
         List<StoredCollection.Mapped> requests = new ArrayList<>();
         for (PostmanRequest request : collection.requests()) {
@@ -1231,6 +1239,41 @@ public class ConfigStore {
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));
+    }
+
+    /**
+     * Refuses an environment that is not production whose Sign-in token url is, or lies beneath,
+     * an address a production environment uses for a call (I-28): a sign-in posts the client
+     * secret there. Said in the words of the address refusal, at the field of the token url. A
+     * token url a stored production environment signs in with is allowed, see {@link TokenUrlGuard}.
+     */
+    private void refuseProductionTokenUrl(ConfigSnapshot before, PostmanEnvironment scanned, EnvironmentSettings settings,
+                                          EnvironmentKind kind) {
+        SignInSettings signIn = settings == null ? null : settings.signIn();
+        if (kind == EnvironmentKind.PROD || signIn == null || !Texts.present(signIn.tokenUrl())) {
+            return;
+        }
+        for (ProductionDestinations.Found found : ProductionDestinations.resolvedText(scanned, signIn.tokenUrl(), before.context())) {
+            List<String> owners = TokenUrlGuard.owners(before, found.destination(), null);
+            if (owners.isEmpty()) {
+                continue;
+            }
+            boolean several = owners.size() > 1;
+            String production = "production environment" + (several ? "s " : " ") + namedAll(owners);
+            String said = found.secret() ? "its token url" : "its token url " + oneLine(found.destination().shown());
+            String note = "A sign-in sends the client secret to the token url, so a token url at an address a production environment "
+                    + "uses for a call is a write to that production environment. Use the token url of the " + kind.wire() + " service, "
+                    + "or the one the production environment signs in with.";
+            if (owners.stream().noneMatch(owner -> before.byName(owner) != null)) {
+                String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+                // The way out that works while PAVE runs: Forget, offered for exactly these addresses (R-35).
+                note = namedAll(owners) + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was")
+                        + " uploaded as prod by mistake, press Forget this production address beside each address of "
+                        + entries + " in Configuration > Production writes and save this environment again. " + note;
+            }
+            throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " is an address of the "
+                    + production + ", or lies beneath one. It was not stored.", List.of(new FieldError("signIn.tokenUrl", note)));
+        }
     }
 
     /**

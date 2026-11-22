@@ -134,7 +134,7 @@ class ListsFrontendTest {
             file.files = [new File([new TextEncoder().encode('label,memberId\\nOther,S123456786\\n')], 'other.csv')];
             fake.answers['POST /api/lists/members/import'] = {status: 200, body: {columnsUsed: ['label', 'memberId'], columnsIgnored: ['favouriteColour'],
                 rows: [], added: 1, replaced: 1, refused: 1, applied: true}};
-            await dialog.querySelectorAll('button').find(each => text(each) === 'Import 2 rows').click();
+            await dialog.querySelectorAll('button').find(each => text(each) === 'Import 2 rows (1 refused)').click();
             await settle();
             say(['imported', imports().length, imports()[1].dryRun, imports()[1].csv === csv, text(root).includes('Imported: 1 row added, 1 replaced, 1 refused.')]);
             
@@ -145,8 +145,10 @@ class ListsFrontendTest {
             file.value = 'C:/fakepath/nocolumn.csv';
             await dialog.querySelectorAll('button').find(each => text(each) === 'Read the file').click();
             await settle();
+            // One plain line naming the file, never the boxed panel (AU-5).
             say(['refused file', text(dialog).includes('The file has no memberId column'), file.value,
-                dialog.querySelectorAll('button').map(text).some(each => each.startsWith('Import '))]);
+                dialog.querySelectorAll('button').map(text).some(each => each.startsWith('Import ')),
+                dialog.querySelectorAll('.error-panel').length, dialog.querySelectorAll('.file-refusal .field__error').map(text)]);
             // A file the page cannot read is never posted.
             const posted = imports().length;
             file.files = [new File([new Uint8Array(0)], 'empty.csv')];
@@ -185,16 +187,16 @@ class ListsFrontendTest {
         assertThat(run.lines()).containsExactly(
                 "[\"members\",\"Test members\",[\"Add member\",\"Import CSV\",\"Edit\",\"Edit\"],[\"Approved kneeS123456789Test Member1980-01-31CommercialEdit\",\"PendedS123456788not givennot givennot givenEdit\"],\"/api/lists/members/template.csv\"]",
                 "[\"add\",\"Add member\",\"||||||||||||\",[\"Close without saving\",\"Save member\"]]",
-                "[\"refused\",[{\"memberId\":\"S123456700\",\"dateOfBirth\":\"31/01/1980\"}],[\"Date of birthWrite the date of birth as yyyy-MM-dd, for example 1980-01-31.\"],1,true,\"dateOfBirth\"]",
+                "[\"refused\",[{\"memberId\":\"S123456700\",\"dateOfBirth\":\"31/01/1980\"}],[\"Date of birthWrite the date of birth as yyyy-MM-dd, for example 1980-01-31.\"],2,true,\"dateOfBirth\"]",
                 "[\"added\",true,true,2]",
                 "[\"edit\",\"Edit member\",\"S123456789\",\"female\",\"\"]",
                 "[\"put\",[{\"label\":\"Approved knee\",\"memberId\":\"S123456789\",\"firstName\":\"Test\",\"lastName\":\"Member\",\"dateOfBirth\":\"1980-01-31\",\"gender\":\"female\",\"lineOfBusiness\":\"Commercial\",\"plan\":\"Gold\"}]]",
                 "[\"asked\",\"Remove the member \\\"Pended\\\"?\",0]",
                 "[\"removed\",[\"DELETE /api/lists/members/m-2\"],true]",
                 "[\"dry run\",[{\"csv\":\"label,memberId,favouriteColour\\nKnee,S123456789,blue\\nNew,S123456787,red\\nBad,,green\\n\",\"dryRun\":true}],\"\"]",
-                "[\"shown\",[\"Columns used: label, memberId.\",\"Columns left out: favouriteColour.\"],[\"2ReplaceKnee\",\"3AddNew\",\"4RefusedBadEnter the member ID as it is on the card.\"],[\"Read the file\",\"Close without importing\",\"Import 2 rows\"]]",
+                "[\"shown\",[\"Columns used: label, memberId.\",\"Columns left out: favouriteColour.\"],[\"4RefusedBadEnter the member ID as it is on the card.\",\"2ReplaceKnee\",\"3AddNew\"],[\"Choose file\",\"Read the file\",\"Close without importing\",\"Import 2 rows (1 refused)\"]]",
                 "[\"imported\",2,false,true,true]",
-                "[\"refused file\",true,\"\",false]",
+                "[\"refused file\",true,\"\",false,0,[\"nocolumn.csv: The file has no memberId column, so no row can be matched to a saved member. Start from the CSV template and keep its first row.\"]]",
                 "[\"unread\",true,true,\"\"]",
                 "[\"providers\",\"Test providers\",[\"Add provider\",\"Import CSV\",\"Edit\"],[\"Ordering1234567893not givenSample Clinic11Edit\"],\"/api/lists/providers/template.csv\"]",
                 "[\"same page read once\",1]",

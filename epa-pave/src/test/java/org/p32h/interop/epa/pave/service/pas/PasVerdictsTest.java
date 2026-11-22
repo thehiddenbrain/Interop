@@ -154,9 +154,10 @@ class PasVerdictsTest {
                 + "a claim update, which is a new claim with its own identifier that replaces this one (Claim.related, relationship "
                 + "replaces), or the CDex operation $submit-attachment. This tool builds neither.");
         NextStepView next = next(reading);
-        assertThat(next.action()).isEqualTo(NextAction.START_PAS);
-        assertThat(next.headline()).isEqualTo("Next: send the documentation the payer asked for. Choosing Send PAS request again sends a new "
-                + "request with the same claim identifier, which is not the PAS 2.0.1 way.");
+        // I-17: the tester is on Submit, so the step says what to do there and names no button that leads to Submit.
+        assertThat(next.action()).isEqualTo(NextAction.SUPPLY_INFORMATION);
+        assertThat(next.headline()).isEqualTo("Add the documents asked for and send again.");
+        assertThat(next.reason()).contains("Sending again sends a new request with the same claim identifier, which is not the PAS 2.0.1 way.");
         assertThat(next.reason()).endsWith("This tool builds neither.");
     }
 
@@ -304,7 +305,7 @@ class PasVerdictsTest {
         assertThat(verdict(reading).headline()).isEqualTo("The payer needs more documentation before it will decide.");
         assertThat(verdict(reading).supporting()).containsExactly("The response refers to 1 request for documentation. What is asked for is "
                 + "shown below, in the payer's own words.", PasVerdicts.GUIDE_ROUTE);
-        assertThat(next(reading).action()).isEqualTo(NextAction.START_PAS);
+        assertThat(next(reading).action()).isEqualTo(NextAction.SUPPLY_INFORMATION);
         assertThat(next(reading).carry()).containsEntry(NextStepView.CARRY_CLAIM_ID, List.of("claim-test-1"));
         // An approval that still refers to an open request says so beneath it.
         PasReading approved = read(bundle(claimResponse(items(decided(1, "A1")), "\"communicationRequest\":[{\"reference\":\"CommunicationRequest/d\"}]")),
@@ -341,9 +342,9 @@ class PasVerdictsTest {
         assertThat(PasVerdicts.verdict(mapper.read(unauthorised), unauthorised, EpaOperation.PAS_SUBMIT).headline())
                 .isEqualTo("The service did not accept the request as sent (HTTP 401).");
         assertThat(PasVerdicts.nextStep(mapper.read(unauthorised), unauthorised, EpaOperation.PAS_SUBMIT, RUN).headline())
-                .isEqualTo("Next: check the credentials on the Config tab.");
+                .isEqualTo("Next: check the credentials in Configuration > Environments > Sign-in.");
         assertThat(PasVerdicts.nextStep(mapper.read(missing), missing, EpaOperation.PAS_SUBMIT, RUN).headline())
-                .isEqualTo("Next: check the PAS url on the Config tab.");
+                .isEqualTo("Next: check the PAS url in Configuration > Environments > Addresses.");
         assertThat(PasVerdicts.nextStep(mapper.read(invalid), invalid, EpaOperation.PAS_SUBMIT, RUN).action()).isEqualTo(NextAction.FIX_REQUEST);
     }
 

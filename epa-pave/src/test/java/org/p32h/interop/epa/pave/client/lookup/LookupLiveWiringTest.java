@@ -70,7 +70,8 @@ class LookupLiveWiringTest {
                 + "until then type the member details by hand.");
         assertThat(member.error()).isNull();
         assertThat(member.member()).isNull();
-        assertThat(member.memberId().sent()).isEqualTo("P32H-PA-REQ");
+        // Nothing was sent, so no form it was sent in is named.
+        assertThat(member.memberId()).isNull();
 
         ProviderLookupResult provider = providers.lookup("1234567893");
         assertThat(provider.status()).isEqualTo(LookupStatus.DISABLED);

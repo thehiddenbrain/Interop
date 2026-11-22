@@ -153,6 +153,14 @@ public class ConfigStoreGateway implements OperationGateway {
         if (encoded != null) {
             throw encodedSeparator(plan, encoded);
         }
+        // A path compared with production as a server reads it, every escape decoded once, must
+        // mean the same after that one decoding (I-29).
+        if (escapedPercentIn(plan)) {
+            throw new BadInputException(plan.intent().operation().label() + " was not sent: the path of its url holds a percent-escape "
+                    + "of an escape (%25), which came from " + encodedFrom(plan, true) + ". " + UrlNormal.NO_ESCAPE_OF_AN_ESCAPE
+                    + " A server that decodes the path twice would read another address than the one this tool judged.",
+                    "Nothing was sent. Write the character itself, or one escape of it, in that value.");
+        }
         // A url whose address reads well and which is not a valid url after it is refused for what
         // it is, naming the value whose text made it so. On mock a read is never sent, so only a
         // write, which the guardrail would refuse, is refused there.
@@ -311,8 +319,59 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     @Override
+    public String activeTokenUrlShown() {
+        StoredEnvironment active = store.snapshot().active();
+        SignInSettings signIn = active == null ? null : active.settings().signIn();
+        if (signIn == null || signIn.method() != SignInSettings.Method.CLIENT_CREDENTIALS || !Texts.present(signIn.tokenUrl())) {
+            return null;
+        }
+        return ConfigStore.oneLine(org.p32h.interop.epa.pave.postman.LiteralCredentials.inUrl(signIn.tokenUrl().strip()).shown());
+    }
+
+    @Override
+    public String tokenUrlRefusal(String tokenUrl) {
+        UrlNormal.Destination destination = UrlNormal.destination(tokenUrl);
+        if (destination == null) {
+            return null;
+        }
+        ConfigSnapshot snapshot = store.snapshot();
+        StoredEnvironment active = snapshot.active();
+        // The active production environment's own addresses are its own: its sign-in is not a write to another.
+        String exempt = active != null && active.kind() == EnvironmentKind.PROD ? active.name() : null;
+        List<String> owners = TokenUrlGuard.owners(snapshot, destination, exempt);
+        if (owners.isEmpty()) {
+            return null;
+        }
+        String refusal = TokenUrlGuard.atSending(destination, owners);
+        return owners.stream().anyMatch(owner -> snapshot.byName(owner) != null) ? refusal : refusal + " " + removedTokenOwners(owners);
+    }
+
+    /**
+     * What follows the refusal of a token url when every production environment it reaches into
+     * was removed (I-19, I-28): the token url such an environment signed in with went with it, so a
+     * sandbox that shares it can no longer be told from one that writes to production. Names that,
+     * and the two ways out: store it again, or Forget its addresses (R-35).
+     */
+    private String removedTokenOwners(List<String> owners) {
+        boolean several = owners.size() > 1;
+        String entries = owners.stream().map(owner -> "\"" + ConfigStore.quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+        // Called only when none of them is stored, so Forget is offered for each of their addresses (R-35).
+        return quotedAll(owners) + (several ? " are" : " is") + " no longer stored, so this tool no longer knows the token url "
+                + (several ? "they" : "it") + " signed in with. To sign in at a token url shared with " + (several ? "one of them" : "it")
+                + ", store " + (several ? "that production environment" : "it") + " again. If " + (several ? "they were" : "it was")
+                + " stored as prod by mistake, press Forget this production address beside each address of "
+                + entries + " in Configuration > Production writes, and this environment signs in again.";
+    }
+
+    @Override
     public Timeouts vendorTimeouts() {
         return timeoutsFor(store.snapshot().active(), EpaOperation.CRD_ORDER_SIGN);
+    }
+
+    @Override
+    public org.p32h.interop.epa.pave.model.RequestShapes activeShapes() {
+        StoredEnvironment active = store.snapshot().active();
+        return shapes(active == null ? EnvironmentSettings.none() : active.settings(), null);
     }
 
     @Override
@@ -445,14 +504,37 @@ public class ConfigStoreGateway implements OperationGateway {
         return plan.filled() == null || !plan.filled().complete() ? null : UrlNormal.encodedSeparator(plan.filled().send());
     }
 
+    /**
+     * True when the url as configured, its variables filled and before the url parts typed for a
+     * run, holds an escaped percent sign in its path. A url part's own percent sign is sent as
+     * {@code %25} and means itself, so the parts are not read.
+     */
+    private static boolean escapedPercentIn(CallPlan plan) {
+        Resolution resolution = plan.urlVariables();
+        if (resolution == null) {
+            return plan.url() != null && UrlNormal.escapedPercent(plan.url().template());
+        }
+        StringBuilder configured = new StringBuilder();
+        for (Resolution.Piece piece : resolution.pieces()) {
+            configured.append(piece.send() == null ? "" : piece.send());
+        }
+        return UrlNormal.escapedPercent(configured.toString());
+    }
+
     /** What put the encoded separator into the path, in words: a variable with its layer, a url part, or the url as written. */
     private static String encodedFrom(CallPlan plan) {
+        return encodedFrom(plan, false);
+    }
+
+    /** As above; with {@code escapedPercent}, what put an escaped percent sign there, url parts left out. */
+    private static String encodedFrom(CallPlan plan, boolean escapedPercent) {
         List<String> found = new ArrayList<>();
         Resolution resolution = plan.urlVariables();
         if (resolution != null) {
             Map<String, VariableSource> sources = sources(resolution);
             for (Resolution.Piece piece : resolution.pieces()) {
-                if (piece.name() != null && piece.send() != null && UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null) {
+                if (piece.name() != null && piece.send() != null && (escapedPercent ? UrlNormal.escapedPercent("/" + withoutQuery(piece.send()))
+                        : UrlNormal.encodedSeparator("/" + withoutQuery(piece.send())) != null)) {
                     VariableSource source = sources.get(piece.name());
                     String named = "the variable \"" + ConfigStore.quoted(piece.name()) + "\""
                             + (source == null ? "" : " (" + source.label().toLowerCase(Locale.ROOT) + ")");
@@ -463,7 +545,7 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         new TreeMap<>(plan.intent().urlValues()).forEach((name, value) -> {
-            if (Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
+            if (!escapedPercent && Texts.present(value) && UrlNormal.encodedSeparator("/" + UrlForms.encode(value)) != null) {
                 found.add("the url part {" + name + "}");
             }
         });
@@ -859,6 +941,12 @@ public class ConfigStoreGateway implements OperationGateway {
                     + "whether a target is production. Upload an environment, state its kind and activate it.");
         }
         if (active.kind() != EnvironmentKind.PROD) {
+            // Never "not blocked" while a send would be refused: an address of this environment
+            // remembered as production blocks its writes whatever environment is active (I-19).
+            String blocked = rememberedWriteBlock(snapshot);
+            if (blocked != null) {
+                return new WriteAccess(false, false, floor, blocked);
+            }
             // Worded so that it is true on the mock profile too, where nothing is sent at all.
             return new WriteAccess(false, true, floor, "\"" + Names.shown(active.name()) + "\" is a " + active.kind().wire()
                     + " environment, so writes are not blocked.");
@@ -1089,9 +1177,9 @@ public class ConfigStoreGateway implements OperationGateway {
                 skeleton = skeleton.upTo(DISCOVERY_MARKER);
                 cutInsideAVariable = UrlForms.endOfSegment(template, DISCOVERY_MARKER) != template.length();
                 if (skeleton == null) {
-                    target = Target.none("No collection request is mapped to " + operation.label() + ", onyx.crd.url is not set, and "
-                            + "the url of the hook request \"" + target.request().request().quotedName() + "\" shows no "
-                            + DISCOVERY_MARKER + " to derive it from.");
+                    target = Target.none(Readiness.noAddress(operation, "the url of the hook request \""
+                            + target.request().request().quotedName() + "\" shows no " + DISCOVERY_MARKER + " to derive it from",
+                            fallbackProperty(operation)));
                 }
             }
             if (skeleton != null) {
@@ -1218,7 +1306,7 @@ public class ConfigStoreGateway implements OperationGateway {
             if (operation != EpaOperation.UNMAPPED && request.effective() != operation) {
                 throw new BadInputException("The request \"" + Names.shown(request.request().name()) + "\" is mapped to " + request.effective().label()
                         + ", so it cannot be sent as " + operation.label() + ".", "Choose a request that is mapped to "
-                        + operation.label() + ", or correct the mapping on the Config tab.");
+                        + operation.label() + ", or correct the mapping in Configuration > Collections.");
             }
             return requestTarget(new Located(collection, request));
         }
@@ -1247,12 +1335,12 @@ public class ConfigStoreGateway implements OperationGateway {
             return Target.none("An unmapped request has no target of its own. It is sent by naming the request.");
         }
         // A request that is a sample of a failure is mapped, and is not what a call uses unasked.
-        String mapped = firstMapped(snapshot, operation, true) == null ? "No collection request is mapped to " + operation.label()
-                : "The only collection requests mapped to " + operation.label() + " are samples of an error, which are used only "
-                + "when one is chosen";
-        return Target.none(operation == EpaOperation.CRD_DISCOVERY
-                ? mapped + ", " + property + " is not set, and no CRD hook request is mapped to derive it from."
-                : mapped + ", and " + property + " is not set.");
+        String why = firstMapped(snapshot, operation, true) == null ? null
+                : "the only collection requests mapped to it are samples of an error, used only when one is chosen";
+        if (operation == EpaOperation.CRD_DISCOVERY && why == null) {
+            why = "no CRD hook request is mapped to derive it from";
+        }
+        return Target.none(Readiness.noAddress(operation, why, property));
     }
 
     /**
@@ -1846,17 +1934,18 @@ public class ConfigStoreGateway implements OperationGateway {
         if (!owners.isEmpty() && !activeOwns) {
             String belongs = "the address it would go to belongs to the production environment" + (owners.size() > 1 ? "s " : " ")
                     + quotedAll(owners);
+            String remembered = rememberedNote(snapshot, intent.operation(), target, filled, owners);
             if (!store.allowProdWrites()) {
                 return new Refusal("Blocked: its address is a production address, and this installation is locked against production writes.", what + " is blocked: " + belongs + ", and an owner has locked this installation against production "
                         + "writes." + why, "An owner has locked this installation against production writes (config-store.allow-prod-writes "
                         + "is false), so no unlock is possible. Only whoever owns the installation can change that. To test without "
-                        + "production, switch to a sandbox or uat environment.");
+                        + "production, switch to a sandbox or uat environment." + (remembered == null ? "" : " " + remembered));
             }
             String activeNow = active == null ? "no environment is active" : "the active environment is \"" + Names.shown(active.name()) + "\"";
             return new Refusal("Blocked: its address belongs to a production environment that is not the active one.", what + " is blocked: " + belongs + ", and " + activeNow + ". A write goes to a production address "
                     + "only from that production environment, active and unlocked." + why, "Nothing was sent. To write to "
                     + quotedAll(owners) + ", activate it on the Config tab and unlock writes there. A value typed for one run, "
-                    + "application.yml or another environment cannot send a write to it.");
+                    + "application.yml or another environment cannot send a write to it." + (remembered == null ? "" : " " + remembered));
         }
 
         // An address this tool cannot read as the HTTP client reads it is never taken as "not
@@ -2036,6 +2125,75 @@ public class ConfigStoreGateway implements OperationGateway {
             forgetEarlierEpochs(snapshot.epoch());
             return mintedEpoch == snapshot.epoch() && minted.stream().anyMatch(unlock -> active.name().equals(unlock.environmentName()));
         }
+    }
+
+    /**
+     * The note under the guardrail's own sentences when a write is refused because its address is
+     * remembered as production and no environment that can be made active would let it go (I-19):
+     * the floor is locked, or no environment that made it production is stored any more. It names
+     * the environment the address was remembered from and the way out: Forget in Configuration >
+     * Production writes where it is offered (R-35), else the hand edit the upload refusal gave (D0). Null when activating that production environment and
+     * unlocking it would send the write, which the guardrail's sentence already says.
+     */
+    private String rememberedNote(ConfigSnapshot snapshot, EpaOperation operation, Target target, UrlForms.Filled filled,
+                                  List<String> owners) {
+        boolean removed = owners.stream().noneMatch(owner -> snapshot.byName(owner) != null);
+        if (owners.isEmpty() || (store.allowProdWrites() && !removed)) {
+            return null;
+        }
+        boolean several = owners.size() > 1;
+        String operationWords = operation == EpaOperation.UNMAPPED && target != null && target.requestName() != null
+                ? "The request \"" + Names.shown(target.requestName()) + "\"" : capitalised(operation.shortLabel());
+        // The address as shown, secrets masked, scheme, host, port and path only: never a query.
+        UrlNormal.Destination shown = filled == null ? null : UrlNormal.destination(filled.display() == null ? filled.probe() : filled.display());
+        String address = shown == null ? "an address" : ConfigStore.oneLine(shown.shown());
+        String entries = owners.stream().map(owner -> "\"" + ConfigStore.quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+        return operationWords + " goes to " + address + ", which this installation remembers as an address of the production environment"
+                + (several ? "s " : " ") + quotedAll(owners) + (removed ? (several ? ", which are no longer stored" : ", which is no longer stored")
+                : "") + ". Writes to it stay blocked whatever environment is active. If " + (several ? "they were" : "it was") + " stored as "
+                + "prod by mistake, " + (forgettable(snapshot, owners)
+                ? "press Forget this production address beside it in Configuration > Production writes."
+                // Forget never forgets an address of a stored production environment, so only the hand edit is left here.
+                : "stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
+                + store.directory().resolve(ConfigStore.STATE_FILE) + ", and start PAVE again.");
+    }
+
+    /** True when "Forget this production address" is offered for these owners' addresses: none of them is stored as prod (R-35). */
+    private static boolean forgettable(ConfigSnapshot snapshot, List<String> owners) {
+        return owners.stream().noneMatch(owner -> {
+            StoredEnvironment stored = snapshot.byName(owner);
+            return stored != null && stored.kind() == EnvironmentKind.PROD;
+        });
+    }
+
+    private static String capitalised(String words) {
+        return words.isEmpty() ? words : Character.toUpperCase(words.charAt(0)) + words.substring(1);
+    }
+
+    /**
+     * For a write access that is not production: the first write operation of the active
+     * environment whose address is remembered as production, said as its refusal will say it
+     * (I-19), or null when there is none.
+     */
+    private String rememberedWriteBlock(ConfigSnapshot snapshot) {
+        for (EpaOperation operation : EpaOperation.values()) {
+            if (!operation.outbound() || !operation.write() || operation == EpaOperation.UNMAPPED) {
+                continue;
+            }
+            CallPlan plan = plan(snapshot, CallIntent.of(operation));
+            UrlForms.Filled filled = plan.filled();
+            if (plan.refusal() == null || filled == null) {
+                continue;
+            }
+            UrlNormal.Destination destination = UrlNormal.destination(filled.complete() ? filled.send() : filled.probe());
+            List<String> owners = snapshot.productionOwners(destination);
+            if (owners.isEmpty()) {
+                continue;
+            }
+            String note = rememberedNote(snapshot, operation, plan.target(), filled, owners);
+            return note != null ? note : plan.refusal().reason();
+        }
+        return null;
     }
 
     private static String quotedAll(List<String> names) {

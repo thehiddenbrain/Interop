@@ -16,7 +16,7 @@ import java.util.List;
  * <p>The same on mock and on live: these are code lists, not samples, and nothing here is filled
  * in for the tester.
  *
- * @param version            the guide Submit follows, as the screen names it
+ * @param version            the guide Submit follows for the active environment, as the screen names it
  * @param certificationTypes X12 1322 certification type codes
  * @param requestTypes       X12 1525 request category codes
  * @param serviceTypes       X12 1365 service type codes
@@ -56,7 +56,8 @@ public record PasOptions(String version, List<Option> certificationTypes, List<O
     public record Attachments(List<Kind> kinds, long perFileBytes, long totalBytes) {
     }
 
-    public static final PasOptions CURRENT = new PasOptions("Da Vinci PAS 2.2.1",
+    /** The lists under the default guide, 2.0.1; the lists are the same under either guide. */
+    public static final PasOptions CURRENT = new PasOptions(PasGuide.V201.fullName(),
             List.of(new Option("I", "Initial"), new Option("S", "Revised"), new Option("4", "Extension"), new Option("R", "Renewal"),
                     new Option("3", "Cancel"), new Option("1", "Appeal, immediate"), new Option("2", "Appeal, standard")),
             List.of(new Option("HS", "Health services review"), new Option("AR", "Admission review"),
@@ -90,6 +91,13 @@ public record PasOptions(String version, List<Option> certificationTypes, List<O
         levelsOfService = List.copyOf(levelsOfService);
         placesOfService = List.copyOf(placesOfService);
         units = List.copyOf(units);
+    }
+
+    /** These lists named for the guide in force, such as "Da Vinci PAS 2.2.1" for an environment that chose it. */
+    public static PasOptions forGuide(PasGuide guide) {
+        PasGuide named = guide == null ? PasGuide.V201 : guide;
+        return new PasOptions(named.fullName(), CURRENT.certificationTypes(), CURRENT.requestTypes(), CURRENT.serviceTypes(),
+                CURRENT.levelsOfService(), CURRENT.placesOfService(), CURRENT.units(), CURRENT.attachments());
     }
 
     /** True when Submit sends a file of this media type. Compared without case, as media types are. */

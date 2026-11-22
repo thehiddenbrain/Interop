@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -280,6 +281,19 @@ class TestListControllerTest {
         mvc.perform(json(post(PROVIDERS + "/import"), importBody("label\r\nFirst\r\n", true))).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("The file has no npi or vendorPractitionerId column, so no row can be matched to a saved "
                         + "provider."));
+        // I-23: two files often chosen by mistake are named for what they are, not as a CSV missing its key column.
+        for (String separated : List.of("memberId;label\r\nS123456789;First\r\n", "memberId\tlabel\r\nS123456789\tFirst\r\n")) {
+            mvc.perform(json(post(MEMBERS + "/import"), importBody(separated, true))).andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.title").value("This file is separated by semicolons (or tabs)."))
+                    .andExpect(jsonPath("$.action").value("In Excel, save it as CSV UTF-8 (comma delimited), then choose it again."));
+        }
+        for (String json : List.of("{\"info\": {}}", "\uFEFF  [1, 2]")) {
+            mvc.perform(json(post(PROVIDERS + "/import"), importBody(json, true))).andExpect(status().isUnprocessableContent())
+                    .andExpect(jsonPath("$.title").value("This is a JSON file, not a CSV file."))
+                    .andExpect(jsonPath("$.action").value("Choose the CSV saved from Excel or from the template."));
+        }
+        // A comma file whose cells hold a semicolon is still read as the CSV it is.
+        mvc.perform(json(post(MEMBERS + "/import"), importBody("memberId,label\r\nS123456789,One; two\r\n", true))).andExpect(status().isOk());
         refusedAt(mvc.perform(json(post(MEMBERS + "/import"), "{\"csv\": \"memberId\\r\\nS123456789\\r\\n\"}")), "dryRun",
                 "Say whether this is a dry run: true shows what each row would do, false imports.");
         refusedAt(mvc.perform(json(post(MEMBERS + "/import"), "{\"csv\": \" \", \"dryRun\": true}")), "csv",

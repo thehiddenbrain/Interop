@@ -163,7 +163,10 @@ export function questionField(spec) {
     const item = spec.item;
     const linkId = linkIdOf(item);
     const type = (item.type && item.type.code) || '';
-    const required = value(item.required) === 'true';
+    // A question its conditions turn off is drawn muted and never as required, but stays open to
+    // typing (I-36): the answers sent with it may meet its condition, and the server decides then.
+    const off = item.enabled === 'DISABLED';
+    const required = value(item.required) === 'true' && !off;
     const repeats = value(item.repeats) === 'true';
     const readOnly = value(item.readOnly) === 'true';
     const start = heldValues(item, spec.held);
@@ -176,7 +179,7 @@ export function questionField(spec) {
         required ? [el('span', {class: 'required', 'aria-hidden': 'true'}, '*'), el('span', {class: 'visually-hidden'}, 'required')] : null,
         markSlot);
     const error = el('p', {class: 'field__error', hidden: true});
-    const node = el('div', {class: ['field', 'question', item.enabled === 'DISABLED' ? 'question--off' : null,
+    const node = el('div', {class: ['field', 'question', off ? 'question--off' : null,
         spec.depth > 0 ? 'detail__depth-' + Math.min(spec.depth, DEEPEST) : null], 'data-link-id': linkId});
 
     let control;
@@ -221,12 +224,11 @@ export function questionField(spec) {
         fromCase = spec.fromCase;
         markSlot.textContent = fromCase.mark;
     }
-    const disabled = item.enabled === 'DISABLED';
     const empty = () => {
         const now = control.get();
         return Array.isArray(now) && now.length === 0;
     };
-    const takesCase = () => Boolean(linkId) && !prefilled && !readOnly && !disabled && empty();
+    const takesCase = () => Boolean(linkId) && !prefilled && !readOnly && !off && empty();
     if (readOnly) {
         control.disable();
     }
@@ -234,10 +236,8 @@ export function questionField(spec) {
     if (start.unshown.length > 0) {
         node.append(el('span', {class: 'field__hint'}, 'In the response: ' + start.unshown.join(', ')));
     }
-    // A question whose condition does not hold is greyed and says nothing of why; the reason is
-    // drawn only for a question asked because of another answer (plan 3.2).
-    if (!disabled && typeof item.enabledReason === 'string' && item.enabledReason !== '') {
-        node.append(el('span', {class: 'field__hint'}, item.enabledReason));
+    if (typeof item.enabledReason === 'string' && item.enabledReason !== '') {
+        node.append(el('span', {class: 'field__hint muted enabled-reason'}, item.enabledReason));
     }
     if (!linkId) {
         node.append(el('span', {class: 'field__hint'}, 'It has no linkId, so an answer to it cannot be sent.'));

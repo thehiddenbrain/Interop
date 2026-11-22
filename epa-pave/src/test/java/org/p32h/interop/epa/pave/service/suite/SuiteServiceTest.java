@@ -673,7 +673,7 @@ class SuiteServiceTest {
         assertThat(service.list().get(0).name()).isEqualTo("cases-" + SuiteService.KEPT_RUNS + ".csv");
         String dropped = firstId;
         assertThatThrownBy(() -> service.get(dropped, true)).isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("History tab");
+                .hasMessageContaining("in Audit");
         // The dropped run is still in the ledger, under its suite run id.
         assertThat(bed.ledger.query(RunQuery.forSuite(dropped))).hasSize(1);
         assertThatThrownBy(() -> service.get(null, true)).isInstanceOf(NotFoundException.class);
@@ -1304,7 +1304,7 @@ class SuiteServiceTest {
         assertThat(run.counts().notSignedIn()).isEqualTo(1);
         assertThat(run.counts().unverified()).isZero();
         assertThat(run.headline()).isEqualTo("Finished: 1 case. 1 not sent (sign-in).");
-        assertThat(row.nextStep()).isEqualTo("Check the token endpoint (onyx.auth.token-url): it gave this tool no access token, so nothing "
-                + "was sent to the service.");
+        assertThat(row.nextStep()).isEqualTo("Check the token url (the Sign-in of the environment in Configuration > Environments, or "
+                + "onyx.auth.token-url as PAVE was started): it gave this tool no access token, so nothing was sent to the service.");
     }
 }

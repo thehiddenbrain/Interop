@@ -43,6 +43,9 @@ public final class PasVerdicts {
             + "is a new claim with its own identifier that replaces this one (Claim.related, relationship replaces), or the CDex "
             + "operation $submit-attachment. This tool builds neither.";
 
+    /** The next step for an answer that asks for more documents, met on the Submit step. */
+    static final String ADD_THE_DOCUMENTS = "Add the documents asked for and send again.";
+
     private PasVerdicts() {
     }
 
@@ -362,22 +365,22 @@ public final class PasVerdicts {
         carry.put(NextStepView.CARRY_PROCEDURE_CODES, reading.sent().codes());
 
         return switch (outcome) {
-            case APPROVED, APPROVED_WITH_CHANGES -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case APPROVED, APPROVED_WITH_CHANGES -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer approved the request, so there is nothing further to send.", carry);
-            case PARTIALLY_APPROVED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case PARTIALLY_APPROVED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer gave a final decision on every item: part of the request is approved and part is not.", carry);
-            case DENIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case DENIED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer denied the request. That is a final decision, and a result to record whether or not it was expected.", carry);
-            case CANCELLED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case CANCELLED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The request is cancelled, so there is no decision to wait for.", carry);
-            case NO_ACTION_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here. Record this result.",
+            case NO_ACTION_REQUIRED -> new NextStepView(NextAction.FLOW_ENDS, "The flow ends here: nothing further to send.",
                     "The payer answered that no action is required for this request.", carry);
             case PENDED -> new NextStepView(NextAction.CHECK_STATUS, "Next: choose Send inquiry to ask for the status, or wait for a notification.",
                     "The request is pended: the payer has not decided yet.", carry);
-            case ATTACHMENT_REQUIRED -> new NextStepView(NextAction.START_PAS,
-                    "Next: send the documentation the payer asked for. Choosing Send PAS request again sends a new request with the same "
-                            + "claim identifier, which is not the PAS 2.0.1 way.",
-                    "The payer will not decide until it has the documentation it refers to. " + GUIDE_ROUTE, carry);
+            // The tester is on Submit already, so the step names what to do there and offers no button to go to it.
+            case ATTACHMENT_REQUIRED -> new NextStepView(NextAction.SUPPLY_INFORMATION, ADD_THE_DOCUMENTS,
+                    "The payer will not decide until it has the documentation it refers to. Sending again sends a new request with the "
+                            + "same claim identifier, which is not the PAS 2.0.1 way. " + GUIDE_ROUTE, carry);
             case CONTACT_PAYER -> new NextStepView(NextAction.REVIEW, "Next: contact the payer about this request. Nothing more can be done "
                     + "from this tool.", "The payer answered with the review action that asks to be contacted.", carry);
             case MIXED -> reading.decisions().stream().anyMatch(d -> d.outcome() == PasOutcome.PENDED)
@@ -466,11 +469,11 @@ public final class PasVerdicts {
     private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
         int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 401 || status == 403) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials in Configuration > Environments > Sign-in.",
                     RunSupport.credentialsReason(status, exchange), carry);
         }
         if (status == 404) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the PAS url on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the PAS url in Configuration > Environments > Addresses.",
                     "The service answered HTTP 404 and did not say that the member, the provider or the request is unknown, so the "
                             + "address is the likely cause.", carry);
         }

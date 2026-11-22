@@ -28,7 +28,8 @@ export function createProviderCard(env) {
     let extra = {};
     const run = latestOnly();
 
-    const npiRow = el('div', {class: 'field'}, el('label', {class: 'field__label', for: npi.input.id}, 'NPI', npi.node.querySelector('.field__mark')),
+    // The row keeps the field's name so a refusal of the NPI is shown under the label the tester sees (I-3).
+    const npiRow = el('div', {class: 'field', 'data-case-field': 'npi'}, el('label', {class: 'field__label', for: npi.input.id}, 'NPI', npi.node.querySelector('.field__mark')),
         el('div', {class: 'inline-controls'}, npi.input, el('button', {type: 'button', class: 'btn', on: {click: () => lookup()}}, 'Look up')),
         npi.node.querySelector('.masked-carry-slot'), npi.node.querySelector('.field__error'));
     npi.node = npiRow;
@@ -120,7 +121,10 @@ export function createProviderCard(env) {
         const values = fieldsOf(fields).values;
         const name = [values.firstName, values.lastName].filter(Boolean).join(' ') || values.organizationName || '';
         const chosen = name || npi.value() || values.vendorPractitionerId || '';
-        head.picked(chosen || 'not chosen', Boolean(chosen));
+        // An NPI the server refused is never drawn with the tick of a chosen provider (I-3).
+        const said = npi.node.querySelector('.field__error');
+        const refused = Boolean(said && !said.hidden);
+        head.picked(chosen || 'not chosen', Boolean(chosen) && !refused);
         head.attention(Boolean(answer && Array.isArray(answer.attention) && answer.attention.length > 0));
         const status = statusChip(answer);
         const network = extra.networkStatus || null;
@@ -129,7 +133,7 @@ export function createProviderCard(env) {
             el('div', {class: 'summary__line'}, el('span', {class: 'summary__name'}, name || chosen), status),
             values.specialty || network ? el('div', {class: 'summary__line'}, values.specialty ? el('span', null, values.specialty) : null,
                 network ? el('span', null, network) : null) : null);
-        fill(line, lookupLine(answer) || '');
+        fill(line, lookupLine(answer, {words: 'Set up the provider lookup', href: '#configuration/providers'}) || '');
         fill(returned, returnedFold(answer) || '');
     }
 
@@ -171,6 +175,7 @@ export function createProviderCard(env) {
             }
             control.setError(message || null);
             control.input.focus();
+            draw();
             return true;
         },
         /** Takes the NPI of a mock member's sample case, and looks it up. */

@@ -138,7 +138,7 @@ public class SubscriptionService {
                         + "the service can reach this tool's receiver, which ends in /api/pas/notifications, and send again.";
             }
         } else if (sendsBody) {
-            SubscriptionRequestBuilder.Built built = builder.build(id, call::resolve);
+            SubscriptionRequestBuilder.Built built = builderFor(call).build(id, call::resolve);
             body = built.body();
             requestNotes.addAll(built.notes());
             callbackUrl = built.callbackUrl();
@@ -312,8 +312,17 @@ public class SubscriptionService {
             return RequestPreview.of(operation, call, resolved.resolved() ? resolved.display() : request.rawBody(), resolved.resolved() ? List.of()
                     : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + "."), null);
         }
-        SubscriptionRequestBuilder.Built built = builder.build(id, call::resolve);
+        SubscriptionRequestBuilder.Built built = builderFor(call).build(id, call::resolve);
         return RequestPreview.of(operation, call, built.shownJson(), PasNotes.asPreview(built.notes()), null);
+    }
+
+    /**
+     * The builder for this call: with the callback url the active environment types, when it types
+     * one (R-42), else with application.yml's. The environment's url is a template and is resolved
+     * by the call, as application.yml's is.
+     */
+    private SubscriptionRequestBuilder builderFor(PreparedCall call) {
+        return Texts.present(call.callbackUrl()) ? new SubscriptionRequestBuilder(call.callbackUrl()) : builder;
     }
 
     private static boolean sendsBody(EpaOperation operation) {

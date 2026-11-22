@@ -109,6 +109,29 @@ class ConfigPagesFrontendTest {
             await settle();
             say(['unread', fake.sent.filter(each => each.key.startsWith('POST')).length === 2, text(root).includes('empty.json is empty.'), input.value]);
 
+            // A refusal of the file is one plain line, like the page's own (AU-5); while PAVE's files
+            // changed on disk, the line under it says that this can be the cause (I-12).
+            fake.answers['POST /api/config/collections'] = {status: 422, body: {kind: 'VALIDATION', heading: 'A problem with what was submitted',
+                title: 'This is a Postman collection in the old v1 format, which this tool does not read.', action: 'In Postman, export it as Collection v2.1. Then upload it.'}};
+            const refuse = async changed => {
+                fake.mode.build = {changedOnDisk: changed};
+                input.files = [new File([new TextEncoder().encode('{}')], 'col-v1.json')];
+                input.value = 'C:/fakepath/col-v1.json';
+                await upload.click();
+                await settle();
+                return [root.querySelectorAll('.error-panel').length, root.querySelectorAll('.file-refusal .field__error').map(text),
+                    root.querySelectorAll('.files-changed-note').map(text)];
+            };
+            say(['line', await refuse(false)]);
+            say(['changed', await refuse(true)]);
+            // The page's own refusal of a file says it too.
+            input.files = [new File([new Uint8Array(0)], 'empty.json')];
+            input.value = 'C:/fakepath/empty.json';
+            await upload.click();
+            await settle();
+            say(['own line', text(root).includes('empty.json is empty.'), root.querySelectorAll('.files-changed-note').length]);
+            delete fake.mode.build;
+
             // The mapping: one line per request, the choice sent at once.
             const mapping = root.querySelectorAll('button').find(each => text(each) === 'Mapping');
             await mapping.click();
@@ -143,6 +166,9 @@ class ConfigPagesFrontendTest {
                 "[\"refused\",true,true,true,\"\"]",
                 // A file the page cannot read is said in one line and never posted.
                 "[\"unread\",true,true,\"\"]",
+                "[\"line\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[]]]",
+                "[\"changed\",[0,[\"col-v1.json: This is a Postman collection in the old v1 format, which this tool does not read. In Postman, export it as Collection v2.1. Then upload it.\"],[\"PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.\"]]]",
+                "[\"own line\",true,1]",
                 "[\"options\",[\"PAS submit\",\"PAS inquire\",\"Unmapped\"]]",
                 "[\"mapped\",[{\"requestId\":\"order-sign Happy Path\",\"operation\":\"PAS_INQUIRE\"}],true]",
                 // A removal is offered inside the open row only, asks first, and is sent once.
@@ -223,20 +249,60 @@ class ConfigPagesFrontendTest {
                 all.split('No. The active environment is declared as sandbox.').length - 1, all.includes('Yes, without signing in.'),
                 all.includes('The first request mapped is used.'), all.includes('./config-store'), all.includes('The PAS address reads as production.'),
                 all.includes('Lookups in force'), all.includes('********')]);
-            // Only what the server serves is drawn.
+            // Only what the server serves is drawn; with no checklist, Where PAVE is pointed says production itself.
             delete effective.readiness;
-            fake.answers['GET /api/config/lookups'] = {status: 200, body: {member: {kind: 'member', stated: true, inForce: {from: 'this screen', words: 'POST, signs in with an API key header'}}}};
             await root.querySelectorAll('button').find(each => text(each) === 'Read again').click();
             await settle();
             all = text(root);
-            say(['partial', all.includes('Ready to send?'), all.includes('Lookups in force'), all.includes('POST, signs in with an API key header'), all.includes('Provider lookup')]);
+            say(['partial', all.includes('Ready to send?'), all.split('No. The active environment is declared as sandbox.').length - 1]);
+            // Release 2 serves /api/config/lookups (C2c): each read of the page asks it once, for "Lookups in force".
+            say(['asked', fake.sent.filter(each => each.key.includes('/api/config/lookups')).length]);
             """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                // "Ready to send?" first; the production fact said twice in the same words; the settings stay in a closed fold.
-                "[\"drawn\",true,2,true,true,true,true,false,false]",
-                // No readiness served: no checklist; the lookups drawn once the server serves them.
-                "[\"partial\",false,true,true,false]");
+                // "Ready to send?" first; the production fact said once, not again under Where PAVE is pointed (look-19);
+                // the settings stay in a closed fold.
+                "[\"drawn\",true,1,true,true,true,true,false,false]",
+                "[\"partial\",false,1]",
+                "[\"asked\",2]");
+    }
+
+    @Test
+    void withNoEnvironmentActiveInForceNowSaysSoOnceOnMockAndOnLive(@TempDir Path folder) throws Exception {
+        // The server's words as ConfigService and ConfigStoreGateway write them with no environment active.
+        NodeRun run = StaticSources.runModule(folder, "cfg-inforce.js", PRELUDE + """
+            const none = 'No environment is active. Open Configuration and make one active.';
+            const page = async (profile, write, row) => {
+                fake.mode = {mode: profile, environment: {active: false}, writeAccess: {production: false, writesAllowed: profile === 'mock', reason: write}};
+                fake.answers['GET /api/config/effective'] = {status: 200, body: {mode: profile, problems: [],
+                    operations: [
+                        Object.assign({operation: 'CRD_ORDER_SIGN', label: 'CRD order-sign', outbound: true, method: 'POST', write: false}, row),
+                        Object.assign({operation: 'PAS_SUBMIT', label: 'PAS submit', outbound: true, method: 'POST', write: true}, row),
+                        {operation: 'DTR_QUESTIONNAIRE_RESPONSE', label: 'DTR questionnaire response', outbound: false,
+                            note: 'This step is completed inside the tool. Nothing is sent for it, so it has no target.'}],
+                    readiness: {environmentLine: 'none is active.', environmentActive: false, collections: 0, mapped: 0, sendable: 0, outbound: 2, missingSecrets: []}}};
+                fake.answers['GET /api/config/environments'] = {status: 200, body: {environments: []}};
+                const {mount} = await import('./js/cfg-inforce.js');
+                const root = document.createElement('div');
+                document.body.append(root);
+                const drawn = mount(root, ['advanced', 'in-force']);
+                await settle();
+                const all = text(root);
+                drawn.unmount();
+                return [profile, all.split('No environment is active').length - 1, all.split('no address').length - 1,
+                    all.includes('This step is completed inside the tool.'), all.includes('Make one active')];
+            };
+            say(await page('mock', 'No environment is active. On the mock profile nothing is sent, so writes are allowed.',
+                {note: none + ' On the mock profile nothing is sent, so this still runs.'}));
+            say(await page('live', 'No environment is active, so writes are refused: this tool cannot tell whether a target is production. '
+                + 'Upload an environment, state its kind and activate it.', {unavailable: none}));
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        // Said once, in "Ready to send?" with the way to make one active (look-19); each row keeps its
+        // address and a sentence that says anything else.
+        assertThat(run.lines()).containsExactly(
+                "[\"mock\",1,2,true,true]",
+                "[\"live\",1,2,true,true]");
     }
 
     @Test

@@ -242,6 +242,15 @@ public interface OperationGateway {
     }
 
     /**
+     * The request shapes the active environment states, each else at its default. For what is shown
+     * before any call is prepared, such as the PAS guide the Service card names. This default knows
+     * no configuration and answers the defaults.
+     */
+    default org.p32h.interop.epa.pave.model.RequestShapes activeShapes() {
+        return org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
+    }
+
+    /**
      * The connect and read timeouts a call to the vendor's services is given now, both present,
      * each with its source: the active environment's own where it states them, else
      * application.yml's. For words about a timeout when the call itself is not at hand.
@@ -264,6 +273,25 @@ public interface OperationGateway {
      * never for a view, a log or the ledger.
      */
     default SignInSettings activeSignIn() {
+        return null;
+    }
+
+    /**
+     * Why a sign-in may not be sent to this token url, resolved as it would be sent, or null when
+     * it may (I-28): a token url that is, or lies beneath, an address a production environment
+     * uses for a call is refused whatever was stored, since a sign-in posts the client secret.
+     * The words name the address by its scheme, host and port only. This default refuses nothing.
+     */
+    default String tokenUrlRefusal(String tokenUrl) {
+        return null;
+    }
+
+    /**
+     * The token url the active environment's Sign-in states for client credentials, as stored,
+     * with any credential written into it masked, or null when it states none and onyx.auth
+     * applies. For naming the url a failed sign-in was sent to (I-34). This default knows none.
+     */
+    default String activeTokenUrlShown() {
         return null;
     }
 }

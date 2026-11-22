@@ -70,7 +70,7 @@ export function createCodePicker(spec) {
         'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': ids.list, 'aria-describedby': ids.status
     });
     const add = el('button', {type: 'button', class: 'btn btn--icon', 'aria-label': 'Add this code', title: 'Add this code',
-        on: {click: () => { commitTyped(); input.focus(); }}}, '+');
+        on: {click: () => { commitTyped(); input.focus({preventScroll: true}); }}}, '+');
     const listbox = el('ul', {class: 'picker__options', id: ids.list, role: 'listbox', 'aria-label': 'Codes on the code list'});
     const popup = el('div', {class: 'picker__popup', hidden: true}, listbox);
     const status = el('span', {class: 'visually-hidden', id: ids.status, role: 'status', 'aria-live': 'polite'});
@@ -183,7 +183,7 @@ export function createCodePicker(spec) {
         el('span', {class: 'mono'}, option.code), ' ', el('span', {class: 'small'}, cutDescription(first.description)), ' ',
         tags(option.rows));
         node.addEventListener('mousedown', event => event.preventDefault());
-        node.addEventListener('click', () => { choose(option); input.focus(); });
+        node.addEventListener('click', () => { choose(option); input.focus({preventScroll: true}); });
         return node;
     }
 
@@ -265,7 +265,7 @@ export function createCodePicker(spec) {
                 button('Remove', () => {
                     entries = entries.filter(other => other !== entry);
                     draw();
-                    input.focus();
+                    input.focus({preventScroll: true});
                 }, {small: true, quiet: true, title: 'Remove ' + entry.input.code}));
         }));
         for (const remove of lines.querySelectorAll('button')) {

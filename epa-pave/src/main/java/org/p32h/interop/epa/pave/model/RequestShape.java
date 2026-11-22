@@ -8,21 +8,31 @@ import java.util.List;
  * is a setting of the environment rather than a fixed choice.
  *
  * <p>Shapes that the guides allow and the vendor accepted are simply what the tool sends, and are
- * not listed here. Only a departure from FHIR becomes a setting, and its default is always the shape
+ * not listed here. A departure from FHIR becomes a setting, and its default is always the shape
  * FHIR requires: turning a departure on needs evidence (the environment states it, or the vendor's
- * own sample in the collection shows it), never a guess.
+ * own sample in the collection shows it), never a guess. The version of the PAS guide Submit is
+ * held against is a setting too, because payers run different versions; its default is the one the
+ * payer this tool was built for runs.
  */
 public enum RequestShape {
     CRD_DRAFT_ORDERS_TYPE("draftOrders type", "context.draftOrders.type",
             List.of(new Option(RequestShape.SENT, "Sent (FHIR requires it)"),
                     new Option(RequestShape.LEFT_OUT, "Left out (this vendor refuses it)")),
             RequestShape.SENT,
-            "The vendor's sandbox refused context.draftOrders.type with HTTP 400; FHIR requires Bundle.type.");
+            "The vendor's sandbox refused context.draftOrders.type with HTTP 400; FHIR requires Bundle.type."),
+    PAS_GUIDE("PAS guide", "the Claim of Submit and of the inquiry",
+            List.of(new Option(RequestShape.PAS_201, "2.0.1"), new Option(RequestShape.PAS_221, "2.2.1")),
+            RequestShape.PAS_201,
+            "Submit follows Da Vinci PAS 2.0.1 unless the service asks for 2.2.1.");
 
     /** The value of a shape whose element is sent as FHIR requires. */
     public static final String SENT = "SENT";
     /** The value of a shape whose element is left out because the vendor refuses it. */
     public static final String LEFT_OUT = "LEFT_OUT";
+    /** The value of the PAS guide for Da Vinci PAS 2.0.1, the version the payer runs. */
+    public static final String PAS_201 = "2.0.1";
+    /** The value of the PAS guide for Da Vinci PAS 2.2.1, for a service that asks for it. */
+    public static final String PAS_221 = "2.2.1";
 
     /**
      * One value a shape can take, with the words a tester picks it by.
@@ -69,7 +79,7 @@ public enum RequestShape {
         return options;
     }
 
-    /** The value FHIR requires, which applies when nothing states another. */
+    /** The value FHIR requires (for the PAS guide, the payer's version), which applies when nothing states another. */
     public String defaultValue() {
         return defaultValue;
     }

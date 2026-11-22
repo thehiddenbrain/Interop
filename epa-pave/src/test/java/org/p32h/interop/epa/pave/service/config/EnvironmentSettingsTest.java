@@ -76,7 +76,7 @@ class EnvironmentSettingsTest {
         addresses.put("PAS_SUBMIT", "https://vendor.example.invalid/fhir/Claim/$submit");
         addresses.put("SUBSCRIPTION", "{{baseUrl}}/notify");
         body.put("memberIdRule", "SPACED");
-        body.putObject("shapes").put("CRD_DRAFT_ORDERS_TYPE", "LEFT_OUT");
+        body.putObject("shapes").put("CRD_DRAFT_ORDERS_TYPE", "LEFT_OUT").put("PAS_GUIDE", "2.2.1");
         ObjectNode values = body.putObject("values");
         values.put("payerName", "Placeholder Payer");
         values.put("pasLocalCode", "S123");
@@ -105,7 +105,8 @@ class EnvironmentSettingsTest {
         assertThat(settings.addresses()).containsEntry(EpaOperation.PAS_SUBMIT, "https://vendor.example.invalid/fhir/Claim/$submit")
                 .containsEntry(EpaOperation.SUBSCRIPTION_CREATE, "{{baseUrl}}/notify").hasSize(2);
         assertThat(settings.memberIdRule()).isEqualTo(MemberIdRule.SPACED);
-        assertThat(settings.shapes()).containsExactly(Map.entry(RequestShape.CRD_DRAFT_ORDERS_TYPE, "LEFT_OUT"));
+        assertThat(settings.shapes()).containsExactly(Map.entry(RequestShape.CRD_DRAFT_ORDERS_TYPE, "LEFT_OUT"),
+                Map.entry(RequestShape.PAS_GUIDE, "2.2.1"));
         assertThat(settings.values()).containsExactly(Map.entry("payerName", "Placeholder Payer"), Map.entry("pasLocalCode", "S123"));
 
         String id = restarted.store.snapshot().byName("Onyx Sandbox").id();
@@ -130,6 +131,14 @@ class EnvironmentSettingsTest {
         assertThat(shape.get("value").stringValue()).isEqualTo("LEFT_OUT");
         assertThat(shape.get("from").stringValue()).isEqualTo("this environment");
         assertThat(shape.get("why").stringValue()).isEqualTo(RequestShape.CRD_DRAFT_ORDERS_TYPE.why());
+        // The PAS guide is drawn as the other shapes are: its label, value, source, options and why.
+        JsonNode guide = view.get("shapes").get(1);
+        assertThat(guide.get("key").stringValue()).isEqualTo("PAS_GUIDE");
+        assertThat(guide.get("label").stringValue()).isEqualTo("PAS guide");
+        assertThat(guide.get("value").stringValue()).isEqualTo("2.2.1");
+        assertThat(guide.get("from").stringValue()).isEqualTo("this environment");
+        assertThat(guide.get("options").get(0).get("value").stringValue()).isEqualTo("2.0.1");
+        assertThat(guide.get("why").stringValue()).isEqualTo("Submit follows Da Vinci PAS 2.0.1 unless the service asks for 2.2.1.");
 
         List<String> names = new ArrayList<>();
         view.get("values").forEach(value -> names.add(value.get("name").stringValue()));

@@ -77,7 +77,8 @@ export function createMemberCard(env) {
     const run = latestOnly();
 
     const lookupButton = el('button', {type: 'button', class: 'btn', on: {click: () => lookup()}}, 'Look up');
-    const idRow = el('div', {class: 'field'}, el('label', {class: 'field__label', for: id.input.id}, 'Member ID', id.node.querySelector('.field__mark')),
+    // The row keeps the field's name so a refusal of member.memberId is shown under the label the tester sees (I-3).
+    const idRow = el('div', {class: 'field', 'data-case-field': 'memberId'}, el('label', {class: 'field__label', for: id.input.id}, 'Member ID', id.node.querySelector('.field__mark')),
         el('div', {class: 'inline-controls'}, id.input, lookupButton),
         id.node.querySelector('.masked-carry-slot'), id.node.querySelector('.field__error'));
     id.node = idRow;
@@ -237,9 +238,9 @@ export function createMemberCard(env) {
                 values.dateOfBirth || found ? el('span', null, 'DOB ', values.dateOfBirth ? el('span', {class: 'mono'}, values.dateOfBirth)
                     : notReturned('dateOfBirth')) : null,
                 values.lineOfBusiness ? el('span', null, values.lineOfBusiness) : notReturned('lineOfBusiness')) : null);
-        fill(sent, ...(answer && answer.memberId ? [sentAs(answer.memberId),
+        fill(sent, ...(sentForms(answer) ? [sentAs(answer.memberId),
             answer.memberId.note ? el('span', null, ' ' + answer.memberId.note) : null] : []));
-        fill(line, lookupLine(answer) || '');
+        fill(line, lookupLine(answer, {words: 'Set up the member lookup', href: '#configuration/members'}) || '');
         fill(returned, returnedFold(answer) || '');
     }
 
@@ -318,4 +319,9 @@ export function createMemberCard(env) {
             return source;
         }
     };
+}
+
+/** The member ID forms a lookup answer says were sent, or null: a lookup not set up sent nothing (B7). */
+export function sentForms(answer) {
+    return answer && answer.memberId && answer.status !== 'DISABLED' ? answer.memberId : null;
 }

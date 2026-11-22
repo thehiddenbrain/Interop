@@ -49,6 +49,7 @@ public final class FakeGateway implements OperationGateway {
     private String requestName;
     private boolean scripted;
     private org.p32h.interop.epa.pave.model.SentSecrets held = org.p32h.interop.epa.pave.model.SentSecrets.none();
+    private org.p32h.interop.epa.pave.model.RequestShapes shapes = org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
 
     /** A gateway with nothing configured, which is the out-of-the-box state on mock. */
     public static FakeGateway unconfigured() {
@@ -64,6 +65,18 @@ public final class FakeGateway implements OperationGateway {
     public FakeGateway held(org.p32h.interop.epa.pave.model.SentSecrets secrets) {
         this.held = secrets;
         return this;
+    }
+
+    /** The PAS guide every call prepared from now on carries, as an environment that chose it in its form gives it. */
+    public FakeGateway pasGuide(String version) {
+        shapes = shapes.with(org.p32h.interop.epa.pave.model.RequestShape.PAS_GUIDE,
+                org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofEnvironment(version));
+        return this;
+    }
+
+    @Override
+    public org.p32h.interop.epa.pave.model.RequestShapes activeShapes() {
+        return shapes;
     }
 
     public FakeGateway url(EpaOperation operation, String template) {
@@ -138,9 +151,10 @@ public final class FakeGateway implements OperationGateway {
             url = new ResolvedUrl(template, complete ? display : null, complete ? value : null, text.variables(), unresolved, "test");
         }
         Map<String, String> runValues = intent.runValues();
-        return TestPreparedCalls.holding(TestPreparedCalls.at(epoch, body -> resolve(body, runValues), intent.operation(),
+        PreparedCall prepared = TestPreparedCalls.holding(TestPreparedCalls.at(epoch, body -> resolve(body, runValues), intent.operation(),
                 intent.method() != null ? intent.method() : intent.operation().defaultMethod(), url,
                 headers.getOrDefault(intent.operation(), List.of()), environment, requestName, scripted), held);
+        return TestPreparedCalls.shaped(prepared, shapes);
     }
 
     private static String substituteTokens(String text, Map<String, String> urlValues, List<String> unresolved) {

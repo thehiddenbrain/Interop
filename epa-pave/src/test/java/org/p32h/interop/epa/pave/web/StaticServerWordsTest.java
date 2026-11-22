@@ -153,7 +153,6 @@ class StaticServerWordsTest {
             new Read("wb-status.js", "answer.data.latest", NotificationList.class, "latest"),
             new Read("wb-status.js", "got.notifications", NotificationList.class, "notifications"),
             new Read("wb-status.js", "got.held", NotificationList.class, "held"),
-            new Read("wb-status.js", "counts.received", NotificationList.class, "received"),
             new Read("wb-status.js", "item.receivedAt", NotificationView.class, "receivedAt"),
             new Read("wb-status.js", "item.correlatedRunId", NotificationView.class, "correlatedRunId"),
             new Read("wb-status.js", "item.faultReference", NotificationView.class, "faultReference"),

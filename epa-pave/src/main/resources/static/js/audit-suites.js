@@ -76,6 +76,9 @@ export function mount(root, route) {
     const templateLink = el('a', {class: 'btn btn--quiet', href: '#', download: 'pave-suite-template.csv',
         title: 'Columns and three rows with the mock profile\'s test member IDs only.'}, 'CSV template');
     const previewBox = el('div', {'aria-live': 'polite'});
+    // A refusal names its fields by the labels on this page, never by a property (I-3).
+    const labels = {file: 'Suite file', text: 'Suite file', testerRef: 'Tester reference', compareWith: 'Compare with an earlier suite run'};
+    const labelOf = name => labels[name] || null;
     const problem = el('div');
     const runBox = el('div');
     const earlier = el('div');
@@ -162,7 +165,7 @@ export function mount(root, route) {
             return;
         }
         if (!answer.ok) {
-            fill(previewBox, errorPanel(answer.error));
+            fill(previewBox, errorPanel(answer.error, {labelOf}));
             return;
         }
         const seen = answer.data || {};
@@ -235,7 +238,7 @@ export function mount(root, route) {
         }
         if (!answer.ok) {
             drawStart();
-            fill(problem, errorPanel(answer.error));
+            fill(problem, errorPanel(answer.error, {labelOf}));
             return;
         }
         show(answer.data || {});

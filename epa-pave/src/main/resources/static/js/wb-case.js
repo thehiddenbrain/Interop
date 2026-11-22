@@ -115,12 +115,15 @@ export function caseField(spec) {
         },
         /** Sets the value and its mark; with no mark, it is the tester's own. */
         set(value, mark) {
+            // A value put in by a pick, a lookup or a new case is not the one the server refused.
+            control.setError(null);
             input.value = value === undefined || value === null ? '' : String(value);
             control.origin = mark ? {value: input.value, mark} : null;
             showMark(mark || (input.value !== '' ? MARKS.HAND : null));
         },
         /** Empties the field and forgets where it came from. */
         clear() {
+            control.setError(null);
             input.value = '';
             control.origin = null;
             showMark(null);
@@ -128,6 +131,7 @@ export function caseField(spec) {
         },
         /** A masked value: left empty, with its mark. */
         masked() {
+            control.setError(null);
             input.value = '';
             control.origin = null;
             showMark(MARKS.MASKED);

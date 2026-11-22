@@ -11,7 +11,7 @@ import {app} from './app.js';
 import {el, fill, clear, chip, button, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, once, sentences, counted, day, none} from './cfg-parts.js';
+import {pageHead, section, part, during, once, sentences, counted, day, none, fileRefusal, fileChooser, shownFile, filesChangedNote} from './cfg-parts.js';
 
 const UNMAPPED = 'UNMAPPED';
 
@@ -31,7 +31,7 @@ export function mount(root, route) {
     const table = el('div');
 
     const page = section(
-        pageHead('Collections', 'Postman collection exports: sample requests and their mapping.', file, upload, busy),
+        pageHead('Collections', 'Postman collection exports: sample requests and their mapping.', fileChooser(file, 'Collection export'), upload, busy),
         locks, outcome, status, table);
     root.append(page);
 
@@ -39,15 +39,17 @@ export function mount(root, route) {
         clear(outcome);
         clear(status);
         const read = await readText(file, {maxBytes: 20 * 1024 * 1024});
+        shownFile(file);
         if (!read.ok) {
-            fill(outcome, el('p', {class: 'field__error', role: 'alert'}, read.line));
+            fill(outcome, el('p', {class: 'field__error', role: 'alert'}, read.line), filesChangedNote());
             return;
         }
         const answer = await call('POST', '/api/config/collections', {body: {fileName: read.fileName, text: read.text}});
         // Whatever the answer, the chosen file is let go: the next press reads what is chosen then.
         file.value = '';
+        shownFile(file);
         if (!answer.ok) {
-            fill(outcome, errorPanel(answer.error));
+            fill(outcome, fileRefusal(read.fileName, answer));
             return;
         }
         fill(outcome, uploaded(answer.data || {}));

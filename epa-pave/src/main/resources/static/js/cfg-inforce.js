@@ -18,6 +18,29 @@ function listed(names) {
     return names.length <= 1 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
 }
 
+/**
+ * The server's reason for the write state, less its opening when that only says again that no
+ * environment is active: "Ready to send?" and the Environment row have said it already. On mock
+ * the opening is a sentence of its own; on live it leads into why writes are refused.
+ */
+function withoutNoEnvironment(reason, environment) {
+    const said = /^No environment is active(?:\. |, so writes are refused: )/.exec(reason);
+    if (environment.active || !said) {
+        return reason;
+    }
+    const rest = reason.slice(said[0].length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
+ * A row's sentence, or null when it only says that no environment is active: with eleven rows
+ * that would say it eleven times, and "Ready to send?" says it once, with the way to make one
+ * active (look-19). saidAbove: "Ready to send?" was drawn.
+ */
+function rowSentence(text, saidAbove) {
+    return text && saidAbove && text.startsWith('No environment is active.') ? null : text;
+}
+
 /** Draws the page into root. route: the parts of the address after #configuration. */
 export function mount(root, route) {
     let gone = false;
@@ -41,13 +64,14 @@ export function mount(root, route) {
         }
         const data = effective.data || {};
         const mode = app.mode() || {};
+        const ready = checklist(data, mode);
         fill(body,
-            checklist(data, mode),
+            ready,
             unreadablePart(data),
-            pointed(data, mode, environments.ok ? environments.data : null),
-            operationsPart(data),
+            pointed(data, mode, environments.ok ? environments.data : null, ready !== null),
+            operationsPart(data, ready !== null),
             settingsPart(data),
-            lookups.ok ? lookupsPart(lookups.data) : null);
+            lookups.ok ? lookupsPart(lookups.data, ready !== null) : null);
     }
 
     /* ---------- ready to send? ---------- */
@@ -150,7 +174,8 @@ export function mount(root, route) {
 
     /* ---------- where PAVE is pointed ---------- */
 
-    function pointed(data, mode, environments) {
+    /** saidAbove: "Ready to send?" was drawn and already says production and the environment, which are not said again. */
+    function pointed(data, mode, environments, saidAbove) {
         const access = mode.writeAccess || data.writeAccess || {};
         const environment = mode.environment || data.environment || {};
         const active = environments && Array.isArray(environments.environments)
@@ -165,10 +190,10 @@ export function mount(root, route) {
                     ? 'mock. Scenario files answer in place of the service and nothing is sent. The production guardrail applies as on live.'
                     : String(mode.mode || data.mode || '')},
                 mode.target ? {key: 'Target', value: mode.target} : null,
-                {key: 'Environment', value: environment.active ? el('span', {class: 'environment-name'}, environment.name) : none('none is active')},
-                {key: 'Production', value: productionWords(access, environment)},
+                saidAbove ? null : {key: 'Environment', value: environment.active ? el('span', {class: 'environment-name'}, environment.name) : none('none is active')},
+                saidAbove ? null : {key: 'Production', value: productionWords(access, environment)},
                 access.reason ? {key: 'Can PAVE change anything there now', value: [el('strong', null,
-                    access.writesAllowed === true ? 'Writes are not blocked. ' : 'Writes are blocked. '), access.reason]} : null,
+                    access.writesAllowed === true ? 'Writes are not blocked. ' : 'Writes are blocked. '), withoutNoEnvironment(access.reason, environment)]} : null,
                 data.storeDirectory ? {key: 'The configuration store', value: el('span', {class: 'mono'}, data.storeDirectory)} : null
             ]),
             problems.length > 0 ? el('div', {class: 'verdict verdict--fault', role: 'alert'},
@@ -180,19 +205,21 @@ export function mount(root, route) {
 
     /* ---------- every operation, where it goes, and what stands in its way ---------- */
 
-    function operationsPart(data) {
+    function operationsPart(data, saidAbove) {
         const rows = (Array.isArray(data.operations) ? data.operations : []).filter(row => row.operation !== 'UNMAPPED');
         if (rows.length === 0) {
             return null;
         }
         const signIn = data.readiness ? data.readiness.signIn : null;
         // Facts rather than a wide table: an address and its source are long, and they wrap here.
-        return part('Where each operation goes', kv(rows.map(row => ({
+        // The address and its source share a line and the state follows as one line, so a row
+        // reads like every other key and value row, its key at the top.
+        return part('Where each operation goes', el('div', {class: 'config-operations'}, kv(rows.map(row => ({
             key: [row.label || row.operation, row.method ? [' ', chip(row.method, {mono: true})] : null,
                 row.write ? [' ', chip('write', {tone: 'blocked', title: 'On production it is blocked unless writes are unlocked.'})] : null],
-            value: el('div', {class: 'form-section'}, el('div', null, addressCell(row)), el('div', {class: 'small muted'}, sourceCell(row)),
-                el('div', null, statusCell(row, signIn)))
-        }))));
+            value: [el('div', null, addressCell(row), el('span', {class: 'kv__display'}, sourceCell(row))),
+                el('div', null, statusCell(row, signIn, saidAbove))]
+        })))));
     }
 
     function addressCell(row) {
@@ -220,26 +247,29 @@ export function mount(root, route) {
         ];
     }
 
-    function statusCell(row, signIn) {
+    function statusCell(row, signIn, saidAbove) {
         const parts = [];
+        const unavailable = rowSentence(row.unavailable, saidAbove);
+        const note = rowSentence(row.note, saidAbove);
         if (row.blocked) {
             parts.push(el('div', {title: row.blocked}, el('strong', null, 'Blocked by the production guardrail. '), row.blockedShort || row.blocked));
         }
         if (row.unavailable) {
-            parts.push(el('div', null, row.outbound ? el('strong', null, 'Cannot be sent. ') : null, row.unavailable));
+            parts.push(el('div', null, row.outbound ? el('strong', null, unavailable ? 'Cannot be sent. ' : 'Cannot be sent.') : null, unavailable));
         }
         if (row.outbound && !row.blocked && !row.unavailable && row.operation !== 'UNMAPPED') {
             if (signIn && signIn.enabled && signIn.problem) {
                 parts.push(el('div', null, el('strong', null, 'Cannot sign in. '), signIn.problem));
             } else if (row.withoutSignIn) {
                 // The server's reason: a Postman helper PAVE does not apply, or sign-in settings nothing uses.
-                parts.push(el('strong', null, 'Yes, without signing in.'), el('div', {class: 'small'}, row.withoutSignIn));
+                parts.push(el('strong', null, 'Yes, without signing in.'), ' ', el('span', {class: 'small'}, row.withoutSignIn));
             } else {
                 parts.push(el('strong', null, 'Yes.'));
             }
         }
-        if (row.note) {
-            parts.push(el('div', {class: 'small'}, row.note));
+        if (note) {
+            // On the same line as the state it explains.
+            parts.push(parts.length > 0 ? ' ' : null, el('span', {class: 'small'}, note));
         }
         return parts;
     }
@@ -259,7 +289,8 @@ export function mount(root, route) {
 
     /* ---------- the lookups in force ---------- */
 
-    function lookupsPart(data) {
+    /** saidAbove: as for the operations, a problem that only says no environment is active is not said again. */
+    function lookupsPart(data, saidAbove) {
         if (!data || typeof data !== 'object') {
             return null;
         }
@@ -267,8 +298,9 @@ export function mount(root, route) {
         for (const [kind, label] of [['member', 'Member lookup'], ['provider', 'Provider lookup']]) {
             const view = data[kind];
             if (view && view.inForce && view.inForce.words) {
+                const problem = rowSentence(view.problem, saidAbove);
                 rows.push({key: label, value: [view.inForce.words, view.inForce.from ? el('span', {class: 'muted'}, ', ' + view.inForce.from) : null,
-                    view.problem ? el('div', {class: 'small'}, view.problem) : null]});
+                    problem ? el('div', {class: 'small'}, problem) : null]});
             }
         }
         return rows.length > 0 ? part('Lookups in force', kv(rows)) : null;

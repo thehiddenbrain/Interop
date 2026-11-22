@@ -219,8 +219,8 @@ public final class PostmanParser {
         refuseOtherKinds(document.root(), EXPORT_ENVIRONMENT);
         JsonNode root = unwrap(document.root(), "environment");
         if (looksLikeCollection(root) || looksLikeOldCollection(root)) {
-            throw new BadInputException("This file is a Postman collection, not an environment.",
-                    "Upload it under Collections. Under Environments, upload an environment export. " + EXPORT_ENVIRONMENT);
+            // Worded to fit both places it shows in: an environment's form, and the Collections page.
+            throw new BadInputException("This file is a Postman collection, not an environment export.", "Choose it as the Collection export, or upload it in Configuration > Collections.");
         }
         if (!JsonSafe.isObject(root) || !JsonSafe.isArray(JsonSafe.child(root, "values"))) {
             throw new BadInputException("This JSON file is not a Postman environment export: it has no list of values.", EXPORT_ENVIRONMENT);
@@ -257,8 +257,7 @@ public final class PostmanParser {
             throw new BadInputException("This is a Postman collection in the old v1 format, which this tool does not read.", EXPORT_COLLECTION);
         }
         if (looksLikeEnvironment(root)) {
-            throw new BadInputException("This file is a Postman environment, not a collection.",
-                    "Upload it under Environments. Under Collections, upload a collection export. " + EXPORT_COLLECTION);
+            throw new BadInputException("This file is a Postman environment export, not a collection.", "Choose it as the Environment export of an environment, in Configuration > Environments.");
         }
         JsonNode info = JsonSafe.child(root, "info");
         if (!JsonSafe.isObject(root) || !JsonSafe.isObject(info) || !JsonSafe.isArray(JsonSafe.child(root, "item"))) {

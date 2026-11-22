@@ -11,20 +11,32 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.p32h.interop.epa.pave.client.lookup.LookupFixtures;
 import org.p32h.interop.epa.pave.client.lookup.MemberLookupClient;
 import org.p32h.interop.epa.pave.client.lookup.MockMemberLookupClient;
 import org.p32h.interop.epa.pave.config.LookupProperties;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.FieldError;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LookupStatus;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.MemberLookupResult;
 import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireResponse;
+import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.WireView;
+import org.p32h.interop.epa.pave.service.config.CallIntent;
+import org.p32h.interop.epa.pave.service.config.OperationGateway;
+import org.p32h.interop.epa.pave.service.config.PreparedCall;
+import org.p32h.interop.epa.pave.service.config.ProdUnlock;
+import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 
 /** Member lookup as a service: the ID as typed, the no-space form that is sent, and both on every result. */
@@ -108,23 +120,85 @@ class MemberLookupServiceTest {
         service.lookup("S123456789");
         // Asked twice, answered twice: there is no cache in front of the client.
         assertThat(client.asked).hasSize(2);
-        // And nowhere to keep one. The service holds the client, and the gateway it asks for the active member ID rule.
-        Field[] fields = java.util.Arrays.stream(MemberLookupService.class.getDeclaredFields())
-                .filter(field -> field.getType() != org.springframework.beans.factory.ObjectProvider.class).toArray(Field[]::new);
-        assertThat(fields).hasSize(1);
-        assertThat(fields[0].getType()).isEqualTo(MemberLookupClient.class);
-        assertThat(Modifier.isFinal(fields[0].getModifiers())).isTrue();
-        assertThat(Modifier.isStatic(fields[0].getModifiers())).isFalse();
+        // And nowhere to keep one. The service holds the client, and the gateway it reads the environment's rule from.
+        Field[] fields = MemberLookupService.class.getDeclaredFields();
+        // A typed list, not extracting(Field::getType): the Eclipse compiler in STS cannot infer the
+        // wildcard capture of that form and reports an error javac does not (STS-3).
+        List<Class<?>> types = Arrays.stream(fields).<Class<?>>map(Field::getType).toList();
+        assertThat(types).containsExactly(MemberLookupClient.class, ObjectProvider.class);
+        assertThat(fields).allSatisfy(field -> {
+            assertThat(Modifier.isFinal(field.getModifiers())).isTrue();
+            assertThat(Modifier.isStatic(field.getModifiers())).isFalse();
+        });
     }
 
     @Test
-    void aResultWithNoWireViewStaysWithoutOneAndStillCarriesBothForms() {
+    void aLookupThatIsNotConfiguredSendsNothingSoItSaysNoFormTheIdWasSentIn() {
+        // live-content-2: the card said "Sent as ..., rule: packed" when nothing was sent.
         MemberLookupService disabled = new MemberLookupService(memberId -> new MemberLookupResult(LookupStatus.DISABLED, memberId, null,
-                List.of(), List.of(), List.of(), null, null, "Member lookup is switched off."));
+                List.of(), List.of(), List.of(), null, null, "Member lookup is switched off."), ruled(MemberIdRule.SPACED));
         MemberLookupResult result = disabled.lookup("S12345678   01");
         assertThat(result.status()).isEqualTo(LookupStatus.DISABLED);
         assertThat(result.wire()).isNull();
-        assertThat(result.memberId()).isEqualTo(MemberIds.forms("S12345678   01"));
+        assertThat(result.memberId()).isNull();
+        assertThat(JsonSafe.mapper().writeValueAsString(result)).doesNotContain("memberId").doesNotContain("S123");
+    }
+
+    @Test
+    void aLookupThatIsSentFormsTheIdByTheActiveEnvironmentsRule() {
+        List<MemberIdForms> asked = new ArrayList<>();
+        MemberLookupService spaced = new MemberLookupService(memberId -> {
+            asked.add(memberId);
+            return new MemberLookupResult(LookupStatus.NOT_FOUND, memberId, null, List.of(), List.of(), List.of(), null, null, "Not found.");
+        }, ruled(MemberIdRule.SPACED));
+        MemberLookupResult result = spaced.lookup("S1234567801");
+        assertThat(result.memberId()).isEqualTo(MemberIds.forms("S1234567801", MemberIdRule.SPACED));
+        assertThat(result.memberId().rule()).isEqualTo("spaced");
+        assertThat(asked).singleElement().extracting(MemberIdForms::sent).isEqualTo(MemberIds.sent("S1234567801", MemberIdRule.SPACED));
+        // With no gateway, the packed rule, as before rules could be chosen.
+        assertThat(new MemberLookupService(memberId -> new MemberLookupResult(LookupStatus.NOT_FOUND, memberId, null, List.of(), List.of(),
+                List.of(), null, null, "Not found.")).lookup("S12345678 01").memberId().rule()).isEqualTo("packed");
+    }
+
+    /** A gateway that answers only the member ID rule: nothing else is asked of it by a lookup. */
+    private static ObjectProvider<OperationGateway> ruled(MemberIdRule rule) {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("gateway", gatewayWith(rule));
+        return beans.getBeanProvider(OperationGateway.class);
+    }
+
+    private static OperationGateway gatewayWith(MemberIdRule rule) {
+        return new OperationGateway() {
+            @Override
+            public PreparedCall prepare(CallIntent intent) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ResolvedText resolve(String template, Map<String, String> runValues) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public EnvironmentRef activeEnvironment() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public WriteAccess writeAccess(ProdUnlock unlock) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long epoch() {
+                return 0;
+            }
+
+            @Override
+            public MemberIdRule memberIdRule() {
+                return rule;
+            }
+        };
     }
 
     @Test

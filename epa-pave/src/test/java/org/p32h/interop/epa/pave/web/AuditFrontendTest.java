@@ -319,6 +319,55 @@ class AuditFrontendTest {
     }
 
     @Test
+    void aRunOpenedFromTheLedgerSaysWhyItCannotBeRunAgainAndTheTrailSaysWhatItKeeps(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "one run in Audit", """
+                import './browser.js';
+                import {wordsOf} from './js/audit-common.js';
+                import {runView} from './js/audit-run.js';
+                const say = value => console.log(JSON.stringify(value));
+                globalThis.window = globalThis;
+                const words = wordsOf({steps: [{step: 'COVERAGE', name: 'Coverage check', protocol: 'CRD', filters: [{protocol: 'crd'}]}],
+                  operations: [{code: 'CRD_ORDER_SIGN', label: 'CRD order-sign', protocol: 'CRD', step: 'COVERAGE', write: false}],
+                  outcomes: {CRD: [{code: 'AUTH_REQUIRED', label: 'Prior authorization is required', short: 'PA required', tone: 'ACTION'}]},
+                  testResults: [{code: 'PASS', label: 'Passed'}], answeredBy: [{code: 'VENDOR', chip: 'LIVE'}]});
+                const lines = {
+                  // Live with the default policy: the member ID kept only as a token (I-20).
+                  'run-token': {runId: 'run-token', timestamp: '2026-11-22T10:00:00Z', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', outcome: 'AUTH_REQUIRED',
+                    result: 'pass', memberToken: 'tok-1a2b', profile: 'live'},
+                  'run-kept': {runId: 'run-kept', timestamp: '2026-11-22T10:00:00Z', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', outcome: 'AUTH_REQUIRED',
+                    result: 'pass', memberId: 'S123456789', memberToken: 'tok-1a2b', profile: 'mock'}
+                };
+                globalThis.fetch = async address => {
+                  const path = String(address).split('?')[0];
+                  // The trail of release 2 answers in place of I-26's line of release 1: here it no longer keeps either run.
+                  if (path.startsWith('/api/trail/')) {
+                    return {ok: true, status: 200, text: async () => JSON.stringify({kept: false, line: 'Not kept: the trail holds the last 500 runs.'})};
+                  }
+                  const id = decodeURIComponent(path.slice('/api/runs/'.length));
+                  const body = path === '/api/runs/health' ? {enabled: true, writable: true} : lines[id];
+                  return {ok: true, status: 200, text: async () => JSON.stringify(body)};
+                };
+                const view = runView({app: {isMock: () => false, mode: () => ({mode: 'live'})}, words: async () => words, ledger: () => null,
+                  listAddress: () => '#audit/runs'});
+                document.body.append(view.node);
+                for (const id of ['run-token', 'run-kept']) {
+                  await view.show(id);
+                  const text = view.node.textContent;
+                  say([id, view.node.querySelectorAll('button').map(each => each.textContent).filter(each => each === 'Run again').length,
+                    text.includes('This run cannot be run again: its member ID was not kept.'), text.includes('tracking.'),
+                    view.node.querySelectorAll('summary').map(each => each.textContent).filter(each => each.startsWith('Request JSON'))]);
+                }
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        String unkept = "[\"Request JSONNot kept: the trail holds the last 500 runs.\"]";
+        assertThat(run.lines()).containsExactly(
+                // No button that could only be told the line cannot be sent; no property name. The request and
+                // answer are the trail's, or its line saying they are not kept (I-26's own line is gone).
+                "[\"run-token\",0,true,false," + unkept + "]",
+                "[\"run-kept\",1,false,false," + unkept + "]");
+    }
+
+    @Test
     void aReplaySendsIdsAndNeverDays() throws IOException {
         for (String name : new String[] {"audit-runs.js", "audit-run.js"}) {
             String script = StaticSources.script(name);

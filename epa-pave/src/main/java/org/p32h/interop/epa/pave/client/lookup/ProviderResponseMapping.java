@@ -63,7 +63,7 @@ final class ProviderResponseMapping {
     static final List<Spelling> PHONE = Spelling.list("phone", "phoneNumber", "telephone", "telephoneNumber", "officePhone",
             "practicePhone", "contact.phone", "contact.phoneNumber");
 
-    /** A fax number, which PAS 2.2.1's rule pd-1 accepts in place of a phone on the requesting PractitionerRole. */
+    /** A fax number, which rule pd-1 accepts in place of a phone on the requesting PractitionerRole where the PAS guide in force applies it. */
     static final List<Spelling> FAX = Spelling.list("fax", "faxNumber", "officeFax", "practiceFax", "contact.fax", "contact.faxNumber");
 
     /** The names an address object may have. All parts are read from the first one found, never from two. */

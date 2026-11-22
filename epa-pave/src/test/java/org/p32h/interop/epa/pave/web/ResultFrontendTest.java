@@ -88,7 +88,8 @@ class ResultFrontendTest {
                 "[\"https://h.example.invalid/p\",\"https://h.example.invalid/p\",\"https://h.example.invalid/p\"]",
                 "[true,\" (2500 characters; Copy copies them whole)\"]",
                 "true",
-                "[\"Not returned (1)\",\"Why\",\"Wire trafficrequest and response JSON\"]",
+                // The panel says its one sentence after the first as a line, not in a Why fold (I-34).
+                "[\"Not returned (1)\",\"Wire trafficrequest and response JSON\"]",
                 "\"HTTP 200MOCK150 msUnverifiedSent as S123456789, rule: packedOpen in Audit\"",
                 "[true,true,true]",
                 "[\"Continue to the questionnaire\",\"START_DTR\"]",
@@ -104,7 +105,7 @@ class ResultFrontendTest {
                 const say = value => console.log(JSON.stringify(value));
                 globalThis.fetch = async () => ({ok: true, status: 200, text: async () => JSON.stringify({})});
                 const value = text => ({presence: 'VALUE', value: text});
-                // A service fault is one card: the headline once, the service's sentence once, each issue on its line, no second framed box.
+                // A service fault is one card: who played it, the headline once, the service's sentence once, one chip per issue, no second framed box.
                 const err500 = {runId: 'run-1', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'SCENARIO',
                   verdict: {headline: 'The service failed (HTTP 500).', tone: 'FAULT'},
                   nextStep: {action: 'CHECK_ENVIRONMENT', headline: 'Next, had this been a real service: check the environment, then send again.'},
@@ -113,10 +114,11 @@ class ResultFrontendTest {
                     issues: [{severity: value('error'), code: value('exception'), diagnostics: value('An unexpected error occurred.'), detailsText: value('An unexpected error occurred.')},
                       {severity: value('warning'), code: value('processing'), diagnostics: value('Second issue.'), expression: [value('Claim.item[0]')]}]}};
                 const card = resultCard(err500, {context: 'workbench'});
+                const chipsOf = node => { const box = node.querySelector('.issue-chips'); return box ? Array.from(box.childNodes).map(each => each.textContent).filter(Boolean) : []; };
                 const text = card.textContent;
                 say([faultInCard(err500), card.querySelectorAll('.verdict').length, card.querySelectorAll('.error-panel').length,
-                  text.split('The service failed').length - 1, text.split('An unexpected error occurred.').length - 1, card.querySelectorAll('.issue-line').length]);
-                say(card.querySelectorAll('.issue-line').map(line => line.textContent));
+                  text.split('The service failed').length - 1, text.split('An unexpected error occurred.').length - 1, chipsOf(card).length]);
+                say([card.querySelector('.verdict__label').textContent, chipsOf(card)]);
                 // A CDS service's refusal: its summary and detail, left among the fields returned, are what the service said.
                 const refused = {runId: 'run-2', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'SERVICE',
                   verdict: {headline: 'The service did not accept the request as sent (HTTP 400).', tone: 'STOP'},
@@ -136,7 +138,7 @@ class ResultFrontendTest {
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
                 "[true,1,0,1,1,2]",
-                "[\"error exception \",\"warning processing Second issue. Claim.item[0]\"]",
+                "[\"A failure played by a mock scenario, not a fault in the environment\",[\"error exception\",\"warning processing\"]]",
                 "[\"Service said: invalid hook request: context.draftOrders.type is not allowed\"]",
                 "0",
                 "[false,1]");

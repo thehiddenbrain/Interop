@@ -10,6 +10,7 @@ import {app} from './app.js';
 import {call} from './api.js';
 import {el, clear, fill, button, field, setFieldError, fold, firstSentence} from './dom.js';
 import {errorPanel} from './fault.js';
+import {labelsOf} from './cfg-parts.js';
 
 /** The words of each page, by the first part of its address. */
 export const KINDS = {
@@ -372,7 +373,8 @@ export function createLookupForm(words, view, reload) {
                     }
                 }
             }
-            fill(status, errorPanel(answer.error, {fieldsPlaced: placed}));
+            // Each field by its label on this form, never by a property (I-3).
+            fill(status, errorPanel(answer.error, {fieldsPlaced: placed, labelOf: labelsOf(name => parts.get(name))}));
             return;
         }
         const warnings = answer.data && Array.isArray(answer.data.warnings) ? answer.data.warnings : [];
