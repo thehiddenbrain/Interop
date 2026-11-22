@@ -12,7 +12,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
  * (plan 9.1) and answers of the server's own shape: "What goes" is three lines of chips within the
  * word budget of M22; each gap the server names is a chip that opens its field (a value of the
  * environment opens the environment's Values); "Include it" unticked sends no questionnaire response;
- * opening the step sends nothing; and the diagnosis codes go as codes, which is how PAS reads them.
+ * opening the step sends nothing; the diagnosis codes go as codes, which is how PAS reads them; and
+ * the result goes to the frame alone, which hands step 4 its claim, so the step hands nothing on itself.
  */
 class SubmitStepFrontendTest {
 
@@ -47,7 +48,7 @@ class SubmitStepFrontendTest {
                     carry: step => (step === 3 ? {runId: ['run-2'], questionnaireResponse: [JSON.stringify({resourceType: 'QuestionnaireResponse',
                         item: [{linkId: 'a', answer: [{valueString: 'x'}]}, {linkId: 'g', item: [{linkId: 'b', answer: [{valueBoolean: true}]}]}, {linkId: 'c'}]})]} : null),
                     handOn: (step, carry) => handed.push([step, Object.keys(carry).sort().join(',')]),
-                    option: () => '', optionsRow: () => null, optionsToggle: () => null, resulted: () => null,
+                    option: () => '', optionsRow: () => null, optionsToggle: () => null, resulted: envelope => handed.push(['resulted', envelope.runId]),
                     showField: name => { shown.push(name); return true; }, placeErrors: () => [], go: () => null, isMock: () => false,
                     visible: () => true, typedCode: () => '', blocked: () => null, readinessLine: () => null, latest: () => null,
                     refused: () => null, handedLine: () => null, card: () => globalThis.document.createElement('div')
@@ -62,6 +63,8 @@ class SubmitStepFrontendTest {
                 step.show();
                 await settle();
                 say(posted.map(each => each.path));
+                // Off kind prod the framed box on writes is hidden, not left as an empty bar.
+                say(root.querySelector('.submit-writes').hidden);
                 const lines = root.querySelectorAll('.goes .goes__line');
                 const words = lines.map(line => line.textContent).join(' ').split(' ').filter(Boolean).length;
                 say([lines.length, words <= 45, lines[0].textContent, lines[1].textContent, lines[2].textContent]);
@@ -85,11 +88,12 @@ class SubmitStepFrontendTest {
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
                 "[\"/api/pas/submit/preview\"]",
+                "true",
                 "[3,true,\"member S123456789 rule: packed NPI 1234567893 phone\",\"81162 x2 FL 2026-11-23 place 11\","
                         + "\"questionnaire response, 2 answers  Include it no files dx Z80.3\"]",
                 "[[\"Provider phone or fax\",true],[\"Insurer\",true]]",
                 "[[\"provider.phone\"],\"#configuration/environments/Sandbox/values\"]",
-                "[\"/api/pas/submit\",[\"questionnaireResponse\",\"runId\"],[{\"code\":\"Z80.3\"}],false,[[4,\"claimId,runId\"]]]",
+                "[\"/api/pas/submit\",[\"questionnaireResponse\",\"runId\"],[{\"code\":\"Z80.3\"}],false,[[\"resulted\",\"run-9\"]]]",
                 "[\"runId\"]");
     }
 }
