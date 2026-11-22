@@ -17,11 +17,6 @@
 import {el, append, chip, kv, fold, token} from './dom.js';
 import {issuesTable} from './fault.js';
 import {vocabulary} from './words.js';
-// Not drawn from here. Imported so that the step modules load with the page and are held by
-// StaticJoinTest until the Workbench (A2a) mounts them; the builder of H1 removes these two lines
-// once workbench.js imports both.
-import {mount as questionnaireStep} from './wb-dtr.js';
-import {mount as submitStep} from './wb-submit.js';
 
 const PRESENCE_WORDS = {ABSENT: 'not returned', NULL: 'returned as null', EMPTY: 'returned empty'};
 
