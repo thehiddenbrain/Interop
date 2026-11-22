@@ -147,15 +147,17 @@ public class EnvironmentDrafts {
 
         PostmanCollection collection = null;
         CollectionAuth auth = null;
+        List<TokenRequests.Found> tokenRequests = List.of();
         if (collectionFile != null) {
             FileGuard.Read<CollectionRead> read = FileGuard.read(collectionFile.fileName(), () -> {
                 PostmanCollection parsed = collectionParser.apply(collectionFile.text());
-                return new CollectionRead(parsed, CollectionAuth.find(collectionFile.text()));
+                return new CollectionRead(parsed, CollectionAuth.find(collectionFile.text()), TokenRequests.find(collectionFile.text()));
             });
             files.add(line(COLLECTION_SLOT, collectionFile, read, read.ok() ? collectionRead(read.value().collection()) : null));
             if (read.ok()) {
                 collection = read.value().collection();
                 auth = read.value().auth();
+                tokenRequests = read.value().tokenRequests();
                 read.value().collection().notes().forEach(note -> warnings.add("Collection export: " + note));
             }
         }
@@ -176,21 +178,29 @@ public class EnvironmentDrafts {
         }
 
         Set<String> defined = new LinkedHashSet<>();
+        // The environment's variable names, in the order of the export: on Edit with no export
+        // chosen, the stored environment's, so a collection alone is matched against them too.
+        List<String> variableNames = new ArrayList<>();
         String environmentName = null;
         if (environment != null) {
             defined.addAll(environment.inForce().keySet());
+            environment.inForce().values().forEach(variable -> variableNames.add(variable.key()));
             environmentName = environment.name();
         } else if (editing != null) {
-            editing.variables().stream().filter(VariableView::inForce).forEach(view -> defined.add(view.name()));
+            editing.variables().stream().filter(VariableView::inForce).forEach(view -> {
+                defined.add(view.name());
+                variableNames.add(view.name());
+            });
             environmentName = editing.name();
         }
         if (collection != null) {
             defined.addAll(collection.inForce().keySet());
         }
 
-        SignInDraft signIn = signIn(environment, auth, warnings);
+        SignInDraft signIn = signIn(variableNames, auth, tokenRequests, warnings);
         if (signIn != null) {
             undefined(signIn, defined, environment != null || editing != null, environmentName, warnings);
+            empty(signIn, environment, collection, warnings);
         }
 
         List<VariableView> variables = environment == null ? List.of() : variables(environment, collection);
@@ -209,7 +219,7 @@ public class EnvironmentDrafts {
     // The line per file
     // ------------------------------------------------------------------------------------------
 
-    private record CollectionRead(PostmanCollection collection, CollectionAuth auth) {
+    private record CollectionRead(PostmanCollection collection, CollectionAuth auth, List<TokenRequests.Found> tokenRequests) {
     }
 
     private static FileLine line(String slot, FileText file, FileGuard.Read<?> read, String readLine) {
@@ -237,55 +247,241 @@ public class EnvironmentDrafts {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * The collection's OAuth2 or bearer helper first (R-08: it wins over variable names), else the
-     * environment's variables named like sign-in settings, else nothing.
+     * Where the sign-in is read from (D-305), in this order, the first that gives a whole client
+     * credentials sign-in winning: the collection's OAuth2 helper, the collection's token request,
+     * the environment's variables by name. A bearer helper, which gives no client credentials, is
+     * used only when none of them does, and so is a part of a sign-in the variable names show.
+     *
+     * @param variableNames the environment's variable names in force, in the order of the export
      */
-    private static SignInDraft signIn(PostmanEnvironment environment, CollectionAuth auth, List<String> warnings) {
-        if (auth != null) {
-            SignInDraft fromCollection = auth.signIn(warnings);
-            if (fromCollection != null) {
-                return fromCollection;
-            }
+    private static SignInDraft signIn(List<String> variableNames, CollectionAuth auth, List<TokenRequests.Found> tokenRequests,
+                                      List<String> warnings) {
+        SignInDraft helper = auth == null ? null : auth.signIn(warnings);
+        if (clientCredentials(helper)) {
+            return helper;
         }
-        return environment == null ? null : fromVariableNames(environment);
+        SignInDraft fromRequest = fromTokenRequests(tokenRequests, warnings);
+        if (fromRequest != null) {
+            helperNotUsed(helper, warnings);
+            return fromRequest;
+        }
+        // Its lines are said only when the names are what fills the form.
+        List<String> nameLines = new ArrayList<>();
+        SignInDraft fromNames = variableNames.isEmpty() ? null : fromVariableNames(variableNames, nameLines);
+        if (clientCredentials(fromNames) || helper == null) {
+            if (clientCredentials(fromNames)) {
+                helperNotUsed(helper, warnings);
+            }
+            warnings.addAll(nameLines);
+            return fromNames;
+        }
+        return helper;
     }
 
-    private static SignInDraft fromVariableNames(PostmanEnvironment environment) {
-        String tokenUrl = null;
-        String clientId = null;
-        String clientSecret = null;
-        String scope = null;
-        String bearer = null;
-        for (PostmanVariable variable : environment.inForce().values()) {
-            String key = roleKey(variable.key());
-            String reference = "{{" + variable.key().strip() + "}}";
-            if (tokenUrl == null && TOKEN_URL_NAMES.contains(key)) {
-                tokenUrl = reference;
-            } else if (clientId == null && CLIENT_ID_NAMES.contains(key)) {
-                clientId = reference;
-            } else if (clientSecret == null && CLIENT_SECRET_NAMES.contains(key)) {
-                clientSecret = reference;
-            } else if (scope == null && SCOPE_NAMES.contains(key)) {
-                scope = reference;
-            } else if (bearer == null && BEARER_NAMES.contains(key)) {
-                bearer = reference;
-            }
+    private static boolean clientCredentials(SignInDraft draft) {
+        return draft != null && SignInSettings.Method.CLIENT_CREDENTIALS.name().equals(draft.method());
+    }
+
+    /** A bearer helper set aside for client credentials is said, since the collection's own requests would carry it. */
+    private static void helperNotUsed(SignInDraft helper, List<String> warnings) {
+        if (helper != null && SignInSettings.Method.BEARER_TOKEN.name().equals(helper.method())) {
+            warnings.add("The collection's bearer helper was not used: PAVE asks for a token itself, with the client credentials filled "
+                    + "below.");
         }
-        if (tokenUrl != null && clientId != null) {
-            return new SignInDraft(SignInSettings.Method.CLIENT_CREDENTIALS.name(), tokenUrl, clientId, scope, null,
-                    clientSecret == null ? null : SecretSetting.of(clientSecret), null, FROM_VARIABLE_NAMES);
-        }
-        if (bearer != null) {
-            return new SignInDraft(SignInSettings.Method.BEARER_TOKEN.name(), null, null, null, null, null,
-                    SecretSetting.of(bearer), FROM_VARIABLE_NAMES);
-        }
-        // Some of the names but not a whole client credentials sign-in: the method is not stated,
-        // and what was found is offered for the fields, never a method the file does not show.
-        if (tokenUrl == null && clientId == null && clientSecret == null) {
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The collection's token request
+    // ------------------------------------------------------------------------------------------
+
+    /** The form fields of a token request that PAVE's sign-in sends itself. */
+    private static final Set<String> SIGN_IN_FIELDS = Set.of("grant_type", "client_id", "client_secret", "scope");
+
+    /** The headers of a token request that PAVE's sign-in sends itself, lower case. */
+    private static final Set<String> SIGN_IN_HEADERS = Set.of("content-type", "accept", "authorization");
+
+    /**
+     * The sign-in from the first token request in the file that asks with client credentials, or
+     * null when there is none. What the request sends that PAVE's sign-in does not is said by name,
+     * never by value: it is the first thing to look at when the sign-in is refused.
+     */
+    static SignInDraft fromTokenRequests(List<TokenRequests.Found> tokenRequests, List<String> warnings) {
+        if (tokenRequests.isEmpty()) {
             return null;
         }
-        return new SignInDraft(null, tokenUrl, clientId, scope, null, clientSecret == null ? null : SecretSetting.of(clientSecret),
-                null, FROM_VARIABLE_NAMES);
+        TokenRequests.Found chosen = tokenRequests.stream().filter(found -> "client_credentials".equalsIgnoreCase(found.grant()))
+                .findFirst().orElse(null);
+        int others = tokenRequests.size() - 1;
+        if (chosen == null) {
+            TokenRequests.Found first = tokenRequests.get(0);
+            warnings.add("The collection's token request \"" + first.name() + "\" " + (first.grant() == null ? "states no grant type"
+                    : "uses the grant type " + Names.shown(first.grant())) + ", so sign-in was not filled from it. PAVE signs in with "
+                    + "client credentials.");
+            if (others > 0) {
+                warnings.add("None of the collection's " + others + " other token request" + (others == 1 ? "" : "s")
+                        + " asks with client credentials either.");
+            }
+            return null;
+        }
+        if (others > 0) {
+            warnings.add("The collection holds " + others + " other token request" + (others == 1 ? "" : "s") + ". Sign-in was filled from \""
+                    + chosen.name() + "\", the first in the file" + (tokenRequests.get(0) == chosen ? "." : " that asks with client credentials."));
+        }
+        Map<String, String> fields = chosen.fields();
+        CollectionAuth basic = chosen.basic();
+        String clientId = Texts.trimToNull(fields.get("client_id"));
+        String secret = null;
+        String clientAuthentication = null;
+        if (fields.containsKey("client_secret")) {
+            clientAuthentication = SignInSettings.ClientAuthentication.BODY.name();
+            secret = fields.get("client_secret");
+            if (clientId == null && basic != null) {
+                clientId = Texts.trimToNull(basic.fields().get("username"));
+            }
+        } else if (basic != null) {
+            clientAuthentication = SignInSettings.ClientAuthentication.BASIC.name();
+            secret = basic.fields().get("password");
+            clientId = Texts.orElse(Texts.trimToNull(basic.fields().get("username")), clientId);
+        }
+        SecretSetting clientSecret = CollectionAuth.secret(secret, "a client secret", "Client secret", warnings);
+
+        List<String> sent = new ArrayList<>();
+        fields.keySet().stream().filter(name -> !SIGN_IN_FIELDS.contains(name)).forEach(name -> sent.add(Names.shown(name)));
+        Set<String> headers = new LinkedHashSet<>();
+        for (String header : chosen.headers()) {
+            if (!SIGN_IN_HEADERS.contains(header.strip().toLowerCase(Locale.ROOT)) && headers.stream().noneMatch(header::equalsIgnoreCase)) {
+                headers.add(header);
+            }
+        }
+        headers.forEach(header -> sent.add("the header " + Names.shown(header)));
+        boolean posted = "POST".equals(chosen.method());
+        if (!sent.isEmpty() || !posted) {
+            String what = sent.isEmpty() ? "" : "also sends " + words(sent);
+            String how = posted ? "" : "is sent with the method " + Names.shown(chosen.method());
+            String not = sent.isEmpty() ? "PAVE's sign-in sends POST" : posted ? "PAVE's sign-in does not send " + (sent.size() == 1 ? "it" : "them")
+                    : "PAVE's sign-in does not send " + (sent.size() == 1 ? "it" : "them") + ", and sends POST";
+            warnings.add("The token request " + what + (what.isEmpty() || how.isEmpty() ? "" : ", and ") + how + ". " + not
+                    + ": if the sign-in is refused, that is the first thing to look at.");
+        }
+        return new SignInDraft(SignInSettings.Method.CLIENT_CREDENTIALS.name(), Texts.trimToNull(chosen.url()), clientId,
+                Texts.trimToNull(fields.get("scope")), clientAuthentication, clientSecret, null,
+                "the collection's token request \"" + chosen.name() + "\"");
+    }
+
+    /** Names joined as a sentence lists them: a, b and c. */
+    private static String words(List<String> items) {
+        if (items.size() == 1) {
+            return items.get(0);
+        }
+        return String.join(", ", items.subList(0, items.size() - 1)) + " and " + items.get(items.size() - 1);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The environment's variables by name
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * One sign-in field a variable name can fill: an exact name as before wins (D-305), else every
+     * name that holds the field's words is a candidate.
+     *
+     * @param field the field as the form posts it
+     * @param words the field in a sentence
+     */
+    private record Role(String field, String words, Set<String> exact, List<String> within, boolean endsWith) {
+
+        boolean candidate(String key) {
+            for (String word : within) {
+                if (endsWith ? key.endsWith(word) : key.contains(word)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private static final List<Role> ROLES = List.of(
+            new Role("tokenUrl", "the token url", TOKEN_URL_NAMES,
+                    List.of("tokenurl", "tokenuri", "tokenendpoint", "accesstokenurl", "authurl", "oauthurl"), false),
+            new Role("clientId", "the client id", CLIENT_ID_NAMES, List.of("clientid"), false),
+            new Role("clientSecret", "the client secret", CLIENT_SECRET_NAMES, List.of("clientsecret"), false),
+            new Role("scope", "the scope", SCOPE_NAMES, List.of("scope", "scopes"), true));
+
+    /**
+     * The sign-in the variable names show. One candidate fills its field; several fill nothing:
+     * the tester chooses, and the form offers each as a reference to fill with one press.
+     */
+    static SignInDraft fromVariableNames(List<String> names, List<String> lines) {
+        Map<String, String> filled = new LinkedHashMap<>();
+        List<DraftViews.Candidates> candidates = new ArrayList<>();
+        for (Role role : ROLES) {
+            String exact = names.stream().filter(name -> role.exact().contains(roleKey(name))).findFirst().orElse(null);
+            if (exact != null) {
+                filled.put(role.field(), reference(exact));
+                continue;
+            }
+            List<String> found = names.stream().filter(name -> role.candidate(roleKey(name))).map(EnvironmentDrafts::reference).toList();
+            if (found.size() == 1) {
+                filled.put(role.field(), found.get(0));
+            } else if (found.size() > 1) {
+                candidates.add(new DraftViews.Candidates(role.field(), found));
+                lines.add("Several variables could be " + role.words() + ": " + String.join(", ", found.stream()
+                        .map(each -> "{{" + Names.shown(each.substring(2, each.length() - 2)) + "}}").toList()) + ". Choose one.");
+            }
+        }
+        String bearer = names.stream().filter(name -> BEARER_NAMES.contains(roleKey(name))).findFirst().map(EnvironmentDrafts::reference)
+                .orElse(null);
+        boolean tokenUrl = filled.containsKey("tokenUrl") || candidates.stream().anyMatch(each -> each.field().equals("tokenUrl"));
+        boolean clientId = filled.containsKey("clientId") || candidates.stream().anyMatch(each -> each.field().equals("clientId"));
+        String method;
+        if (tokenUrl && clientId) {
+            method = SignInSettings.Method.CLIENT_CREDENTIALS.name();
+        } else if (bearer != null) {
+            lines.clear();
+            return new SignInDraft(SignInSettings.Method.BEARER_TOKEN.name(), null, null, null, null, null,
+                    SecretSetting.of(bearer), FROM_VARIABLE_NAMES);
+        } else if (!filled.containsKey("tokenUrl") && !filled.containsKey("clientId") && !filled.containsKey("clientSecret")
+                && candidates.isEmpty()) {
+            // Nothing, or a scope alone, is no sign-in.
+            return null;
+        } else {
+            // Some of the names but not a whole client credentials sign-in: the method is not
+            // stated, and what was found is offered for the fields, never a method the file does not show.
+            method = null;
+        }
+        SecretSetting secret = filled.containsKey("clientSecret") ? SecretSetting.of(filled.get("clientSecret")) : null;
+        return new SignInDraft(method, filled.get("tokenUrl"), filled.get("clientId"), filled.get("scope"), null, secret, null,
+                FROM_VARIABLE_NAMES, SignInDraft.filled(filled.get("tokenUrl"), filled.get("clientId"), secret, filled.get("scope"), null,
+                null), candidates);
+    }
+
+    private static String reference(String name) {
+        return "{{" + name.strip() + "}}";
+    }
+
+    /**
+     * One line for each filled reference whose variable the export gives with no value. Postman
+     * exports a variable's initial value only, so a secret kept as a current value arrives empty.
+     */
+    private static void empty(SignInDraft signIn, PostmanEnvironment environment, PostmanCollection collection, List<String> warnings) {
+        if (environment == null && collection == null) {
+            return;
+        }
+        Set<String> names = new LinkedHashSet<>();
+        for (String text : new String[] {signIn.tokenUrl(), signIn.clientId(), signIn.scope(),
+                signIn.clientSecret() == null ? null : signIn.clientSecret().reference(),
+                signIn.bearerToken() == null ? null : signIn.bearerToken().reference()}) {
+            names.addAll(Placeholders.names(text));
+        }
+        for (String name : names) {
+            PostmanVariable variable = environment == null ? null : environment.inForce().get(name);
+            if (variable == null && collection != null) {
+                variable = collection.inForce().get(name);
+            }
+            if (variable != null && !variable.hasValue()) {
+                warnings.add("{{" + Names.shown(name) + "}} is empty in this export. Postman exports a variable's initial value only: type "
+                        + "the value here, or set the initial value in Postman and export again.");
+            }
+        }
     }
 
     /** The name lower case with underscores, hyphens, dots and spaces taken out, one character at a time. */
@@ -382,7 +578,7 @@ public class EnvironmentDrafts {
         }
 
         /** The helper of one owner, or null when it sets none, inherits, or sets none on purpose. */
-        private static CollectionAuth of(JsonNode auth) {
+        static CollectionAuth of(JsonNode auth) {
             if (!JsonSafe.isObject(auth)) {
                 return null;
             }
@@ -458,7 +654,7 @@ public class EnvironmentDrafts {
          * A secret field: filled only when it is wholly one reference. A value typed into the file
          * is never filled and never shown, and one line says so (R-08).
          */
-        private static SecretSetting secret(String value, String what, String field, List<String> warnings) {
+        static SecretSetting secret(String value, String what, String field, List<String> warnings) {
             if (!Texts.present(value)) {
                 return null;
             }

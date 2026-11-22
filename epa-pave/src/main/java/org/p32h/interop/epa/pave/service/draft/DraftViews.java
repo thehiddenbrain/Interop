@@ -67,11 +67,65 @@ public final class DraftViews {
      * @param clientSecret         set with its reference, which is all a secret is ever given as; absent when the files hold
      *                             none or hold a value typed in
      * @param bearerToken          as {@code clientSecret}
-     * @param from                 the collection's sign-in, or the environment's variable names
+     * @param from                 the collection's sign-in, the collection's token request by name, or the environment's
+     *                             variable names
+     * @param fields               the fields filled, by their labels on the form, in the order of the form
+     * @param candidates           for a field no one variable could fill, every variable whose name could be it (D-305), offered
+     *                             as references to choose from; empty when there is no such field
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SignInDraft(String method, String tokenUrl, String clientId, String scope, String clientAuthentication,
-                              SecretSetting clientSecret, SecretSetting bearerToken, String from) {
+                              SecretSetting clientSecret, SecretSetting bearerToken, String from, List<String> fields,
+                              List<Candidates> candidates) {
+
+        public SignInDraft {
+            fields = fields == null ? List.of() : List.copyOf(fields);
+            candidates = candidates == null ? List.of() : List.copyOf(candidates);
+        }
+
+        /** A sign-in whose fields are listed from what it holds, with no candidates. */
+        public SignInDraft(String method, String tokenUrl, String clientId, String scope, String clientAuthentication,
+                           SecretSetting clientSecret, SecretSetting bearerToken, String from) {
+            this(method, tokenUrl, clientId, scope, clientAuthentication, clientSecret, bearerToken, from,
+                    filled(tokenUrl, clientId, clientSecret, scope, clientAuthentication, bearerToken), List.of());
+        }
+
+        static List<String> filled(String tokenUrl, String clientId, SecretSetting clientSecret, String scope, String clientAuthentication,
+                                   SecretSetting bearerToken) {
+            List<String> labels = new java.util.ArrayList<>();
+            if (tokenUrl != null) {
+                labels.add("Token url");
+            }
+            if (clientId != null) {
+                labels.add("Client id");
+            }
+            if (clientSecret != null) {
+                labels.add("Client secret");
+            }
+            if (scope != null) {
+                labels.add("Scope");
+            }
+            if (clientAuthentication != null) {
+                labels.add("Client authentication");
+            }
+            if (bearerToken != null) {
+                labels.add("Bearer token");
+            }
+            return labels;
+        }
+    }
+
+    /**
+     * The variables that could fill one sign-in field, none of them filled (D-305).
+     *
+     * @param field      the field by the name the form posts it under: tokenUrl, clientId, clientSecret or scope
+     * @param references each variable as a {@code {{name}}} reference, in the order of the export
+     */
+    public record Candidates(String field, List<String> references) {
+
+        public Candidates {
+            references = references == null ? List.of() : List.copyOf(references);
+        }
     }
 
     /**

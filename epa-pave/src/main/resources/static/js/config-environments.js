@@ -489,11 +489,11 @@ export function createEditor(options) {
         const stored = settings && settings.signIn ? settings.signIn : {};
         const rows = [];
         if (method === 'CLIENT_CREDENTIALS') {
-            rows.push(register('signIn.tokenUrl', field({label: 'Token url', input: inputs.tokenUrl})));
-            rows.push(register('signIn.clientId', field({label: 'Client id', input: inputs.clientId})));
-            rows.push(register('signIn.clientSecret', secretField('Client secret', inputs.clientSecret, inputs.removeClientSecret,
-                'Remove the stored secret', stored.clientSecret, 'clientSecret')));
-            rows.push(register('signIn.scope', field({label: 'Scope', input: inputs.scope})));
+            rows.push(register('signIn.tokenUrl', withCandidates(field({label: 'Token url', input: inputs.tokenUrl}), 'tokenUrl')));
+            rows.push(register('signIn.clientId', withCandidates(field({label: 'Client id', input: inputs.clientId}), 'clientId')));
+            rows.push(register('signIn.clientSecret', withCandidates(secretField('Client secret', inputs.clientSecret, inputs.removeClientSecret,
+                'Remove the stored secret', stored.clientSecret, 'clientSecret'), 'clientSecret')));
+            rows.push(register('signIn.scope', withCandidates(field({label: 'Scope', input: inputs.scope}), 'scope')));
             rows.push(register('signIn.clientAuthentication', field({label: 'Client authentication', input: inputs.clientAuthentication})));
         } else if (method === 'BEARER_TOKEN') {
             rows.push(register('signIn.bearerToken', secretField('Bearer token', inputs.bearerToken, inputs.removeBearerToken,
@@ -501,6 +501,31 @@ export function createEditor(options) {
         }
         fill(signInFields, rows);
         signInFields.hidden = rows.length === 0;
+    }
+
+    /**
+     * Under a field the files could not fill because several variables could be it (D-305): one
+     * button per variable, which fills the field with its reference. Nothing is filled until one is
+     * pressed; a secret is filled as the reference, as the draft fills one.
+     */
+    function withCandidates(wrapper, name) {
+        const all = draft && draft.signIn && Array.isArray(draft.signIn.candidates) ? draft.signIn.candidates : [];
+        const found = all.find(each => each && each.field === name && Array.isArray(each.references));
+        if (!found || found.references.length === 0) {
+            return wrapper;
+        }
+        const choices = found.references.map(reference => button(String(reference), () => {
+            if (name === 'clientSecret') {
+                secretReferences.clientSecret = String(reference);
+                inputs.clientSecret.value = '';
+                drawSignInFields();
+            } else {
+                inputs[name].value = String(reference);
+            }
+        }, {small: true}));
+        wrapper.append(el('div', {class: 'config-candidates'}, el('span', {class: 'field__hint'}, 'Choose one:'), ' ',
+            choices.map((choice, index) => [index > 0 ? ' ' : null, choice])));
+        return wrapper;
     }
 
     function secretField(label, input, removeBox, removeWords, stored, name) {
@@ -747,7 +772,9 @@ export function createEditor(options) {
             })))));
         }
         if (draft.signIn && draft.signIn.from) {
-            lines.push(el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from + '.'));
+            const filledFields = Array.isArray(draft.signIn.fields) ? draft.signIn.fields.map(String) : [];
+            lines.push(el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from
+                + (filledFields.length > 0 ? ': ' + listWords(filledFields) : '') + '.'));
         }
         // Fill what the files hold, then draw the form again around it, so every hint says where a value came from.
         const signIn = draft.signIn || null;
@@ -1101,6 +1128,11 @@ export function createEditor(options) {
 /* ---------- small pieces ---------- */
 
 /** A line of this page's, with the server's warnings each on a line of its own beneath it. */
+/** Names joined as a sentence lists them: "Token url, Client id and Scope". */
+function listWords(items) {
+    return items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+}
+
 function said(text, warnings) {
     return el('div', {class: 'config-said'}, el('p', null, text),
         warnings && warnings.length > 0 ? el('ul', {class: 'notes'}, warnings.map(each => el('li', null, each))) : null);

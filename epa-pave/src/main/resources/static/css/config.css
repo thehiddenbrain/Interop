@@ -90,6 +90,16 @@
     overflow-wrap: anywhere;
 }
 
+/* The variables that could fill a sign-in field, each a button; a long name wraps instead of widening the form. */
+.config-candidates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    margin-top: var(--s-2);
+    overflow-wrap: anywhere;
+}
+
 .config-check {
     display: inline-flex;
     align-items: center;
