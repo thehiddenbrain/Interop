@@ -5,6 +5,7 @@ import java.util.List;
 import org.p32h.interop.epa.pave.model.suite.SuitePreview;
 import org.p32h.interop.epa.pave.model.suite.SuiteRunView;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.suite.SuiteFileReader;
 import org.p32h.interop.epa.pave.service.suite.SuiteService;
 import org.springframework.http.ContentDisposition;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,7 +25,9 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * Suite runs: read a suite file, run it in the background, follow its progress, export its results.
  *
- * <p>A suite file is uploaded for one run and is not stored. Starting a run answers 202 with the
+ * <p>A suite file is uploaded for one run and is not stored. The page reads the file itself and
+ * posts its text as JSON (R-06, R-30), so no multipart machinery is on the screen's path; the
+ * multipart form stays for curl and scripts. Starting a run answers 202 with the
  * run as it stands, because the cases are still running when the answer goes out. The screen then
  * asks for the run by id until its state is no longer RUNNING.
  */
@@ -41,10 +45,35 @@ public class SuiteController {
     public record SuiteRunList(List<SuiteRunView> runs) {
     }
 
+    /**
+     * A suite file as the page read it, for a preview or a run. One shape for both, so the page
+     * posts the same body to either and a preview never refuses what the run would take.
+     *
+     * @param fileName    the name the file was chosen under: it says CSV or JSON, and names the suite
+     * @param text        the file's text, decoded as UTF-8 by the page
+     * @param testerRef   a reference recorded on every case that gives none of its own, or absent
+     * @param compareWith the id of an earlier suite run to compare with, or absent
+     * @param configEpoch the configuration epoch the screen was drawn under, or absent to not check
+     */
+    public record SuiteFileRequest(String fileName, String text, String testerRef, String compareWith, Long configEpoch) {
+
+        /** Never the text or the reference: a suite file holds member IDs, and a reference is free text. */
+        @Override
+        public String toString() {
+            return "SuiteFileRequest[]";
+        }
+    }
+
     /** What the tool makes of a suite file. Nothing is sent. 200 even when the file has problems: they are the answer. */
     @PostMapping(path = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SuitePreview preview(@RequestParam("file") MultipartFile file) {
         return service.preview(file.getOriginalFilename(), text(file));
+    }
+
+    /** As the multipart preview, with the file posted as the text the page read from it. */
+    @PostMapping(path = "/preview", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public SuitePreview previewText(@RequestBody SuiteFileRequest body) {
+        return service.preview(body.fileName(), text(body.text()));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -54,6 +83,13 @@ public class SuiteController {
                                               @RequestParam(name = "configEpoch", required = false) String configEpoch) {
         Long epoch = Params.optional("configEpoch", configEpoch, Long::valueOf, "a whole number");
         SuiteRunView run = service.start(file.getOriginalFilename(), text(file), testerRef, compareWith, epoch);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(run);
+    }
+
+    /** As the multipart start, with the file posted as the text the page read from it. */
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<SuiteRunView> startText(@RequestBody SuiteFileRequest body) {
+        SuiteRunView run = service.start(body.fileName(), text(body.text()), body.testerRef(), body.compareWith(), body.configEpoch());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(run);
     }
 
@@ -91,6 +127,17 @@ public class SuiteController {
             case "false" -> Boolean.FALSE;
             default -> throw new IllegalArgumentException("not true or false");
         };
+    }
+
+    /**
+     * The posted text, held to the limit an uploaded file is held to. Measured in UTF-8 bytes, as
+     * the file was, so a file refused as multipart is refused as text too.
+     */
+    private static String text(String text) {
+        if (text == null) {
+            throw ValidationException.of("text", "The suite file holds no text. Choose it again.");
+        }
+        return SuiteFileReader.decode(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private static String text(MultipartFile file) {
