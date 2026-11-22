@@ -31,16 +31,23 @@ of the guard and static tests. Its jar, built from that commit without running t
 sweep, ended 11:21 UTC): BUILD SUCCESSFUL in 13m 36s, 355 classes, 3,519 tests, 0 failures, 0 errors, 2
 skipped (the two that need a folder that cannot be written, which a build running as root cannot make);
 its jar's sha1 is `b68338f30d61ce6f064e653f1b6ddefe2bb73814`. H2's builder's whole build on its own
-branch before the merge gave 3,508 tests, 0 failures, 0 errors, 2 skipped. <!-- R1-LAST: the merger's whole build of 7fc32c8, the last line of SWEEP.md -->The
-whole build of the candidate itself is the merger's next and is not known yet.<!-- /R1-LAST -->
+branch before the merge gave 3,508 tests, 0 failures, 0 errors, 2 skipped. <!-- R1-LAST: the merger's whole build of 7fc32c8, the last line of SWEEP.md -->No
+whole build of the candidate itself is known yet: the merger's first try at `7fc32c8` (11:30 UTC) was
+stopped by the runner's time limit with no result, and the merger's next sweep (`748ed1f`, 3,576 tests, 0
+failures, 0 errors, 2 skipped) holds slices of release 2 and is not a build of the candidate.<!-- /R1-LAST -->
 
 **The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
 and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
 are **two holes in the production guardrail that the rebuild opened**, found before any hand-over and
 held by no build handed over: a sandbox's token url could be a production write address and receive the
 client secret, and a typed address could reach production spelled `/Claim/%24submit` (look-guardrail-3
-and -4, decided I-28 and I-29). The integrator decided I-1 to I-34 on what the checks left to them.
-<!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29, every line of findings.jsonl -->Four
+and -4, decided I-28 and I-29). The integrator decided I-1 to I-34 on what the checks left to them. On
+the candidate itself the integrator found three more, each with its decision: a callback url typed in an
+environment is shown and masked but not used by the subscription call (integrator-2, major); a url under
+a name such as `authBase` is masked as a secret, so on live the questionnaire url can reach DTR masked
+and be refused (integrator-3, major, decided I-35); the PAS finding titled with 2.0.1 (integrator-1,
+minor).
+<!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29, every line of findings.jsonl, I-35, integrator-1, integrator-2 -->Four
 correctors are correcting the findings on the release branch until about 13:25 UTC, the two holes first;
 the release is then built whole twice and checked again by agents that wrote no correction.<!-- /R1-LAST -->
 
@@ -52,7 +59,8 @@ found; D-285 how the rebuild was planned and built, with its limits; D-286 to D-
 the rebuild by area (the frame and the Workbench, the result, short words, environment settings and
 the store's version 2, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists,
 uploads and run scripts, Audit, mock and live); D-298 how the saved lists and the trail bend two rules
-of the specification; D-299 the checks of release 1, what they found and what was decided. Older
+of the specification; D-299 the checks of release 1, what they found, the integrator's three findings on
+the candidate and what was decided. Older
 entries whose rule or contract the rebuild changed carry a "Later:" line; the file's head says once
 that the old screens are gone. The commit that records this changes this file and `DECISIONS.md` only.
 
@@ -85,19 +93,21 @@ Each line can be read alone. The detail of each is in the entry named.
 2. **What release 1 does not hold, and release 2 brings at 22:00 UTC**, each with how the screen tells
    the tester:
    - the trail of the full requests and responses of the last 500 exchanges, secrets masked (B5), and
-     the Advanced Trail page (I4): Configuration > Advanced > Trail says "This page comes in the next
+     what reads it: a run's request and answer in Audit with Copy and Download (B4b), and the Advanced
+     Trail page (I4): Configuration > Advanced > Trail says "This page comes in the next
      release."; Audit shows a run's request and answer only while the page that made the run stays open
      <!-- R1-LAST: AU-6, I-26 -->, and a run opened by another page says "The request and answer are shown
      only by the page that made the run, while it stays open."<!-- /R1-LAST -->;
-   - the member and provider lookups configured on screen (D3, F4, C2c): no page of Configuration offers
-     them; until then `lookup.member` and `lookup.provider` in `application.yml`, and typing by hand;
+   - the member and provider lookups configured on screen, with "Test the lookup" (D3, F4, C2c): no page
+     of Configuration offers them; until then `lookup.member` and `lookup.provider` in `application.yml`, and typing by hand;
      <!-- R1-LAST: critic-3, look-8, I-1 -->the Member and Provider cards say "No lookup is configured" and
      "Type the details." and leave the fields open<!-- /R1-LAST -->;
    - questionnaire answers filled from the case (E4, H4): every answer the questionnaire response does
      not already hold is typed, and nothing marks an answer as coming from the case;
-   - Journeys and Suites in Audit (B4b, G4), and the repeated case id of D-283 (G3): Audit draws no
+   - Journeys and Suites in Audit (B4b, G4), and the suites' Postman fix with the repeated case id of
+     D-283 (G3): Audit draws no
      sub-navigation while Runs is its only page, so neither is offered;
-   - a reload that keeps the case and every step's result (A2c): a reload starts a new case, the runs
+   - a reload that keeps the case and every step's result, and "Load into the Workbench" (A2c): a reload starts a new case, the runs
      made before it being in Audit; <!-- R1-LAST: wb-mock-6, wbm3-6, features-4, I-8 -->one notice under the top
      bar says "A reload starts a new case. The runs of the case before are in Audit."<!-- /R1-LAST -->;
    - "Forget this production address" (D6, I4): Production writes lists the addresses remembered as
@@ -110,13 +120,26 @@ Each line can be read alone. The detail of each is in the entry named.
      (D6); the place names in server sentences brought up to the new screens (R-16), the guardrail's
      sentences changed in their place names only (I-30); the advice after a rebuild for a PAVE started
      with loading at start off (hunts-1, hunts-2, I-9).
-3. **What the checks of release 1 left** (D-299).
+3. **What the checks of release 1 and the integrator's own findings on the candidate left** (D-299).
    - **Two holes in the guardrail the rebuild opened**, found by the check on `0b69049` before any
      hand-over: a sandbox's token url set to a production environment's remembered `$submit` address
      received a POST with the client secret, with no unlock and `allow-prod-writes` false
      (look-guardrail-3, I-28, D-290); a typed Submit address ending `/Claim/%24submit` was stored and sent
      to an address that is production (look-guardrail-4, I-29). <!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29 -->Both
      are being corrected for release 1, first of all, with tests.<!-- /R1-LAST -->
+   - **A callback url typed in the environment is not used by the subscription.** At the candidate it is
+     shown in the settings view and held for masking, but the subscription call still names
+     `onyx.subscription.callback-url` of `application.yml` (integrator-2, major, found by the integrator on
+     `7fc32c8`; D-289). <!-- R1-LAST: integrator-2 -->Being corrected for release 1 (integrator-2).<!-- /R1-LAST -->
+   - **A url under a name such as `authBase` is masked as a secret.** On live, every answer that repeats
+     it is masked, and when the FHIR addresses lie under the same host the questionnaire url CRD returns
+     reaches DTR masked and is refused (integrator-3, major, on `7fc32c8`, first seen in the merger's
+     smoke of F2b; decided I-35; D-291). <!-- R1-LAST: integrator-3, I-35 -->Being corrected for release
+     1.<!-- /R1-LAST -->
+   - <!-- R1-LAST: wbm3-2, look-4, live-content-5, look-guardrail-2 -->Put right in the candidate's code by H2
+     and seen by no check since: the purple bar under the Submit head off kind prod (wbm3-2, look-4,
+     live-content-5) and the link "Production writes" drawn purple on purple (look-guardrail-2); no
+     corrector's list names them (D-299).<!-- /R1-LAST -->
    - <!-- R1-LAST: every line of findings.jsonl not named in this line -->The other confirmed findings are being
      corrected for release 1, to be seen again by agents that wrote no correction; each that is not
      becomes an open line here.<!-- /R1-LAST -->
@@ -134,16 +157,21 @@ Each line can be read alone. The detail of each is in the entry named.
      form is kept in plain text in `config-store/store.json`, that `store.json.before-v2` is written once,
      or that an older build refuses a version 2 store (secrets-1); the README is the integrator's, to say
      it for the hand-over.<!-- /R1-LAST -->
-   - Checked by no agent: F2b and H2, merged after the jars the checks used, and the candidate itself.
+   - Checked by none of the checking agents: F2b (seen by the merger's smoke only), H2 (by its builder
+     only), both merged after the jars the checks used, and the candidate itself, on which only the
+     integrator found the three findings above.
      <!-- R1-LAST: I-11 -->The real STS check at the candidate (I-11) is due before the hand-over.<!-- /R1-LAST -->
-   - The PAS finding that lists what a request left out is titled "The request left out <n> elements PAS
-     2.0.1 requires" though its elements are those of 2.2.1 (D-293).
+   - <!-- R1-LAST: integrator-1 -->The PAS finding that lists what a request left out is titled "The request
+     left out <n> elements PAS 2.0.1 requires" though its elements are those of 2.2.1; the integrator
+     decided it says 2.2.1 for release 1 (integrator-1, D-293).<!-- /R1-LAST -->
 4. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
    has seen; whether the vendor's client secrets shown in the photographs of their earlier sessions were
-   changed since (from the reading of those sessions; nothing of them is copied here); whether mock and
-   live should be switched at run time once they have used the screens (D-297); and the questions
+   changed since (from the reading of those sessions; nothing of them is copied here); whether they
+   accept that mock and live stay chosen at start, which the integrator kept against their stated
+   requirement that mock on or off be set on screen and take effect at once (35 to 50 agent-hours, and
+   D-188's guarantee that on live the mock beans do not exist; D-297); and the questions
    D-269 left: the NPI's first digit, a sample request from the vendor.
 5. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
    check follows them** (D-268). Four fixes (ledger, completeness on screen, walkthrough, guardrail)
@@ -158,8 +186,9 @@ Each line can be read alone. The detail of each is in the entry named.
 7. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
-   production environment's. On production's server a sandbox whose base path holds `%00`, `%20` or
-   `%2e`, or a production base path holding `%2F`, is warned about and not refused. Not proven: IPv6,
+   production environment's. <!-- R1-LAST: look-guardrail-4, I-29 -->On production's server a sandbox whose base
+   path holds `%00`, `%20` or `%2e`, or a production base path holding `%2F`, is warned about and not
+   refused.<!-- /R1-LAST --> Not proven: IPv6,
    explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
    redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
    production checks since D1b; the two holes the checks of release 1 found in the rebuild's new
