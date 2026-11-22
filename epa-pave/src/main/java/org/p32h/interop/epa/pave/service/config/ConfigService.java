@@ -141,6 +141,197 @@ public class ConfigService {
     }
 
     // ------------------------------------------------------------------------------------------
+    // An environment's settings (plan 5.4)
+    // ------------------------------------------------------------------------------------------
+
+    /** One environment for its form, every setting beside what is in force. */
+    public SettingsViews.EnvironmentSettingsView settings(String nameOrId) {
+        ConfigSnapshot snapshot = store.snapshot();
+        StoredEnvironment environment = snapshot.environment(nameOrId);
+        if (environment == null) {
+            throw NotFoundException.noLongerHeld("The environment", "environments");
+        }
+        return settingsView(environment, snapshot);
+    }
+
+    /**
+     * Makes or saves an environment from its form, with the exports chosen, in one commit (R-08).
+     * Each export is read inside its own guard (R-07); the checks that follow the reading, the
+     * production guardrail above all, run outside it and keep their own answers.
+     */
+    public SettingsViews.SettingsSaved saveSettings(SettingsViews.EnvironmentSettingsInput input) {
+        List<org.p32h.interop.epa.pave.model.FieldError> errors = new ArrayList<>();
+        EnvironmentKind kind = null;
+        if (Texts.present(input.kind())) {
+            try {
+                kind = EnvironmentKind.parse(input.kind());
+            } catch (IllegalArgumentException e) {
+                errors.add(new org.p32h.interop.epa.pave.model.FieldError("kind", "The kind is sandbox, uat or prod."));
+            }
+        } else if (!Texts.present(input.id())) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError("kind",
+                    "State what kind of environment this is: sandbox, uat or prod. It is never guessed."));
+        }
+        ConfigStore.Export<org.p32h.interop.epa.pave.postman.PostmanEnvironment> environmentExport = export("environmentExport",
+                input.environmentExport(), text -> org.p32h.interop.epa.pave.postman.PostmanParser.environment(text), errors);
+        ConfigStore.Export<org.p32h.interop.epa.pave.postman.PostmanCollection> collectionExport = export("collectionExport",
+                input.collectionExport(), text -> org.p32h.interop.epa.pave.postman.PostmanParser.collection(text), errors);
+        // Every field error of the settings is found before anything is stored, and all of them are answered at once.
+        SettingsInput.check(input, errors);
+        if (!errors.isEmpty()) {
+            throw new ValidationException(errors);
+        }
+        String id = Texts.present(input.id()) ? input.id().strip() : null;
+        ConfigStore.Described<ConfigStore.SettingsSaved, SettingsViews.EnvironmentSettingsView> described = store.saveSettings(
+                new ConfigStore.SettingsSave(id, input.name(), kind, Boolean.TRUE.equals(input.acknowledgeNotProd()), environmentExport,
+                        collectionExport, stored -> SettingsInput.merge(input, stored)), this::settingsView);
+        ConfigStore.SettingsSaved saved = described.upload();
+        List<String> warnings = new ArrayList<>(saved.warnings());
+        warnings.addAll(SettingsInput.plainSecretWarnings(input, saved.environment().name(), store.directory()));
+        return new SettingsViews.SettingsSaved(environmentView(saved.environment(), saved.after()), described.view(), warnings,
+                saved.epoch());
+    }
+
+    /** One export of a save, read inside its own guard; a refusal or a failure becomes a field error at its slot. */
+    private static <T> ConfigStore.Export<T> export(String field, SettingsViews.FileInput file, java.util.function.Function<String, T> parse,
+                                                    List<org.p32h.interop.epa.pave.model.FieldError> errors) {
+        if (file == null) {
+            return null;
+        }
+        if (file.text() == null) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError(field, "The file holds no text. Choose it again."));
+            return null;
+        }
+        org.p32h.interop.epa.pave.service.error.FileGuard.Read<ConfigStore.Export<T>> read =
+                org.p32h.interop.epa.pave.service.error.FileGuard.read(file.fileName(), () -> {
+                    byte[] content = file.text().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    T parsed = parse.apply(org.p32h.interop.epa.pave.postman.PostmanParser.decode(content));
+                    return new ConfigStore.Export<>(file.fileName(), content, parsed);
+                });
+        if (!read.ok()) {
+            errors.add(new org.p32h.interop.epa.pave.model.FieldError(field, read.reference() == null ? read.line()
+                    : read.line() + " Reference " + read.reference() + "."));
+            return null;
+        }
+        return read.value();
+    }
+
+    SettingsViews.EnvironmentSettingsView settingsView(StoredEnvironment environment, ConfigSnapshot snapshot) {
+        EnvironmentSettings settings = environment.settings();
+        EnvironmentView shown = environmentView(environment, snapshot);
+        SettingsViews.ExportView export = new SettingsViews.ExportView(environment.originalFileName(), environment.uploadedAt(),
+                shown.variables());
+        boolean mock = EpaProperties.MOCK.equals(epa.mode());
+        SettingsViews.ProfileView profile = new SettingsViews.ProfileView(epa.mode(), mock ? "Mock, chosen when PAVE starts"
+                : "Live, chosen when PAVE starts");
+
+        Timeouts application = gateway.protocolTimeouts();
+        SettingsViews.TimeoutsView timeouts = new SettingsViews.TimeoutsView(settings.timeouts().connectMs(), settings.timeouts().readMs(),
+                settings.timeouts().over(application), new SettingsViews.TimeoutsView.Defaults(application.connectMs(), application.readMs()));
+
+        org.p32h.interop.epa.pave.model.MemberIdRule rule = settings.memberIdRule();
+        List<SettingsViews.Option> ruleOptions = new ArrayList<>();
+        for (org.p32h.interop.epa.pave.model.MemberIdRule each : org.p32h.interop.epa.pave.model.MemberIdRule.values()) {
+            ruleOptions.add(new SettingsViews.Option(each.name(), each.words()));
+        }
+        SettingsViews.MemberIdRuleView memberIdRule = new SettingsViews.MemberIdRuleView(
+                (rule == null ? org.p32h.interop.epa.pave.model.MemberIdRule.PACKED : rule).name(),
+                rule == null ? org.p32h.interop.epa.pave.model.RequestShapes.FROM_DEFAULT
+                        : org.p32h.interop.epa.pave.model.RequestShapes.FROM_ENVIRONMENT, ruleOptions);
+
+        List<SettingsViews.AddressView> addresses = new ArrayList<>();
+        ConfigStoreGateway.AddressInForce orderSign = null;
+        for (EpaOperation operation : StoredSettings.ADDRESSED) {
+            ConfigStoreGateway.AddressInForce inForce = gateway.addressInForce(snapshot, environment, operation);
+            if (operation == EpaOperation.CRD_ORDER_SIGN) {
+                orderSign = inForce;
+            }
+            String typed = settings.addresses().get(operation);
+            boolean subscription = operation == EpaOperation.SUBSCRIPTION_CREATE;
+            addresses.add(new SettingsViews.AddressView(StoredSettings.key(operation), subscription ? "Subscription" : operation.label(),
+                    operation.shortLabel(), typed == null ? null : LiteralCredentials.inUrl(typed).shown(),
+                    new SettingsViews.AddressInForce(inForce.display(), inForce.template(), inForce.source(), inForce.sourceLabel(),
+                            inForce.resolved(), inForce.unresolved())));
+        }
+
+        List<SettingsViews.ShapeView> shapes = new ArrayList<>();
+        for (org.p32h.interop.epa.pave.model.RequestShape shape : org.p32h.interop.epa.pave.model.RequestShape.values()) {
+            String stated = settings.shapes().get(shape);
+            String value;
+            String from;
+            String requestName = null;
+            String sampled = orderSign == null || orderSign.savedBody() == null ? null
+                    : org.p32h.interop.epa.pave.service.crd.VendorSamples.fromBody(shape, orderSign.savedBody());
+            if (stated != null) {
+                value = stated;
+                from = org.p32h.interop.epa.pave.model.RequestShapes.FROM_ENVIRONMENT;
+            } else if (sampled != null) {
+                // R-37: with nothing stated, the vendor's own sample the call is sent from is the evidence.
+                value = sampled;
+                from = org.p32h.interop.epa.pave.model.RequestShapes.FROM_SAMPLE;
+                requestName = orderSign.requestName();
+            } else {
+                value = shape.defaultValue();
+                from = org.p32h.interop.epa.pave.model.RequestShapes.FROM_DEFAULT;
+            }
+            List<SettingsViews.Option> options = shape.options().stream().map(option -> new SettingsViews.Option(option.value(),
+                    option.words())).toList();
+            shapes.add(new SettingsViews.ShapeView(shape.name(), shape.label(), value, from, requestName, options, shape.why()));
+        }
+
+        List<SettingsViews.ValueView> values = new ArrayList<>();
+        for (KnownValues.Known known : KnownValues.ALL) {
+            values.add(valueView(environment, known.name(), known.label(), known.why()));
+        }
+        for (String name : settings.values().keySet()) {
+            if (KnownValues.of(name) == null) {
+                values.add(valueView(environment, name, null, null));
+            }
+        }
+
+        return new SettingsViews.EnvironmentSettingsView(environment.id(), environment.name(), environment.kind(),
+                environment.name().equals(snapshot.activeName()), environment.acknowledgedNotProd(), export, profile,
+                signInView(settings.signIn()), timeouts, memberIdRule, shapes, values, addresses, environment.settingsProblem(),
+                snapshot.epoch());
+    }
+
+    private SettingsViews.SignInView signInView(SignInSettings signIn) {
+        if (signIn == null) {
+            String applies = onyx.auth().enabled() ? "client credentials" : "no sign-in";
+            return new SettingsViews.SignInView(null, null, null, null, null, SecretSetting.of(null), SecretSetting.of(null),
+                    "Not stated: application.yml applies (" + applies + ")");
+        }
+        String words = switch (signIn.method()) {
+            case NONE -> "None";
+            case CLIENT_CREDENTIALS -> "Client credentials";
+            case BEARER_TOKEN -> "Bearer token";
+        };
+        return new SettingsViews.SignInView(signIn.method().name(), signIn.tokenUrl() == null ? null
+                : LiteralCredentials.inUrl(signIn.tokenUrl()).shown(), signIn.clientId(), signIn.scope(),
+                signIn.clientAuthentication().name(), SecretSetting.of(signIn.clientSecret()), SecretSetting.of(signIn.bearerToken()),
+                words + ", this environment");
+    }
+
+    private SettingsViews.ValueView valueView(StoredEnvironment environment, String name, String label, String why) {
+        String typed = environment.settings().values().get(name);
+        if (typed != null) {
+            return new SettingsViews.ValueView(name, label, why, typed, new SettingsViews.InForce(typed, "THIS_ENVIRONMENT", "typed here"));
+        }
+        Resolution resolution = gateway.resolutionUnder(environment, "{{" + name + "}}");
+        if (resolution.complete()) {
+            VariableSource source = resolution.variables().isEmpty() ? null : resolution.variables().get(0).source();
+            boolean yml = source == VariableSource.APPLICATION_YML;
+            return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(resolution.display(),
+                    yml ? "APPLICATION_YML" : "EXPORT", yml ? "application.yml" : "from the export"));
+        }
+        if (KnownValues.CALLBACK_URL.equals(name) && Texts.present(onyx.subscription().callbackUrl())) {
+            return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(
+                    LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown(), "APPLICATION_YML", "application.yml"));
+        }
+        return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(null, "NOT_SET", "not set"));
+    }
+
+    // ------------------------------------------------------------------------------------------
     // Collections
     // ------------------------------------------------------------------------------------------
 

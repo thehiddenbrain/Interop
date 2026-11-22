@@ -1466,7 +1466,7 @@ class DtrServiceTest {
         assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire was copied into the "
                 + "QuestionnaireResponse and shaped to the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): its url was "
                 + "taken off"));
-        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         assertThat(firstSent.has("item")).isFalse();
         // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
         assertThat(firstSent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
@@ -2013,7 +2013,7 @@ class DtrServiceTest {
         assertThat(completed.at("/item/1/item/1/answer/0/valueString").asString()).isEqualTo("Placeholder description of the skilled need");
         assertThat(completed.at("/item/2/answer/0/valueInteger").asInt()).isEqualTo(21);
         assertThat(completed.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        assertThat(completed.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(completed.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         // Each answer says a person gave it and who, and the response says which coverage and order it is for: what PAS submits
         // is what the DTR guide asks a client to produce.
         for (String answer : List.of("/item/0/item/0/answer/0", "/item/0/item/1/answer/0", "/item/0/item/1/answer/1", "/item/1/item/1/answer/0",

@@ -6,6 +6,7 @@ import java.util.Set;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.OperationGateway;
+import org.p32h.interop.epa.pave.service.error.ClassesOnDisk;
 import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Says what this tool is and what it is pointed at: name, version, port, mode, target, the active
  * environment, the configuration epoch, whether a write would be sent for this browser session,
- * and where it listens. Every tab polls it, so it reads state and does nothing else.
+ * where it listens, and which build runs. Every tab polls it, so it reads state and does nothing else.
  */
 @RestController
 @RequestMapping("/api/mode")
@@ -33,7 +34,13 @@ public class ModeController {
     @GetMapping
     public ModeView mode(HttpServletRequest http) {
         return new ModeView(epa.name(), epa.version(), port(), epa.mode(), epa.target(), gateway.activeEnvironment(), gateway.epoch(),
-                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()));
+                gateway.writeAccess(SessionUnlock.from(http)), bindAddress(), bindNote(bindAddress()), build());
+    }
+
+    /** The running build, read from what it runs from on every poll, so a rebuild under it is said within one look. */
+    private ModeView.Build build() {
+        java.time.Instant built = ClassesOnDisk.builtAt();
+        return new ModeView.Build(epa.version(), built == null ? null : built.toString(), ClassesOnDisk.changedSinceStart());
     }
 
     /** The address the server listens on as configured, or null when none is, and it listens on every address. */
