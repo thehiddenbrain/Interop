@@ -227,8 +227,10 @@ public final class SuiteCases {
                     "The row was not run.");
             member.values().forEach(problems::add);
             Map<String, String> inCaseId = MemberInText.problemsInCaseId(caseId, MemberDetail.builder().memberId(rowMember).build(),
-                    runner == null ? null : runner.ownCaseIds(), "The row was not run.");
-            inCaseId.values().forEach(problems::add);
+                    runner == null ? null : runner.ownCaseIds(), "Nothing was sent.");
+            // In the words of the case id's refusal for the looked-up member's name, field first, so the
+            // tester reads one refusal for the case id whichever member data it holds.
+            inCaseId.forEach((field, problem) -> problems.add(field + ": " + problem));
             refusedForTheRowsId.addAll(member.keySet());
             refusedForTheRowsId.addAll(inCaseId.keySet());
             if (member.containsKey("expected")) {

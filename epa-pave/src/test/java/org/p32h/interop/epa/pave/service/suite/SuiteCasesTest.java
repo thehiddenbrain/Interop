@@ -44,8 +44,8 @@ class SuiteCasesTest {
     @Test
     void aCaseIdThatHoldsTheRowsOwnMemberIdIsNotValidAndIsNotRepeated() {
         SuiteRow row = one("caseId,protocol,memberId,npi,codes", "S123456789-check,crd,S123456789,1234567893,95810");
-        assertThat(row.problems()).containsExactly("The case id holds this run's member ID. The ledger keeps it as written and may not "
-                + "hold member data, so leave it out. The row was not run.");
+        assertThat(row.problems()).containsExactly("caseId: The case id holds this run's member ID. The ledger keeps it as written and "
+                + "may not hold member data, so leave it out. Nothing was sent.");
         assertThat(row.caseId()).isEqualTo("case-1");
         assertThat(row.spec()).isNull();
     }
