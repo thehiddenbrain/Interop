@@ -30,6 +30,9 @@ import org.p32h.interop.epa.pave.model.Protocol;
  * @param caseLine      one plain sentence saying what the case result means. Null with no case result
  * @param replayNote    for a chain with a step after CRD, that such a step cannot be replayed by
  *                      itself and how to run the journey again. Null otherwise
+ * @param steps         the four steps the Workbench draws (Coverage check, Questionnaire, Submit,
+ *                      Status), each with its chip and its latest run, beside the three stages,
+ *                      which stay as they are. Null only for a view built without them
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ChainView(
@@ -55,23 +58,36 @@ public record ChainView(
         org.p32h.interop.epa.pave.model.TestResult caseResult,
         String caseExpected,
         String caseLine,
-        String replayNote) {
+        String replayNote,
+        List<ChainStep> steps) {
 
     public ChainView {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
         stages = stages == null ? null : List.copyOf(stages);
         otherRuns = otherRuns == null ? List.of() : List.copyOf(otherRuns);
         notes = notes == null ? List.of() : List.copyOf(notes);
+        steps = steps == null ? null : List.copyOf(steps);
     }
 
-    /** The same chain without its runs, for a list of chains. Each stage keeps its state and its latest run. */
+    /** A chain without steps, as the callers written before the four steps existed build one. */
+    public ChainView(String chainId, String headline, NextAction nextAction, String nextHeadline, Protocol nextStage, boolean ended,
+                     String startedAt, String lastRunAt, String environment, EnvironmentKind environmentKind, String profile, String target,
+                     String member, List<String> procedureCodes, List<ChainStage> stages, List<ChainRun> otherRuns, int runCount,
+                     long elapsedMillis, List<String> notes, org.p32h.interop.epa.pave.model.TestResult caseResult, String caseExpected,
+                     String caseLine, String replayNote) {
+        this(chainId, headline, nextAction, nextHeadline, nextStage, ended, startedAt, lastRunAt, environment, environmentKind, profile,
+                target, member, procedureCodes, stages, otherRuns, runCount, elapsedMillis, notes, caseResult, caseExpected, caseLine,
+                replayNote, null);
+    }
+
+    /** The same chain without its runs, for a list of chains. Each stage keeps its state and its latest run, each step its chip. */
     public ChainView summary() {
         List<ChainStage> brief = stages == null ? null : stages.stream()
                 .map(stage -> new ChainStage(stage.protocol(), stage.name(), stage.state(), stage.stateLine(), stage.latest(), List.of()))
                 .toList();
         return new ChainView(chainId, headline, nextAction, nextHeadline, nextStage, ended, startedAt, lastRunAt, environment,
                 environmentKind, profile, target, member, procedureCodes, brief, List.of(), runCount, elapsedMillis, notes, caseResult,
-                caseExpected, caseLine, replayNote);
+                caseExpected, caseLine, replayNote, steps);
     }
 
     /** Prints the chain id and the count. The member is named here as the ledger allows, which is still a member. */

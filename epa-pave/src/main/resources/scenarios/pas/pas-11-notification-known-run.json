@@ -2,6 +2,7 @@
   "id": "pas-11-notification-known-run",
   "number": 11,
   "label": "A notification correlating to a known run",
+  "short": "notification for a known run",
   "description": "An event notification that carries ids only: the subscription and the ClaimResponse it is about. Delivered with the sample notification action for a run, it is matched to that submission and to the run that created the subscription. The topic is the one PAS 2.0.1 defines.",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
   "basis": "Synthetic. The topic is the one PAS 2.0.1 defines. The subscription and notification shapes are those of the subscriptions backport as balloted for 1.2.0, because the 1.1.0 release PAS 2.0.1 depends on could not be read here. Every other value is a placeholder of this project. It has not been observed from the live service.",
