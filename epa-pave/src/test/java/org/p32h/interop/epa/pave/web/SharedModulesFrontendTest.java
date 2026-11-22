@@ -161,6 +161,93 @@ class SharedModulesFrontendTest {
                 "[199999,64,true]");
     }
 
+    /** api.js, against a stand-in for the browser's fetch: every kind of answer comes back in the one shape, and nothing throws. */
+    @Test
+    void everyAnswerComesBackInOneShapeAndNoCallThrows(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "api.js", """
+                import {call, watch} from './js/api.js';
+                const say = value => console.log(JSON.stringify(value));
+                const sent = [];
+                let next = null;
+                globalThis.fetch = async (address, init) => {
+                    sent.push([address, init.method, init.headers['Content-Type'] || null, init.headers.Accept, init.body === undefined ? null : init.body,
+                        init.cache, init.credentials, init.redirect]);
+                    return next();
+                };
+                const json = (status, value) => () => new Response(JSON.stringify(value), {status});
+                const text = (status, value) => () => new Response(value, {status});
+                const heard = [];
+                const stop = watch(event => heard.push([event.method, event.path, event.answer.ok, event.answer.status]));
+                watch(() => { throw new Error('a listener that fails'); });
+
+                next = json(200, {mode: 'mock', epoch: 3});
+                say(await call('GET', '/api/mode'));
+                next = text(200, '');
+                say(await call('post', '/api/config/environments/x/activate'));
+                next = text(200, '<html><body>Not the tool</body></html>');
+                say(await call('GET', '/api/mode'));
+                next = json(422, {kind: 'VALIDATION', title: 'Two fields cannot be used.', fieldErrors: [{field: 'memberId', message: 'Enter a member ID.'}]});
+                say(await call('POST', '/api/crd', {body: {memberId: ''}}));
+                next = json(403, {runId: 'run-1', error: {kind: 'BLOCKED', title: 'Refused.'}, verdict: {headline: 'Blocked.'}});
+                say(await call('POST', '/api/pas/submit', {body: {}}));
+                next = text(500, '');
+                say(await call('POST', '/api/crd', {body: {}}));
+                next = json(500, ['not', 'the', 'shape']);
+                say(await call('GET', '/api/runs'));
+                next = () => { throw new TypeError('Failed to fetch'); };
+                say(await call('GET', '/api/mode'));
+                next = json(200, {});
+                say(await call('GET', '/api/runs', {body: {from: 'x'}}));
+                await call('GET', '/api/runs', {query: {from: '2026-11-22', to: null, protocol: undefined, result: ['PASS', 'FAIL'], q: ''}});
+                await call('GET', '/api/procedure-codes?q=811', {query: {lob: 'Medicare'}});
+                await call('DELETE', '/api/config/environments/' + encodeURIComponent('A/B name'), {query: {}});
+                for (const each of sent) {
+                    say(each);
+                }
+                stop();
+                await call('GET', '/api/mode');
+                say(heard.length);
+                say(heard.slice(0, 4));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "{\"ok\":true,\"status\":200,\"data\":{\"mode\":\"mock\",\"epoch\":3}}",
+                // A completed call with no body.
+                "{\"ok\":true,\"status\":200,\"data\":null}",
+                // An answer that is not JSON, whatever its status: what PAVE gives with its classes rebuilt under it.
+                "{\"ok\":false,\"status\":200,\"error\":{\"kind\":\"NOT_JSON\",\"status\":200}}",
+                // The shared error shape, as the server sent it.
+                "{\"ok\":false,\"status\":422,\"error\":{\"kind\":\"VALIDATION\",\"title\":\"Two fields cannot be used.\","
+                        + "\"fieldErrors\":[{\"field\":\"memberId\",\"message\":\"Enter a member ID.\"}]}}",
+                // A run refused by the guardrail: its own error, and the whole run to draw as a result.
+                "{\"ok\":false,\"status\":403,\"error\":{\"kind\":\"BLOCKED\",\"title\":\"Refused.\"},\"data\":{\"runId\":\"run-1\","
+                        + "\"error\":{\"kind\":\"BLOCKED\",\"title\":\"Refused.\"},\"verdict\":{\"headline\":\"Blocked.\"}}}",
+                "{\"ok\":false,\"status\":500,\"error\":{\"kind\":\"NOT_JSON\",\"status\":500}}",
+                "{\"ok\":false,\"status\":500,\"error\":{\"kind\":\"NOT_JSON\",\"status\":500}}",
+                // No answer at all.
+                "{\"ok\":false,\"status\":0,\"error\":{\"kind\":\"UNREACHABLE\"}}",
+                // A request the page could not build is not sent, and is not called PAVE not answering.
+                "{\"ok\":false,\"status\":0,\"error\":{\"kind\":\"PAGE_FAULT\"}}",
+                // What was sent: JSON only, never kept by the browser, no redirect followed; the query without null or undefined.
+                "[\"/api/mode\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/config/environments/x/activate\",\"POST\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/mode\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/crd\",\"POST\",\"application/json\",\"application/json\",\"{\\\"memberId\\\":\\\"\\\"}\",\"no-store\",\"same-origin\","
+                        + "\"error\"]",
+                "[\"/api/pas/submit\",\"POST\",\"application/json\",\"application/json\",\"{}\",\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/crd\",\"POST\",\"application/json\",\"application/json\",\"{}\",\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/runs\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/mode\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/runs?from=2026-11-22&result=PASS&result=FAIL&q=\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\","
+                        + "\"error\"]",
+                "[\"/api/procedure-codes?q=811&lob=Medicare\",\"GET\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                "[\"/api/config/environments/A%2FB%20name\",\"DELETE\",null,\"application/json\",null,\"no-store\",\"same-origin\",\"error\"]",
+                // Every answer is heard, the refused GET with a body included, until the listener stops; a failing listener changes nothing.
+                "12",
+                "[[\"GET\",\"/api/mode\",true,200],[\"POST\",\"/api/config/environments/x/activate\",true,200],"
+                        + "[\"GET\",\"/api/mode\",false,200],[\"POST\",\"/api/crd\",false,422]]");
+    }
+
     @Test
     void thePagesMemoryOfItsRunsKeepsTwentyAndFiftyMegabytesAndDropsTheOldestFirst(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the page's memory of its runs", """

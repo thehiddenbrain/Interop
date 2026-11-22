@@ -38,11 +38,16 @@ export function watch(listener) {
  */
 export async function call(method, path, options) {
     const {query, body} = options || {};
+    const verb = String(method || 'GET').toUpperCase();
     let answer;
     let request;
     try {
+        if (body !== undefined && (verb === 'GET' || verb === 'HEAD')) {
+            // The browser refuses such a request before it leaves, which would read as PAVE not answering.
+            throw new TypeError('A ' + verb + ' carries no body.');
+        }
         request = {
-            method,
+            method: verb,
             headers: body === undefined ? {Accept: 'application/json'} : {Accept: 'application/json', 'Content-Type': 'application/json'},
             body: body === undefined ? undefined : JSON.stringify(body),
             // no-store: an answer can hold a member's name and date of birth, and the browser's cache
@@ -60,7 +65,7 @@ export async function call(method, path, options) {
     }
     for (const listener of listeners) {
         try {
-            listener({method, path, answer});
+            listener({method: verb, path, answer});
         } catch (ignored) {
             // A listener's own fault must not change what the caller is given.
         }

@@ -483,7 +483,8 @@ function drawLedger() {
         ? ' ' + health.failedWrites + (health.failedWrites === 1 ? ' write' : ' writes')
           + ' failed earlier, since PAVE started: those runs are not in the ledger.' : '';
     if (typeof health.runsToday === 'number') {
-        const sentence = health.runsToday + (health.runsToday === 1 ? ' run' : ' runs') + ' recorded today (UTC).' + failed;
+        const counted = health.runsToday + (health.runsToday === 1 ? ' run' : ' runs') + ' recorded today (UTC)';
+        const sentence = failed ? counted + '.' + failed : counted;
         fill(count, el('span', {'aria-hidden': 'true'}, String(health.runsToday)), el('span', {class: 'visually-hidden'}, ' ' + sentence));
         count.title = sentence;
     } else {
