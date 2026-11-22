@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.postman;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -51,17 +52,161 @@ public final class PostmanParser {
     private PostmanParser() {
     }
 
-    /** The uploaded bytes as text. A Postman export is UTF-8, and anything that is not is refused, not repaired. */
+    /** The words for text that is not UTF-8 but reads as text: a copy re-saved by a Windows tool, not a damaged file. */
+    private static final String OTHER_ENCODING = "This file is saved in another encoding (for example by PowerShell or Notepad).";
+    private static final String SAVE_AS_UTF8 = "Save it as UTF-8, or export it again from Postman.";
+
+    /** The words of R-36 for an export flattened by a script, split so that the action is the way out. */
+    private static final String FLATTENED_CAUSE = "a script saved it cut short (PowerShell ConvertTo-Json does at its default depth).";
+    private static final String FLATTENED_ACTION = "Export it from Postman, or save it with -Depth 100.";
+
+    /** The words of R-36 for a name the store could not write back as it was read. */
+    static final String BROKEN_NAME = "The name holds a broken character; rename it in Postman and export again.";
+
+    /** How many bytes of a character a cut can have left behind at the end: UTF-8 writes at most four. */
+    private static final int LONGEST_TAIL = 3;
+
+    /**
+     * The uploaded bytes as text. A Postman export is UTF-8. A copy re-saved as UTF-16 by Windows
+     * PowerShell or Notepad is read as what it is, told by its byte order mark, or without one by
+     * a zero byte beside the first character, which in JSON is always ASCII. Anything else is
+     * refused with the reason that fits it, because "not UTF-8" sent testers looking at a file that
+     * was whole and only saved differently, or cut inside its last character.
+     */
     public static String decode(byte[] content) {
         if (content == null || content.length == 0) {
             throw new BadInputException("The uploaded file is empty.", "Upload the JSON file that Postman exported.");
         }
+        Charset charset = StandardCharsets.UTF_8;
+        int start = 0;
+        if (content.length >= 2 && (content[0] & 0xFF) == 0xFF && (content[1] & 0xFF) == 0xFE) {
+            charset = StandardCharsets.UTF_16LE;
+            start = 2;
+        } else if (content.length >= 2 && (content[0] & 0xFF) == 0xFE && (content[1] & 0xFF) == 0xFF) {
+            charset = StandardCharsets.UTF_16BE;
+            start = 2;
+        } else if (content.length >= 2 && content[0] != 0 && content[1] == 0) {
+            charset = StandardCharsets.UTF_16LE;
+        } else if (content.length >= 2 && content[0] == 0 && content[1] != 0) {
+            charset = StandardCharsets.UTF_16BE;
+        }
+        String text = strictly(content, start, content.length - start, charset);
+        if (text != null) {
+            return text;
+        }
+        for (int cut = 1; cut <= LONGEST_TAIL && content.length - start - cut > 0; cut++) {
+            if (strictly(content, start, content.length - start - cut, charset) != null && cutCharacter(content, cut, charset)) {
+                throw new BadInputException("This file is not complete: it stops part way through a character, as a truncated download "
+                        + "or a partial copy does.", "Export it again from Postman and upload the whole file.");
+            }
+        }
+        if (charset == StandardCharsets.UTF_8 && !binary(content)) {
+            throw new BadInputException(OTHER_ENCODING, SAVE_AS_UTF8);
+        }
+        throw new BadInputException("The uploaded file is not text in UTF-8, so it is not a Postman export.",
+                "Upload the JSON file that Postman exported, unchanged.");
+    }
+
+    /** The bytes as text in that encoding, or null when they are not. */
+    private static String strictly(byte[] content, int offset, int length, Charset charset) {
         try {
-            return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(content)).toString();
+            return charset.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(content, offset, length)).toString();
         } catch (CharacterCodingException e) {
-            throw new BadInputException("The uploaded file is not text in UTF-8, so it is not a Postman export.",
-                    "Upload the JSON file that Postman exported, unchanged.");
+            return null;
+        }
+    }
+
+    /**
+     * True when the last {@code cut} bytes are the start of one character and too few to finish it.
+     * In UTF-8 that is a lead byte followed by fewer continuation bytes than it announces; in UTF-16
+     * half a code unit, or a high surrogate with or without half of its partner.
+     */
+    private static boolean cutCharacter(byte[] content, int cut, Charset charset) {
+        int first = content.length - cut;
+        if (charset != StandardCharsets.UTF_8) {
+            return cut == 1 || cut == 2 && highSurrogateAt(content, first, charset) || cut == 3 && highSurrogateAt(content, first, charset);
+        }
+        int lead = content[first] & 0xFF;
+        int needs = lead >= 0xC2 && lead <= 0xDF ? 1 : lead >= 0xE0 && lead <= 0xEF ? 2 : lead >= 0xF0 && lead <= 0xF4 ? 3 : -1;
+        if (needs < cut) {
+            return false;
+        }
+        for (int i = first + 1; i < content.length; i++) {
+            if ((content[i] & 0xC0) != 0x80) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean highSurrogateAt(byte[] content, int at, Charset charset) {
+        int high = charset == StandardCharsets.UTF_16LE ? content[at + 1] & 0xFF : content[at] & 0xFF;
+        return high >= 0xD8 && high <= 0xDB;
+    }
+
+    /** True when the bytes hold a control character that no text file holds, as an archive or an image does. */
+    private static boolean binary(byte[] content) {
+        for (byte b : content) {
+            int value = b & 0xFF;
+            if (value < 0x09 || value > 0x0D && value < 0x20 && value != 0x1A) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when the text holds half of a surrogate pair. A name like that cannot be written to the
+     * store's own file and read back the same, so the tool failed at its next start.
+     */
+    static boolean brokenCharacter(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 >= text.length() || !Character.isLowSurrogate(text.charAt(i + 1))) {
+                    return true;
+                }
+                i++;
+            } else if (Character.isLowSurrogate(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when a list that Postman fills with objects holds a text: what ConvertTo-Json writes past its depth. */
+    private static boolean flattened(JsonNode list) {
+        for (JsonNode element : JsonSafe.elements(list)) {
+            if (element != null && element.isString()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static BadInputException flattenedCollection() {
+        return new BadInputException("The items of this collection are text, not requests: " + FLATTENED_CAUSE, FLATTENED_ACTION);
+    }
+
+    /**
+     * Refuses a file of another tool by its name. An OpenAPI file has an info block, so it was
+     * called a collection under Environments and something else under Collections, which sent the
+     * tester in a circle.
+     */
+    private static void refuseOtherKinds(JsonNode root, String howToExport) {
+        if (!JsonSafe.isObject(root)) {
+            return;
+        }
+        if (!JsonSafe.missing(JsonSafe.child(root, "openapi")) || !JsonSafe.missing(JsonSafe.child(root, "swagger"))) {
+            throw new BadInputException("This is an OpenAPI file, not a Postman export.", howToExport);
+        }
+        JsonNode log = JsonSafe.child(root, "log");
+        if (JsonSafe.isObject(log) && (JsonSafe.isArray(JsonSafe.child(log, "entries")) || JsonSafe.isObject(JsonSafe.child(log, "creator")))) {
+            throw new BadInputException("This is a HAR file, not a Postman export.", howToExport);
         }
     }
 
@@ -71,6 +216,7 @@ public final class PostmanParser {
 
     public static PostmanEnvironment environment(String text) {
         Document document = document(text, "environment", EXPORT_ENVIRONMENT);
+        refuseOtherKinds(document.root(), EXPORT_ENVIRONMENT);
         JsonNode root = unwrap(document.root(), "environment");
         if (looksLikeCollection(root) || looksLikeOldCollection(root)) {
             throw new BadInputException("This file is a Postman collection, not an environment.",
@@ -79,10 +225,16 @@ public final class PostmanParser {
         if (!JsonSafe.isObject(root) || !JsonSafe.isArray(JsonSafe.child(root, "values"))) {
             throw new BadInputException("This JSON file is not a Postman environment export: it has no list of values.", EXPORT_ENVIRONMENT);
         }
+        if (flattened(JsonSafe.child(root, "values"))) {
+            throw new BadInputException("The values of this environment are text, not variables: " + FLATTENED_CAUSE, FLATTENED_ACTION);
+        }
         String name = JsonSafe.presentText(root, "name");
         if (name == null) {
             throw new BadInputException("This environment export has no name, and an environment is identified by its name.",
                     "Give the environment a name in Postman, export it again and upload that file.");
+        }
+        if (brokenCharacter(name)) {
+            throw new BadInputException(BROKEN_NAME, null);
         }
         List<String> notes = new ArrayList<>(document.notes());
         List<PostmanVariable> variables = variables(JsonSafe.child(root, "values"), false, notes);
@@ -99,6 +251,7 @@ public final class PostmanParser {
 
     public static PostmanCollection collection(String text) {
         Document document = document(text, "collection", EXPORT_COLLECTION);
+        refuseOtherKinds(document.root(), EXPORT_COLLECTION);
         JsonNode root = unwrap(document.root(), "collection");
         if (looksLikeOldCollection(root)) {
             throw new BadInputException("This is a Postman collection in the old v1 format, which this tool does not read.", EXPORT_COLLECTION);
@@ -111,6 +264,9 @@ public final class PostmanParser {
         if (!JsonSafe.isObject(root) || !JsonSafe.isObject(info) || !JsonSafe.isArray(JsonSafe.child(root, "item"))) {
             throw new BadInputException("This JSON file is not a Postman collection export: it has no info block with a list of items.",
                     EXPORT_COLLECTION);
+        }
+        if (flattened(JsonSafe.child(root, "item")) || flattened(JsonSafe.child(root, "variable"))) {
+            throw flattenedCollection();
         }
         String schema = JsonSafe.presentText(info, "schema");
         if (schema == null) {
@@ -126,6 +282,9 @@ public final class PostmanParser {
         if (name == null) {
             throw new BadInputException("This collection export has no name, and a collection is identified by its name.",
                     "Give the collection a name in Postman, export it again and upload that file.");
+        }
+        if (brokenCharacter(name)) {
+            throw new BadInputException(BROKEN_NAME, null);
         }
 
         List<String> notes = new ArrayList<>(document.notes());
@@ -167,6 +326,10 @@ public final class PostmanParser {
      */
     private static void walk(JsonNode items, List<String> path, Inherited inherited, Walk walk) {
         for (JsonNode item : JsonSafe.elements(items)) {
+            if (item != null && item.isString()) {
+                // A folder flattened deeper down is the same cut as one at the top: nothing under it can be read.
+                throw flattenedCollection();
+            }
             if (!JsonSafe.isObject(item)) {
                 walk.skipped++;
                 continue;
@@ -638,6 +801,12 @@ public final class PostmanParser {
         String body = text != null && !text.isEmpty() && text.charAt(0) == BYTE_ORDER_MARK ? text.substring(1) : text;
         if (Texts.blank(body)) {
             throw new BadInputException("The uploaded file is empty.", "Upload the JSON file that Postman exported. " + howToExport);
+        }
+        // A UTF-16 file without its byte order mark is valid UTF-8 to a reader that does not look
+        // for zero bytes, and arrives with one beside every character. "Not valid JSON" was the wrong reason.
+        int zero = body.indexOf(0);
+        if (zero >= 0 && zero < 64) {
+            throw new BadInputException(OTHER_ENCODING, SAVE_AS_UTF8);
         }
         // The parser's own message is never used: it quotes the text it could not read. Its type
         // and its position say whether the text simply stopped, and where it went wrong if not.

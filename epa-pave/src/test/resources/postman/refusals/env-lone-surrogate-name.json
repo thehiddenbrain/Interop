@@ -1,0 +1,7 @@
+{
+	"id": "00000000-0000-4000-8000-000000000003",
+	"name": "Vendor Sandbox \ud83d broken emoji",
+	"values": [
+		{"key": "baseUrl", "value": "https://sandbox.vendor.example.invalid/fhir/r4", "enabled": true}
+	]
+}
