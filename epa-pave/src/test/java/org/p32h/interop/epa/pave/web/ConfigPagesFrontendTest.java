@@ -420,7 +420,7 @@ class ConfigPagesFrontendTest {
         NodeRun run = StaticSources.runModule(folder, "cfg-inforce.js", PRELUDE + """
             fake.mode = {mode: 'live', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true},
                 writeAccess: {production: false, writesAllowed: true, floorAllows: true, reason: 'The active environment is not production.'}};
-            const effective = {mode: 'live', storeDirectory: './config-store', problems: [], operations: [], settings: [],
+            const effective = {mode: 'live', storeDirectory: './config-store', problems: ['Not read: it is not valid JSON. It was left out when PAVE started.'], operations: [], settings: [],
                 unreadable: [{file: 'environments/pave-sample-uat.json', line: 'Not read: it is not valid JSON. It was left out when PAVE started.'},
                     {file: 'store.json#productionDestinations[2]', line: 'Kept as text: it is not an address PAVE can read.'}]};
             fake.answers['GET /api/config/effective'] = {status: 200, body: effective};
@@ -432,6 +432,7 @@ class ConfigPagesFrontendTest {
             await settle();
             let all = text(root);
             const removes = () => root.querySelectorAll('button').filter(each => text(each) === 'Remove it from the store');
+            say(['said once', all.split('Not read: it is not valid JSON.').length - 1]);
             say(['listed', all.includes('2 stored files were left out, as PAVE could not read them.'), all.includes('environments/pave-sample-uat.json'),
                 all.includes('Not read: it is not valid JSON. It was left out when PAVE started.'), removes().length,
                 all.indexOf('Stored files PAVE could not read') < all.indexOf('Where PAVE is pointed')]);
@@ -440,13 +441,13 @@ class ConfigPagesFrontendTest {
             await settle();
             all = text(root);
             say(['failed', all.includes('A failure of this tool.'), all.includes('R-0003'), removes().length]);
-            fake.answers['POST /api/config/unreadable/remove'] = {status: 200, body: {removed: 'environments/pave-sample-uat.json', epoch: 9}};
+            fake.answers['POST /api/config/unreadable/remove'] = {status: 200, body: {removed: 'environments/pave-sample-uat.json', movedTo: 'unreadable/pave-sample-uat.json', epoch: 9}};
             effective.unreadable = effective.unreadable.slice(1);
             await removes()[0].click();
             await settle();
             all = text(root);
             say(['removed', fake.sent.filter(each => each.key === 'POST /api/config/unreadable/remove').map(each => each.body),
-                all.includes('Removed environments/pave-sample-uat.json from the configuration store.'), all.includes('A failure of this tool.'),
+                all.includes('Removed environments/pave-sample-uat.json from the configuration store. Moved to unreadable/pave-sample-uat.json.'), all.includes('A failure of this tool.'),
                 all.includes('One stored file was left out, as PAVE could not read it.'), removes().length]);
             // None served: no part.
             delete effective.unreadable;
@@ -456,6 +457,7 @@ class ConfigPagesFrontendTest {
             """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
+                "[\"said once\",1]",
                 "[\"listed\",true,true,true,2,true]",
                 "[\"failed\",true,true,2]",
                 "[\"removed\",[{\"file\":\"environments/pave-sample-uat.json\"},{\"file\":\"environments/pave-sample-uat.json\"}],true,false,true,1]",

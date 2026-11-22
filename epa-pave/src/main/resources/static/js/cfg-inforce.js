@@ -140,10 +140,11 @@ export function mount(root, route) {
             fill(said, errorPanel(answer.error));
             return;
         }
-        // removed names the file the server moved; until its shape is known, a value that is not a name is not shown.
-        const removed = answer.data && typeof answer.data.removed === 'string' && answer.data.removed !== '' ? answer.data.removed : file;
-        fill(said, el('p', {role: 'status'}, 'Removed ', el('span', {class: 'mono'}, removed),
-            ' from the configuration store.'));
+        const data = answer.data || {};
+        const removed = typeof data.removed === 'string' && data.removed !== '' ? data.removed : file;
+        // movedTo is absent when the file was already gone; the file is never deleted, so where it went is said.
+        fill(said, el('p', {role: 'status'}, 'Removed ', el('span', {class: 'mono'}, removed), ' from the configuration store.',
+            typeof data.movedTo === 'string' && data.movedTo !== '' ? [' Moved to ', el('span', {class: 'mono'}, data.movedTo), '.'] : null));
         await load();
     }
 
@@ -155,7 +156,9 @@ export function mount(root, route) {
         const active = environments && Array.isArray(environments.environments)
             ? environments.environments.find(each => each.active) : null;
         const warnings = active && Array.isArray(active.addressWarnings) ? active.addressWarnings : [];
-        const problems = Array.isArray(data.problems) ? data.problems : [];
+        // A stored file PAVE could not read is said once, beside its Remove button, though the server lists its line among the problems too.
+        const unreadLines = new Set((Array.isArray(data.unreadable) ? data.unreadable : []).map(each => each && each.line));
+        const problems = (Array.isArray(data.problems) ? data.problems : []).filter(problem => !unreadLines.has(problem));
         return part('Where PAVE is pointed',
             kv([
                 {key: 'Profile', value: app.isMock()
