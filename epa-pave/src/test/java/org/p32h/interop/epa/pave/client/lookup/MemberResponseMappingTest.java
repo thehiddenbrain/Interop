@@ -505,7 +505,7 @@ class MemberResponseMappingTest {
     @Test
     void severalRecordsAreAFaultThatSaysHowManyCameBack() {
         MemberLookupResult two = map(200, "[" + RECORD + "," + RECORD.replace("Avery", "Blair") + "]");
-        assertThat(two.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(two.status()).isEqualTo(LookupStatus.SEVERAL);
         assertThat(two.message()).isEqualTo("The member API returned 2 records for one member ID, and this tool does not choose between them.");
         assertThat(two.error().kind()).isEqualTo(ErrorKind.MALFORMED_RESPONSE);
         assertThat(two.error().httpStatus()).isEqualTo(200);
@@ -515,7 +515,7 @@ class MemberResponseMappingTest {
         assertThat(paths(two)).contains("[0].firstName", "[1].firstName").hasSize(10);
 
         MemberLookupResult three = map(200, "{\"data\":[" + RECORD + "," + RECORD + "," + RECORD + "]}");
-        assertThat(three.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(three.status()).isEqualTo(LookupStatus.SEVERAL);
         assertThat(three.message()).startsWith("The member API returned 3 records for one member ID");
     }
 
@@ -815,7 +815,7 @@ class MemberResponseMappingTest {
     @Test
     void aTimeoutAndAnUnreachableHostAreDifferentFaults() {
         MemberLookupResult timeout = MemberResponseMapping.map(TestExchanges.timeout(EpaOperation.MEMBER_LOOKUP), FORMS, TODAY);
-        assertThat(timeout.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(timeout.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(timeout.message()).isEqualTo("The member API did not answer inside the read timeout.");
         assertThat(timeout.error().kind()).isEqualTo(ErrorKind.TIMEOUT);
         assertThat(timeout.error().httpStatus()).isNull();
@@ -823,7 +823,7 @@ class MemberResponseMappingTest {
         assertThat(timeout.wire().request()).isNotNull();
 
         MemberLookupResult unreachable = MemberResponseMapping.map(TestExchanges.unavailable(EpaOperation.MEMBER_LOOKUP), FORMS, TODAY);
-        assertThat(unreachable.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(unreachable.status()).isEqualTo(LookupStatus.NOT_ANSWERING);
         assertThat(unreachable.message()).isEqualTo("The member API could not be reached.");
         assertThat(unreachable.error().kind()).isEqualTo(ErrorKind.UNREACHABLE);
         assertThat(unreachable.error().title())
@@ -916,9 +916,13 @@ class MemberResponseMappingTest {
             assertThat(result.wire().memberId()).isEqualTo(FORMS);
             assertThat(result.wire().request()).isNotNull();
         });
-        // Found and not found never carry an error panel. A fault always does.
-        assertThat(results).filteredOn(result -> result.status() != LookupStatus.FAULT).allSatisfy(result -> assertThat(result.error()).isNull());
-        assertThat(results).filteredOn(result -> result.status() == LookupStatus.FAULT).hasSize(7)
+        // Found and not found never carry an error panel. A fault always does, and so do several matched and not answering,
+        // which say what came back or what was waited for.
+        assertThat(results).filteredOn(result -> result.status() == LookupStatus.FOUND || result.status() == LookupStatus.NOT_FOUND)
+                .allSatisfy(result -> assertThat(result.error()).isNull());
+        assertThat(results).filteredOn(result -> result.status() == LookupStatus.SEVERAL || result.status() == LookupStatus.NOT_ANSWERING)
+                .hasSize(3).allSatisfy(result -> assertThat(result.error().title()).isNotBlank());
+        assertThat(results).filteredOn(result -> result.status() == LookupStatus.FAULT).hasSize(4)
                 .allSatisfy(result -> assertThat(result.error().title()).isNotBlank());
     }
 
