@@ -12,10 +12,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.function.LongSupplier;
 import org.p32h.interop.epa.pave.model.ErrorKind;
 import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.service.error.FaultAdvice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
@@ -48,7 +52,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *       largest body a tester sends is their own PAS bundle with a document inline, which an
  *       upload's limit also fits. A body that states its length is refused before it is read; a
  *       body sent in chunks is counted as it is read and refused when it passes the limit. A
- *       negative value means no limit, as it does to the framework, which documents -1 for that.</li>
+ *       negative value means no limit, as it does to the framework, which documents -1 for that.
+ *       Both size settings are named together in the answer: raising the one for the request alone
+ *       let a large upload through to a second refusal, by the limit for one file.</li>
+ *   <li><b>A body too large for the memory PAVE runs with</b>, with 413, when its stated length
+ *       times {@link #HEAP_FACTOR} passes the most the heap may grow to. Reading a Postman export
+ *       into a tree takes about that much, and running out part way gave an internal error with no
+ *       way out; refused before it is read, the tester is told the setting that helps.</li>
  * </ul>
  */
 @Component
@@ -59,16 +69,39 @@ public class RequestShapeFilter extends OncePerRequestFilter {
     static final String MAX_FILE_SIZE = "spring.servlet.multipart.max-file-size";
     static final String FILE_SIZE_THRESHOLD = "spring.servlet.multipart.file-size-threshold";
 
+    /**
+     * A Postman export read into a tree takes many times its own size in memory. Twelve times is
+     * the bound a body is held to here, so that the refusal comes before the heap runs out part way.
+     */
+    static final long HEAP_FACTOR = 12;
+
+    private static final long MB = 1024L * 1024;
+
     private static final Logger log = LoggerFactory.getLogger(RequestShapeFilter.class);
 
     /** The most a body may carry, or a negative number when there is no limit. */
     private final long maxBody;
     private final String maxBodyText;
+    /** The limit for one uploaded file as the operator wrote it, or null when it is no limit. */
+    private final String maxFileText;
+    private final long maxFile;
+    /** The most the heap may grow to, read on each request so that a test can fix it. */
+    private final LongSupplier maxHeap;
 
+    @Autowired
     public RequestShapeFilter(Environment environment) {
+        this(environment, () -> Runtime.getRuntime().maxMemory());
+    }
+
+    RequestShapeFilter(Environment environment, LongSupplier maxHeap) {
         String limit = Texts.orElse(Texts.trimToNull(environment.getProperty(MAX_REQUEST_SIZE)), "30MB");
         this.maxBody = DataSize.parse(limit).toBytes();
         this.maxBodyText = limit;
+        // The framework's own default, which applies when the setting is absent.
+        String fileLimit = Texts.orElse(Texts.trimToNull(environment.getProperty(MAX_FILE_SIZE)), "1MB");
+        this.maxFile = DataSize.parse(fileLimit).toBytes();
+        this.maxFileText = fileLimit;
+        this.maxHeap = maxHeap;
         warnWhenUploadsCanReachTheDisk(environment);
     }
 
@@ -117,33 +150,63 @@ public class RequestShapeFilter extends OncePerRequestFilter {
                     "Send application/json, or multipart form data for an upload.", null);
             return;
         }
-        if (!limited()) {
-            chain.doFilter(request, response);
+        long stated = request.getContentLengthLong();
+        if (limited() && stated > maxBody) {
+            tooLarge(response, multipart(request.getContentType()));
             return;
         }
-        if (request.getContentLengthLong() > maxBody) {
-            tooLarge(response);
+        // After the size limit, so that a body over it is told about that limit first: raising the
+        // heap would not let it through.
+        long heap = maxHeap.getAsLong();
+        if (stated > 0 && heap > 0 && heap != Long.MAX_VALUE && stated > heap / HEAP_FACTOR) {
+            EdgeAnswers.write(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, ErrorKind.VALIDATION, tooLittleMemory(stated, heap),
+                    FaultAdvice.MORE_MEMORY, null);
+            return;
+        }
+        if (!limited()) {
+            chain.doFilter(request, response);
             return;
         }
         try {
             chain.doFilter(new Limited(request, maxBody), response);
         } catch (BodyTooLargeException e) {
             // Thrown where nothing caught it, such as a body read by a filter of the framework.
-            tooLarge(response);
+            tooLarge(response, multipart(request.getContentType()));
         }
     }
 
-    private void tooLarge(HttpServletResponse response) throws IOException {
-        EdgeAnswers.write(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, ErrorKind.VALIDATION, tooLargeTitle(maxBodyText),
-                tooLargeAction(), null);
+    private void tooLarge(HttpServletResponse response, boolean upload) throws IOException {
+        // For a form upload the limit for one file is the one that matters when it is the lower:
+        // a file cannot pass it however large the request may be.
+        boolean fileLimitMatters = upload && maxFile >= 0 && (maxBody < 0 || maxFile < maxBody);
+        String title = fileLimitMatters ? tooLargeTitle(maxBodyText, maxFileText) : tooLargeTitle(maxBodyText);
+        EdgeAnswers.write(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, ErrorKind.VALIDATION, title, tooLargeAction(), null);
+    }
+
+    private static boolean multipart(String contentType) {
+        return contentType != null && contentType.strip().toLowerCase(Locale.ROOT).startsWith("multipart/");
     }
 
     static String tooLargeTitle(String limit) {
         return "The request is larger than this tool accepts, which is " + limit + " in all. Nothing was done.";
     }
 
+    /** The title for a form upload, naming the limit for one file beside the one for the request. */
+    static String tooLargeTitle(String requestLimit, String fileLimit) {
+        return "The upload is larger than this tool accepts, which is " + fileLimit + " for one file and " + requestLimit
+                + " in all. Nothing was done.";
+    }
+
+    /** Names both size settings together: raising one alone let a large upload meet the other. */
     static String tooLargeAction() {
-        return "Send a smaller body. To accept larger ones, raise " + MAX_REQUEST_SIZE + " in application.yml.";
+        return "Send a smaller body. To accept larger ones, raise " + MAX_REQUEST_SIZE + " and " + MAX_FILE_SIZE
+                + " together in application.yml.";
+    }
+
+    /** R-36's sentence: the size in whole megabytes rounded up, the heap rounded down, so neither flatters the fit. */
+    static String tooLittleMemory(long stated, long heap) {
+        long size = (stated + MB - 1) / MB;
+        return "This request is " + size + " MB and PAVE runs with " + heap / MB + " MB of memory, which is too little to read it.";
     }
 
     /** True when every percent sign starts an escape of two hexadecimal digits. */
