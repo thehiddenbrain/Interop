@@ -257,4 +257,13 @@ public interface OperationGateway {
     default SignInSettings.Method activeSignInMethod() {
         return null;
     }
+
+    /**
+     * The active environment's sign-in with each value resolved as a call's would be, or null when
+     * it states no method and {@code onyx.auth} applies. Holds secrets: for the token service only,
+     * never for a view, a log or the ledger.
+     */
+    default SignInSettings activeSignIn() {
+        return null;
+    }
 }
