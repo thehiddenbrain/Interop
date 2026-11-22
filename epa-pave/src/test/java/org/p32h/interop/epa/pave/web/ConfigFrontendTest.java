@@ -127,6 +127,31 @@ class ConfigFrontendTest {
     }
 
     @Test
+    void aRefusalBringsThePanelThatSaysWhyIntoViewAndFocusesItNotAFieldFurtherDown(@TempDir Path folder) throws Exception {
+        // look-guardrail-8: the focus went to Kind, which scrolled the dialog body past the title naming the address.
+        NodeRun run = StaticSources.runModule(folder, "the refusal in view", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION', heading: 'A problem with what was submitted',
+                    title: 'This environment was declared as sandbox, and its address http://127.0.0.1:8950/fhir/Claim/$submit is an address of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'signIn.tokenUrl', message: 'Not the token url of a production environment.'}]}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                const banner = dialog.querySelector('.config-form__banner');
+                const scrolled = [];
+                banner.scrollIntoView = how => scrolled.push(how.block);
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const active = document.activeElement;
+                say([scrolled, Boolean(active) && banner.contains(active), active && active.getAttribute('tabindex'), active && active.textContent]);
+                say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"start\"],true,\"-1\",\"A problem with what was submitted\"]",
+                "[\"Not the token url of a production environment.\"]");
+    }
+
+    @Test
     void theKindAndMethodOptionsSayWhatTheyDoInPlainWords(@TempDir Path folder) throws Exception {
         // I-15: no "application.yml" and no "never guessed" in the options a tester picks from.
         NodeRun run = StaticSources.runModule(folder, "the option words", PRELUDE + """
