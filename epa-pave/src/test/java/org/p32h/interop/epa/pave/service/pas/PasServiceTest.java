@@ -1442,7 +1442,7 @@ class PasServiceTest {
         Finding incomplete = result.findings().get(0);
         assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
         // The finding's words are PasFindings', which names the version on its own (a change asked of the integrator).
-        assertThat(incomplete.title()).startsWith("The request left out 11 elements PAS");
+        assertThat(incomplete.title()).isEqualTo("The request left out 11 elements PAS 2.2.1 requires");
         assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
                 .contains("PASBeneficiary identifier.system").contains("PASCoverage status").contains("PASClaim item.extension[requestType]")
                 .contains("PASClaim item.location[x]").contains("PASPractitionerRole telecom (rule pd-1)");

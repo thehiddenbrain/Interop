@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SecretsTest {
@@ -94,5 +95,19 @@ class SecretsTest {
     @Test
     void theMaskNamesTheVariableAndNeverTheValue() {
         assertThat(Secrets.mask("clientSecret")).isEqualTo("[secret clientSecret]");
+    }
+
+    @Test
+    void aNameThatSaysWhereAndNotWhatIsNotASecretAndAWordAfterItStillDecides() {
+        // I-35: each word that names a place, with a name now shown and a name still masked.
+        Map<String, String> shownThenMasked = Map.of("base", "authBase|authBaseToken", "server", "authServer|authServerToken",
+                "domain", "tokenDomain|domainPassword", "address", "authAddress|addressSecret", "origin", "authOrigin|originApiKey",
+                "hostname", "secretHostname|hostnamePassword", "port", "authPort|portToken");
+        shownThenMasked.forEach((word, names) -> {
+            String[] pair = names.split("\\|");
+            assertThat(Secrets.looksSecret(pair[0])).as(word + ": " + pair[0]).isFalse();
+            assertThat(Secrets.looksSecret(pair[1])).as(word + ": " + pair[1]).isTrue();
+        });
+        assertThat(Secrets.looksSecret("serverPassword")).isTrue();
     }
 }
