@@ -212,7 +212,8 @@ class EdgeOverTheServerTest {
         assertThat(refused.status()).isEqualTo(413);
         assertThat(refused.title()).isEqualTo("The uploaded file is larger than this tool accepts, which is 25MB for one file.");
         assertThat(refused.json().get("action").asString())
-                .isEqualTo("Upload a smaller export, or raise spring.servlet.multipart.max-file-size in application.yml.");
+                .isEqualTo("Upload a smaller export, or raise spring.servlet.multipart.max-file-size and "
+                        + "spring.servlet.multipart.max-request-size together in application.yml.");
         refused.assertTheFiveHeaders();
     }
 
