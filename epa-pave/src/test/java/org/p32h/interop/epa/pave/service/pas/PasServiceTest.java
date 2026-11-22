@@ -1528,6 +1528,28 @@ class PasServiceTest {
     }
 
     @Test
+    void anEnvironmentThatStatesNoGuideIsHeldAgainst201AndOneThatChose221Against221() {
+        RunSupport support = new RunSupport(EpaProperties.of(Map.of("mode", "mock")), TrackingProperties.of(Map.of()),
+                OnyxProperties.defaults(), ledgerProvider(), CLOCK);
+        PasService unstated = new PasService(OnyxProperties.defaults(), FakeGateway.unconfigured(), mockClient, codeList, support,
+                ledgerProvider());
+        RequestPreview bare = unstated.previewSubmit(submission("P32H-PAS-APPROVED").build(), null);
+        assertThat(bare.toComplete()).extracting(RequestPreview.ToComplete::field).containsExactly("values.payerName", "serviceType");
+        assertThat(bare.toComplete().get(0).line()).isEqualTo("Insurer: none. PAS 2.0.1 requires the payer: add Payer name and Payer "
+                + "identifier under Values in Configuration > Environments.");
+        assertThat(bare.notes()).contains("This request follows Da Vinci PAS 2.0.1, the PAS guide of the environment (Configuration > "
+                + "Environments, Request shapes).");
+        assertThat(String.join(" ", bare.notes())).doesNotContain("2.2.1");
+
+        RunEnvelope<PasDetail> sent = unstated.runSubmit(submission("P32H-PAS-APPROVED").build(), RunOrigin.manual(), null);
+        assertThat(sent.findings()).anySatisfy(finding -> assertThat(finding.title()).endsWith("PAS 2.0.1 requires"));
+
+        RequestPreview chose221 = service().previewSubmit(submission("P32H-PAS-APPROVED").build(), null);
+        assertThat(chose221.notes()).contains("This request follows Da Vinci PAS 2.2.1, the PAS guide of the environment (Configuration > "
+                + "Environments, Request shapes).");
+    }
+
+    @Test
     void theSubmitPreviewListsWhatToCompleteBeforeSendingAndNoOtherPreviewDoes() {
         RequestPreview bare = service().previewSubmit(submission("P32H-PAS-APPROVED").build(), null);
         assertThat(bare.toComplete()).extracting(RequestPreview.ToComplete::field)
