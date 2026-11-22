@@ -325,8 +325,7 @@ class ConfigControllerTest {
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
                 .andExpect(jsonPath("$.title").value("This is a Postman collection in the old v1 format, which this tool does not read."))
                 .andExpect(jsonPath("$.action", containsString("Collection v2.1")));
-        mvc.perform(multipart("/api/config/collections").file(file(PostmanFiles.V2_0_COLLECTION))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("This is a Postman collection in format v2.0.0. This tool reads format v2.1 only."));
+        // D-307: a v2.0 collection is read now, so it is no longer among the files that are not one this tool reads.
         mvc.perform(multipart("/api/config/collections").file(file(PostmanFiles.TRUNCATED_COLLECTION))).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title", startsWith("This file is not complete")));
         mvc.perform(multipart("/api/config/collections").file(file(PostmanFiles.SANDBOX_ENVIRONMENT))).andExpect(status().isUnprocessableContent())

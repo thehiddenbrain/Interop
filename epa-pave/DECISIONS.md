@@ -69,6 +69,7 @@ entry.
 | D-304 | Mock and live switch on screen: the top bar restarts PAVE in place, in the same process, on the other profile | The operator asked for it after release 2. The mode is still the Spring profile, so what holds by construction on live holds after a switch; a switch drops the production unlock and a pasted token, clears the Workbench's case, and is not remembered over a real start. Seen in the real STS 5.4.0 on Linux and on the Windows Java under Wine; **not on a Windows workstation** |
 | D-305 | A correction after release 2: the sign-in is read from the collection's token request and from wider variable names, several candidates are offered as buttons, an empty value is said; a refused sign-in says what the token endpoint said and names the setting (`80962e5`, `c0f9cf1`, `27e3a96`, `b7a1770`) | On the operator's first run against the vendor's UAT the files filled no sign-in and a refused sign-in said only "HTTP 401". The scripts of a collection are still never read. The service's words are shown made safe and never logged. Seen on live against the stand-in and a token endpoint of the builder's own, not against the vendor's service |
 | D-306 | A second correction after release 2: what a collection's requests state about members, providers and procedure codes goes into the saved lists, on the tester's tick; procedure codes a third list, picked in the Service card; a saved member may hold a vendor patient id alone (`babb793`, `fdce17b`, `85b8834`, `76743d4`, merged as `165bbd2`) | The operator asked for it after the first real run. It stays inside D-298's bounds: the box is the purpose, and the stored collection already holds every value. Only what a request sends is read, nothing is guessed, the log holds counts only, nothing goes to the ledger. Seen on mock and on live against the stand-in, not with the vendor's files |
+| D-307 | A third correction after release 2: right after Fill the form shows every address and value the files give with where it comes from, and a request can be chosen for an operation none was found for; on Edit nothing in force is an empty box; a request is also told by its body; a v2.0 collection is read (`25b200a`, `6664bd1`, `fc80b7d`, `050f977`) | On the operator's first run against the vendor's UAT every address and value was typed by hand, and a typed address replaced the collection's request. A chosen request is the collection's mapping, recorded in a second call after the save. Seen on live against the stand-in, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8415,6 +8416,7 @@ round of corrections; the code handed over.**
   there by a strict endpoint and taken in the form body: not changed here, since endpoints that do not
   decode would then refuse every such secret. What PAVE's sign-in does not send (an audience, a
   subscription key header) can still not be added to it: the line names it so the tester knows.
+  Later: a collection in format v2.0 is read (D-307).
 
 **D-306. A second correction after release 2: what a collection states goes into the saved lists.**
 - **What happened.** On the same first run against the vendor's UAT (D-305) the operator typed every
@@ -8518,3 +8520,118 @@ round of corrections; the code handed over.**
   Placeholders are not filled from `onyx.variables` of `application.yml`. At 1024 pixels the Service
   card's code line was crowded before this change; the "from saved list" mark was put under the line so
   as not to add to it.
+
+**D-307. A third correction after release 2: the form takes, and shows, everything the files give.**
+- **What happened.** On the same first run against the vendor's UAT (D-305), the operator chose both
+  Postman exports, pressed "Fill the form from these files", and then typed the sign-in, the addresses and
+  the values by hand. Asked which fields had to be typed, they answered all of them, and that whatever the
+  variable names in the environment export are, the tool should take them too. Their files were not seen
+  and were not asked for. What the form did explains it: after Fill a new environment showed the name,
+  the sign-in when it could be read, a row of chips for the operations found, a fold of the export's
+  variables, and "The member ID rule, request shapes, values, timeouts and addresses can be set once the
+  environment is saved."; once saved, Edit showed Values and Addresses as rows of empty boxes, what the
+  files gave written small beside each. An empty box reads as a field not filled, and a typed address
+  replaces the collection's request for that operation, its headers and saved body included (R-02), the
+  opposite of what was wanted. Where the files really gave nothing (a request the tool could not tell),
+  the only way offered was to type an address. Decided by the integrator (`TASK_FILL_EVERYTHING.md`).
+- **On Edit, nothing in force looks empty** (`25b200a`). A row of Values or Addresses shows what is in
+  force and where it comes from as the row's own content: "from the collection's request "<name>"", "from
+  the export's variable <name>", "from application.yml", "typed here", or "not set". The server's
+  `sourceLabel` carries those words (it said "collection request "<name>"", "from the export" and
+  "application.yml"; the environment cards' chip titles read it too). "Change" opens the box; under it "Use
+  the collection's request again" (or "Use the export's again", "Use application.yml's again") closes it
+  before anything is typed. A typed row shows its box with "Use the file's again", which empties it, and the
+  line "What was typed here is taken away when the environment is saved." A box is open only when something
+  is typed or nothing is in force; a refusal at a field opens its box. A stored client secret or bearer
+  token is said as stored ("Stored: {{uat_client_secret}}") and its password box opens on "Change"; a box
+  opened and left empty still keeps what is stored. The other sign-in fields are the environment's own
+  settings and show their values in their boxes, as before.
+- **What the files give, right after Fill** (`6664bd1`). The draft (`POST /api/config/environments/draft`,
+  still 200 for any file, storing and sending nothing, R-07) gains `collectionId`, `addresses`, `requests`
+  and `values`, and the form shows them in a part "What these files give" in the place of the chips and of
+  the sentence, which stays only for a new environment with no draft:
+  - **Sign-in**: the line "Sign-in filled from ..." of D-305, and "The fields are filled under Sign-in
+    below."; without one, "These files give no sign-in: choose the method under Sign-in."
+  - **Addresses**: one row per operation of the Edit form, in its order and with its words. Each names the
+    request a call will use, chosen as the gateway chooses (R-02): the first request in the order of the
+    file mapped to the operation, passing over one whose name says "error". Its address is resolved through
+    the layers a call would see once saved (the environment export, else the stored one on Edit; the
+    collection's variables; application.yml), a secret masked, a credential typed into a url masked, and a
+    placeholder nothing defines left as `{{name}}` with "{{name}} is not defined in these files, so it stays
+    as written: a run asks for its value before it sends." Two that fit: "2 requests fit this operation.
+    "<first>" is used, the first in the file: choose another below to use it instead." A row no request
+    fits: "No request of the collection was found for it. Choose one below.", then application.yml's
+    address when it gives one ("from application.yml"), for discovery the hook request's url cut after
+    `/cds-services` as a call cuts it, else "Without one, a call for it is refused before anything is
+    sent." A sample of an error that fits is named. A collection stored before that a call would ask first
+    is named ("Until it is removed in Configuration > Collections, a call uses ..."), since collections are
+    shared by every environment and asked in the order they were stored.
+  - **The list to choose from**: under "Use a request of the collection", the requests no operation uses
+    and, for a row two fit, the others that fit ("(also fits)"); a request the sign-in read as the token
+    request is not offered. A row with a request keeps the list behind "Choose another request". "Type an
+    address instead" stays the last choice, on a new environment.
+  - **Values**: each value of the Edit form with what the files give and the variable it comes from ("from
+    the export's variable fhirServer", "from the collection's variable ...", "from application.yml"), or
+    "not given"; one line for the part: "A value these files do not give is left out of the requests that
+    read it. Type it here, or on Edit once the environment is saved."; a variable the export holds with no
+    value: "{{name}} has no value in these files. Postman exports a variable's initial value only." A value
+    is not matched to a variable under another name: that would be a guess, and the request that reads a
+    vendor's own variable reads it by its own name (this changes nothing of R-42).
+- **How a choice is saved.** A request chosen for an operation is the collection's mapping (the one of
+  Configuration > Collections, `PUT /api/config/collections/{id}/mapping`), sent after "Save environment"
+  has stored the collection, once for each choice; a request that fits the same operation earlier in the
+  file is mapped to UNMAPPED first, since the first is what a call uses. A mapping that fails is said ("The
+  environment is saved, but the request chosen for <operation> was not recorded. <title> Choose it again in
+  Configuration > Collections.") and the environment stays saved; the form then reads the environment's
+  settings again so Edit shows "from the collection's request ...". The mapping is not a setting of the
+  environment: collections are shared, as before. A choice changes no address: every url a choice can bring
+  in was in the files the save read, and every send still passes the production guardrail at the moment
+  of sending; a choice is not refused at save as a typed production-looking address is on sandbox or uat,
+  which is left (below). A value or an address typed in the part goes with the save as one typed on Edit,
+  under every rule a typed one meets.
+- **A request is also told by its body** (`fc80b7d`). `OperationDetector` read the name, the url and the
+  folders. It now reads the raw body, only when those leave the request unmapped, so nothing they mapped
+  changes its operation: a body whose `hook` is `order-sign` or `order-select` (read from the JSON, or from
+  the text as written when a placeholder keeps it from being JSON, with `indexOf` and no pattern); a Bundle
+  that carries a Claim narrows to `$submit` or `$inquire` and maps when the url chooses one; a Parameters
+  body with a parameter named `coverage` is `$questionnaire-package`. The body never overrides the name,
+  the url or the folder, and the guardrail's `signals` still read the name and the url only. The store,
+  the draft and the vendor sample reader all detect with the body.
+- **A collection in format v2.0 is read** (`050f977`). The parser refused a v2.0 file whole. Its shapes
+  that differ from v2.1 (a url, a header or a request written as text, a helper written as an object) were
+  already read where each is read, so it is read now, with one line: "This collection is in Postman's
+  older format v2.0, which this tool reads as it reads v2.1." A part that cannot be read is said as for a
+  v2.1 file (an entry that is neither folder nor request is counted in a line) and the rest is read. A
+  format that is neither is refused: "This is a Postman collection in format v3.0.0. This tool reads formats
+  v2.1 and v2.0."
+- **What holds it.** `FilesGiveTest` (a collection that maps everything, one that maps nothing, two that
+  fit one operation, an undefined placeholder, a collection alone, application.yml's address, a value from
+  the export and a blank one, no secret value in any answer; a request chosen and mapped shown on Edit as
+  "from the collection's request ..." and used by the call; a request mapped by its hook body, the same in
+  the draft and once stored); `OperationDetectorBodyTest` (each new rule on a request the old rules left
+  unmapped, and that the body overrides nothing; `OperationDetectorTest` runs unchanged);
+  `PostmanParserV20Test`; `ConfigFrontendTest` (a row in force is no empty box, "Change" and the way back,
+  a stored secret; the part, the list, a choice, a typed value, the mappings sent after the save and a
+  failed one said). Changed, each for its reason: `ConfigFrontendTest`'s stand-in labels and the buttons
+  of a client secret field (it now carries "Change"); `PostmanParserTest` and `ConfigControllerTest`, whose
+  v2.0 refusal is now a v3.0.0 one or gone; `DraftSignInTest`, whose v2.0 file is now read and fills the
+  sign-in. `RecursionGuardTest`, `RegexStackGuardTest` and `DeepAnswerStackTest` unchanged. Not shown to
+  fail without the change, apart from the tests whose old sentences changed.
+- **What was seen.** On the jar of each commit, on live against the stand-in on loopback, in Chromium:
+  files written for the check (placeholders only): an environment export with a base url, a token url, a
+  client id and secret, a scope and values under names of its own, and a collection named as a vendor names
+  its requests, with a token request, a CDS Hooks request whose service id does not name the hook, and one
+  that nothing tells; and the same collection in format v2.0. At 1440 by 900 and 1024 by 768: Fill showed
+  the sign-in, every address with its request and where it comes from, and every value; before the body
+  rule, the order-sign row said no request was found and the hook request was chosen from the list; after
+  it, the order-sign row named that request and the request nothing tells was chosen for order-select;
+  saved as sandbox, made active, Edit showed every row as its value and source with "Change", no row in
+  force an empty box; the coverage check on the Workbench was sent to the chosen request's address with a
+  token and answered "Documentation is required.", with no address or value typed. The same with the v2.0
+  file. No value of a secret was in the draft's answer or the log. Not seen: the vendor's own files or
+  service, Windows, the IDE, the Edit form's "Fill the form from these files" in a browser.
+- **Left.** A choice of request is not checked at save against the production rules a typed address
+  meets (a production-looking address on sandbox or uat); the guardrail at sending still is. A value is
+  never matched to a variable of another name. A collection stored before is asked first by every
+  environment; the row says so, and only removing it there changes it. A request's form body (`urlencoded`)
+  is not read by the detector, as before.

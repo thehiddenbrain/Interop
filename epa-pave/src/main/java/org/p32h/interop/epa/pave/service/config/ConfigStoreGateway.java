@@ -620,8 +620,10 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         return switch (target.source()) {
             case REQUEST -> shownAddress(snapshot, environment, target.collection(), target.template(), "COLLECTION",
-                    "collection request \"" + target.request().request().quotedName() + "\"", target.savedBody(), target.requestName());
-            case FALLBACK -> shownAddress(snapshot, environment, null, target.template(), "APPLICATION_YML", "application.yml", null, null);
+                    "from the collection's request \"" + target.request().request().quotedName() + "\"", target.savedBody(),
+                    target.requestName());
+            case FALLBACK -> shownAddress(snapshot, environment, null, target.template(), "APPLICATION_YML", "from application.yml", null,
+                    null);
             default -> shownAddress(snapshot, environment, null, target.template(), "DERIVED", target.described(), null, null);
         };
     }
@@ -632,6 +634,55 @@ public class ConfigStoreGateway implements OperationGateway {
         Resolution resolution = resolver.resolve(marked.template(), marked.before(layersUnder(environment, collection)));
         return new AddressInForce(marked.shown(), resolution.shown(), source, sourceLabel, resolution.complete(), resolution.unresolved(),
                 savedBody, requestName);
+    }
+
+    /**
+     * A template as "Fill the form from these files" shows it (D-307), resolved through the layers
+     * a call would see once the files are saved: the environment export (else the stored one of
+     * the environment being edited), the collection, application.yml.
+     */
+    Resolution draftResolution(StoredEnvironment editing, org.p32h.interop.epa.pave.postman.PostmanEnvironment environment,
+                               org.p32h.interop.epa.pave.postman.PostmanCollection collection, String template) {
+        // The values typed on Edit are left out: this says what the files give, which a typed value lies over.
+        List<VariableLayer> layers = new ArrayList<>();
+        if (environment != null) {
+            layers.add(VariableLayer.environment(environment.name(), environment.inForce()));
+        } else if (editing != null) {
+            layers.add(VariableLayer.environment(editing.name(), editing.content().inForce()));
+        }
+        if (collection != null) {
+            layers.add(VariableLayer.collection(collection.name(), collection.inForce()));
+        }
+        layers.add(VariableLayer.applicationYml(onyx.variables()));
+        LiteralCredentials.Marked marked = LiteralCredentials.inUrl(template);
+        return resolver.resolve(marked.template(), marked.before(layers));
+    }
+
+    /** application.yml's address for the operation as a call with nothing else would use it, or null. */
+    String fallbackTemplate(EpaOperation operation) {
+        Target fallback = fallback(CallIntent.of(operation));
+        return fallback == null ? null : fallback.template();
+    }
+
+    /**
+     * The request of another stored collection that a call would use for the operation before any
+     * request of the collection of this id: collections are asked in the order they were stored,
+     * and one stored again keeps its place. Null when none would be.
+     */
+    static String usedBefore(ConfigSnapshot snapshot, EpaOperation operation, String collectionId) {
+        for (StoredCollection collection : snapshot.collections()) {
+            if (collection.id().equals(collectionId)) {
+                return null;
+            }
+            for (StoredCollection.Mapped request : collection.requests()) {
+                boolean errorSample = request.request().name().toLowerCase(Locale.ROOT).contains("error");
+                if (request.effective() == operation && !errorSample) {
+                    return "the request \"" + request.request().quotedName() + "\" of the collection \"" + Names.shown(collection.name())
+                            + "\", stored before";
+                }
+            }
+        }
+        return null;
     }
 
     /** A template resolved through the layers a call under this environment would see, with no values for a run and no collection. */

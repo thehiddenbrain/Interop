@@ -7,10 +7,13 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.Texts;
+import tools.jackson.databind.JsonNode;
 
 /**
- * Works out which operation a collection request is, from its name and its url.
+ * Works out which operation a collection request is, from its name, its url, the folders it sits
+ * in and, last, what its body says (D-307).
  *
  * <p>It is used in two places and they ask different questions.
  * <ul>
@@ -23,8 +26,12 @@ import org.p32h.interop.epa.pave.model.Texts;
  *       request's own name or its url reads as, the proposal and the disagreement alike. A call is
  *       a write if any of them is, so a correction can never turn a detected write into a read.</li>
  * </ul>
- * Detection never looks inside a body and never guesses between two readings: when nothing says
- * which operation a request is, it is {@code UNMAPPED}, which is not an error.
+ * The body is read only when the name, the url and the folders leave a request unmapped, so
+ * nothing those mapped changes its operation: a CDS Hooks body states its hook, a Bundle that
+ * carries a Claim goes to {@code $submit} or {@code $inquire}, and a Parameters body that names a
+ * coverage is what {@code $questionnaire-package} takes. Detection never guesses between two
+ * readings: when nothing says which operation a request is, it is {@code UNMAPPED}, which is not
+ * an error. The body is not read for {@link #signals}: the guardrail asks the name and the url.
  */
 public final class OperationDetector {
 
@@ -62,15 +69,21 @@ public final class OperationDetector {
         return detect(name, null, url, List.of());
     }
 
+    /** The proposal for a request whose body is not read. */
+    public static Detection detect(String name, String method, String url, List<String> folderPath) {
+        return detect(name, method, url, folderPath, null);
+    }
+
     /**
      * The proposal for a request.
      *
      * @param method     the request's HTTP method, or null. It tells the four subscription
      *                   operations apart when the name does not
-     * @param folderPath the folders the request sits in. Consulted last, and only when neither the
-     *                   name nor the url says anything
+     * @param folderPath the folders the request sits in. Consulted only when neither the name nor
+     *                   the url says anything
+     * @param body       the request's raw body, or null. Read only when nothing else maps it
      */
-    public static Detection detect(String name, String method, String url, List<String> folderPath) {
+    public static Detection detect(String name, String method, String url, List<String> folderPath, String body) {
         List<Match> byName = nameMatches(words(name));
         UrlReading byUrl = readUrl(url, method);
         EpaOperation fromUrl = byUrl.single();
@@ -100,6 +113,10 @@ public final class OperationDetector {
             return new Detection(match.operation(), "Neither the name nor the url says on its own. Read together with the folder it "
                     + "sits in, the name contains \"" + match.phrase() + "\".", false);
         }
+        Detection byBody = fromBody(BodyReading.of(body), byUrl);
+        if (byBody != null) {
+            return byBody;
+        }
         if (!byUrl.candidates().isEmpty()) {
             return new Detection(EpaOperation.UNMAPPED, "The url " + byUrl.words() + ", and nothing in the name says which operation "
                     + "that is. Choose one.", false);
@@ -119,6 +136,119 @@ public final class OperationDetector {
         nameMatches(words(name)).forEach(match -> signals.add(match.operation()));
         signals.addAll(readUrl(url, method).candidates());
         return signals;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The body
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * What a body says, as far as detection reads it.
+     *
+     * @param candidates every operation the body could be sent for; empty when it says nothing
+     * @param words      what in the body was read, completing the sentence "The body ..."
+     */
+    record BodyReading(Set<EpaOperation> candidates, String words) {
+
+        private static final BodyReading NOTHING = new BodyReading(Set.of(), "");
+
+        static BodyReading of(String body) {
+            if (Texts.blank(body)) {
+                return NOTHING;
+            }
+            JsonSafe.Parsed parsed = JsonSafe.parse(body);
+            if (!parsed.ok() || !JsonSafe.isObject(parsed.node())) {
+                // A saved body often holds a placeholder where JSON wants a number, which no
+                // parser takes; the hook is still read from the text as written.
+                String hook = hookInText(body);
+                return hook == null ? NOTHING : ofHook(hook);
+            }
+            JsonNode root = parsed.node();
+            String hook = JsonSafe.presentText(root, "hook");
+            if (hook != null) {
+                return ofHook(hook);
+            }
+            String type = JsonSafe.presentText(root, "resourceType");
+            if ("Bundle".equals(type)) {
+                for (JsonNode entry : JsonSafe.elements(root, "entry")) {
+                    if ("Claim".equals(JsonSafe.presentText(JsonSafe.child(entry, "resource"), "resourceType"))) {
+                        Set<EpaOperation> pas = new LinkedHashSet<>(List.of(EpaOperation.PAS_SUBMIT, EpaOperation.PAS_INQUIRE));
+                        return new BodyReading(pas, "is a Bundle that carries a Claim, which goes to $submit or $inquire");
+                    }
+                }
+            }
+            if ("Parameters".equals(type)) {
+                for (JsonNode parameter : JsonSafe.elements(root, "parameter")) {
+                    if ("coverage".equals(JsonSafe.presentText(parameter, "name"))) {
+                        return new BodyReading(Set.of(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE),
+                                "is a Parameters body that names a coverage, as $questionnaire-package takes");
+                    }
+                }
+            }
+            return NOTHING;
+        }
+
+        private static BodyReading ofHook(String hook) {
+            String key = hook.strip().toLowerCase(Locale.ROOT);
+            if (key.equals("order-sign")) {
+                return new BodyReading(Set.of(EpaOperation.CRD_ORDER_SIGN), "states the hook order-sign");
+            }
+            if (key.equals("order-select")) {
+                return new BodyReading(Set.of(EpaOperation.CRD_ORDER_SELECT), "states the hook order-select");
+            }
+            return NOTHING;
+        }
+
+        /**
+         * The value of the first {@code "hook"} member of a text that is not JSON, or null. Read
+         * with indexOf, one pass, no pattern: a body can be long.
+         */
+        private static String hookInText(String body) {
+            int at = body.indexOf("\"hook\"");
+            if (at < 0) {
+                return null;
+            }
+            int i = at + 6;
+            while (i < body.length() && Character.isWhitespace(body.charAt(i))) {
+                i++;
+            }
+            if (i >= body.length() || body.charAt(i) != ':') {
+                return null;
+            }
+            i++;
+            while (i < body.length() && Character.isWhitespace(body.charAt(i))) {
+                i++;
+            }
+            if (i >= body.length() || body.charAt(i) != '"') {
+                return null;
+            }
+            int end = body.indexOf('"', i + 1);
+            return end < 0 ? null : body.substring(i + 1, end);
+        }
+    }
+
+    /**
+     * The proposal from the body, or null when the body says nothing the url allows. When the url
+     * reads as several operations, the body chooses among them; it never overrides a url.
+     */
+    private static Detection fromBody(BodyReading body, UrlReading byUrl) {
+        if (body.candidates().isEmpty()) {
+            return null;
+        }
+        Set<EpaOperation> both = new LinkedHashSet<>(body.candidates());
+        if (!byUrl.candidates().isEmpty()) {
+            both.retainAll(byUrl.candidates());
+        }
+        if (both.isEmpty()) {
+            return null;
+        }
+        String said = byUrl.candidates().isEmpty() ? "Neither the name nor the url says which operation it is, and the body " + body.words()
+                : "The url " + byUrl.words() + ", and the body " + body.words();
+        if (both.size() == 1) {
+            EpaOperation operation = both.iterator().next();
+            return new Detection(operation, said + ", which reads as " + operation.label() + ".", false);
+        }
+        return new Detection(EpaOperation.UNMAPPED, said + ", and nothing says which. Choose one.", false);
     }
 
     // ------------------------------------------------------------------------------------------

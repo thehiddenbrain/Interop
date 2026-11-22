@@ -28,6 +28,7 @@ import org.p32h.interop.epa.pave.service.config.ConfigService;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.EnvironmentList;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.EnvironmentView;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.VariableView;
+import org.p32h.interop.epa.pave.service.config.DraftSupport;
 import org.p32h.interop.epa.pave.service.config.SecretSetting;
 import org.p32h.interop.epa.pave.service.config.SignInSettings;
 import org.p32h.interop.epa.pave.service.crd.ShapeEvidence;
@@ -54,8 +55,9 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>Nothing is guessed. A secret is filled only as a {@code {{variable}}} or
  * {@code {{env:NAME}}} reference, never as a value typed into a file; a placeholder that nothing
- * defines stays visible as itself, with one line; addresses and values are never filled from a
- * file, since what the export defines is already shown beside each value as "from the export".
+ * defines stays visible as itself, with one line. Addresses and values are not filled into
+ * boxes: what the files give each one is said with where it comes from (D-307), since a box
+ * filled from a file would be stored as typed and would lie over the file from then on.
  */
 @Component
 public class EnvironmentDrafts {
@@ -83,21 +85,30 @@ public class EnvironmentDrafts {
     private final Supplier<EnvironmentList> stored;
     private final Function<String, PostmanEnvironment> environmentParser;
     private final Function<String, PostmanCollection> collectionParser;
+    private final DraftSupport support;
 
     @Autowired
     public EnvironmentDrafts(ConfigService config) {
-        this(config::environments, PostmanParser::environment, PostmanParser::collection);
+        this(config::environments, PostmanParser::environment, PostmanParser::collection, config.draftSupport());
     }
 
     /**
      * With the stored environments and the two parsers given, so that a test can make a parser
-     * fail the way a rebuilt classes folder or a deep file made the real one fail.
+     * fail the way a rebuilt classes folder or a deep file made the real one fail. Addresses and
+     * values are said from the files alone.
      */
     public EnvironmentDrafts(Supplier<EnvironmentList> stored, Function<String, PostmanEnvironment> environmentParser,
                              Function<String, PostmanCollection> collectionParser) {
+        this(stored, environmentParser, collectionParser, DraftSupport.filesOnly());
+    }
+
+    /** As above, with what the configuration says of application.yml and of the collections stored. */
+    public EnvironmentDrafts(Supplier<EnvironmentList> stored, Function<String, PostmanEnvironment> environmentParser,
+                             Function<String, PostmanCollection> collectionParser, DraftSupport support) {
         this.stored = stored;
         this.environmentParser = environmentParser;
         this.collectionParser = collectionParser;
+        this.support = support;
     }
 
     /**
@@ -206,13 +217,30 @@ public class EnvironmentDrafts {
         List<VariableView> variables = environment == null ? List.of() : variables(environment, collection);
         List<ShapeRow> shapes = new ArrayList<>();
         List<OperationRow> operations = new ArrayList<>();
+        List<DraftAddresses.Detected> detected = List.of();
         if (collection != null) {
             for (ShapeEvidence evidence : VendorSamples.read(collection)) {
                 shapes.add(new ShapeRow(evidence.shape().name(), evidence.value(), FROM_SAMPLE, evidence.requestName()));
             }
             operations.addAll(operations(collection));
+            detected = DraftAddresses.detect(collection);
         }
-        return new Draft(files, name, nameTaken, variables, signIn, shapes, operations, warnings, list.epoch());
+        // What the files give each address and value (D-307), for any file that was read: with
+        // neither read there is nothing to say of them.
+        String collectionId = DraftAddresses.collectionId(collection);
+        List<DraftViews.AddressDraft> addresses = List.of();
+        List<DraftViews.RequestChoice> requests = List.of();
+        List<DraftViews.ValueDraft> values = List.of();
+        if (environment != null || collection != null) {
+            String editingId = editing == null ? null : editing.id();
+            addresses = DraftAddresses.addresses(detected, collectionId, environment, collection, editingId, support);
+            Set<String> tokenNames = new LinkedHashSet<>();
+            tokenRequests.forEach(found -> tokenNames.add(found.name()));
+            requests = DraftAddresses.requests(detected, environment, collection, editingId, support, tokenNames);
+            values = DraftAddresses.values(environment, collection, editingId, support);
+        }
+        return new Draft(files, name, nameTaken, variables, signIn, shapes, operations, warnings, list.epoch(), collectionId, addresses,
+                requests, values);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -741,6 +769,7 @@ public class EnvironmentDrafts {
     }
 
     private static EpaOperation detect(PostmanRequest request) {
-        return OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath()).operation();
+        return OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath(), request.body())
+                .operation();
     }
 }

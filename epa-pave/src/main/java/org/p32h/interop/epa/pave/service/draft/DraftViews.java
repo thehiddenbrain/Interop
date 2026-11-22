@@ -26,10 +26,16 @@ public final class DraftViews {
      * @param operations the operations the collection maps, one row each
      * @param warnings   one line each: what was not filled and why, and what the parser set aside
      * @param epoch      the configuration epoch the draft was read against
+     * @param collectionId the id the collection is stored under once saved, which a request chosen
+     *                   for an operation is mapped in; absent without a collection that was read
+     * @param addresses  one row per operation of the Edit form's Addresses: what the files give it (D-307)
+     * @param requests   every request of the collection, to choose one for an operation from
+     * @param values     one row per value of the Edit form's Values: what the files give it (D-307)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Draft(List<FileLine> files, String name, Boolean nameTaken, List<VariableView> variables, SignInDraft signIn,
-                        List<ShapeRow> shapes, List<OperationRow> operations, List<String> warnings, long epoch) {
+                        List<ShapeRow> shapes, List<OperationRow> operations, List<String> warnings, long epoch, String collectionId,
+                        List<AddressDraft> addresses, List<RequestChoice> requests, List<ValueDraft> values) {
 
         public Draft {
             files = files == null ? List.of() : List.copyOf(files);
@@ -37,6 +43,15 @@ public final class DraftViews {
             shapes = shapes == null ? List.of() : List.copyOf(shapes);
             operations = operations == null ? List.of() : List.copyOf(operations);
             warnings = warnings == null ? List.of() : List.copyOf(warnings);
+            addresses = addresses == null ? List.of() : List.copyOf(addresses);
+            requests = requests == null ? List.of() : List.copyOf(requests);
+            values = values == null ? List.of() : List.copyOf(values);
+        }
+
+        /** A draft that says nothing of addresses or values, as one read before D-307. */
+        public Draft(List<FileLine> files, String name, Boolean nameTaken, List<VariableView> variables, SignInDraft signIn,
+                     List<ShapeRow> shapes, List<OperationRow> operations, List<String> warnings, long epoch) {
+            this(files, name, nameTaken, variables, signIn, shapes, operations, warnings, epoch, null, null, null, null);
         }
 
         /** Counts only: a name and variables come from the tester's files. */
@@ -149,5 +164,78 @@ public final class DraftViews {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record OperationRow(String operation, @JsonProperty("short") String shortLabel, String label, String requestName,
                                String template, boolean scripted) {
+    }
+
+    /**
+     * What the files give one operation of the Edit form's Addresses (D-307).
+     *
+     * @param operation   the operation a request is mapped to for this row
+     * @param key         the key an address is typed under: the operation's name, or SUBSCRIPTION
+     * @param label       what the Edit form calls it
+     * @param shortLabel  the operation in a word or two, sent as {@code short}
+     * @param requestId   the request of the collection a call will use, or absent when none was found
+     * @param requestName that request's name with its folders
+     * @param display     the address with the files' values put in, a secret masked, a placeholder nothing defines left as
+     *                    {@code {{name}}}; absent when nothing gives one
+     * @param from        where it comes from, in words: from the collection's request, from application.yml, or cut from a
+     *                    hook request; absent when nothing gives one
+     * @param lines       one line each: what else the tester should know of this row
+     * @param candidates  the ids of the requests that fit this operation, the one used first, in the order of the file
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AddressDraft(String operation, String key, String label, @JsonProperty("short") String shortLabel, String requestId,
+                               String requestName, String display, String from, List<String> lines, List<String> candidates) {
+
+        public AddressDraft {
+            lines = lines == null ? List.of() : List.copyOf(lines);
+            candidates = candidates == null ? List.of() : List.copyOf(candidates);
+        }
+
+        /** The operation and the request's name only: an address can hold a credential. */
+        @Override
+        public String toString() {
+            return "AddressDraft[" + operation + ", " + (requestId == null ? "no request" : requestId) + "]";
+        }
+    }
+
+    /**
+     * One request of the collection, to choose for an operation.
+     *
+     * @param id          its id within the collection, which the mapping takes
+     * @param name        its name with its folders
+     * @param method      its method
+     * @param display     its address as {@link AddressDraft#display()} shows one
+     * @param operation   the operation it is mapped to, or UNMAPPED
+     * @param basis       what that mapping rests on, in words
+     * @param errorSample  whether its name says it is a sample of an error, which no call uses unless it is chosen
+     * @param tokenRequest whether it is a request for an access token, which the sign-in reads and no operation is
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RequestChoice(String id, String name, String method, String display, String operation, String basis,
+                                boolean errorSample, boolean tokenRequest) {
+
+        @Override
+        public String toString() {
+            return "RequestChoice[" + id + ", " + operation + "]";
+        }
+    }
+
+    /**
+     * What the files give one value of the Edit form's Values (D-307).
+     *
+     * @param name    the variable name a request reads
+     * @param label   what the Edit form calls it
+     * @param why     why a request needs it
+     * @param display the value, a secret masked; absent when nothing gives it
+     * @param from    where it comes from, in words; absent when nothing gives it
+     * @param line    when the export holds the variable with no value, a line that says so
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record ValueDraft(String name, String label, String why, String display, String from, String line) {
+
+        @Override
+        public String toString() {
+            return "ValueDraft[" + name + ", " + (display == null ? "not given" : "given") + "]";
+        }
     }
 }

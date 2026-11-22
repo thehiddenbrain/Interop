@@ -89,7 +89,7 @@ public final class VendorSamples {
         }
         for (PostmanRequest request : collection.requests()) {
             OperationDetector.Detection detection = OperationDetector.detect(request.name(), request.method(), request.url(),
-                    request.folderPath());
+                    request.folderPath(), request.body());
             if (detection.operation() != EpaOperation.CRD_ORDER_SIGN) {
                 continue;
             }

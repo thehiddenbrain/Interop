@@ -13,6 +13,26 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**A third correction after release 2: the form takes, and shows, everything the files give.** After
+"Fill the form from these files" on that first UAT run the addresses and the values had to be typed by
+hand, and on Edit they stood as empty boxes; a typed address then replaced the collection's request.
+The code of commits `25b200a`, `6664bd1`, `fc80b7d` and `050f977`, on top of the sign-in correction
+below, with this README after them, changes that:
+
+- Right after "Fill the form from these files", a part "What these files give" shows the sign-in,
+  each address with the request a call will use and where it comes from, and each value with the
+  variable it comes from. Where no request was found for an operation, a list of the collection's
+  requests offers one; Save environment maps it. Nothing needs typing when the files give it.
+- On Edit, a value or address in force shows itself and where it comes from ("from the collection's
+  request ...", "from the export's variable ...", "from application.yml", "typed here"); "Change" opens
+  the box to type over it.
+- A request is also told by what its body says: a CDS Hooks body that states its hook, a Bundle that
+  carries a Claim, a Parameters body that names a coverage.
+- A collection in Postman's older format v2.0 is read instead of refused.
+
+Seen on live against the stand-in at 1440 by 900 and 1024 by 768, never against the vendor's service
+(D-307).
+
 **A second correction after release 2: the saved lists filled from a collection.** On the same first
 run against the vendor's UAT, every member, provider and procedure code was typed by hand, though the
 vendor's collection states them in its sample requests. The code of commits `babb793`, `fdce17b`,
@@ -46,7 +66,7 @@ that:
 - The form fills the sign-in from the collection's token request (its url, client id, client secret,
   scope and how the credentials are sent), else from the environment's variables by wider names
   (`uat_client_id`, `tokenEndpoint`). Where several variables could fill one field, each is a button
-  under it; a value the export leaves empty is said. See step 3 of
+  under it; a value the export leaves empty is said. See step 4 of
   [Setting up a service](#setting-up-a-service).
 - A refused sign-in says what the token endpoint said, for example "No access token: the token
   endpoint answered HTTP 401 (invalid_client). It said: ...", and names the setting to change: "The
@@ -315,16 +335,40 @@ Everything is done in **Configuration > Environments**. Nothing needs a restart:
 by the next call.
 
 1. **New environment.** Under "Start from Postman exports (optional)", choose the vendor's
-   Postman environment export as "Environment export" and, if you have it, the collection export
-   as "Collection export", and press "Fill the form from these files". The form is filled for
-   review; nothing is saved until "Save environment". **Name**: taken from the environment export
-   when one is chosen, otherwise typed; it cannot be changed once saved (see "Moving from the
-   sandbox to UAT" below).
-2. **Kind**: sandbox, uat or prod. It is never guessed:
+   Postman environment export as "Environment export" and the collection export as "Collection
+   export", and press "Fill the form from these files". The form is filled for review; nothing is
+   saved until "Save environment". **Name**: taken from the environment export when one is chosen,
+   otherwise typed; it cannot be changed once saved (see "Moving from the sandbox to UAT" below).
+2. **Read "What these files give"**, under the two "Read: ..." lines. It shows what the files give
+   and where each part comes from, so nothing the files give needs typing:
+   - **Sign-in**: the line "Sign-in filled from ..." (step 4 says from where); the fields are filled
+     under Sign-in.
+   - **Addresses**: one row per operation of the Edit form (CRD order-sign, CRD order-select, CDS Hooks
+     discovery, DTR questionnaire package, DTR next question, PAS submit, PAS inquire, Subscription),
+     each with the address with the export's values put in and the request it comes from: "from the
+     collection's request "1. CRD / Prior Auth Check"". A secret shows masked; a placeholder nothing
+     defines stays as `{{name}}` with the line "{{name}} is not defined in these files, so it stays as
+     written: a run asks for its value before it sends." Where two requests fit one operation, the
+     first in the file is used and the row says so ("2 requests fit this operation. ... is used, the
+     first in the file: choose another below to use it instead.").
+   - **A row no request was found for** says "No request of the collection was found for it. Choose
+     one below." and offers, under "Use a request of the collection", the requests that no operation
+     uses. Choosing one maps it to that operation when "Save environment" stores the collection (it is
+     the mapping of Configuration > Collections, which can be taken back there); a row with a request
+     offers the others behind "Choose another request". "Type an address instead" stays the last choice:
+     a typed address replaces the request wholly, its headers and saved body included. A request is
+     told by its name, its url, its folders and, when those say nothing, its body: a CDS Hooks body that
+     states `"hook": "order-sign"`, a Bundle that carries a Claim (sent to `$submit` or `$inquire`), a
+     Parameters body that names a coverage (`$questionnaire-package`).
+   - **Values**: the FHIR server, the payer's name and identifier, the member ID system and the others,
+     each with what the files give and the variable it comes from ("from the export's variable
+     fhirServer"), or "not given". A value these files do not give is left out of the requests that
+     read it; type it in its box there, or on Edit.
+3. **Kind**: sandbox, uat or prod. It is never guessed:
    the field reads "Choose a kind" until you choose.
    An environment whose name or address reads as production cannot be saved as sandbox or uat until
    "This environment is not production" is ticked.
-3. **Sign-in**, filled from the files in this order, the first that gives client credentials winning:
+4. **Sign-in**, filled from the files in this order, the first that gives client credentials winning:
    the collection's OAuth2 helper; the collection's token request (a request whose form body or url
    query carries `grant_type=client_credentials`: its url as written, its `client_id`, `client_secret`
    and `scope` with "In the form body", or its Basic helper with "Basic header"); the environment's
@@ -354,10 +398,14 @@ by the next call.
    "Basic header" or "In the form body") or "Bearer token". A 401 from the service drops the token,
    signs in again and sends the call once more; the wire view says "The first attempt was refused
    with HTTP 401; PAVE signed in again and sent it once more."
-4. **Save environment**, then make it active with "Make active" in the list or in the top bar's
-   Environment. Saving never changes the active environment.
-5. **Edit** the saved environment for the rest; the new form says "The member ID rule, request
-   shapes, values, timeouts and addresses can be set once the environment is saved."
+5. **Save environment**, then make it active with "Make active" in the list or in the top bar's
+   Environment. Saving never changes the active environment. If a request chosen in step 2 could not
+   be mapped, the save says "The environment is saved, but the request chosen for <operation> was not
+   recorded." and the environment stays saved: choose it again in Configuration > Collections.
+6. **Edit** the saved environment for the rest. A new environment chosen without files says "The
+   member ID rule, request shapes, values, timeouts and addresses can be set once the environment is
+   saved." On Edit, nothing in force stands as an empty box: a value or an address shows what is in
+   force and where it comes from, and "Change" opens the box to type over it.
    - **Member ID rule**: packed (spaces removed, the default and what the vendor's sandbox wants),
      spaced (nine characters, three spaces, the last two, as on the card) or split (the first nine
      of an 11-character ID). Every result shows the form sent: "Sent as <sent>, rule: <rule>".
@@ -371,11 +419,17 @@ by the next call.
      service asks for 2.2.1."). See [Submit](#submit).
    - **Values**: the FHIR server, the payer's name and identifier, the member ID system, the PAS
      request, service, certification and report types, the callback url, and any other variable a
-     request reads. A value lies over the export's own; blank brings the export's back. A name that
-     reads as a secret is refused there.
-   - **Addresses**: one row per operation, with the address in force and where it comes from (the
-     collection request, `application.yml`, typed here). A typed address replaces the collection
-     request for that operation, its headers and saved body included.
+     request reads. Each row shows the value in force and where it comes from ("from the export's
+     variable fhirServer", "from application.yml", "typed here", "not set"). A typed value lies over the
+     export's own; "Use the file's again" takes it away at the next save. A name that reads as a secret
+     is refused there.
+   - **Addresses**: one row per operation, with the address in force and where it comes from ("from
+     the collection's request ...", "from application.yml", "typed here", "not set"). A typed address
+     replaces the collection request for that operation, its headers and saved body included; "Use the
+     collection's request again" closes the box before anything is typed, and "Use the file's again"
+     takes a typed address away at the next save.
+   - **Sign-in**: a stored client secret or bearer token is said as stored ("Stored:
+     {{uat_client_secret}}"); "Change" opens its box.
 
 Walked on the release candidate's jar on live against the stand-in: an environment made from a
 copy of the sample environment export with the stand-in's addresses, and the sample collection,
@@ -457,7 +511,9 @@ Forget; no one has seen it on a screen.
 ### Collections
 
 Configuration > Collections: "Upload collection", then each request's mapping to an operation,
-which can be corrected and taken back. Pre-request scripts are never run: a request that has one is
+which can be corrected and taken back. A collection in Postman's format v2.1 or the older v2.0 is
+read; a v2.0 file says so in one line ("This collection is in Postman's older format v2.0, which this
+tool reads as it reads v2.1."). Pre-request scripts are never run: a request that has one is
 flagged, and every run that uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_RUN`.
 
 **A file that cannot be read is told so in a sentence**, on every upload: the environment form,

@@ -378,14 +378,43 @@ public class ConfigService {
         if (resolution.complete()) {
             VariableSource source = resolution.variables().isEmpty() ? null : resolution.variables().get(0).source();
             boolean yml = source == VariableSource.APPLICATION_YML;
+            // Said with the variable's name: a vendor's export names its variables in its own way (D-307).
             return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(resolution.display(),
-                    yml ? "APPLICATION_YML" : "EXPORT", yml ? "application.yml" : "from the export"));
+                    yml ? "APPLICATION_YML" : "EXPORT", yml ? "from application.yml" : "from the export's variable " + name));
         }
         if (KnownValues.CALLBACK_URL.equals(name) && Texts.present(onyx.subscription().callbackUrl())) {
             return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(
-                    LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown(), "APPLICATION_YML", "application.yml"));
+                    LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown(), "APPLICATION_YML", "from application.yml"));
         }
         return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(null, "NOT_SET", "not set"));
+    }
+
+    /** What a draft of the environment form needs of the configuration (D-307). Reads only. */
+    public DraftSupport draftSupport() {
+        return new DraftSupport() {
+            @Override
+            public Resolution resolve(String forId, org.p32h.interop.epa.pave.postman.PostmanEnvironment environment,
+                                      org.p32h.interop.epa.pave.postman.PostmanCollection collection, String template) {
+                StoredEnvironment editing = Texts.present(forId) ? store.snapshot().environment(forId.strip()) : null;
+                return gateway.draftResolution(editing, environment, collection, template);
+            }
+
+            @Override
+            public String fallback(EpaOperation operation) {
+                return gateway.fallbackTemplate(operation);
+            }
+
+            @Override
+            public String callbackUrl() {
+                return Texts.present(onyx.subscription().callbackUrl())
+                        ? LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown() : null;
+            }
+
+            @Override
+            public String usedBefore(EpaOperation operation, String collectionId) {
+                return ConfigStoreGateway.usedBefore(store.snapshot(), operation, collectionId);
+            }
+        };
     }
 
     // ------------------------------------------------------------------------------------------
