@@ -334,7 +334,7 @@ class HttpMemberLookupClientTest {
         server.reset();
         server.expect(requestTo(URL)).andRespond(withSuccess("[" + MEMBER + "," + MEMBER + "]", MediaType.APPLICATION_JSON));
         MemberLookupResult several = client.lookup(FORMS);
-        assertThat(several.status()).isEqualTo(LookupStatus.FAULT);
+        assertThat(several.status()).isEqualTo(LookupStatus.SEVERAL);
         assertThat(several.message()).startsWith("The member API returned 2 records for one member ID");
     }
 
