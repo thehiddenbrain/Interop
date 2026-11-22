@@ -206,15 +206,26 @@ class ConfigFrontendTest {
                 say(parts(view()));
                 say(parts(full));
                 say(parts(null));
+                // The rule and a shape go only once changed: sending what is shown would turn a default, or the
+                // evidence of the collection's sample, into a value stated by this environment.
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const shape = editor.dialog.querySelectorAll('select').find(each => each.querySelectorAll('option').some(o => o.value === 'LEFT_OUT'));
+                const rule = editor.dialog.querySelectorAll('select').find(each => each.querySelectorAll('option').some(o => o.value === 'SPLIT'));
+                say([editor.input().shapes, editor.input().memberIdRule]);
+                shape.value = 'LEFT_OUT';
+                rule.value = 'SPLIT';
+                say([editor.input().shapes, editor.input().memberIdRule]);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
                 // The view carries only the sign-in: no other part is drawn, and none is sent.
                 "[[\"Mock or live\"],[\"id\",\"name\",\"kind\",\"signIn\"]]",
                 "[[\"Member ID rule\",\"Timeouts\",\"Request shapes\",\"Values\",\"Addresses\",\"Mock or live\"],"
-                        + "[\"id\",\"name\",\"kind\",\"signIn\",\"timeouts\",\"addresses\",\"memberIdRule\",\"shapes\",\"values\"]]",
+                        + "[\"id\",\"name\",\"kind\",\"signIn\",\"timeouts\",\"addresses\",\"values\"]]",
                 // No view at all: the facts the frame knows, the sign-in, and nothing guessed.
-                "[[\"Mock or live\"],[\"id\",\"name\",\"kind\",\"signIn\"]]");
+                "[[\"Mock or live\"],[\"id\",\"name\",\"kind\",\"signIn\"]]",
+                "[null,null]",
+                "[{\"CRD_DRAFT_ORDERS_TYPE\":\"LEFT_OUT\"},\"SPLIT\"]");
     }
 
     @Test

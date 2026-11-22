@@ -497,7 +497,8 @@ class DtrServiceTest {
         assertThat(ledger.last().coverageCodes()).isEmpty();
 
         // A questionnaire that was asked for by name and did not come back is named, not left to be noticed.
-        String wanted = "https://example.org/p32h-placeholder/Questionnaire/wanted";
+        // Not under the bundled placeholder path: a typed address other than the tool's own is held to the member-name check.
+        String wanted = "https://example.org/forms/Questionnaire/wanted";
         RunEnvelope<DtrDetail> asked = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-NOBUNDLE").questionnaires(List.of(wanted))
                 .build(), RunOrigin.manual(), null);
         assertThat(asked.verdict().outcomeCode()).isEqualTo("NO_QUESTIONNAIRE");
@@ -515,7 +516,7 @@ class DtrServiceTest {
 
     @Test
     void aQuestionnaireThatWasAskedForAndNotReturnedIsNeverCoveredByTheOnesThatWere() {
-        String other = "https://example.org/p32h-placeholder/Questionnaire/another-questionnaire";
+        String other = "https://example.org/forms/Questionnaire/another-questionnaire";
         RunEnvelope<DtrDetail> result = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").questionnaires(List.of(SLEEP, other))
                 .expected("questionnaire-kind=static").build(), RunOrigin.manual(), null);
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_INCOMPLETE");
@@ -628,7 +629,7 @@ class DtrServiceTest {
         Map<String, List<String>> handedOn = Map.of(NextStepView.CARRY_QUESTIONNAIRE, List.of(SLEEP),
                 NextStepView.CARRY_COVERAGE_ASSERTION_ID, List.of("assertion-from-crd"),
                 NextStepView.CARRY_PROCEDURE_CODES, List.of("95811"));
-        String typed = "https://example.org/p32h-placeholder/Questionnaire/typed-on-the-form";
+        String typed = "https://example.org/forms/Questionnaire/typed-on-the-form";
         RunEnvelope<DtrDetail> result = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").questionnaires(List.of(typed))
                 .coverageAssertionId("assertion-typed").carry(handedOn).build(), RunOrigin.manual(), null);
         String body = result.wire().request().body();

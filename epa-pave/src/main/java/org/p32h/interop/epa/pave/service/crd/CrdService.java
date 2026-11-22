@@ -235,7 +235,7 @@ public class CrdService {
 
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId), runId), exchange);
+        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call)), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
@@ -273,6 +273,11 @@ public class CrdService {
         Map<String, List<String>> carry = new LinkedHashMap<>(next.carry());
         carry.put(NextStepView.CARRY_RUN_ID, List.of(runId));
         return new NextStepView(next.action(), next.headline(), next.reason(), carry);
+    }
+
+    /** The name of the environment the call went to, for a next step that names where to change a setting of it. */
+    private static String environmentName(PreparedCall call) {
+        return call == null || call.environment() == null ? null : call.environment().name();
     }
 
     /**
