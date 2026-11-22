@@ -236,9 +236,23 @@
     display: none;
 }
 
-/* A code with several lines of business wraps inside its card, its Remove included. */
+/* Each code is one row under the input (look-16): the code, its description, the list's tags and
+   Remove. The description and the tags give way first, cut with their words in a title. */
 .code-lines .code-line {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+}
+
+.code-line > .code-line__tags,
+.code-line > span:not(.chip) {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.code-line > .btn {
+    margin-left: auto;
 }
 
 /* Whatever a fold of a result holds (a wide table of the response detail, a long url), it scrolls
@@ -453,4 +467,27 @@ td .notes {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+}
+
+/* In the case column two fields share a row only where both have room for their content (a date
+   input needs about 136 px); at 1024 px they stand one above the other instead of being cut. */
+.case .field-row {
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.code-lines .code-line > .chip:not(:first-child) {
+    flex: 0 1 auto;
+    min-width: 3em;
+}
+
+/* A step's chip is cut inside its own step, never drawn over the next one (look-17). */
+.stepper__text {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.stepper__chip {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }

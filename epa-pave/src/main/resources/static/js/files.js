@@ -11,6 +11,8 @@ const CHANGED = 'The file you chose can no longer be read: it was moved, renamed
 
 const NO_FILE = 'Choose a file first.';
 
+const FOLDER = ' is a folder. Choose the exported file inside it.';
+
 // The words that name where a file comes from. A Postman export is exported again from Postman; a
 // CSV is saved again by whatever wrote it, so it is never sent to Postman.
 const SOURCES = {
@@ -133,7 +135,7 @@ async function bytesOf(target, maxBytes, tooBig, empty) {
             buffer = await file.arrayBuffer();
         } catch (gone) {
             // The browser cannot read a file that was moved, deleted or written again since it was chosen.
-            return refuse(input, CHANGED);
+            return refuse(input, looksLikeFolder(file, gone) ? fileName + FOLDER : CHANGED);
         }
         const bytes = new Uint8Array(buffer);
         if (bytes.length === 0) {
@@ -162,6 +164,18 @@ function notText(bytes, name, words) {
         return name + ' is a picture or a PDF, ' + words.notThis;
     }
     return null;
+}
+
+/**
+ * Whether what could not be read is a folder given in place of a file (I-25): the browser gives a
+ * folder no type and a size of 0 or a whole number of 4096-byte blocks, and refuses to read it as
+ * not found or not readable. Anything else keeps the line for a file that changed.
+ */
+function looksLikeFolder(file, failure) {
+    const name = failure && typeof failure.name === 'string' ? failure.name : '';
+    const size = Number(file.size);
+    return (name === 'NotFoundError' || name === 'NotReadableError') && file.type === ''
+        && Number.isFinite(size) && size % 4096 === 0;
 }
 
 function refuse(input, line) {

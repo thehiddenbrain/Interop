@@ -125,6 +125,9 @@ class WorkbenchWordsFrontendTest {
                 lines.push((await readText(file('picture.json', [0x89, 0x50, 0x4E, 0x47]))).line);
                 lines.push((await readText(file('scan.csv', [0x25, 0x50, 0x44, 0x46]), {source: 'csv'})).line);
                 lines.push((await readText(file('latin.json', [0x7B, 0xE9, 0x7D]))).line);
+                const refusing = (name, type, size, error) => ({name, type, size, arrayBuffer: async () => { const e = new Error('x'); e.name = error; throw e; }});
+                lines.push((await readText(refusing('a-folder.json', '', 4096, 'NotFoundError'))).line);
+                lines.push((await readText(refusing('moved.json', 'application/json', 0, 'NotFoundError'))).line);
                 lines.forEach(say);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
@@ -133,7 +136,9 @@ class WorkbenchWordsFrontendTest {
                 "\"col-gzipped.json.gz is a compressed file. Unpack it and choose the file inside.\"",
                 "\"picture.json is a picture or a PDF, not a Postman export.\"",
                 "\"scan.csv is a picture or a PDF, not a CSV file.\"",
-                "\"latin.json is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, or export it again from Postman.\"");
+                "\"latin.json is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, or export it again from Postman.\"",
+                "\"a-folder.json is a folder. Choose the exported file inside it.\"",
+                "\"The file you chose can no longer be read: it was moved, renamed, deleted or changed after you chose it. Choose it again.\"");
     }
 
     @Test
