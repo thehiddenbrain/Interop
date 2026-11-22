@@ -261,6 +261,32 @@ class SuiteServiceTest {
         assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
     }
 
+    /**
+     * A row this build cannot run is not sent and still has its case id held to the check (mock, where
+     * the preview looks the member up): one that holds the member's name makes the row not valid, with
+     * the reason it could not have run beside the refusal, and the results name it by its position.
+     */
+    @Test
+    void aRowThatCannotBeRunIsStillCheckedForTheMembersNameInItsCaseId() {
+        bed.wrap = runner -> ((org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner) runner).previewMembers(SuiteTestBed.members());
+        String file = "caseId,operation,memberId,npi,codes\n"
+                + "row-Surname,SUBSCRIPTION_CREATE,P32H-NO-AUTH," + NPI + ",95810\n"
+                + "plain-sub,SUBSCRIPTION_CREATE,P32H-NO-AUTH," + NPI + ",95810\n"
+                + "TC-3,CRD_ORDER_SIGN,P32H-NO-AUTH," + NPI + ",95810\n";
+        SuitePreview preview = bed.service().preview("cases.csv", file);
+        assertThat(preview.headline()).isEqualTo("3 cases: 1 can be run, 1 cannot be run in this build and will be reported as not "
+                + "runnable, and 1 has a problem and will be reported as not valid.");
+        SuiteRunView run = bed.service().start("cases.csv", file, null, null, null);
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1", "plain-sub", "TC-3");
+        assertThat(run.results()).extracting(SuiteCaseResult::status).containsExactly(CaseStatus.INVALID, CaseStatus.NOT_RUNNABLE,
+                CaseStatus.COMPLETED);
+        assertThat(run.results().get(0).reason()).startsWith("Subscription create works on a subscription this tool holds")
+                .endsWith("caseId: The case id holds the member's last name. The ledger keeps it as written and may not hold member "
+                        + "data, so leave it out. Nothing was sent.");
+        assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run) + JsonSafe.mapper().writeValueAsString(preview))
+                .doesNotContain("Surname");
+    }
+
     @Test
     void aWriteTheGuardrailRefusesIsCountedAsBlockedAndNeverAsFailed() {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);

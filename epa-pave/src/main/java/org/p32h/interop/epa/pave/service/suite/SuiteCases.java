@@ -274,9 +274,11 @@ public final class SuiteCases {
             if (cannotRun == null) {
                 problems.addAll(runner.refusals(spec));
             }
-        } else if (runner != null && rowMember != null) {
-            // The row is not sent for its other problems, and the check made once the member is looked
-            // up is made all the same, so the preview and the run list every problem of the row at once.
+        }
+        if (runner != null && rowMember != null && (spec == null || cannotRun != null)) {
+            // The row is not sent, for its other problems or because this build cannot run it, and the
+            // check made once the member is looked up is made all the same: the preview and the run list
+            // every problem of the row at once, and the results keep its case id and expectation either way.
             // A text already refused, for its length or for the row's own member ID, is not checked again.
             // An expectation is checked as the first call would be sent with it: a chain's CRD part when
             // the chain's expectation can be read, and none of it when it cannot, since a term of another
@@ -298,6 +300,10 @@ public final class SuiteCases {
             if (!termsCleared && found.stream().anyMatch(problem -> problem.startsWith("expected: "))) {
                 // The refusal says what is wrong with the expectation, and no problem with one of its terms quotes it.
                 problems.subList(termsFrom, termsTo).clear();
+            }
+            if (cannotRun != null && !found.isEmpty()) {
+                // Reported as not valid now, and the reason it could not have run is kept beside the refusal.
+                problems.add(cannotRun);
             }
             problems.addAll(found);
         }
