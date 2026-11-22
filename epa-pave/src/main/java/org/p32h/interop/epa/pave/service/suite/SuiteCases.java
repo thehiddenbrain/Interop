@@ -161,7 +161,9 @@ public final class SuiteCases {
         }
         Integer first = seen.putIfAbsent(caseId.toLowerCase(Locale.ROOT), source.number());
         if (first != null) {
-            problems.add("The case id \"" + caseId + "\" is already used by case " + first + " of the file. Each case needs its own id, "
+            // Not quoted: a case id can hold member data that a later check refuses, and this problem
+            // stays in the results a tester downloads. The row number finds it.
+            problems.add("This case id is already used by case " + first + " of the file. Each case needs its own id, "
                     + "because results are matched to cases by it.");
         }
 

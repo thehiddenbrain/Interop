@@ -219,7 +219,7 @@ class SuiteCasesTest {
                 + "TC (4) v1.2 #a/b:c,crd,S423456789");
         assertThat(definition.rows().get(0).problems()).isEmpty();
         assertThat(definition.rows().get(1).problems()).containsExactly(
-                "The case id \"tc-1\" is already used by case 1 of the file. Each case needs its own id, because results are matched "
+                "This case id is already used by case 1 of the file. Each case needs its own id, because results are matched "
                         + "to cases by it.");
         assertThat(definition.rows().get(2).problems()).containsExactly(
                 "The case id may hold letters, digits, spaces and . _ : / # ( ) - and at most 64 characters.");

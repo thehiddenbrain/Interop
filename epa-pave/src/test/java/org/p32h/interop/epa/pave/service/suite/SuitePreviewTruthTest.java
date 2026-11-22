@@ -45,6 +45,28 @@ class SuitePreviewTruthTest {
     }
 
     /**
+     * Two rows that share a case id holding the member's name (mock, where the preview looks the
+     * member up). The second row's repeat is said without quoting the id, so neither row's problems
+     * nor its name on screen carry the name.
+     */
+    @Test
+    void aRepeatedCaseIdThatHoldsTheMembersNameIsNotQuotedByTheRepeat() {
+        String text = "caseId,protocol,memberId,npi,codes,expected\n"
+                + "row-Surname,crd,P32H-DOC-DTR," + NPI + ",95810,DOCUMENTATION_REQUIRED\n"
+                + "row-Surname,crd,P32H-DOC-DTR," + NPI + ",95810,DOCUMENTATION_REQUIRED\n";
+        SuiteDefinition definition = SuiteCases.define("cases.csv", new SuiteFileReader(new org.p32h.interop.epa.pave.service.codelist.CsvRowsAdapter())
+                .read("cases.csv", text), true, SuiteTestBed.outcomes(), bed.runner().previewMembers(SuiteTestBed.members()));
+        List<SuiteRow> rows = definition.rows();
+        String refusal = "caseId: The case id holds the member's last name. The ledger keeps it as written and may not hold member data, "
+                + "so leave it out. Nothing was sent.";
+        assertThat(rows.get(0).problems()).containsExactly(refusal);
+        assertThat(rows.get(1).problems()).containsExactly("This case id is already used by case 1 of the file. Each case needs its own id, "
+                + "because results are matched to cases by it.", refusal);
+        assertThat(rows.stream().flatMap(row -> row.problems().stream()).toList().toString() + rows.stream().map(SuiteRow::caseId).toList())
+                .doesNotContain("Surname");
+    }
+
+    /**
      * A row with a problem of another kind is still held to the check made once the member is looked
      * up (mock), so the preview, and the run, which reports a row by the preview's problems, list
      * every problem of the row at once, and the tester does not learn of the name only after

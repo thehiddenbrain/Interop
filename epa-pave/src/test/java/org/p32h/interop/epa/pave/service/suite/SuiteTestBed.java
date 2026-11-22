@@ -76,11 +76,16 @@ public final class SuiteTestBed {
     /** The clock of the runs and the suite. A test that needs time itself to fail gives another. */
     public Clock clock = CLOCK;
 
-    private final MemberLookup members = id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id),
-            MemberDetail.builder().memberId(id).lastName(SURNAME).dateOfBirth("1970-01-31").lineOfBusiness("Medicare").build(),
-            List.of(), List.of(), List.of(), null, null, "message");
+    private final MemberLookup members = members();
     private final ProviderLookup providers = npi -> new ProviderLookupResult(LookupStatus.FOUND, npi,
             ProviderDetail.builder().npi(npi).lastName("Provider").build(), List.of(), List.of(), List.of(), null, null, "message");
+
+    /** The lookup every case of this bed is given: one member, of last name {@link #SURNAME}, whatever the id. */
+    public static MemberLookup members() {
+        return id -> new MemberLookupResult(LookupStatus.FOUND, MemberIds.forms(id),
+                MemberDetail.builder().memberId(id).lastName(SURNAME).dateOfBirth("1970-01-31").lineOfBusiness("Medicare").build(),
+                List.of(), List.of(), List.of(), null, null, "message");
+    }
 
     public static String suite(String... rows) {
         return HEADER + "\n" + String.join("\n", rows);

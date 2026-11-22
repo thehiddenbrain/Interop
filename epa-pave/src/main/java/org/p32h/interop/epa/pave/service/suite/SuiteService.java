@@ -593,7 +593,11 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
     private SuiteCaseResult notValid(Run run, Entry entry) {
         Previous earlier = run.previous == null ? null : run.previous.get(entry.caseId.toLowerCase(Locale.ROOT));
         CaseStatus status = entry.cannotRun != null ? CaseStatus.NOT_RUNNABLE : CaseStatus.INVALID;
-        return new SuiteCaseResult(entry.number, entry.caseId, entry.what, entry.chain, SuiteRowState.DONE, status,
+        // A row that is not sent is never looked up, so on live its case id is not compared with the
+        // member's name. One that repeats the id of an earlier case the run refused for member data is
+        // known to hold it all the same, and is not repeated either.
+        String shownCaseId = run.withheldIds.contains(entry.caseId.toLowerCase(Locale.ROOT)) ? "case-" + entry.number : entry.caseId;
+        return new SuiteCaseResult(entry.number, shownCaseId, entry.what, entry.chain, SuiteRowState.DONE, status,
                 statusLine(status, null, entry.expected), entry.expected, null, null, null, null, null, false, null,
                 List.of(), null, null, List.of(), null, entry.cannotRun != null ? entry.cannotRun : String.join(" ", entry.problems),
                 List.of(), List.of(),
@@ -649,8 +653,11 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         String shownExpected = refusal != null ? refusal : entry.expected;
         // On live the member's name is known only once the case looked the member up, so a case id
         // refused for it is found here, and is not repeated in the results a tester downloads.
-        String shownCaseId = status == CaseStatus.INVALID && MemberInText.refusesCaseId(outcome.reason()) ? "case-" + entry.number
-                : entry.caseId;
+        boolean withheld = status == CaseStatus.INVALID && MemberInText.refusesCaseId(outcome.reason());
+        if (withheld) {
+            run.withheldIds.add(entry.caseId.toLowerCase(Locale.ROOT));
+        }
+        String shownCaseId = withheld ? "case-" + entry.number : entry.caseId;
         return new SuiteCaseResult(entry.number, shownCaseId, entry.what, entry.chain, SuiteRowState.DONE, status,
                 rowLine(outcome, result, entry, sent, configurationMoved), shownExpected, code, outcomes.label(protocol, code), tone, result,
                 elapsed, slow, last == null ? null : last.runId(), runIds, last == null ? null : last.chainId(),
@@ -835,6 +842,8 @@ public class SuiteService implements AutoCloseable, ApplicationListener<ContextC
         final Map<String, Previous> previous;
         final List<Entry> entries = new ArrayList<>();
         final SuiteTimings timings = new SuiteTimings();
+        /** The case ids, in lower case, of the cases this run refused for holding member data. Written and read in file order. */
+        final java.util.Set<String> withheldIds = new java.util.HashSet<>();
         /** Read under the service's lock as well as this run's, so a write here is seen there without a stale running state. */
         volatile SuiteState state = SuiteState.RUNNING;
         String stopRequested;

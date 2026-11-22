@@ -243,6 +243,24 @@ class SuiteServiceTest {
         assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
     }
 
+    /**
+     * Two rows that share a case id holding the member's name. The second is refused as a repeat and
+     * is never looked up, and the repeat is said without quoting the id. Where the name is known only
+     * once a case looked the member up (live, as this runner is wired), the first row's refusal tells
+     * the run the id holds it, so the second is not named by it either.
+     */
+    @Test
+    void twoRowsThatShareACaseIdHoldingTheMembersNameKeepTheNameOutOfTheResults() {
+        SuiteRunView run = bed.service().start("cases.csv", suite(row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"),
+                row("asked-Surname", "P32H-NO-AUTH", "NO_AUTH_REQUIRED"), row("TC-3", "P32H-NO-AUTH", "NO_AUTH_REQUIRED")), null, null, null);
+        assertThat(run.headline()).isEqualTo("Finished: 3 cases. 1 passed, 2 not valid.");
+        assertThat(run.results()).extracting(SuiteCaseResult::caseId).containsExactly("case-1", "case-2", "TC-3");
+        assertThat(run.results().get(1).reason()).isEqualTo("This case id is already used by case 1 of the file. Each case needs its own "
+                + "id, because results are matched to cases by it.");
+        assertThat(bed.ledger.records()).extracting(RunRecord::caseId).containsExactly("TC-3");
+        assertThat(SuiteResultsCsv.of(run) + JsonSafe.mapper().writeValueAsString(run)).doesNotContain("Surname");
+    }
+
     @Test
     void aWriteTheGuardrailRefusesIsCountedAsBlockedAndNeverAsFailed() {
         bed.gateway.environment("Onyx Production", EnvironmentKind.PROD);
