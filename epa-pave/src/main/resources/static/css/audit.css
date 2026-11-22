@@ -118,3 +118,67 @@
 .audit-note__missing {
     font-weight: 600;
 }
+
+/* Runs, Journeys and Suites side by side above the page: Audit has three pages, too few for a column of their own. */
+.audit-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    margin-bottom: var(--s-4);
+    border-bottom: 1px solid var(--line);
+}
+
+.audit-subnav .subnav__item {
+    border-radius: var(--r-control) var(--r-control) 0 0;
+}
+
+.audit-subnav .subnav__item[aria-current="page"] {
+    box-shadow: inset 0 -3px 0 var(--purple);
+}
+
+.audit-run__load {
+    margin-left: auto;
+}
+
+.audit-trail {
+    display: grid;
+    gap: var(--s-2);
+}
+
+.audit-trail__url {
+    overflow-wrap: anywhere;
+}
+
+.audit-trail__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.audit-steps {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+}
+
+.audit-journey__headline {
+    max-width: 48ch;
+}
+
+.audit-journey__step {
+    margin-top: var(--s-4);
+}
+
+.audit-journey__name {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    margin: 0 0 var(--s-1);
+    font-size: var(--text-md);
+}
+
+/* A day is ten characters: the From and To boxes of Journeys stay that size instead of filling the row. */
+.audit-journeys .filters .field {
+    flex: 0 0 180px;
+}

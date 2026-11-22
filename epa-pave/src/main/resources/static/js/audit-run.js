@@ -1,6 +1,7 @@
 // Audit > one run (#audit/runs/<runId>), from GET /api/runs/{runId}: the result card when this page
-// made the run and still holds it, otherwise a card made from the ledger line; "Run again"; the
-// note; and what the line keeps.
+// made the run and still holds it, or when the trail keeps it, otherwise a card made from the ledger
+// line; "Run again" and "Load into the Workbench"; the note; the request and the answer the trail
+// keeps; and what the line keeps.
 //
 // The line is not the result. It keeps codes and identifiers, never the request, the response or
 // the sentences the result was worded in, so the card from the line says only what the line holds.
@@ -14,6 +15,7 @@ import {resultCard} from './result.js';
 import {none, outcomeChip, testChip, memberShort, utcText} from './audit-common.js';
 import {replayLine, entryDetail} from './audit-replay.js';
 import {noteEditor} from './audit-note.js';
+import {keptEntry, trailFolds} from './audit-trail.js';
 
 // The replay statuses after which asking again gives the same answer: the line itself, or the
 // profile it was made on, is what stops it. Blocked and not configured can change with the
@@ -28,8 +30,9 @@ export function runView(ctx) {
     async function show(runId) {
         openId = runId;
         fill(node, crumbs(null), el('p', {class: 'muted', role: 'status'}, 'Reading the run from the ledger.'));
-        const [answer, words, health] = await Promise.all([call('GET', '/api/runs/' + encodeURIComponent(runId)), ctx.words(),
-            call('GET', '/api/runs/health')]);
+        // The trail is asked each time the run is opened, so a run it no longer keeps is never drawn from an earlier reading.
+        const [answer, words, health, trail] = await Promise.all([call('GET', '/api/runs/' + encodeURIComponent(runId)), ctx.words(),
+            call('GET', '/api/runs/health'), call('GET', '/api/trail/' + encodeURIComponent(runId))]);
         if (openId !== runId) {
             // Another run was opened while this answer was on its way; the later choice stands.
             return;
@@ -40,19 +43,20 @@ export function runView(ctx) {
                     + 'that result said NOT recorded, with the reason.') : null);
             return;
         }
-        draw(answer.data || {}, words, health.ok ? health.data : null);
+        draw(answer.data || {}, words, health.ok ? health.data : null, trail);
     }
 
     function crumbs(title) {
         return el('p', {class: 'crumbs'}, el('a', {href: ctx.listAddress()}, 'Runs'), title ? [el('span', {'aria-hidden': 'true'}, '/'), el('span', null, title)] : null);
     }
 
-    function draw(run, words, health) {
+    function draw(run, words, health, trail) {
         const step = words.stepOf(run.operation);
         const operation = words.operation(run.operation);
         const name = step ? step.name : operation ? operation.label : run.operation || 'Run';
         const when = utcText(run.timestamp);
-        const envelope = recall(run.runId);
+        const kept = keptEntry(trail);
+        const envelope = recall(run.runId) || (kept && kept.envelope && typeof kept.envelope === 'object' ? kept.envelope : null);
         const replaySlot = el('div', {class: 'audit-run__replay', 'aria-live': 'polite'});
         const again = againRow(run, words, replaySlot);
         const card = envelope ? el('div', null, resultCard(envelope, {context: 'audit'}), again)
@@ -68,6 +72,7 @@ export function runView(ctx) {
                 el('div', {class: 'panel__section audit-run__note'}, noteEditor(run, kept => { run.note = kept.note; run.testerRef = kept.testerRef; })),
                 // A result card from page memory has a Why of its own, worded from the answer; the line's is for a run read from the ledger only.
                 envelope ? null : whyFold(run, words),
+                trailFolds(trail, run.runId),
                 fold({summary: 'Ledger line', hint: 'what is kept', body: () => jsonView(JSON.stringify(run, null, 2))})));
     }
 
@@ -101,16 +106,30 @@ export function runView(ctx) {
                 again));
     }
 
-    /** "Run again", or, for a line the server would refuse to send again, why not. */
+    /** "Run again", or, for a line the server would refuse to send again, why not; and "Load into the Workbench". */
     function againRow(run, words, slot) {
         const inputs = Array.isArray(run.unrecordedInputs) ? run.unrecordedInputs : [];
+        const load = loadButton(run);
         if (inputs.length > 0) {
             // Replay refuses a line that lists an input it does not hold, so a button could only ask to be told so.
-            return el('div', {class: 'verdict__foot'}, el('span', {class: 'muted small'},
+            return el('div', {class: 'verdict__foot'}, load, el('span', {class: 'muted small'},
                 'This run cannot be run again from its line: it also used ' + inputs.join(', ') + ', which the line does not hold.'));
         }
         const control = button('Run again', () => replay(run, words, slot, control), {primary: true});
-        return el('div', {class: 'verdict__foot'}, control, el('span', {class: 'muted small'}, 'Sends the same case again and compares the answers.'));
+        return el('div', {class: 'verdict__foot'}, control, el('span', {class: 'muted small'}, 'Sends the same case again and compares the answers.'),
+            load ? el('span', {class: 'audit-run__load'}, load) : null);
+    }
+
+    /**
+     * "Load into the Workbench": the Workbench reads the run's journey back from the chain and the
+     * trail (#workbench/load/<runId>) and sends nothing. A run of no journey has no case to load, so
+     * no button offers it.
+     */
+    function loadButton(run) {
+        if (typeof run.chainId !== 'string' || run.chainId === '') {
+            return null;
+        }
+        return button('Load into the Workbench', () => ctx.app.go(loadAddress(run.runId)));
     }
 
     async function replay(run, words, slot, control) {
@@ -157,4 +176,9 @@ export function runView(ctx) {
     }
 
     return {node, show};
+}
+
+/** The Workbench's address for a run of Audit to be read back into it. */
+export function loadAddress(runId) {
+    return '#workbench/load/' + encodeURIComponent(runId);
 }

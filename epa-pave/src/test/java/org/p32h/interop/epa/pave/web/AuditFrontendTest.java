@@ -148,6 +148,164 @@ class AuditFrontendTest {
     }
 
     @Test
+    void oneRunShowsItsRequestAndAnswerFromTheTrailOrTheServersLineAndNeverAnEarlierBody(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "Audit's run and trail modules", """
+                import './browser.js';
+                import {wordsOf} from './js/audit-common.js';
+                import {trailPart, keptEntry, trailDownload} from './js/audit-trail.js';
+                import {runView, loadAddress} from './js/audit-run.js';
+                const say = value => console.log(JSON.stringify(value));
+                globalThis.window = globalThis;
+                const words = wordsOf({steps: [{step: 'COVERAGE', name: 'Coverage check', protocol: 'CRD'}],
+                  operations: [{code: 'CRD_ORDER_SIGN', label: 'CRD order-sign', protocol: 'CRD', step: 'COVERAGE', write: false}],
+                  outcomes: {CRD: [{code: 'AUTH_REQUIRED', label: 'Prior authorization is required', short: 'PA required', tone: 'ACTION'}]},
+                  testResults: [{code: 'PASS', label: 'Passed'}], answeredBy: [{code: 'SCENARIO', chip: 'MOCK'}]});
+                const envelope = {runId: 'run-1', protocol: 'CRD', profile: 'mock', answeredBy: 'SCENARIO',
+                  verdict: {headline: 'Documentation is required', tone: 'ACTION', outcomeCode: 'AUTH_REQUIRED'},
+                  wire: {request: {method: 'POST', url: 'http://vendor.example.invalid/cds-services/order-sign', body: '{"hook":"order-sign"}', sent: true},
+                         response: {status: 200, body: '{"cards":[]}', parsed: true}}};
+                const kept = {ok: true, status: 200, data: {runId: 'run-1', kept: true, keptAt: '2026-11-22T10:00:00.000Z',
+                  entry: {runId: 'run-1', chainId: 'chain-1', protocol: 'CRD', envelope}}};
+                const gone = {ok: true, status: 200, data: {runId: 'run-1', kept: false, line: 'Not kept: the trail holds the last 500 runs.'}};
+                const failed = {ok: false, status: 422, error: {kind: 'VALIDATION', title: 'This is not a run id.'}};
+                // 1 each side, kept, not kept and not read
+                for (const answer of [kept, gone, failed]) {
+                  say(['request', 'answer'].map(side => {
+                    const part = trailPart(answer, 'run-1', side);
+                    const body = part.body();
+                    const holder = document.createElement('div');
+                    holder.append(body || '');
+                    return [part.summary, part.hint, holder.textContent.includes('order-sign') || holder.textContent.includes('cards'),
+                      holder.querySelectorAll('a').map(link => link.href)];
+                  }));
+                }
+                say([keptEntry(gone), keptEntry(failed), keptEntry(kept).runId, trailDownload('run-1'), loadAddress('run-1')]);
+                // 2 the run's page: asks the trail each time it is opened; a run of a journey offers the Workbench
+                const sent = [];
+                const gone2 = [];
+                let trail = kept;
+                globalThis.fetch = async (address, init) => {
+                  sent.push(String(address));
+                  const path = String(address).split('?')[0];
+                  const answers = {
+                    '/api/runs/run-1': {runId: 'run-1', chainId: 'chain-1', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', outcome: 'AUTH_REQUIRED',
+                      result: 'pass', timestamp: '2026-11-22T10:00:00Z', findings: []},
+                    '/api/runs/run-2': {runId: 'run-2', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', outcome: 'AUTH_REQUIRED', result: 'pass',
+                      timestamp: '2026-11-22T10:00:00Z', findings: []},
+                    '/api/runs/health': {enabled: true, writable: true}
+                  };
+                  if (path.startsWith('/api/trail/')) {
+                    return {ok: trail.ok, status: trail.status, text: async () => JSON.stringify(trail.ok ? trail.data : trail.error)};
+                  }
+                  return {ok: true, status: 200, text: async () => JSON.stringify(answers[path] || {})};
+                };
+                const app = {isMock: () => true, mode: () => ({mode: 'mock'}), on: () => () => true, go: hash => gone2.push(hash)};
+                const view = runView({app, words: async () => words, ledger: () => null, listAddress: () => '#audit'});
+                document.body.append(view.node);
+                const summaries = () => view.node.querySelectorAll('summary').map(each => each.textContent);
+                await view.show('run-1');
+                const load = view.node.querySelectorAll('button').find(each => each.textContent === 'Load into the Workbench');
+                await load.click();
+                say([sent.filter(each => each.startsWith('/api/trail')), view.node.querySelector('.verdict__headline').textContent,
+                  summaries().filter(text => text.startsWith('Request JSON') || text.startsWith('Answer JSON') || text.startsWith('Why')), gone2]);
+                trail = gone;
+                sent.length = 0;
+                await view.show('run-1');
+                say([sent.filter(each => each.startsWith('/api/trail')), view.node.querySelector('.verdict__headline').textContent,
+                  summaries().filter(text => text.startsWith('Request JSON') || text.startsWith('Answer JSON') || text.startsWith('Why'))]);
+                await view.show('run-2');
+                say(view.node.querySelectorAll('button').filter(each => each.textContent === 'Load into the Workbench').length);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                // Kept: each side from the trail, with the download of the kept entry.
+                "[[\"Request JSON\",\"from the trail\",true,[\"/api/trail/run-1/download\"]],"
+                        + "[\"Answer JSON\",\"from the trail\",true,[\"/api/trail/run-1/download\"]]]",
+                // Not kept: the server's line, and no body and no download.
+                "[[\"Request JSON\",\"Not kept: the trail holds the last 500 runs.\",false,[]],"
+                        + "[\"Answer JSON\",\"Not kept: the trail holds the last 500 runs.\",false,[]]]",
+                // The trail not read: said, through the one error shape.
+                "[[\"Request JSON\",\"the trail could not be read\",false,[]],[\"Answer JSON\",\"the trail could not be read\",false,[]]]",
+                "[null,null,\"run-1\",\"/api/trail/run-1/download\",\"#workbench/load/run-1\"]",
+                // A kept run shows the result card from the trail; "Load into the Workbench" goes to the reload's address.
+                "[[\"/api/trail/run-1\"],\"Documentation is required\",[\"Request JSONfrom the trail\",\"Answer JSONfrom the trail\"],"
+                        + "[\"#workbench/load/run-1\"]]",
+                // Opened again once the trail no longer keeps it: asked again, the ledger's card and Why, the server's line, no body.
+                "[[\"/api/trail/run-1\"],\"Prior authorization is required\",[\"Why0 findings\","
+                        + "\"Request JSONNot kept: the trail holds the last 500 runs.\",\"Answer JSONNot kept: the trail holds the last 500 runs.\"]]",
+                // A run of no journey has no case to load.
+                "0");
+    }
+
+    @Test
+    void journeysListTheirStepsAndWhoAnsweredTheLatestRunAndTotalOnlyTimedRuns(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "Audit's journeys module", """
+                import './browser.js';
+                import {wordsOf, utcToday} from './js/audit-common.js';
+                import {journeysView, journeyFiltersOf, latestRun} from './js/audit-journeys.js';
+                const say = value => console.log(JSON.stringify(value));
+                globalThis.window = globalThis;
+                const words = wordsOf({steps: [],
+                  operations: [{code: 'CRD_ORDER_SIGN', label: 'CRD order-sign', protocol: 'CRD', step: 'COVERAGE'},
+                               {code: 'PAS_SUBMIT', label: 'PAS submit', protocol: 'PAS', step: 'SUBMIT'},
+                               {code: 'PAS_INQUIRE', label: 'PAS inquire', protocol: 'PAS', step: 'STATUS'}],
+                  outcomes: {CRD: [{code: 'AUTH_REQUIRED', label: 'Prior authorization is required', short: 'PA required', tone: 'ACTION'}]},
+                  testResults: [{code: 'PASS', label: 'Passed'}], answeredBy: [{code: 'SCENARIO', chip: 'MOCK'}, {code: 'TOOL', chip: 'PAVE'}]});
+                const today = utcToday();
+                const steps = [{step: 'COVERAGE', name: 'Coverage check', chip: {text: 'PA required', tone: 'ACTION'}},
+                  {step: 'QUESTIONNAIRE', name: 'Questionnaire', chip: {text: 'Not needed'}},
+                  {step: 'SUBMIT', name: 'Submit', chip: {text: 'Approved', tone: 'CLEAR'}},
+                  {step: 'STATUS', name: 'Status', chip: {text: 'Pended', tone: 'WAIT'}}];
+                const crd = {runId: 'run-a', timestamp: today + 'T09:00:00Z', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', outcome: 'AUTH_REQUIRED', result: 'PASS', elapsedMillis: 150, answeredBy: 'SERVICE'};
+                const pas = {runId: 'run-b', timestamp: today + 'T09:05:00Z', protocol: 'PAS', operation: 'PAS_SUBMIT', outcome: 'APPROVED', result: 'PASS', elapsedMillis: 300, answeredBy: 'SERVICE'};
+                const inquiry = {runId: 'run-c', timestamp: today + 'T09:09:00Z', protocol: 'PAS', operation: 'PAS_INQUIRE', outcome: 'PENDED', result: 'PASS', answeredBy: 'SCENARIO'};
+                const chain = {chainId: 'chain-1', headline: 'The submission is pended. Ask again later.', member: 'P32H-PA-REQ', procedureCodes: ['81162'],
+                  lastRunAt: today + 'T09:09:00Z', startedAt: today + 'T09:00:00Z', runCount: 3, steps,
+                  stages: [{protocol: 'CRD', latest: crd, runs: [crd]}, {protocol: 'DTR', runs: []}, {protocol: 'PAS', latest: inquiry, runs: [pas, inquiry]}], otherRuns: []};
+                const single = {chainId: 'chain-2', headline: 'One run.', runCount: 1, lastRunAt: today + 'T08:00:00Z', steps, stages: []};
+                const sent = [];
+                const opened = [];
+                globalThis.fetch = async address => {
+                  sent.push(String(address));
+                  const path = String(address).split('?')[0];
+                  const answers = {'/api/chains': {chains: [chain, single]}, '/api/chains/chain-1': chain, '/api/runs/health': {enabled: true, writable: true}};
+                  return {ok: true, status: 200, text: async () => JSON.stringify(answers[path] || {})};
+                };
+                say(latestRun(chain).runId);
+                const app = {isMock: () => true, on: () => () => true, go: hash => opened.push(hash)};
+                const view = journeysView({app, words: async () => words, ledger: () => null, go: parts => opened.push(parts)});
+                document.body.append(view.node);
+                await view.show(journeyFiltersOf('?member=S123456789'));
+                const rows = view.node.querySelectorAll('tbody tr');
+                say([sent.filter(each => each.startsWith('/api/chains')), view.node.querySelector('.page-head__note').textContent, rows.length,
+                  rows[0].querySelectorAll('.chip').map(each => each.textContent), rows[0].querySelectorAll('.chip--mock').length,
+                  rows[0].textContent.includes('The submission is pended.') && !rows[0].textContent.includes('Ask again later'),
+                  view.node.querySelector('.audit-list__foot').textContent]);
+                await view.show(journeyFiltersOf('?single=include'));
+                say(view.node.querySelectorAll('tbody tr').length);
+                await view.open('chain-1');
+                say([view.node.querySelectorAll('h2').map(each => each.textContent),
+                  view.node.querySelectorAll('.audit-journey__step').map(each => each.querySelectorAll('tbody tr').length),
+                  view.node.querySelector('.audit-list__foot').textContent]);
+                await view.node.querySelectorAll('button').find(each => each.textContent === 'Load into the Workbench').click();
+                say(opened);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        String today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString();
+        assertThat(run.lines()).containsExactly(
+                "\"run-c\"",
+                // A filter Journeys does not keep (a member) is never sent; the days are UTC days.
+                "[[\"/api/chains?limit=200&zone=UTC\",\"/api/chains?from=" + today + "&to=" + today + "&zone=UTC&limit=200\"],"
+                        + "\"2 today, UTC\",1,[\"PA required\",\"Not needed\",\"Approved\",\"Pended\",\"MOCK\"],1,true,"
+                        + "\"1 journey of one run is left out.\"]",
+                "2",
+                // Each step with its own runs; the total says one run was not measured instead of covering it.
+                "[[\"Coverage check PA required\",\"Questionnaire Not needed\",\"Submit Approved\",\"Status Pended\"],[1,0,1,1],"
+                        + "\"3 runs, 2 of them measured, taking 450 ms in all.\"]",
+                "[\"#workbench/load/run-c\"]");
+    }
+
+    @Test
     void aReplaySendsIdsAndNeverDays() throws IOException {
         for (String name : new String[] {"audit-runs.js", "audit-run.js"}) {
             String script = StaticSources.script(name);
@@ -165,7 +323,8 @@ class AuditFrontendTest {
                 .doesNotContain("RegExp").doesNotContain(".match(").doesNotContain(".test(");
         assertThat(StaticSources.body(StaticSources.script("audit-run.js"), "async function show(runId) {"))
                 .contains("call('GET', '/api/runs/' + encodeURIComponent(runId))");
-        for (String name : new String[] {"audit.js", "audit-common.js", "audit-runs.js", "audit-run.js", "audit-replay.js", "audit-note.js"}) {
+        for (String name : new String[] {"audit.js", "audit-common.js", "audit-runs.js", "audit-run.js", "audit-replay.js", "audit-note.js",
+                "audit-trail.js", "audit-journeys.js"}) {
             assertThat(StaticSources.withoutComments(StaticSources.script(name))).as(name).doesNotContain("RegExp").doesNotContain(".test(")
                     .doesNotContain(".match(").doesNotContain(".replace(/");
         }
