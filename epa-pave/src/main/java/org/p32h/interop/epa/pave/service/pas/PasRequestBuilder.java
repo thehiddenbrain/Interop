@@ -6,12 +6,14 @@ import org.p32h.interop.epa.pave.config.StartupChecks;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -91,12 +93,20 @@ public final class PasRequestBuilder {
      * @param attachmentMode how the attachments of the request travel, or null when it has none
      * @param leftOut        each element a PAS 2.2.1 profile requires that the request went out without,
      *                       named by its profile and path. Empty when nothing was
+     * @param toComplete     the gaps a tester can close before sending, each with the field that
+     *                       closes it, for "To complete before sending". Empty when there are none
      */
-    public record Built(String json, List<String> notes, SentClaim sent, String attachmentMode, List<String> leftOut) {
+    public record Built(String json, List<String> notes, SentClaim sent, String attachmentMode, List<String> leftOut,
+                        List<RequestPreview.ToComplete> toComplete) {
 
         public Built {
             notes = notes == null ? List.of() : List.copyOf(notes);
             leftOut = leftOut == null ? List.of() : List.copyOf(leftOut);
+            toComplete = toComplete == null ? List.of() : List.copyOf(toComplete);
+        }
+
+        public Built(String json, List<String> notes, SentClaim sent, String attachmentMode, List<String> leftOut) {
+            this(json, notes, sent, attachmentMode, leftOut, List.of());
         }
 
         /** Redacted, because the body carries member data. */
@@ -149,6 +159,14 @@ public final class PasRequestBuilder {
      */
     public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
                         Function<String, ResolvedText> variables) {
+        return submit(request, claimId, newClaim, bundleId, variables, MemberIdRule.PACKED);
+    }
+
+    /**
+     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
+     */
+    public Built submit(PasSubmitRequest request, String claimId, boolean newClaim, String bundleId,
+                        Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
         PasNotes notes = new PasNotes();
         List<ObjectNode> carried = new ArrayList<>();
         ArrayNode supportingInfo = JSON.arrayNode();
@@ -194,7 +212,7 @@ public final class PasRequestBuilder {
             } else {
                 String id = OnyxPasConventions.documentReferenceId(position);
                 boolean inline = Texts.present(attachment.data()) || Texts.present(attachment.text());
-                carried.add(PasResources.documentReference(id, title, attachment, position, notes));
+                carried.add(PasResources.documentReference(id, title, attachment, position, PasResources.patientRef(request.member()), notes));
                 supportingInfo.add(supporting(supportingInfo.size() + 1, JSON.objectNode().put("reference", "DocumentReference/" + id),
                         reportType, null));
                 notes.add("Attachment " + position + " (\"" + title + "\") travels in the bundle as DocumentReference/" + id
@@ -212,6 +230,8 @@ public final class PasRequestBuilder {
                         + reportType + " (X12 PWK01, from the value " + VAR_REPORT_TYPE + ") and the transmission method "
                         + OnyxPasConventions.TRANSMISSION_ELECTRONIC + ", electronically.");
             } else {
+                notes.toComplete("values.pasReportType", "Report type: none. PAS 2.2.1 requires document information on each additional "
+                        + "information entry: add PAS report type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim supportingInfo[AdditionalInformation].extension[documentInformation]", "No document information was "
                         + "sent on the claim's supporting information: the value " + VAR_REPORT_TYPE + " is not set. PAS 2.2.1 PASClaim requires "
                         + "it, with an X12 PWK01 report type, on every additional information entry: add PAS report type" + UNDER_VALUES + ".");
@@ -229,13 +249,13 @@ public final class PasRequestBuilder {
         }
 
         List<SentClaim.Item> items = new ArrayList<>();
-        Case built = caseResources(true, Card.of(request), claimId, newClaim, request.member(), request.provider(), request.procedureCodes(),
-                request.dateOfService(), supportingInfo, diagnosis, variables, notes, items);
+        Case built = caseResources(true, Card.of(request), claimId, newClaim, request.member(), memberIdRule, request.provider(),
+                request.procedureCodes(), request.dateOfService(), supportingInfo, diagnosis, variables, notes, items);
         List<ObjectNode> bundled = new ArrayList<>(built.resources());
         bundled.addAll(carried);
         String json = bundle(bundleId, "PASRequestBundle", bundled, variables, notes);
         return new Built(json, notes.notes(), new SentClaim(claimId, items), request.attachments().isEmpty() ? null : attachmentMode,
-                notes.leftOut());
+                notes.leftOut(), notes.toComplete());
     }
 
     /**
@@ -249,6 +269,14 @@ public final class PasRequestBuilder {
      */
     public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
                          Function<String, ResolvedText> variables) {
+        return inquire(request, claimId, codes, codesFrom, bundleId, variables, MemberIdRule.PACKED);
+    }
+
+    /**
+     * @param memberIdRule how the environment the call goes to writes a member ID; null is read as packed
+     */
+    public Built inquire(PasInquireRequest request, String claimId, List<CodeInput> codes, String codesFrom, String bundleId,
+                         Function<String, ResolvedText> variables, MemberIdRule memberIdRule) {
         PasNotes notes = new PasNotes();
         if (codes.isEmpty()) {
             notes.add("The inquiry lists no item: no procedure code was given on the form, handed on from the submission or found on its "
@@ -258,8 +286,8 @@ public final class PasRequestBuilder {
                     + "that order. That has to be the order the submission sent them in for each decision to be tied to its code.");
         }
         List<SentClaim.Item> items = new ArrayList<>();
-        Case built = caseResources(false, Card.NONE, claimId, false, request.member(), request.provider(), codes, request.dateOfService(),
-                JSON.arrayNode(), JSON.arrayNode(), variables, notes, items);
+        Case built = caseResources(false, Card.NONE, claimId, false, request.member(), memberIdRule, request.provider(), codes,
+                request.dateOfService(), JSON.arrayNode(), JSON.arrayNode(), variables, notes, items);
         String json = bundle(bundleId, "PASInquiryRequestBundle", built.resources(), variables, notes);
         return new Built(json, notes.notes(), new SentClaim(claimId, items), null, notes.leftOut());
     }
@@ -299,16 +327,16 @@ public final class PasRequestBuilder {
      * @param submission true for a PASClaim, false for a PASClaimInquiry
      * @param card       what the Service card states; {@link Card#NONE} for an inquiry
      */
-    private Case caseResources(boolean submission, Card card, String claimId, boolean newClaim, MemberDetail member, ProviderDetail provider,
-                               List<CodeInput> codes, String dateOfService, ArrayNode supportingInfo, ArrayNode diagnosis,
+    private Case caseResources(boolean submission, Card card, String claimId, boolean newClaim, MemberDetail member,
+                               MemberIdRule memberIdRule, ProviderDetail provider, List<CodeInput> codes, String dateOfService, ArrayNode supportingInfo, ArrayNode diagnosis,
                                Function<String, ResolvedText> variables, PasNotes notes, List<SentClaim.Item> items) {
         String claimProfile = submission ? "PASClaim" : "PASClaimInquiry";
         ObjectNode insurer = PasResources.insurer(variables, claimProfile, notes);
-        ObjectNode patient = resources.patient(member, variables, notes);
-        ObjectNode coverage = resources.coverage(member, variables, insurer != null, notes);
+        ObjectNode patient = resources.patient(member, memberIdRule, variables, notes);
+        ObjectNode coverage = resources.coverage(member, memberIdRule, variables, insurer != null, notes);
         String requester = PasResources.requestorReference(provider);
         List<ObjectNode> requestor = PasResources.requestor(provider, variables, notes);
-        PasResources.Servicing servicing = submission ? PasResources.servicing(card.servicingProvider(), notes) : null;
+        PasResources.Servicing servicing = submission ? PasResources.servicing(card.servicingProvider(), provider, notes) : null;
 
         ObjectNode claim = JSON.objectNode();
         claim.put("resourceType", "Claim");
@@ -339,7 +367,7 @@ public final class PasRequestBuilder {
         claim.putObject("type").putArray("coding").addObject().put("system", OnyxPasConventions.CLAIM_TYPES)
                 .put("code", chosen(variables, VAR_CLAIM_TYPE, OnyxPasConventions.DEFAULT_CLAIM_TYPE, "claim type", notes));
         claim.put("use", "preauthorization");
-        claim.putObject("patient").put("reference", CaseResources.PATIENT_REF);
+        claim.putObject("patient").put("reference", PasResources.patientRef(member));
         claim.put("created", instant());
         if (insurer != null) {
             claim.putObject("insurer").put("reference", PasResources.INSURER_REF);
@@ -443,6 +471,8 @@ public final class PasRequestBuilder {
                                   String requestType, String dateOfService, PasNotes notes) {
         if (serviceType == null) {
             if (submission) {
+                notes.toComplete("serviceType", "Service type: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD
+                        + ", or add PAS service type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim item.category", "No service type was sent on the items: none was chosen on the Service card and the "
                         + "value " + VAR_SERVICE_TYPE + " is not set. PAS 2.2.1 PASClaim requires item.category, an X12 service type code "
                         + "such as 1 for medical care: " + ON_THE_CARD + ", or add PAS service type" + UNDER_VALUES + ".");
@@ -453,6 +483,8 @@ public final class PasRequestBuilder {
         }
         if (requestType == null) {
             if (submission) {
+                notes.toComplete("requestType", "Request type: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD
+                        + ", or add PAS request type" + UNDER_VALUES + ".");
                 notes.missing("PASClaim item.extension[requestType]", "No request type was sent on the items: none was chosen on the Service "
                         + "card and the value " + VAR_REQUEST_TYPE + " is not set. PAS 2.2.1 PASClaim requires it on every item, an X12 "
                         + "request type code such as HS for health services review: " + ON_THE_CARD + ", or add PAS request type"
@@ -466,6 +498,8 @@ public final class PasRequestBuilder {
             return;
         }
         if (certification == null) {
+            notes.toComplete("certificationType", "Certification type: none. PAS 2.2.1 requires one on every item, and a typed claim id "
+                    + "does not say whether the request is initial: " + ON_THE_CARD + ", or add PAS certification type" + UNDER_VALUES + ".");
             notes.missing("PASClaim item.extension[certificationType]", "No certification type was sent on the items: none was chosen on "
                     + "the Service card, the value " + VAR_CERTIFICATION_TYPE + " is not set, and the claim identifier was typed or handed "
                     + "on, so whether this is an initial request or a revision of one is not known. PAS 2.2.1 PASClaim requires it on "
@@ -475,6 +509,7 @@ public final class PasRequestBuilder {
                     + "this submission.");
         }
         if (card.placeOfService() == null) {
+            notes.toComplete("placeOfService", "Place of service: none. PAS 2.2.1 requires one on every item: " + ON_THE_CARD + ".");
             notes.missing("PASClaim item.location[x]", "No place of service was sent on the items: none was chosen on the Service card. "
                     + "PAS 2.2.1 PASClaim requires one on every item, a CMS place of service code such as 11 for office: "
                     + ON_THE_CARD + ".");
