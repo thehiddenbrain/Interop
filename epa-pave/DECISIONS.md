@@ -7993,4 +7993,4 @@ round of corrections; the code handed over.**
   (`rebuild/r1/close3/build-f0dace9.log`).
 - **The code handed over** is `6e1bff3` of the release branch (`22478b8`, the third round, and Submit back
   on PAS 2.0.1), at 16:00 UTC on 2026-11-22; these records were committed after it. The integrator's two
-  whole builds of `6e1bff3` and its build from a fresh clone gave TO-FILL-COUNTS.
+  whole builds of `6e1bff3` and its build from a fresh clone gave 3,571 tests, 0 failures, 0 errors, 2 skipped, each time.

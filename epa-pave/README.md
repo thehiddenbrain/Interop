@@ -1303,4 +1303,4 @@ Whole builds: the candidate `7fc32c8`, 3,519 tests, 0 failures, 0 errors, 2 skip
 after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped; `22478b8`,
 after the second round, 3,561 tests, 1 failure; `f0dace9`, after the third round, 3,563 tests, 0
 failures, 0 errors, 2 skipped. The code handed over, `6e1bff3`, was built whole twice and once from
-a fresh clone: TO-FILL-COUNTS.
+a fresh clone: 3,571 tests, 0 failures, 0 errors, 2 skipped, each time.

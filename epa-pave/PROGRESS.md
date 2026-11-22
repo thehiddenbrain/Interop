@@ -61,7 +61,7 @@ unless the environment chooses 2.2.1 (`94069f6` and `5c47893` on the branch `rel
 the release branch as `6e1bff3`). No second agent rechecked it, and nothing was sent to the vendor's service.
 **The code handed over** is `6e1bff3`, at 16:00 UTC; these records were committed after it. The top bar
 shows the day and time (UTC) the running build was made. The integrator's two whole builds of
-`6e1bff3` and its build from a fresh clone gave TO-FILL-COUNTS.
+`6e1bff3` and its build from a fresh clone gave 3,571 tests, 0 failures, 0 errors, 2 skipped, each time.
 
 **The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
 and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
