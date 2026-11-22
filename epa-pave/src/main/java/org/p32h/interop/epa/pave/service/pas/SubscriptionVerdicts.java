@@ -182,7 +182,7 @@ public final class SubscriptionVerdicts {
             // Worded as what a subscription does, not as what this one names: a body of the tester's
             // own that could not be read may name no receiver, and that is then not known here.
             // On mock no service holds the subscription and none calls back, whatever address it names: a setting of this tool is
-            // not the next step there. The way to see a notification read is the sample the Notifications call delivers.
+            // not the next step there. The way to see a notification read is the sample the Status step delivers.
             case CREATED -> exchange != null && Texts.present(exchange.scenarioId()) ? toTheSample("create", carry)
                     : Texts.present(callbackProblem) ? noReceiver("created", callbackProblem, ownBody, carry)
                     : new NextStepView(NextAction.START_PAS, "Next: submit a prior authorization request. The service notifies a "
@@ -213,16 +213,16 @@ public final class SubscriptionVerdicts {
     /**
      * The next step after a scenario answered a create, or an update that names no receiver: on mock
      * nothing calls back whatever address is named, so the way to see a notification read is the
-     * sample the Notifications call delivers.
+     * sample the Status step delivers.
      *
      * @param call "create" or "update"
      */
     private static NextStepView toTheSample(String call, Map<String, List<String>> carry) {
         // Its own action, so History, the export and every list that shows the action's words say what this step says.
-        // The scenario is named in the step: left blank, the form uses the scenario of the latest
-        // submission, which may send no notification or may not exist, and Deliver is then refused.
-        return new NextStepView(NextAction.DELIVER_SAMPLE_NOTIFICATION, "Next: choose the Notifications call, choose a scenario under "
-                + "Notification from scenario, and Deliver a sample notification. On the mock profile no notification arrives by itself.", "A scenario answered this " + call + ", so no service holds the "
+        // The headline names the place and the button exactly as the screens do (one name per action). The Status step
+        // delivers the sample for the case's own submission, so the headline no longer walks through choosing a scenario.
+        return new NextStepView(NextAction.DELIVER_SAMPLE_NOTIFICATION, "Next: in the Status step, Deliver a sample for this submission.",
+                "A scenario answered this " + call + ", so no service holds the "
                 + "subscription and none will call back. A sample notification shows how this tool reads one; for one about a request, "
                 + "send a PAS request first.", carry);
     }
