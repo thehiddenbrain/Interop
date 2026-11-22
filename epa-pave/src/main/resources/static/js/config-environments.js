@@ -22,6 +22,7 @@ import {filesChangedNote, chooserInField, shownFile, labelsOf} from './cfg-parts
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
 const SAVE = '/api/config/environments/settings';
+const COLLECTIONS = '/api/config/collections';
 
 /** The folds the address can open the form at: #configuration/environments/<id>/<section>. */
 export const SECTIONS = ['sign-in', 'values', 'addresses', 'timeouts', 'shapes'];
@@ -298,6 +299,9 @@ export function createEditor(options) {
     let draft = null;              // the last answer of the draft, while its files stay chosen
     let exportsRead = {};          // slot -> {fileName, text} read when Fill was pressed
     let secretReferences = {};     // input name -> a reference the draft filled for it
+    let picks = new Map();         // operation -> {requestId, before, label}: a request chosen in "What these files give"
+    const givenAddressInputs = new Map();  // address key -> a box typed in "What these files give"
+    const givenValueInputs = new Map();    // value name -> a box typed in "What these files give"
     const body = el('div', {class: 'config-form'});
     const banner = el('div', {class: 'config-form__banner', role: 'status', 'aria-live': 'polite'});
     let titleNode = null;
@@ -474,7 +478,7 @@ export function createEditor(options) {
         if (variables) {
             sections.push(variablesFold(variables));
         }
-        if (isNew()) {
+        if (isNew() && !draft) {
             sections.push(el('p', {class: 'muted small'}, 'The member ID rule, request shapes, values, timeouts and addresses can be set once the environment is saved.'));
         }
         fill(body, sections);
@@ -765,17 +769,11 @@ export function createEditor(options) {
         for (const warning of Array.isArray(draft.warnings) ? draft.warnings : []) {
             lines.push(el('p', {class: 'config-file-line'}, warning));
         }
-        const operations = Array.isArray(draft.operations) ? draft.operations : [];
-        if (operations.length > 0) {
-            lines.push(el('div', {class: 'env-card__ops'}, groupedChips(operations.map(operation => ({
-                words: operation.short || operation.shortLabel || operation.label || operation.operation,
-                title: operation.requestName || null
-            })))));
-        }
+        let signInLine = null;
         if (draft.signIn && draft.signIn.from) {
             const filledFields = Array.isArray(draft.signIn.fields) ? draft.signIn.fields.map(String) : [];
-            lines.push(el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from
-                + (filledFields.length > 0 ? ': ' + listWords(filledFields) : '') + '.'));
+            signInLine = el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from
+                + (filledFields.length > 0 ? ': ' + listWords(filledFields) : '') + '.');
         }
         // Fill what the files hold, then draw the form again around it, so every hint says where a value came from.
         const signIn = draft.signIn || null;
@@ -843,6 +841,7 @@ export function createEditor(options) {
                 }
             }
         }
+        lines.push(givesPart(signInLine));
         fill(fileLines, lines);
     }
 
@@ -853,6 +852,172 @@ export function createEditor(options) {
         valueInputs.clear();
         otherValues.length = 0;
         addressInputs.clear();
+    }
+
+    /* ---------- what these files give (D-307) ---------- */
+
+    /**
+     * Right after "Fill the form from these files": the sign-in, each address and each value the
+     * files give, with where it comes from, in the place of the chips and of the sentence that the
+     * rest could be set once saved. On the first real run the tester read that sentence and the
+     * empty boxes after it as fields to fill, and typed what the files already gave.
+     */
+    function givesPart(signInLine) {
+        picks = new Map();
+        givenAddressInputs.clear();
+        givenValueInputs.clear();
+        const addresses = Array.isArray(draft.addresses) ? draft.addresses : [];
+        const values = Array.isArray(draft.values) ? draft.values : [];
+        if (addresses.length === 0 && values.length === 0) {
+            return signInLine;
+        }
+        const requests = Array.isArray(draft.requests) ? draft.requests : [];
+        return el('div', {class: 'config-gives'},
+            el('h3', {class: 'form-section__title'}, 'What these files give'),
+            el('p', {class: 'section-label'}, 'Sign-in'),
+            signInLine || el('p', {class: 'config-file-line'}, 'These files give no sign-in: choose the method under Sign-in.'),
+            signInLine ? el('p', {class: 'field__hint'}, 'The fields are filled under Sign-in below.') : null,
+            el('p', {class: 'section-label'}, 'Addresses'),
+            el('div', {class: 'config-gives__rows'}, addresses.map(address => givenAddress(address, requests))),
+            el('p', {class: 'section-label'}, 'Values'),
+            values.some(value => !value.display) ? el('p', {class: 'field__hint'}, 'A value these files do not give is left out of '
+                + 'the requests that read it.' + (isNew() ? ' Type it here, or on Edit once the environment is saved.' : '')) : null,
+            el('div', {class: 'config-gives__rows'}, values.map(value => givenValue(value))));
+    }
+
+    function givenLine(line, display, from, nothing) {
+        fill(line, display ? el('span', {class: 'mono'}, String(display)) : null, display ? ' ' : null,
+            el('span', {class: 'muted'}, from || nothing));
+    }
+
+    /**
+     * One operation: the request a call will use and its address, or that none was found, with a
+     * list of the collection's requests that no operation uses (and the others that fit this one)
+     * to choose from. Typing an address stays the last choice.
+     */
+    function givenAddress(address, requests) {
+        const line = el('p', {class: 'config-in-force'});
+        givenLine(line, address.display, address.from, 'not given');
+        const candidates = Array.isArray(address.candidates) ? address.candidates : [];
+        const order = requests.map(each => each.id);
+        // A token request is read by the sign-in and is no operation, so it is not offered.
+        const offered = requests.filter(each => each.id !== address.requestId && !each.tokenRequest
+            && (candidates.includes(each.id) || (each.operation === 'UNMAPPED' && !each.errorSample)));
+        const hints = (Array.isArray(address.lines) ? address.lines : []).map(each => el('p', {class: 'field__hint'}, each));
+        let chooser = null;
+        const actions = el('div', {class: 'config-over__actions'});
+        if (offered.length > 0) {
+            const select = el('select', {class: 'select'});
+            select.append(el('option', {value: ''}, address.requestId ? 'Keep "' + address.requestName + '"' : 'Choose a request'));
+            for (const each of offered) {
+                select.append(el('option', {value: each.id}, each.name + (candidates.includes(each.id) ? ' (also fits)' : '')));
+            }
+            select.addEventListener('change', () => {
+                const chosen = requests.find(each => each.id === select.value);
+                // The row's lines are about the request the files gave, so they go while another is chosen.
+                hints.forEach(hint => {
+                    hint.hidden = Boolean(chosen);
+                });
+                if (!chosen) {
+                    picks.delete(address.operation);
+                    givenLine(line, address.display, address.from, 'not given');
+                    return;
+                }
+                // The first request in the file mapped to an operation is the one a call uses, so
+                // each one before the chosen request that fits is left unmapped.
+                const before = candidates.filter(id => order.indexOf(id) < order.indexOf(chosen.id));
+                picks.set(address.operation, {requestId: chosen.id, before, label: address.label});
+                givenLine(line, chosen.display, 'from the collection\'s request "' + chosen.name + '", chosen here', 'not given');
+            });
+            chooser = field({label: address.requestId ? 'Use another request' : 'Use a request of the collection', input: select});
+            if (address.requestId && candidates.length < 2) {
+                // The files gave this one a request: the list is one press away, not in the way.
+                const wrapper = chooser;
+                wrapper.hidden = true;
+                const open = button('Choose another request', () => {
+                    wrapper.hidden = false;
+                    open.hidden = true;
+                    select.focus();
+                }, {small: true, quiet: true});
+                actions.append(open);
+            }
+        }
+        let typing = null;
+        if (isNew()) {
+            const box = el('input', {class: 'input mono', type: 'text', autocomplete: 'off', spellcheck: false,
+                placeholder: 'Type an address to use instead', hidden: true});
+            givenAddressInputs.set(address.key, box);
+            const open = button('Type an address instead', () => {
+                box.hidden = false;
+                open.hidden = true;
+                box.focus();
+            }, {small: true, quiet: true});
+            actions.append(open);
+            typing = box;
+        }
+        return el('div', {class: 'config-gives__row', 'data-operation': address.operation},
+            el('p', {class: 'field__label'}, address.label || address.operation), line, hints, chooser, actions, typing);
+    }
+
+    /** One value: what the files give it and from where, or that nothing does, and then a box on a new environment. */
+    function givenValue(value) {
+        const line = el('p', {class: 'config-in-force'});
+        givenLine(line, value.display, value.from, 'not given');
+        let box = null;
+        if (!value.display && isNew()) {
+            box = el('input', {class: 'input mono', type: 'text', autocomplete: 'off', spellcheck: false, placeholder: 'Type a value'});
+            box.setAttribute('aria-label', value.label || value.name);
+            givenValueInputs.set(value.name, box);
+        }
+        return el('div', {class: 'config-gives__row', 'data-value': value.name},
+            el('p', {class: 'field__label'}, value.label || value.name), line,
+            value.line ? el('p', {class: 'field__hint'}, value.line) : null, box);
+    }
+
+    /** What was typed in "What these files give" goes with the save, as typed on Edit would. */
+    function typedInGivesPart(body) {
+        const addresses = {};
+        for (const [key, box] of givenAddressInputs) {
+            if (!box.hidden && box.value.trim() !== '') {
+                addresses[key] = box.value.trim();
+            }
+        }
+        if (Object.keys(addresses).length > 0) {
+            body.addresses = Object.assign({}, body.addresses || {}, addresses);
+        }
+        const values = {};
+        for (const [name, box] of givenValueInputs) {
+            if (box.value.trim() !== '') {
+                values[name] = box.value.trim();
+            }
+        }
+        if (Object.keys(values).length > 0) {
+            body.values = Object.assign({}, body.values || {}, values);
+        }
+    }
+
+    /**
+     * Maps each request chosen for an operation, once the save has stored the collection. A
+     * mapping that fails is said; the environment stays saved.
+     */
+    async function recordPicks(collectionId, chosen) {
+        const lines = [];
+        const path = COLLECTIONS + '/' + encode(collectionId) + '/mapping';
+        for (const [operation, pick] of chosen) {
+            let failed = null;
+            for (const earlier of pick.before) {
+                const answer = await call('PUT', path, {body: {requestId: earlier, operation: 'UNMAPPED'}});
+                failed = failed || (answer.ok ? null : answer);
+            }
+            const answer = await call('PUT', path, {body: {requestId: pick.requestId, operation}});
+            failed = failed || (answer.ok ? null : answer);
+            if (failed) {
+                const title = failed.error && failed.error.title ? ' ' + failed.error.title : '';
+                lines.push('The environment is saved, but the request chosen for ' + pick.label + ' was not recorded.' + title
+                    + ' Choose it again in Configuration > Collections.');
+            }
+        }
+        return lines;
     }
 
     /* ---------- saving ---------- */
@@ -951,6 +1116,7 @@ export function createEditor(options) {
         if (settings && Array.isArray(settings.values)) {
             body.values = collectValues();
         }
+        typedInGivesPart(body);
         return body;
     }
 
@@ -978,8 +1144,18 @@ export function createEditor(options) {
             return;
         }
         const data = answer.data || {};
-        const warnings = Array.isArray(data.warnings) ? data.warnings : [];
         const saved = data.settings || data.environment || {};
+        // A request chosen for an operation is mapped once the collection is stored, in a second call (D-307).
+        const pickLines = exportsRead.collectionExport && draft && draft.collectionId ? await recordPicks(draft.collectionId, picks) : [];
+        const warnings = (Array.isArray(data.warnings) ? data.warnings : []).concat(pickLines);
+        if (pickLines.length === 0 && picks.size > 0 && saved.id) {
+            // The addresses the save answered were worked out before the mapping: read them again.
+            const again = await call('GET', LIST + '/' + encode(saved.id) + '/settings');
+            if (again.ok && again.data) {
+                data.settings = again.data;
+            }
+        }
+        picks = new Map();
         if (isNew() && data.settings) {
             // A new environment stays open as its own form, so the parts a new one could not show can be set now.
             settings = data.settings;

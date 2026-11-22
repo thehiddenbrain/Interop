@@ -171,6 +171,102 @@ class ConfigFrontendTest {
                 "[false,\"password\",\"\"]");
     }
 
+    /**
+     * D-307: right after Fill the form shows what the files give each address and value, with where
+     * it comes from, in the place of the chips and of the sentence that the rest can be set once
+     * saved. A request chosen for an operation none was found for, or the other of two that fit, is
+     * mapped once the save has stored the collection (one before it that fits is left unmapped); a
+     * value nothing gives can be typed and goes with the save; a mapping that fails is said and the
+     * environment stays saved.
+     */
+    @Test
+    void whatTheFilesGiveIsShownAndARequestChosenForAnOperationIsMappedOnceSaved(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "what the files give", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [], name: 'Vendor UAT', nameTaken: false,
+                    signIn: {method: 'CLIENT_CREDENTIALS', tokenUrl: '{{token_endpoint}}', from: 'the collection\\'s token request "Auth / Token"',
+                        fields: ['Token url']},
+                    operations: [{operation: 'PAS_SUBMIT', short: 'PAS submit'}], warnings: [], epoch: 1, collectionId: 'vendor-requests-1a2b',
+                    addresses: [
+                        {operation: 'CRD_ORDER_SIGN', key: 'CRD_ORDER_SIGN', label: 'CRD order-sign', short: 'CRD',
+                            lines: ['No request of the collection was found for it. Choose one below.'], candidates: []},
+                        {operation: 'PAS_SUBMIT', key: 'PAS_SUBMIT', label: 'PAS submit', short: 'PAS submit', requestId: 'r-a',
+                            requestName: 'PAS / Claim Submit', display: 'https://vendor.example.invalid/Claim/$submit',
+                            from: `from the collection's request "PAS / Claim Submit"`, lines: ['2 requests fit this operation.'],
+                            candidates: ['r-a', 'r-b']}],
+                    requests: [
+                        {id: 'r-a', name: 'PAS / Claim Submit', method: 'POST', display: 'https://vendor.example.invalid/Claim/$submit',
+                            operation: 'PAS_SUBMIT', errorSample: false},
+                        {id: 'r-c', name: 'CRD / Check', method: 'POST', display: 'https://vendor.example.invalid/cds-services/x',
+                            operation: 'UNMAPPED', errorSample: false},
+                        {id: 'r-b', name: 'PAS / Claim Submit v2', method: 'POST', display: 'https://vendor.example.invalid/v2/Claim/$submit',
+                            operation: 'PAS_SUBMIT', errorSample: false}],
+                    values: [
+                        {name: 'fhirServer', label: 'FHIR server', display: 'https://ehr.example.invalid/fhir',
+                            from: "from the export's variable fhirServer"},
+                        {name: 'payerName', label: 'Payer name', line: 'Not in these files.'}]}};
+                answers['POST /api/config/environments/settings'] = {status: 200, body: {environment: {id: 'vendor-uat', name: 'Vendor UAT'},
+                    settings: Object.assign({}, full, {id: 'vendor-uat', name: 'Vendor UAT'}), warnings: [], epoch: 2}};
+                let mappings = 0;
+                // The third mapping is refused: its status is read after its body is made.
+                answers['PUT /api/config/collections/vendor-requests-1a2b/mapping'] = {get status() { return mappings === 3 ? 404 : 200; }, body: () => {
+                    mappings += 1;
+                    return mappings === 3 ? {kind: 'NOT_FOUND', title: 'That request is no longer held.'} : {changed: true};
+                }};
+                answers['GET /api/config/environments/vendor-uat/settings'] = {status: 200, body: Object.assign({}, full, {id: 'vendor-uat'})};
+                const editor = createEditor({environment: null, settings: null});
+                const dialog = editor.dialog;
+                const box = inputsOf(dialog).find(each => each.type === 'file');
+                box.files = [new File(['{}'], 'env.json', {type: 'application/json'})];
+                box.value = 'C:/fakepath/env.json';
+                const second = inputsOf(dialog).filter(each => each.type === 'file')[1];
+                second.files = [new File(['{}'], 'col.json', {type: 'application/json'})];
+                second.value = 'C:/fakepath/col.json';
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Fill the form from these files').click();
+                await settle();
+                const part = dialog.querySelector('.config-gives');
+                say([part.querySelector('.form-section__title').textContent, dialog.querySelectorAll('.chip').length,
+                    dialog.textContent.includes('can be set once the environment is saved')]);
+                const rows = part.querySelectorAll('.config-gives__row');
+                say(rows.map(row => row.querySelector('.config-in-force').textContent));
+                say(rows.map(row => row.querySelectorAll('.field__hint').map(each => each.textContent)));
+                const selects = part.querySelectorAll('select');
+                say(selects.map(select => select.querySelectorAll('option').map(option => option.textContent)));
+                selects[0].value = 'r-c';
+                await selects[0].dispatchEvent({type: 'change'});
+                selects[1].value = 'r-b';
+                await selects[1].dispatchEvent({type: 'change'});
+                say(rows.slice(0, 2).map(row => row.querySelector('.config-in-force').textContent));
+                rows[3].querySelector('input').value = 'Placeholder Health Plan';
+                dialog.querySelector('select').value = 'sandbox';
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const saved = JSON.parse(posted.find(each => each.path === '/api/config/environments/settings').body);
+                say(saved.values);
+                say(posted.filter(each => each.method === 'PUT').map(each => JSON.parse(each.body)));
+                say(dialog.querySelector('.config-form__banner').textContent.includes(
+                    'The environment is saved, but the request chosen for PAS submit was not recorded. That request is no longer held.'));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                // The part stands where the chips and the sentence stood; neither is drawn.
+                "[\"What these files give\",0,false]",
+                "[\"not given\",\"https://vendor.example.invalid/Claim/$submit from the collection's request \\\"PAS / Claim Submit\\\"\","
+                        + "\"https://ehr.example.invalid/fhir from the export's variable fhirServer\",\"not given\"]",
+                "[[\"No request of the collection was found for it. Choose one below.\"],[\"2 requests fit this operation.\"],[],"
+                        + "[\"Not in these files.\"]]",
+                // The requests no operation uses, and for a row with two, the other that fits.
+                "[[\"Choose a request\",\"CRD / Check\"],[\"Keep \\\"PAS / Claim Submit\\\"\",\"CRD / Check\","
+                        + "\"PAS / Claim Submit v2 (also fits)\"]]",
+                "[\"https://vendor.example.invalid/cds-services/x from the collection's request \\\"CRD / Check\\\", chosen here\","
+                        + "\"https://vendor.example.invalid/v2/Claim/$submit from the collection's request \\\"PAS / Claim Submit v2\\\", "
+                        + "chosen here\"]",
+                "{\"payerName\":\"Placeholder Health Plan\"}",
+                "[{\"requestId\":\"r-c\",\"operation\":\"CRD_ORDER_SIGN\"},{\"requestId\":\"r-a\",\"operation\":\"UNMAPPED\"},"
+                        + "{\"requestId\":\"r-b\",\"operation\":\"PAS_SUBMIT\"}]",
+                "true");
+    }
+
     @Test
     void aRefusalWhoseFieldErrorsAreAllPlacedStillSaysItsTitleAboveTheForm(@TempDir Path folder) throws Exception {
         // look-guardrail-1: a sandbox given a production address is refused at Kind; the title names the address.

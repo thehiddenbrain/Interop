@@ -389,6 +389,34 @@ public class ConfigService {
         return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(null, "NOT_SET", "not set"));
     }
 
+    /** What a draft of the environment form needs of the configuration (D-307). Reads only. */
+    public DraftSupport draftSupport() {
+        return new DraftSupport() {
+            @Override
+            public Resolution resolve(String forId, org.p32h.interop.epa.pave.postman.PostmanEnvironment environment,
+                                      org.p32h.interop.epa.pave.postman.PostmanCollection collection, String template) {
+                StoredEnvironment editing = Texts.present(forId) ? store.snapshot().environment(forId.strip()) : null;
+                return gateway.draftResolution(editing, environment, collection, template);
+            }
+
+            @Override
+            public String fallback(EpaOperation operation) {
+                return gateway.fallbackTemplate(operation);
+            }
+
+            @Override
+            public String callbackUrl() {
+                return Texts.present(onyx.subscription().callbackUrl())
+                        ? LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown() : null;
+            }
+
+            @Override
+            public String usedBefore(EpaOperation operation, String collectionId) {
+                return ConfigStoreGateway.usedBefore(store.snapshot(), operation, collectionId);
+            }
+        };
+    }
+
     // ------------------------------------------------------------------------------------------
     // Collections
     // ------------------------------------------------------------------------------------------
