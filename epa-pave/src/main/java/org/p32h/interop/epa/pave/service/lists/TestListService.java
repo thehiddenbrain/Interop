@@ -275,6 +275,28 @@ public class TestListService {
         return id;
     }
 
+    /**
+     * Two files that are often chosen by mistake, told apart from a CSV whose columns are wrong:
+     * one saved with semicolons or tabs, as Excel does in some regions, and a JSON file. Without
+     * this both read as one column with a long name, and "no memberId column" sends the tester to
+     * the wrong cure.
+     */
+    static void refuseWrongKindOfFile(String csv) {
+        int start = 0;
+        while (start < csv.length() && (Character.isWhitespace(csv.charAt(start)) || csv.charAt(start) == '\uFEFF')) {
+            start++;
+        }
+        if (start < csv.length() && (csv.charAt(start) == '{' || csv.charAt(start) == '[')) {
+            throw new BadInputException("This is a JSON file, not a CSV file.", "Choose the CSV saved from Excel or from the template.");
+        }
+        int end = csv.indexOf('\n', start);
+        String first = csv.substring(start, end < 0 ? csv.length() : end);
+        if (first.indexOf(',') < 0 && (first.indexOf(';') >= 0 || first.indexOf('\t') >= 0)) {
+            throw new BadInputException("This file is separated by semicolons (or tabs).",
+                    "In Excel, save it as CSV UTF-8 (comma delimited), then choose it again.");
+        }
+    }
+
     private synchronized <E extends TestListEntry, I> ImportResult importRows(Kind<E, I> kind, ImportRequest request) {
         requireEnabled();
         if (request == null || request.csv() == null || request.csv().isBlank()) {
@@ -283,6 +305,7 @@ public class TestListService {
         if (request.dryRun() == null) {
             throw ValidationException.of("dryRun", "Say whether this is a dry run: true shows what each row would do, false imports.");
         }
+        refuseWrongKindOfFile(request.csv());
         ListCsv.Table table = ListCsv.read(request.csv(), kind.columns());
         if (table == null) {
             throw new BadInputException("The file holds no header row.", "Start from the CSV template and keep its first row.");
