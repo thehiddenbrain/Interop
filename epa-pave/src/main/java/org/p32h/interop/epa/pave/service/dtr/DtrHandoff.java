@@ -50,7 +50,7 @@ public record DtrHandoff(String followsRunId, List<String> procedureCodes, List<
      */
     private static final List<String> PASSED_ON = List.of(NextStepView.CARRY_COVERAGE_ASSERTION_ID, NextStepView.CARRY_ORDER,
             NextStepView.CARRY_DELEGATED_VENDOR, NextStepView.CARRY_DTR_LINK_URL, NextStepView.CARRY_DTR_APP_CONTEXT,
-            NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF);
+            NextStepView.CARRY_DOC_PURPOSE, NextStepView.CARRY_QUESTIONNAIRE_RESPONSE_REF, NextStepView.CARRY_COVERAGE_INFORMATION);
 
     public DtrHandoff {
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);

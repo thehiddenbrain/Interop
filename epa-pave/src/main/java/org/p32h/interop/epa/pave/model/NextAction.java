@@ -9,24 +9,24 @@ package org.p32h.interop.epa.pave.model;
  */
 public enum NextAction {
     /** Answer the payer's questionnaire. */
-    START_DTR("Answer the payer's questionnaire (DTR)."),
+    START_DTR("Answer the payer's questionnaire (DTR).", "Continue to the questionnaire"),
     /**
      * Answer the next adaptive question. The label is the name of the DTR tab's button that does
      * it, so the next step and the screen give the action one name.
      */
-    ANSWER_NEXT_QUESTION("Send answers and get the next question"),
+    ANSWER_NEXT_QUESTION("Send answers and get the next question", "Send answers and get the next question"),
     /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
-    SUBMIT_RESPONSE("Complete the response"),
+    SUBMIT_RESPONSE("Complete the response", "Complete the response"),
     /** Submit the prior authorization request, named as the PAS tab's button that sends it is. */
-    START_PAS("Send PAS request"),
+    START_PAS("Send PAS request", "Continue to Submit"),
     /**
      * On mock, after a subscription a scenario answered: no service holds it and none calls back, so
-     * the way to see a notification read is the sample the Notifications call delivers. Named as the
-     * PAS tab's call and button are. It belongs to no stage of a journey: it follows no request.
+     * the way to see a notification read is the sample the Status step delivers, named by the place
+     * and the button the new screens give it. It follows no request, so no journey step precedes it.
      */
-    DELIVER_SAMPLE_NOTIFICATION("Choose the Notifications call and Deliver a sample notification."),
+    DELIVER_SAMPLE_NOTIFICATION("In the Status step, Deliver a sample for this submission.", "Deliver a sample"),
     /** Ask for the status of a pended authorization, named as the PAS tab's button that sends the inquiry is. */
-    CHECK_STATUS("Send inquiry"),
+    CHECK_STATUS("Send inquiry", "Send inquiry"),
     /** The journey is complete at this step. That is itself a finding worth recording. */
     FLOW_ENDS("Nothing more to do. The journey is complete at this step."),
     /**
@@ -50,9 +50,9 @@ public enum NextAction {
     CHECK_ENVIRONMENT("Check the environment. No usable answer came back: on the live profile the service failed or could not be "
             + "reached, and on the mock profile a scenario played that, with nothing sent."),
     /** The tool is not configured to send this. Open Config. */
-    OPEN_CONFIG("Open Config. The tool is not configured to send this."),
+    OPEN_CONFIG("Open Config. The tool is not configured to send this.", "Open Configuration"),
     /** The production guardrail refused. Unlock writes or switch environment. */
-    UNLOCK_OR_SWITCH("Unlock production writes or switch environment. The guardrail refused to send."),
+    UNLOCK_OR_SWITCH("Unlock production writes or switch environment. The guardrail refused to send.", "Open Production writes"),
     /**
      * The production guardrail refused a write that came from a replay or a suite. Neither ever
      * carries the production unlock, so unlocking cannot help it: the write has to be sent by itself
@@ -73,13 +73,28 @@ public enum NextAction {
     REVIEW("Look at the response detail. The tool cannot say what should happen next.");
 
     private final String label;
+    private final String button;
 
     NextAction(String label) {
+        this(label, null);
+    }
+
+    NextAction(String label, String button) {
         this.label = label;
+        this.button = button;
     }
 
     /** The instruction in plain words, as every screen shows it. */
     public String label() {
         return label;
+    }
+
+    /**
+     * The name of the button that does this action on the new screens, or null when no button
+     * does it. One action has one name: the panel's own button and the next-step button read the
+     * same words, so a tester never wonders whether two buttons do two things.
+     */
+    public String button() {
+        return button;
     }
 }

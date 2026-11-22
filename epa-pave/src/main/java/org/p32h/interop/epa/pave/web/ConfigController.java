@@ -24,6 +24,7 @@ import org.p32h.interop.epa.pave.service.config.ConfigViews.RequestDetail;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.Resolved;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.config.RequestRef;
+import org.p32h.interop.epa.pave.service.config.SettingsViews;
 import org.p32h.interop.epa.pave.service.config.WriteAccess;
 import org.p32h.interop.epa.pave.service.error.BadInputException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
@@ -136,6 +137,21 @@ public class ConfigController {
     @PostMapping("/environments/{name}/activate")
     public Activated activate(@PathVariable("name") String name, HttpServletRequest http) {
         return service.activate(name, SessionUnlock.from(http));
+    }
+
+    /** One environment for its form: every setting it states, each beside what is in force and where that comes from. */
+    @GetMapping("/environments/{id}/settings")
+    public SettingsViews.EnvironmentSettingsView settings(@PathVariable("id") String id) {
+        return service.settings(id);
+    }
+
+    /**
+     * Makes or saves an environment from its form, with any exports chosen, in one commit. A secret
+     * left blank keeps the stored one; a property the form does not have is refused by name.
+     */
+    @PostMapping("/environments/settings")
+    public SettingsViews.SettingsSaved saveSettings(@RequestBody SettingsViews.EnvironmentSettingsInput body) {
+        return service.saveSettings(body);
     }
 
     @DeleteMapping("/environments/{name}")

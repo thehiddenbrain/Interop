@@ -2,6 +2,7 @@
   "id": "crd-02-no-auth",
   "number": 2,
   "label": "No prior authorization required",
+  "short": "no prior authorization",
   "description": "The payer answers that the service is covered and that prior authorization is not needed. Models CRD 2.0.1.",
   "sentinelMemberId": "P32H-NO-AUTH",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},

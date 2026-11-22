@@ -2,6 +2,7 @@
   "id": "pas-17-server-error-500",
   "number": 17,
   "label": "Server error, HTTP 500",
+  "short": "server error, HTTP 500",
   "description": "The service fails while handling the submission and answers HTTP 500 with an OperationOutcome, which PAS 2.0.1 allows in place of a bundle. The CRD test member ID P32H-ERR500 selects it too. An inquiry with the same member, which its next step asks for first, finds the submission: the service received it and pended it.",
   "sentinelMemberId": "P32H-PAS-ERR500",
   "crdSentinelMemberIds": [

@@ -8,7 +8,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.OutcomeCode;
+import org.p32h.interop.epa.pave.model.Tone;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.RunOutcome;
@@ -20,6 +23,8 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.chain.ChainRun;
 import org.p32h.interop.epa.pave.model.chain.ChainStage;
 import org.p32h.interop.epa.pave.model.chain.ChainStageState;
+import org.p32h.interop.epa.pave.model.chain.ChainStep;
+import org.p32h.interop.epa.pave.model.chain.ChainStep.Step;
 import org.p32h.interop.epa.pave.model.chain.ChainView;
 import org.p32h.interop.epa.pave.service.RunLedger;
 import org.p32h.interop.epa.pave.service.RunStamps;
@@ -75,7 +80,7 @@ public class ChainService {
             built = new ChainView(built.chainId(), built.headline(), built.nextAction(), built.nextHeadline(), built.nextStage(), built.ended(),
                     built.startedAt(), built.lastRunAt(), built.environment(), built.environmentKind(), built.profile(), built.target(),
                     built.member(), built.procedureCodes(), built.stages(), built.otherRuns(), built.runCount(), built.elapsedMillis(), notes,
-                    built.caseResult(), built.caseExpected(), built.caseLine(), built.replayNote());
+                    built.caseResult(), built.caseExpected(), built.caseLine(), built.replayNote(), built.steps());
         }
         return built;
     }
@@ -152,10 +157,15 @@ public class ChainService {
             }
         }
         Map<Protocol, List<ChainRun>> byStage = new EnumMap<>(Protocol.class);
+        Map<Step, List<ChainRun>> byStep = new EnumMap<>(Step.class);
         List<ChainRun> others = new ArrayList<>();
         long elapsed = 0;
         for (RunRecord record : records) {
             ChainRun run = run(record, record.runId().equals(latestOfKind.get(record.operation())));
+            Step step = Step.of(record.operation());
+            if (step != null) {
+                byStep.computeIfAbsent(step, s -> new ArrayList<>()).add(run);
+            }
             if (STAGES.contains(record.protocol())) {
                 byStage.computeIfAbsent(record.protocol(), p -> new ArrayList<>()).add(run);
             } else {
@@ -229,7 +239,138 @@ public class ChainService {
                 caseResult, caseExpected, caseLine(caseResult, caseExpected),
                 // Replay refuses a line that used what an earlier step handed on, and only such a line. A chain started at
                 // PAS or DTR followed nothing, so its first step replays as any run does.
-                records.stream().anyMatch(r -> r.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP)) ? REPLAY_NOTE : null);
+                records.stream().anyMatch(r -> r.unrecordedInputs().contains(RunRecord.INPUT_PRIOR_STEP)) ? REPLAY_NOTE : null,
+                steps(byStep));
+    }
+
+    /** The four steps the Workbench draws, each placed by its own runs or, without one, by the nearest earlier step that ran. */
+    private List<ChainStep> steps(Map<Step, List<ChainRun>> byStep) {
+        List<ChainStep> steps = new ArrayList<>();
+        for (Step step : Step.inOrder()) {
+            steps.add(step(step, byStep));
+        }
+        return steps;
+    }
+
+    private ChainStep step(Step step, Map<Step, List<ChainRun>> byStep) {
+        List<ChainRun> runs = byStep.getOrDefault(step, List.of());
+        if (!runs.isEmpty()) {
+            ChainRun latest = runs.get(runs.size() - 1);
+            String said = Texts.orElse(latest.outcomeLabel(), "no outcome recorded");
+            NextAction next = latest.nextAction();
+            ChainStageState state;
+            String line;
+            if (next == null) {
+                state = ChainStageState.DONE;
+                line = "Ran: " + said + ". The record does not say what should happen next.";
+            } else if (next == NextAction.FLOW_ENDS) {
+                state = ChainStageState.DONE;
+                line = "Done: " + said + ". The journey ends here.";
+            } else if (next == NextAction.NOTHING_FURTHER) {
+                state = ChainStageState.DONE;
+                line = "Done: " + said + ". " + sentence(next);
+            } else {
+                Step target = stepTarget(next, step);
+                if (target == step && attention(next)) {
+                    state = ChainStageState.NEEDS_ATTENTION;
+                    line = "Needs attention: " + said + ". " + sentence(next);
+                } else if (target == step) {
+                    state = ChainStageState.IN_PROGRESS;
+                    line = "In progress: " + said + ". " + sentence(next);
+                } else {
+                    state = ChainStageState.DONE;
+                    line = "Done: " + said + ".";
+                }
+            }
+            // A questionnaire waiting for answers asks something of the tester, which the outcome's own words do not say.
+            ChainStep.Chip chip = step == Step.QUESTIONNAIRE && state == ChainStageState.IN_PROGRESS
+                    ? new ChainStep.Chip("Answer the questions", Tone.ACTION) : new ChainStep.Chip(shortWords(latest), latest.tone());
+            return new ChainStep(step, step.words(), step.protocol(), state, chip, line, latest.runId(), next);
+        }
+
+        int index = Step.inOrder().indexOf(step);
+        for (int i = index - 1; i >= 0; i--) {
+            Step from = Step.inOrder().get(i);
+            List<ChainRun> earlier = byStep.getOrDefault(from, List.of());
+            if (earlier.isEmpty()) {
+                continue;
+            }
+            ChainRun latest = earlier.get(earlier.size() - 1);
+            NextAction next = latest.nextAction();
+            String said = shortWords(latest);
+            if (next == NextAction.FLOW_ENDS) {
+                // The coverage check saying no authorization is needed is the common case, so it is said in those words.
+                String line = from == Step.COVERAGE && CrdOutcome.NO_AUTH_REQUIRED.name().equals(latest.outcome())
+                        ? "Not needed: prior authorization is not required."
+                        : "Not needed: the journey ended at " + from.words() + " with \"" + said + "\".";
+                return notRun(step, ChainStageState.NOT_NEEDED, line, next);
+            }
+            if (next == NextAction.NOTHING_FURTHER) {
+                return notRun(step, ChainStageState.NOT_REACHED, "Not reached: " + from.words() + " answered \"" + said
+                        + "\" and called for nothing further, so nothing has led on to this step.", null);
+            }
+            if (next == null) {
+                return notRun(step, ChainStageState.NOT_REACHED, "Not reached: the " + from.words() + " record does not say what should "
+                        + "happen next, so nothing has led on to this step.", null);
+            }
+            Step target = stepTarget(next, from);
+            int at = Step.inOrder().indexOf(target);
+            if (target == step) {
+                String line = from == Step.COVERAGE && next == NextAction.START_DTR ? "Next: the coverage check asked for documentation."
+                        : "Next: " + from.words() + " answered \"" + said + "\".";
+                return notRun(step, ChainStageState.NEXT, line, next);
+            }
+            if (at > index) {
+                String line = from == Step.COVERAGE && step == Step.QUESTIONNAIRE && target == Step.SUBMIT
+                        ? "Not needed: the coverage check asked for no documentation."
+                        : "Not needed: " + from.words() + " answered \"" + said + "\" and went straight on to " + target.words() + ".";
+                return notRun(step, ChainStageState.NOT_NEEDED, line, next);
+            }
+            if (at > i) {
+                return notRun(step, ChainStageState.NOT_REACHED, "Not reached: " + target.words() + " comes first.", null);
+            }
+            return notRun(step, ChainStageState.NOT_REACHED, "Not reached: " + from.words() + " has to finish first. It stands at \""
+                    + said + "\".", null);
+        }
+        boolean laterRan = Step.inOrder().subList(index + 1, Step.inOrder().size()).stream()
+                .anyMatch(later -> !byStep.getOrDefault(later, List.of()).isEmpty());
+        return notRun(step, ChainStageState.NOT_RUN, laterRan ? "Not run in this chain. The chain was started at a later step."
+                : "Not run in this chain.", null);
+    }
+
+    /** A step with no run: "Next" in a neutral chip, "Not needed" and "Not run" with no tone, so the page draws them dashed. */
+    private static ChainStep notRun(Step step, ChainStageState state, String line, NextAction next) {
+        ChainStep.Chip chip = switch (state) {
+            case NEXT -> new ChainStep.Chip("Next", Tone.NEUTRAL);
+            case NOT_NEEDED -> new ChainStep.Chip("Not needed", null);
+            default -> new ChainStep.Chip("Not run", null);
+        };
+        return new ChainStep(step, step.words(), step.protocol(), state, chip, line, null, next);
+    }
+
+    /** The short words of a run's outcome. A code this tool does not know is shown as written, never replaced by a guess. */
+    private String shortWords(ChainRun run) {
+        OutcomeCode outcome = outcomes.find(run.protocol(), run.outcome());
+        if (outcome != null) {
+            return outcome.shortLabel();
+        }
+        return Texts.orElse(Texts.trimToNull(run.outcome()), "No outcome recorded");
+    }
+
+    /**
+     * The step an action belongs to. An action that fixes something belongs to the step that asked
+     * for it. Every action is named, so an action added later does not compile until its step is decided.
+     */
+    static Step stepTarget(NextAction action, Step step) {
+        return switch (action) {
+            case START_DTR, ANSWER_NEXT_QUESTION, SUBMIT_RESPONSE -> Step.QUESTIONNAIRE;
+            case START_PAS -> Step.SUBMIT;
+            // A sample notification is delivered in the Status step, which is where the button is.
+            case CHECK_STATUS, DELIVER_SAMPLE_NOTIFICATION -> Step.STATUS;
+            case FLOW_ENDS, NOTHING_FURTHER -> null;
+            case FIX_TEST_DATA, FIX_REQUEST, SUPPLY_INFORMATION, CHECK_ENVIRONMENT, OPEN_CONFIG, UNLOCK_OR_SWITCH, SEND_ON_ITS_OWN,
+                 REPORT_NO_DETERMINATION, REVIEW -> step;
+        };
     }
 
     /** The sentence for a chain that has a step a replay cannot send again by itself. */

@@ -76,6 +76,29 @@ public enum EpaOperation {
         return label;
     }
 
+    /**
+     * The operation in a word or two, where a screen names it beside other words (plan 7.5): a step
+     * chip, a row of the environment form. The four subscription calls share one, since the form
+     * types one address for all of them.
+     */
+    public String shortLabel() {
+        return switch (this) {
+            case CRD_ORDER_SIGN -> "order-sign";
+            case CRD_ORDER_SELECT -> "order-select";
+            case CRD_DISCOVERY -> "discovery";
+            case DTR_QUESTIONNAIRE_PACKAGE -> "DTR package";
+            case DTR_NEXT_QUESTION -> "next question";
+            case DTR_RESPONSE -> "questionnaire response";
+            case PAS_SUBMIT -> "PAS submit";
+            case PAS_INQUIRE -> "PAS inquire";
+            case SUBSCRIPTION_CREATE, SUBSCRIPTION_GET, SUBSCRIPTION_UPDATE, SUBSCRIPTION_DELETE -> "Subscription";
+            case SUBSCRIPTION_NOTIFICATION -> "notification";
+            case MEMBER_LOOKUP -> "member lookup";
+            case PROVIDER_LOOKUP -> "provider lookup";
+            case UNMAPPED -> "unmapped request";
+        };
+    }
+
     public String defaultMethod() {
         return defaultMethod;
     }

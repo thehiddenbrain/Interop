@@ -332,6 +332,7 @@ function drawFrame() {
     drawStamp(mode);
     drawChooser();
     drawEnvironmentLine();
+    drawFilesLine(mode);
     announce(environment ? 'The active environment is ' + environment.name + ' (' + environment.kind + ').' : 'No environment is active.');
 }
 
@@ -339,24 +340,33 @@ function version(mode) {
     return mode.build && typeof mode.build === 'object' && mode.build.version ? String(mode.build.version) : String(mode.version || '');
 }
 
-/** "build 1.0.0, 2026-11-23 06:10 UTC" where there is room, the version alone below that, the whole in the title. */
+/**
+ * The build by its time, "11-23 06:10 UTC" where there is room and "11-23 06:10" below that, so a
+ * tester sees at a glance whether the PAVE in front of them is the one just built. The whole,
+ * "build 1.0.0, 2026-11-23 06:10 UTC", is in the title. A build that states no time is named by its
+ * version alone, "build 1.0.0".
+ */
 function drawStamp(mode) {
     const stamp = document.getElementById('stamp');
     const shown = version(mode);
     const time = mode.build && typeof mode.build === 'object' && mode.build.time ? stampTime(mode.build.time) : null;
-    const full = 'build ' + shown + (time ? ', ' + time : '');
-    stamp.hidden = shown === '';
-    stamp.title = full;
-    fill(stamp, el('span', {class: 'stamp-full'}, full), el('span', {class: 'stamp-short'}, shown));
+    stamp.hidden = shown === '' && !time;
+    stamp.title = 'build ' + shown + (time ? ', ' + time.whole : '');
+    if (time) {
+        fill(stamp, el('span', {class: 'stamp-full'}, time.day + ' UTC'), el('span', {class: 'stamp-short'}, time.day));
+    } else {
+        fill(stamp, el('span', {class: 'stamp-full'}, 'build ' + shown), el('span', {class: 'stamp-short'}, 'build ' + shown));
+    }
 }
 
+/** {whole: "2026-11-23 06:10 UTC", day: "11-23 06:10"}, or null for a time that cannot be read. */
 function stampTime(text) {
     const date = new Date(text);
     if (Number.isNaN(date.getTime())) {
-        return String(text);
+        return null;
     }
     const iso = date.toISOString();
-    return iso.slice(0, 10) + ' ' + iso.slice(11, 16) + ' UTC';
+    return {whole: iso.slice(0, 10) + ' ' + iso.slice(11, 16) + ' UTC', day: iso.slice(5, 10) + ' ' + iso.slice(11, 16)};
 }
 
 /**
@@ -446,6 +456,42 @@ function drawEnvironmentLine() {
     }
 }
 
+/** The words of the line shown while PAVE's own files are newer on disk than the PAVE that runs (plan R-24). */
+export const FILES_CHANGED_LINE = 'PAVE\'s files changed on disk since it started. Stop PAVE and start it again.';
+
+/**
+ * A line under the top bar, with no dismiss, while the server says its classes or its page files
+ * changed on disk since it started, as the IDE does when it rebuilds under a running PAVE: the
+ * page is then served fresh while the server keeps its old classes, and nothing else would say so.
+ */
+function drawFilesLine(mode) {
+    const host = document.getElementById('line-files');
+    const changed = mode.build && typeof mode.build === 'object' && mode.build.changedOnDisk === true;
+    if (changed) {
+        fill(host, el('div', {class: 'line line--alarm'}, el('p', {class: 'line__text'}, FILES_CHANGED_LINE)));
+    } else {
+        clear(host);
+    }
+}
+
+/**
+ * The words of the ledger alarm for a LedgerHealth: what the ledger is not doing, or null while it
+ * records. LedgerHealth carries no sentence, so the page words it, the same here and in Audit. The
+ * ledger's own lastError, when it has one, is for the caller to show beneath.
+ */
+export function ledgerLine(health) {
+    if (!health || typeof health !== 'object') {
+        return null;
+    }
+    if (health.enabled === false) {
+        return 'Tracking is switched off: runs made now are not recorded anywhere.';
+    }
+    if (health.writable === false) {
+        return 'The ledger cannot write to its folder: runs made now are NOT recorded.';
+    }
+    return null;
+}
+
 /**
  * The count of today's runs on the Audit tab, and a line under the top bar, with no dismiss, while
  * the ledger is not recording: the failure that matters is tracking that silently stopped.
@@ -457,10 +503,8 @@ function drawLedger() {
     let problem = null;
     if (!state.healthRead) {
         problem = 'PAVE did not answer when asked whether the ledger is recording.';
-    } else if (health && health.enabled === false) {
-        problem = 'Tracking is switched off: runs made now are not recorded anywhere.';
-    } else if (health && health.writable === false) {
-        problem = 'The ledger cannot write to its folder: runs made now are NOT recorded.';
+    } else {
+        problem = ledgerLine(health);
     }
     if (problem) {
         // The ledger's own sentence about its last failed write, when it has one, follows the page's.

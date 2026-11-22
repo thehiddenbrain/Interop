@@ -2,6 +2,7 @@ package org.p32h.interop.epa.pave.service.run;
 
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.IsoDates;
+import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
 import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.ProcedureCode;
@@ -157,6 +158,141 @@ public final class CaseResources {
         return Instant.now(clock).truncatedTo(ChronoUnit.SECONDS).toString();
     }
 
+    /** The most characters a FHIR resource id may hold, and so a vendor id this tool sends as one. */
+    public static final int LONGEST_RESOURCE_ID = 64;
+
+    /**
+     * The Practitioner's resource id: the vendor practitioner id when one was given, else this
+     * tool's own. The vendor's sandbox refused a Practitioner it did not hold under its own id, so
+     * the id the tester gives is the one every request names (R-40).
+     */
+    public static String practitionerId(ProviderDetail provider) {
+        String vendor = provider == null ? null : Texts.trimToNull(provider.vendorPractitionerId());
+        return vendor == null ? PRACTITIONER_ID : vendor;
+    }
+
+    public static String practitionerRef(ProviderDetail provider) {
+        return "Practitioner/" + practitionerId(provider);
+    }
+
+    /**
+     * The Patient's resource id and the CRD patientId: the vendor patient id when one was given,
+     * else {@value #PATIENT_ID}. Never a form of the member ID, which is an identifier and not an id.
+     */
+    public static String patientId(MemberDetail member) {
+        String vendor = member == null ? null : Texts.trimToNull(member.vendorPatientId());
+        return vendor == null ? PATIENT_ID : vendor;
+    }
+
+    public static String patientRef(MemberDetail member) {
+        return "Patient/" + patientId(member);
+    }
+
+    /**
+     * True when the provider is known by an organization name alone, and so is sent as an
+     * Organization with no Practitioner. Every other provider, one with no name at all included,
+     * is sent as a Practitioner.
+     */
+    public static boolean organizationOnly(ProviderDetail provider) {
+        return provider != null && Texts.blank(provider.lastName()) && Texts.blank(provider.firstName())
+                && Texts.present(provider.organizationName());
+    }
+
+    /**
+     * The reference the orders name as their requester and CRD sends as userId: the Practitioner
+     * for a person, as the vendor's accepted request had it, and the PractitionerRole that names
+     * the organization for a provider known by an organization name alone, since no Practitioner
+     * is sent for one.
+     */
+    public static String requesterRef(ProviderDetail provider) {
+        return organizationOnly(provider) ? PRACTITIONER_ROLE_REF : practitionerRef(provider);
+    }
+
+    /**
+     * What is wrong with a vendor id that is to be sent as a FHIR resource id, or null when nothing
+     * is or none was given. A FHIR id holds letters, digits, '-' and '.' only, at most 64 of them;
+     * checked one character at a time, so its cost is the length of the text.
+     *
+     * @param what how the field is named in the sentence, such as "A vendor patient id"
+     */
+    public static String vendorIdProblem(String what, String id) {
+        if (Texts.blank(id)) {
+            return null;
+        }
+        String value = id.strip();
+        boolean allowed = value.length() <= LONGEST_RESOURCE_ID;
+        for (int i = 0; allowed && i < value.length(); i++) {
+            char c = value.charAt(i);
+            allowed = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.';
+        }
+        return allowed ? null : what + " holds letters, digits, - and . only, at most " + LONGEST_RESOURCE_ID + " characters. It is sent "
+                + "as a FHIR resource id, which allows nothing else.";
+    }
+
+    /** The note that says which id the Patient went with, and patientId with it where the request carries one. */
+    public static String patientIdNote(MemberDetail member, boolean withPatientId) {
+        String id = patientId(member);
+        String what = withPatientId ? "The Patient and patientId were sent with the id " : "The Patient was sent with the id ";
+        if (member != null && Texts.present(member.vendorPatientId())) {
+            return what + id + ", the vendor patient id given.";
+        }
+        return what + PATIENT_ID + ", this tool's own: no vendor patient id was given. Whether the service accepts a patient id its FHIR "
+                + "server does not hold is not known; give the vendor patient id under Edit member fields to send that instead.";
+    }
+
+    /** The note that says the Practitioner went under the vendor practitioner id, or null when none was given. */
+    public static String practitionerIdNote(ProviderDetail provider, boolean crd) {
+        if (provider == null || Texts.blank(provider.vendorPractitionerId()) || organizationOnly(provider)) {
+            return null;
+        }
+        String ref = practitionerRef(provider);
+        return "The Practitioner was sent with the id " + practitionerId(provider) + ", the vendor practitioner id given, so "
+                + (crd ? "userId and the requester of every order read " : "every reference to the provider reads ") + ref + ".";
+    }
+
+    /**
+     * An absolute fullUrl for a resource in a bundle this tool sends: the FHIR server's address,
+     * the type and the id when the FHIR server is known, else a urn:uuid named by the type and the
+     * id, so the same resource has the same fullUrl in every bundle of one request.
+     */
+    public static String fullUrl(String fhirServer, String type, String id) {
+        if (Texts.present(fhirServer)) {
+            String base = fhirServer.strip();
+            int end = base.length();
+            while (end > 0 && base.charAt(end - 1) == '/') {
+                end--;
+            }
+            return base.substring(0, end) + "/" + type + "/" + id;
+        }
+        return "urn:uuid:" + java.util.UUID.nameUUIDFromBytes((type + "/" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** Adds a resource to a bundle's entries with its fullUrl. */
+    public static void entry(ArrayNode entries, ObjectNode resource, String fhirServer) {
+        ObjectNode entry = entries.addObject();
+        entry.put("fullUrl", fullUrl(fhirServer, JsonSafe.text(resource, "resourceType"), JsonSafe.text(resource, "id")));
+        entry.set("resource", resource);
+    }
+
+    /** The note that says how every fullUrl was written. */
+    public static String fullUrlNote(String fhirServer) {
+        return Texts.present(fhirServer)
+                ? "Every bundle entry carries a fullUrl made of the FHIR server, the resource type and its id."
+                : "Every bundle entry carries a fullUrl of the form urn:uuid: because the variable " + VAR_FHIR_SERVER + " is not set; "
+                        + "with it set, each would be the FHIR server, the resource type and its id.";
+    }
+
+    /**
+     * The one note for quantities and units on the codes, which CRD and DTR do not send: the
+     * order a CRD or DTR request carries states no quantity in what the vendor's sandbox accepted.
+     * Null when no code carries either.
+     */
+    public static String quantityNote(List<CodeInput> codes) {
+        boolean any = codes != null && codes.stream().anyMatch(code -> code != null && (code.quantity() != null || Texts.present(code.unit())));
+        return any ? "The quantity and unit given on the codes were left out of this request: Submit sends them, the orders of a CRD or "
+                + "DTR request do not." : null;
+    }
+
     /** The local id of the order at a position, counting from one. */
     public static String serviceRequestId(int position) {
         return "service-request-" + position;
@@ -248,20 +384,20 @@ public final class CaseResources {
      *                    moment the request is built and says so in a note ({@link #authoredOnNote})
      * @param hcpcsSystem the address a HCPCS Level II code is sent with
      */
-    public ObjectNode serviceRequest(String id, CodeInput code, MemberDetail member, String dateOfService, String authoredOn,
-                                     String hcpcsSystem, List<String> notes) {
+    public ObjectNode serviceRequest(String id, CodeInput code, MemberDetail member, ProviderDetail provider, String dateOfService,
+                                     String authoredOn, String hcpcsSystem, List<String> notes) {
         ObjectNode resource = JSON.objectNode();
         resource.put("resourceType", "ServiceRequest");
         resource.put("id", id);
         resource.put("status", "draft");
         resource.put("intent", "order");
         resource.set("code", codeableConcept(code, member == null ? null : member.lineOfBusiness(), notes, hcpcsSystem));
-        resource.putObject("subject").put("reference", PATIENT_REF);
+        resource.putObject("subject").put("reference", patientRef(member));
         if (Texts.present(dateOfService)) {
             resource.put("occurrenceDateTime", dateOfService.strip());
         }
         resource.put("authoredOn", authoredOn);
-        resource.putObject("requester").put("reference", PRACTITIONER_ROLE_REF);
+        resource.putObject("requester").put("reference", requesterRef(provider));
         resource.putArray("insurance").addObject().put("reference", COVERAGE_REF);
         return resource;
     }
@@ -458,7 +594,7 @@ public final class CaseResources {
                                  List<Required> missing) {
         ObjectNode patient = JSON.objectNode();
         patient.put("resourceType", "Patient");
-        patient.put("id", PATIENT_ID);
+        patient.put("id", patientId(member));
         ArrayNode identifiers = patient.putArray("identifier");
         identifiers.add(memberIdentifier(member, variables, notes, false));
         if (value(variables, VAR_MEMBER_ID_SYSTEM) == null) {
@@ -542,7 +678,7 @@ public final class CaseResources {
         if (Texts.present(member.subscriberId())) {
             coverage.put("subscriberId", member.subscriberId().strip());
         }
-        coverage.putObject("beneficiary").put("reference", PATIENT_REF);
+        coverage.putObject("beneficiary").put("reference", patientRef(member));
         ObjectNode period = JSON.objectNode();
         periodPart(period, "start", member.coverageStart(), notes);
         periodPart(period, "end", member.coverageEnd(), notes);
@@ -596,11 +732,13 @@ public final class CaseResources {
         ObjectNode role = JSON.objectNode();
         role.put("resourceType", "PractitionerRole");
         role.put("id", PRACTITIONER_ROLE_ID);
-        if (!person && Texts.present(provider.organizationName())) {
+        if (organizationOnly(provider)) {
             ObjectNode organization = JSON.objectNode();
             organization.put("resourceType", "Organization");
             organization.put("id", ORGANIZATION_ID);
-            organization.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
+            if (Texts.present(provider.npi())) {
+                organization.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
+            }
             organization.put("name", provider.organizationName().strip());
             role.putObject("organization").put("reference", ORGANIZATION_REF);
             notes.add("The provider is known by an organization name only, so it was sent as an Organization with its NPI and a "
@@ -612,7 +750,13 @@ public final class CaseResources {
             return new Provider(role, null, organization);
         }
         ObjectNode practitioner = practitioner(provider);
-        role.putObject("practitioner").put("reference", PRACTITIONER_REF);
+        role.putObject("practitioner").put("reference", practitionerRef(provider));
+        if (Texts.blank(provider.npi())) {
+            missing.add(new Required("Practitioner.identifier", "profile-practitioner", "the provider's NPI"));
+            notes.add(CRD_VERSION + " profile-practitioner requires an identifier. No NPI was given, so the Practitioner carries none"
+                    + (Texts.present(provider.vendorPractitionerId()) ? " and is named by the vendor practitioner id " + practitionerId(provider)
+                    + " alone." : "."));
+        }
         if (!person) {
             // practitioner() writes an organization name as name.text. That case went above, so here there is no name at all.
             missing.add(new Required("Practitioner.name", "profile-practitioner", "the provider lookup or the provider's name on the form"));
@@ -625,19 +769,22 @@ public final class CaseResources {
         return new Provider(role, practitioner, null);
     }
 
-    public static ObjectNode practitionerRole() {
+    public static ObjectNode practitionerRole(ProviderDetail provider) {
         ObjectNode role = JSON.objectNode();
         role.put("resourceType", "PractitionerRole");
         role.put("id", PRACTITIONER_ROLE_ID);
-        role.putObject("practitioner").put("reference", PRACTITIONER_REF);
+        role.putObject("practitioner").put("reference", practitionerRef(provider));
         return role;
     }
 
+    /** The Practitioner under the id {@link #practitionerId} gives, with the NPI as its identifier when one was given. */
     public static ObjectNode practitioner(ProviderDetail provider) {
         ObjectNode practitioner = JSON.objectNode();
         practitioner.put("resourceType", "Practitioner");
-        practitioner.put("id", PRACTITIONER_ID);
-        practitioner.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
+        practitioner.put("id", practitionerId(provider));
+        if (Texts.present(provider.npi())) {
+            practitioner.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
+        }
         if (Texts.present(provider.lastName()) || Texts.present(provider.firstName())) {
             ObjectNode name = practitioner.putArray("name").addObject();
             if (Texts.present(provider.lastName())) {

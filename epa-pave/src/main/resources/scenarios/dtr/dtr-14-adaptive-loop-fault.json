@@ -2,6 +2,7 @@
   "id": "dtr-14-adaptive-loop-fault",
   "number": 14,
   "label": "Adaptive loop, the service fails part way through",
+  "short": "fails part way",
   "description": "The package holds one adaptive questionnaire and the first next-question call returns a question. Once that question is answered the service fails with HTTP 500. The answer already given is not lost: the step can be sent again from the result before it. This is a finding about the environment, not about the member or the questionnaire. It departs from DTR 2.0.1 on purpose in one way: the package carries no draft response, so the first next-question call is the one this tool builds from nothing.",
   "sentinelMemberId": "P32H-DTR-LOOPERR",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

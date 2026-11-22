@@ -97,7 +97,12 @@ public record Scenario(String id, int number, String label, String description, 
                 main == null ? null : main.behavior(), main == null ? null : main.httpStatus(),
                 expect == null ? null : expect.outcome(), sentinelMemberIds, sentinelNpis, crdSentinelMemberIds,
                 theDefault ? notes.stream().filter(note -> !note.equals(isDefault)).toList() : notes, theDefault ? isDefault : null,
-                ScenarioRepository.sampleCase(raw));
+                ScenarioRepository.sampleCase(raw), shortLabel());
+    }
+
+    /** The scenario in a few words, from the file's {@code short}, for the picker. Null when the file states none. */
+    public String shortLabel() {
+        return org.p32h.interop.epa.pave.model.JsonSafe.presentText(raw, "short");
     }
 
     /**

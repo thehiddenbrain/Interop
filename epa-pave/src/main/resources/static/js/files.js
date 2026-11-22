@@ -28,7 +28,7 @@ const SOURCES = {
 
 /**
  * Reads a chosen file as text: a Postman export or a CSV. file: the chosen file, or the file input
- * itself. UTF-8 is read with or without its byte order mark; UTF-16 by its byte order mark.
+ * itself. UTF-8 is read with or without its byte order mark; UTF-16 by its byte order mark, or without one by its zero bytes.
  * options.maxBytes: the most read (20 MB when not given). options.source: 'postman' (the default)
  * or 'csv', for the words of a refusal.
  * Resolves to {ok: true, text, fileName, size} or {ok: false, line}.
@@ -52,8 +52,8 @@ export async function readText(file, options) {
  * Reads a chosen file as base64: an attachment. file: the chosen file, or the file input itself.
  * options.maxBytes: the most read (20 MB when not given).
  * Resolves to {ok: true, data, fileName, size, contentType} or {ok: false, line}. contentType is
- * the browser's own reading of the file's kind, or '' when it has none; the kinds PAVE sends are
- * the server's to say (GET /api/vocabulary).
+ * the browser's own reading of the file's kind, or '' when it has none; the kinds PAVE sends and
+ * their limits are the server's to say (GET /api/pas/options).
  */
 export async function readBase64(file, options) {
     const {maxBytes} = options || {};
@@ -147,17 +147,57 @@ function refuse(input, line) {
 }
 
 /**
- * The text of the bytes: UTF-16 by its byte order mark, UTF-8 otherwise (its own mark dropped).
- * problem 'incomplete' when every character is whole but the last, which was cut; 'encoding' when
- * the bytes are not that encoding at all.
+ * The text of the bytes: UTF-16 by its byte order mark, or without one by the zero bytes among its
+ * first 64 bytes; UTF-8 otherwise (its own mark dropped). problem 'incomplete' when every character
+ * is whole but the last, which was cut; 'encoding' when the bytes are not that encoding at all.
  */
 function decode(bytes) {
     let encoding = 'utf-8';
+    let other = null;
     if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
         encoding = 'utf-16le';
     } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
         encoding = 'utf-16be';
+    } else {
+        // A strict UTF-8 decoder takes UTF-16 text written without its mark (as some scripts save
+        // it) as valid, full of NUL characters, and the server then refused it as not JSON: the
+        // wrong reason. Text never holds a zero byte, so zero bytes say UTF-16, and where they stand
+        // says which way round: after each ASCII character little-endian, before it big-endian.
+        const guess = utf16Guess(bytes);
+        if (guess) {
+            encoding = guess;
+            other = guess === 'utf-16le' ? 'utf-16be' : 'utf-16le';
+        }
     }
+    const first = decodeAs(bytes, encoding);
+    if (first.problem && other) {
+        const second = decodeAs(bytes, other);
+        return second.problem ? first : second;
+    }
+    return first;
+}
+
+/** 'utf-16le' or 'utf-16be' when zero bytes stand among the first 64 bytes, else null. */
+function utf16Guess(bytes) {
+    let odd = 0;
+    let even = 0;
+    const end = Math.min(bytes.length, 64);
+    for (let i = 0; i < end; i++) {
+        if (bytes[i] === 0) {
+            if (i % 2 === 1) {
+                odd++;
+            } else {
+                even++;
+            }
+        }
+    }
+    if (odd === 0 && even === 0) {
+        return null;
+    }
+    return odd >= even ? 'utf-16le' : 'utf-16be';
+}
+
+function decodeAs(bytes, encoding) {
     try {
         return {text: new TextDecoder(encoding, {fatal: true}).decode(bytes)};
     } catch (notWhole) {
