@@ -5,6 +5,8 @@
 // is loaded the first time it opens, so a defect in one page leaves the sub-navigation and every
 // other page working. Moving between two addresses of the same module updates it in place; moving
 // to another module unmounts the one on screen first, so no page keeps listening once it is gone.
+// A page may be made of more than one module (Members: the lookup form above the saved list); each
+// draws in a host of its own, in the order the page names them, and a fault in one leaves the other.
 
 import {el, fill} from './dom.js';
 import {PAGE_FAULT_LINE} from './fault.js';
@@ -13,8 +15,8 @@ import {PAGE_FAULT_LINE} from './fault.js';
 export const PAGES = [
     {id: 'environments', label: 'Environments', module: 'config-environments.js', updates: true},
     {id: 'collections', label: 'Collections', module: 'cfg-collections.js'},
-    {id: 'members', label: 'Members', module: 'cfg-lists.js'},
-    {id: 'providers', label: 'Providers', module: 'cfg-lists.js'},
+    {id: 'members', label: 'Members', module: 'cfg-lists.js', modules: ['config-lookups.js', 'cfg-lists.js']},
+    {id: 'providers', label: 'Providers', module: 'cfg-lists.js', modules: ['config-lookups.js', 'cfg-lists.js']},
     {id: 'access-token', label: 'Access token', module: 'cfg-token.js'},
     {id: 'production-writes', label: 'Production writes', module: 'cfg-writes.js'},
     {id: 'advanced', label: 'Advanced', module: null}
@@ -34,6 +36,7 @@ export const ADVANCED = [
 // Each module by a literal import, so the build can see that every page the navigation names exists.
 const LOADERS = {
     'config-environments.js': () => import('./config-environments.js'),
+    'config-lookups.js': () => import('./config-lookups.js'),
     'cfg-collections.js': () => import('./cfg-collections.js'),
     'cfg-lists.js': () => import('./cfg-lists.js'),
     'cfg-token.js': () => import('./cfg-token.js'),
@@ -63,57 +66,65 @@ export function mountWith(root, route, load) {
     const nav = el('nav', {class: 'subnav', 'aria-label': 'Configuration'});
     const content = el('div', {class: 'config-page'});
     fill(root, el('div', {class: 'config'}, nav, content));
-    const state = {route: [], module: null, handle: null, host: null, showing: 0, gone: false};
+    const state = {route: [], key: null, handles: [], showing: 0, gone: false};
 
     function show(next) {
         state.route = normal(next);
         drawNav();
         const page = pageOf(state.route);
+        const modules = modulesOf(page);
+        const key = modules.join(' ');
         // A page that redraws itself on update() keeps what it read; any other is mounted afresh
         // for its new address, since its update() is not bound to redraw.
-        if (page.module === state.module && state.handle && page.updates === true) {
-            guarded(() => state.handle.update(state.route));
+        if (key === state.key && state.handles.length > 0 && page.updates === true) {
+            for (const each of state.handles) {
+                guarded(each.host, () => each.handle.update(state.route));
+            }
             return;
         }
         leave();
         state.showing += 1;
         const showing = state.showing;
-        state.module = page.module;
-        const host = el('div', {class: 'config-page__body'});
-        state.host = host;
-        fill(content, host);
-        load(page.module).then(module => {
-            if (state.gone || showing !== state.showing) {
-                return;
-            }
-            guarded(() => {
-                const handle = module.mount(host, state.route);
-                state.handle = handle && typeof handle === 'object' ? handle : null;
+        state.key = key;
+        const hosts = modules.map(() => el('div', {class: 'config-page__body'}));
+        fill(content, hosts);
+        modules.forEach((name, index) => {
+            const host = hosts[index];
+            load(name).then(module => {
+                if (state.gone || showing !== state.showing) {
+                    return;
+                }
+                guarded(host, () => {
+                    const handle = module.mount(host, state.route);
+                    if (handle && typeof handle === 'object') {
+                        state.handles.push({host, handle});
+                    }
+                });
+            }, () => {
+                if (!state.gone && showing === state.showing) {
+                    fill(host, el('p', {class: 'stub-line'}, PAGE_FAULT_LINE));
+                }
             });
-        }, () => {
-            if (!state.gone && showing === state.showing) {
-                fill(host, el('p', {class: 'stub-line'}, PAGE_FAULT_LINE));
-            }
         });
     }
 
     function leave() {
-        if (state.handle && typeof state.handle.unmount === 'function') {
-            const leaving = state.handle;
-            guarded(() => leaving.unmount());
+        const leaving = state.handles;
+        state.handles = [];
+        state.key = null;
+        for (const each of leaving) {
+            if (typeof each.handle.unmount === 'function') {
+                guarded(each.host, () => each.handle.unmount());
+            }
         }
-        state.handle = null;
-        state.module = null;
     }
 
-    function guarded(work) {
+    function guarded(host, work) {
         try {
             work();
         } catch (defect) {
             // A page's own fault stays inside its part of the screen; the sub-navigation keeps working.
-            if (state.host) {
-                fill(state.host, el('p', {class: 'stub-line'}, PAGE_FAULT_LINE));
-            }
+            fill(host, el('p', {class: 'stub-line'}, PAGE_FAULT_LINE));
         }
     }
 
@@ -153,6 +164,11 @@ export function normal(route) {
         return ADVANCED.some(each => each.id === second) ? parts : ['advanced', ADVANCED[0].id].concat(parts.slice(2));
     }
     return PAGES.some(each => each.id === first) ? parts : ['environments'];
+}
+
+/** The modules a page is drawn from, in their order on the page. */
+export function modulesOf(page) {
+    return Array.isArray(page.modules) ? page.modules : [page.module];
 }
 
 function pageOf(route) {
