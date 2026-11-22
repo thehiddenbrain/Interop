@@ -465,7 +465,8 @@ public class PasService {
     /**
      * The codes of the submission an inquiry asks about, in the order it sent them: the ones on the
      * form, else the ones the submission handed on, else the ones on the ledger line of the newest
-     * submission of that claim identifier. PAS 2.0.1 requires an inquiry to list at least one item.
+     * submission of that claim identifier. PAS 2.2.1 does not require an item on an inquiry, but each
+     * decision of the answer can be tied to a code only when the inquiry lists them.
      */
     private Codes inquiryCodes(PasInquireRequest request, String claimId) {
         if (!request.procedureCodes().isEmpty()) {
@@ -509,15 +510,7 @@ public class PasService {
             CodeInput code = request.diagnosisCodes().get(i);
             inputs.require(code != null && Texts.present(code.code()), "diagnosisCodes[" + i + "].code", "This diagnosis code is blank.");
         }
-        for (int i = 0; i < request.attachments().size(); i++) {
-            PasAttachment attachment = request.attachments().get(i);
-            String field = "attachments[" + i + "]";
-            inputs.require(Texts.present(attachment.title()), field + ".title", "Give the attachment a title.");
-            inputs.require(Texts.present(attachment.contentType()), field + ".contentType",
-                    "State the content type of the attachment, for example text/plain or application/pdf.");
-            inputs.require(Texts.present(attachment.text()) != Texts.present(attachment.url()), field,
-                    "An attachment carries either its text or a url, and exactly one of the two.");
-        }
+        PasAttachmentChecks.check(request.attachments(), inputs);
         String problem = PasRequestBuilder.questionnaireProblem(request.carry());
         inputs.require(problem == null, "carry." + NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, problem);
         inputs.throwIfInvalid();

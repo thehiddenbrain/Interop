@@ -30,8 +30,9 @@ import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
 import tools.jackson.databind.JsonNode;
 
 /**
- * What the PAS request builder puts on the wire for a submission and for an inquiry, held to PAS
- * 2.0.1 (input/fsh of the guide's 2.0.1 tag), and what it says it left out.
+ * What the PAS request builder puts on the wire for a submission and for an inquiry, held to Da
+ * Vinci PAS 2.2.1 (input/fsh of the guide's 2.2.1 tag), and what it says it left out. Each element
+ * R-39 adds is held one by one in {@link Pas221SubmitTest}.
  */
 class PasRequestBuilderTest {
 
@@ -52,6 +53,8 @@ class PasRequestBuilderTest {
     private static final Function<String, ResolvedText> NO_VARIABLES = variables(Map.of());
     private static final Map<String, String> ALL = Map.ofEntries(Map.entry("claimIdentifierSystem", "https://example.org/p32h-placeholder/claims"),
             Map.entry("payerName", "Placeholder payer"), Map.entry("payerIdentifier", "PAYER-PLACEHOLDER-1"),
+            Map.entry("payerIdentifierSystem", "https://example.org/p32h-placeholder/payers"),
+            Map.entry("itemTraceNumberSystem", "https://example.org/p32h-placeholder/trace"),
             Map.entry("memberIdSystem", "https://example.org/p32h-placeholder/member-id"), Map.entry("pasServiceType", "1"),
             Map.entry("pasRequestType", "HS"), Map.entry("coverageRelationship", "self"));
 
@@ -81,6 +84,12 @@ class PasRequestBuilderTest {
                 .provider(ProviderDetail.builder().npi("1234567893").firstName("Pat").lastName("Provider").build())
                 .procedureCodes(List.of(new CodeInput("95810", null, "Sleep study, attended"), CodeInput.of("E0601")))
                 .dateOfService("2026-03-20");
+    }
+
+    /** The request with what the values cannot supply: the provider's phone and the place of service. */
+    private static PasSubmitRequest.Builder complete() {
+        return request().provider(ProviderDetail.builder().npi("1234567893").firstName("Pat").lastName("Provider").phone("555-0100").build())
+                .placeOfService("11");
     }
 
     private static JsonNode bundle(PasRequestBuilder.Built built) {
@@ -123,7 +132,7 @@ class PasRequestBuilderTest {
 
     @Test
     void everyEntryHasAFullUrlAndEveryReferenceInsideTheBundleResolvesToAnEntry() {
-        // PAS 2.0.1 PASRequestBundle: entry.fullUrl 1..1, and with no address of their own the
+        // PAS 2.2.1 PASRequestBundle: entry.fullUrl 1..1, and with no address of their own the
         // resources are named by urn:uuid, which a relative reference cannot reach.
         PasRequestBuilder.Built built = submit(request().carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(ANSWERS))).build(), Map.of());
         JsonNode bundle = bundle(built);
@@ -170,7 +179,8 @@ class PasRequestBuilderTest {
         JsonNode bundle = bundle(built);
         assertThat(bundle.get("type").asString()).isEqualTo("collection");
         assertThat(bundle.at("/identifier/value").asString()).isEqualTo(BUNDLE);
-        assertThat(bundle.get("timestamp").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        // Whole seconds in UTC, whatever the zone of the clock: the vendor refused fractions and a local offset.
+        assertThat(bundle.get("timestamp").asString()).isEqualTo("2026-03-10T15:00:00Z");
         assertThat(types(bundle)).containsExactly("Claim", "Patient", "Coverage", "Practitioner", "PractitionerRole", "ServiceRequest",
                 "ServiceRequest");
 
@@ -183,7 +193,7 @@ class PasRequestBuilderTest {
 
         JsonNode item = claim.at("/item/1");
         assertThat(item.get("sequence").asInt()).isEqualTo(2);
-        // PAS 2.0.1 X12278RequestedServiceType names HCPCS with http and no s.
+        // PAS 2.2.1 X12278RequestedServiceType names HCPCS with http and no s.
         assertThat(item.at("/productOrService/coding/0/system").asString()).isEqualTo(HCPCS_201);
         assertThat(claim.at("/item/0/productOrService/coding/0/system").asString()).isEqualTo("http://www.ama-assn.org/go/cpt");
         assertThat(item.get("servicedDate").asString()).isEqualTo("2026-03-20");
@@ -213,25 +223,37 @@ class PasRequestBuilderTest {
     @Test
     void whatTheProfilesRequireAndNobodySuppliedIsLeftOutAndSaidFirstWithTheCount() {
         PasRequestBuilder.Built built = submit(request().build(), Map.of());
-        assertThat(built.leftOut()).containsExactly("PASClaim insurer", "PASBeneficiary identifier.system", "PASCoverage payor",
-                "PASClaim item.category");
-        assertThat(built.notes().get(0)).isEqualTo("This request goes out without 4 elements PAS 2.0.1 requires, because nobody "
-                + "supplied them: PASClaim insurer; PASBeneficiary identifier.system; PASCoverage payor; PASClaim item.category. The service "
-                + "may refuse the request for that alone.");
+        assertThat(built.leftOut()).containsExactly("PASClaim insurer", "PASBeneficiary identifier.system",
+                "PASCoverage subscriber (rule self-beneficiary)", "PASCoverage payor", "PASPractitionerRole telecom (rule pd-1)",
+                "PASClaim identifier.system", "PASClaim item.extension[itemTraceNumber] system", "PASClaim item.category",
+                "PASClaim item.extension[requestType]", "PASClaim item.location[x]");
+        assertThat(built.notes().get(0)).isEqualTo("This request goes out without 10 elements PAS 2.2.1 requires, because nobody "
+                + "supplied them: PASClaim insurer; PASBeneficiary identifier.system; PASCoverage subscriber (rule self-beneficiary); "
+                + "PASCoverage payor; PASPractitionerRole telecom (rule pd-1); PASClaim identifier.system; PASClaim "
+                + "item.extension[itemTraceNumber] system; PASClaim item.category; PASClaim item.extension[requestType]; PASClaim "
+                + "item.location[x]. The service may refuse the request for that alone.");
         assertThat(claim(built).has("insurer")).isFalse();
         assertThat(claim(built).at("/item/0").has("category")).isFalse();
-        assertThat(built.notes()).contains("No service type was sent on the items: the variable pasServiceType is not set. PAS 2.0.1 PASClaim "
-                + "requires item.category, an X12 service type code such as 1 for medical care.");
-        // Only what 2.0.1 requires is counted. Must-support elements are said, as information.
-        assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("No request type was sent on the items")
-                .contains("PAS 2.0.1 marks it must-support, and the 2.2.0 ballot requires it"));
-        assertThat(built.notes()).contains("The claim identifier was sent without an identifier system: the variable claimIdentifierSystem is "
-                + "not set. PAS 2.0.1 does not require one; the 2.2.0 ballot does.");
+        assertThat(built.notes()).contains("No service type was sent on the items: none was chosen on the Service card and the value "
+                + "pasServiceType is not set. PAS 2.2.1 PASClaim requires item.category, an X12 service type code such as 1 for medical "
+                + "care: choose it under Service details, or add PAS service type under Values in Configuration > Environments.");
+        assertThat(built.notes()).contains("Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit provider fields. PAS 2.2.1 "
+                + "PASPractitionerRole, on US Core 7.0.0 PractitionerRole, needs a phone, a fax or an endpoint on the requesting provider's role.");
+        assertThat(built.notes()).contains("The claim identifier was sent without an identifier system: the variable claimIdentifierSystem "
+                + "is not set. PAS 2.2.1 gives the claim identifier the profile PASIdentifier, which requires a system: add "
+                + "claimIdentifierSystem under Values in Configuration > Environments.");
+        // Must-support elements are said, as information, and never counted.
+        assertThat(built.notes()).contains("No relationship of the member to the subscriber was sent: the variable coverageRelationship is "
+                + "not set. PAS 2.2.1 PASCoverage marks it must-support.");
+        assertThat(built.notes()).contains("No level of service was sent: none was chosen on the Service card. PAS 2.2.1 PASClaim marks it "
+                + "must-support.");
+        // Nothing of an older version of the guide is named.
+        assertThat(String.join(" ", built.notes())).doesNotContain("2.0.1").doesNotContain("2.2.0").doesNotContain("3.1.1");
     }
 
     @Test
     void whenTheValuesAreSuppliedNothingIsLeftOutAndTheInsurerIsTheOneTheClaimAndTheCoveragePointAt() {
-        PasRequestBuilder.Built built = submit(request().build(), ALL);
+        PasRequestBuilder.Built built = submit(complete().build(), ALL);
         assertThat(built.leftOut()).isEmpty();
         assertThat(built.notes().get(0)).doesNotStartWith("This request goes out without");
         JsonNode claim = claim(built);
@@ -259,23 +281,23 @@ class PasRequestBuilderTest {
 
     @Test
     void aCoverageStatusNobodyGaveIsNeverSentAsActiveAndOneThatIsNotActiveIsSentAsGiven() {
-        PasSubmitRequest bare = request().member(MemberDetail.builder().memberId("S123456789").build()).dateOfService(null).build();
+        PasSubmitRequest bare = complete().member(MemberDetail.builder().memberId("S123456789").build()).dateOfService(null).build();
         PasRequestBuilder.Built built = submit(bare, ALL);
         JsonNode coverage = resource(built, "Coverage");
         assertThat(coverage.has("status")).isFalse();
         assertThat(built.leftOut()).containsExactly("PASBeneficiary name", "PASBeneficiary gender", "PASCoverage status");
-        assertThat(built.notes()).contains("No coverage status was sent, because none was supplied. PAS 2.0.1 PASCoverage requires a status "
+        assertThat(built.notes()).contains("No coverage status was sent, because none was supplied. PAS 2.2.1 PASCoverage requires a status "
                 + "and allows only \"active\". Looking the member up, or stating the coverage status on the form, supplies it.");
         JsonNode patient = resource(built, "Patient");
         assertThat(patient.has("name")).isFalse();
         assertThat(patient.has("gender")).isFalse();
         assertThat(claim(built).at("/item/0").has("servicedDate")).isFalse();
 
-        PasRequestBuilder.Built cancelled = submit(request().member(MemberDetail.builder().memberId("S123456789").firstName("Given")
+        PasRequestBuilder.Built cancelled = submit(complete().member(MemberDetail.builder().memberId("S123456789").firstName("Given")
                 .lastName("Placeholder-Surname").gender("female").coverageStatus("cancelled").build()).build(), ALL);
         assertThat(resource(cancelled, "Coverage").get("status").asString()).isEqualTo("cancelled");
         assertThat(cancelled.leftOut()).isEmpty();
-        assertThat(cancelled.notes()).contains("The coverage status was sent as \"cancelled\", as it was supplied. PAS 2.0.1 PASCoverage allows "
+        assertThat(cancelled.notes()).contains("The coverage status was sent as \"cancelled\", as it was supplied. PAS 2.2.1 PASCoverage allows "
                 + "only \"active\", so the service may refuse the request for that alone.");
     }
 
@@ -284,6 +306,8 @@ class PasRequestBuilderTest {
         PasRequestBuilder.Built built = builder(StartupChecks.ATTACHMENT_FHIR).submit(request().build(), CLAIM, false, BUNDLE, NO_VARIABLES);
         assertThat(extension(claim(built).at("/item/0"), "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-certificationType")).isNull();
         assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("No certification type was sent on the items"));
+        // PAS 2.2.1 PASClaim makes it 1..1 on every item, so its absence is counted.
+        assertThat(built.leftOut()).contains("PASClaim item.extension[certificationType]");
     }
 
     @Test
@@ -317,7 +341,7 @@ class PasRequestBuilderTest {
         PasRequestBuilder.Built built = new PasRequestBuilder(codeList, StartupChecks.ATTACHMENT_FHIR, CLOCK)
                 .submit(request().build(), CLAIM, true, BUNDLE, NO_VARIABLES);
         assertThat(claim(built).at("/item/0/productOrService/coding/0/system").asString()).isEqualTo("https://example.org/p32h-placeholder/codes");
-        // A label in the list is replaced by the uri PAS 2.0.1 names.
+        // A label in the list is replaced by the uri PAS 2.2.1 names.
         assertThat(claim(built).at("/item/1/productOrService/coding/0/system").asString()).isEqualTo(HCPCS_201);
     }
 
@@ -328,35 +352,37 @@ class PasRequestBuilderTest {
         JsonNode diagnosis = claim(built).get("diagnosis");
         assertThat(diagnosis.at("/0/diagnosisCodeableConcept/coding/0/system").asString()).isEqualTo("http://hl7.org/fhir/sid/icd-10-cm");
         assertThat(diagnosis.at("/1/diagnosisCodeableConcept/coding/0").has("system")).isFalse();
-        assertThat(built.notes()).contains("No coding system could be worked out for the diagnosis 327.23, so it was sent without one. PAS 2.0.1 "
+        assertThat(built.notes()).contains("No coding system could be worked out for the diagnosis 327.23, so it was sent without one. PAS 2.2.1 "
                 + "binds the diagnosis, required, to the value set X12278DiagnosisCodes, so the service may refuse it. State its system with the code.");
     }
 
     @Test
     void aCodeWithoutTheSystemItsRequiredBindingNeedsIsCountedAmongWhatTheRequestLeftOut() {
-        // PAS 2.0.1 PASClaimBase binds item.productOrService and diagnosis.diagnosisCodeableConcept, required; PASServiceRequest binds code.
-        PasRequestBuilder.Built built = submit(request().procedureCodes(List.of(CodeInput.of("ABC12")))
+        // PAS 2.2.1 PASClaimBase binds item.productOrService and diagnosis.diagnosisCodeableConcept, required; PASServiceRequest binds code.
+        PasRequestBuilder.Built built = submit(complete().procedureCodes(List.of(CodeInput.of("ABC12")))
                 .diagnosisCodes(List.of(CodeInput.of("XYZ"))).build(), ALL);
         assertThat(built.leftOut()).containsExactly("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis XYZ)",
                 "PASServiceRequest code system (code ABC12)", "PASClaim item.productOrService system (code ABC12)");
-        assertThat(built.notes().get(0)).startsWith("This request goes out without 3 elements PAS 2.0.1 requires");
+        assertThat(built.notes().get(0)).startsWith("This request goes out without 3 elements PAS 2.2.1 requires");
         assertThat(built.notes()).contains("The order ServiceRequest/service-request-1 carries the code ABC12 with no system, as its item "
-                + "does. PAS 2.0.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
+                + "does. PAS 2.2.1 PASServiceRequest binds code, required, to the value set X12278RequestedServiceType.");
         assertThat(claim(built).at("/item/0/productOrService/coding/0").has("system")).isFalse();
         // A code whose system is known is not counted.
-        assertThat(submit(request().build(), ALL).leftOut()).isEmpty();
+        assertThat(submit(complete().build(), ALL).leftOut()).isEmpty();
     }
 
     @Test
     void aReferenceTheBundleCannotResolveIsCountedAmongWhatTheRequestLeftOut() {
         // The answers name Practitioner/practitioner-1, and a provider known only as an organization brings no Practitioner.
-        PasRequestBuilder.Built built = submit(request().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder "
-                + "Sleep Clinic").build()).carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(ANSWERS))).build(), ALL);
+        Map<String, String> values = new HashMap<>(ALL);
+        values.put("pasReportType", "09");
+        PasRequestBuilder.Built built = submit(complete().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder "
+                + "Sleep Clinic").build()).carry(Map.of(NextStepView.CARRY_QUESTIONNAIRE_RESPONSE, List.of(ANSWERS))).build(), values);
         assertThat(PasBundles.unresolved(bundle(built))).isNotEmpty();
         assertThat(built.leftOut()).containsExactly("PASRequestBundle entry for Practitioner/practitioner-1");
-        assertThat(built.notes().get(0)).startsWith("This request goes out without 1 element PAS 2.0.1 requires");
+        assertThat(built.notes().get(0)).startsWith("This request goes out without 1 element PAS 2.2.1 requires");
         assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("These references inside the bundle name a resource the "
-                + "bundle does not carry: Practitioner/practitioner-1. PAS 2.0.1 requires (SHALL)"));
+                + "bundle does not carry: Practitioner/practitioner-1. PAS 2.2.1 requires (SHALL)"));
     }
 
     @Test
@@ -364,8 +390,8 @@ class PasRequestBuilderTest {
         PasRequestBuilder.Built built = builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry().build(), CLAIM, List.of(CodeInput.of("95810")),
                 "given on the form", BUNDLE, NO_VARIABLES);
         assertThat(built.leftOut()).contains("PASClaimInquiry insurer").doesNotContain("PASClaim insurer");
-        assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("PAS 2.0.1 PASClaimInquiry requires the insurer (PASClaimBase, "
-                + "which PASClaim and PASClaimInquiry share, makes it 1..1)."));
+        assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("PAS 2.2.1 PASClaimInquiry requires the insurer (PASClaimBase, "
+                + "which PASClaim and PASClaimInquiry share, makes it 1..1)"));
     }
 
     @Test
@@ -413,9 +439,11 @@ class PasRequestBuilderTest {
         JsonNode byUrl = named(built, claim(built), claim(built).at("/supportingInfo/1/valueReference/reference").asString());
         assertThat(byUrl.at("/content/0/attachment/url").asString()).isEqualTo("https://documents.example.invalid/referral-1.pdf");
         assertThat(byUrl.has("type")).isFalse();
-        // The second document has neither, and US Core 3.1.1 DocumentReference requires both.
-        assertThat(built.leftOut()).contains("US Core 3.1.1 DocumentReference type (attachment 2)",
-                "US Core 3.1.1 DocumentReference category (attachment 2)").doesNotContain("US Core 3.1.1 DocumentReference type (attachment 1)");
+        // The second document has neither, and US Core 7.0.0 DocumentReference, the parent of PASDocumentReference, requires both.
+        assertThat(built.leftOut()).contains("PASDocumentReference type (attachment 2)",
+                "PASDocumentReference category (attachment 2)").doesNotContain("PASDocumentReference type (attachment 1)");
+        // PAS 2.2.1 forbids the url the second one was given, and requires its data.
+        assertThat(built.leftOut()).contains("PASDocumentReference content.attachment.data (attachment 2)");
         assertThat(built.attachmentMode()).isEqualTo("fhir");
         assertThat(built.notes()).contains("Attachment 1 (\"Sleep study report\") travels in the bundle as DocumentReference/document-reference-1, "
                 + "with its content inline.");
@@ -432,12 +460,12 @@ class PasRequestBuilderTest {
         assertThat(built.attachmentMode()).isEqualTo("x12-275");
         assertThat(built.notes()).contains("Attachment 1 (\"Sleep study report\") was not put in the bundle. In the attachment mode x12-275 the "
                 + "claim only names the document, by the attachment control number " + CLAIM + "-A1, for an X12 275 transaction that this "
-                + "tool does not send. The service receives no document from this tool. In PAS 2.0.1 a 275 is produced by the intermediary "
+                + "tool does not send. The service receives no document from this tool. In PAS 2.2.1 a 275 is produced by the intermediary "
                 + "from the bundle, not sent by the client beside it. The document type 11506-3 and category clinical-note given with "
                 + "it were not sent either, because only the DocumentReference the bundle would carry has a place for them.");
         // The second attachment was given neither, so its note says nothing about them.
         assertThat(built.notes()).anySatisfy(note -> assertThat(note).startsWith("Attachment 2 (").endsWith("not sent by the client beside it."));
-        assertThat(built.notes()).contains("Neither attachment mode is the PAS 2.0.1 way of sending documentation after the payer has asked "
+        assertThat(built.notes()).contains("Neither attachment mode is the PAS 2.2.1 way of sending documentation after the payer has asked "
                 + "for it: that is a claim update that replaces the earlier claim, or the CDex operation $submit-attachment, and this tool "
                 + "builds neither.");
     }
@@ -469,13 +497,13 @@ class PasRequestBuilderTest {
     }
 
     @Test
-    void anInquiryWithNoItemKnownIsStillSentAndSaysThat201RequiresOneAndTheBallotDoesNot() {
+    void anInquiryWithNoItemKnownIsStillSentAndSaysThat221DoesNotRequireOne() {
         PasRequestBuilder.Built built = builder(StartupChecks.ATTACHMENT_FHIR).inquire(inquiry().build(), CLAIM, List.of(), null, BUNDLE,
                 NO_VARIABLES);
         assertThat(claim(built).has("item")).isFalse();
-        assertThat(built.leftOut()).contains("PASClaimInquiry item");
-        assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("PAS 2.0.1 requires at least one item on an inquiry; the 2.2.0 "
-                + "ballot does not"));
+        // PAS 2.2.1 PASClaimInquiry has no item 1..*; only PASClaim does.
+        assertThat(built.leftOut()).noneMatch(element -> element.contains("item"));
+        assertThat(built.notes()).anySatisfy(note -> assertThat(note).endsWith("PAS 2.2.1 does not require an item on an inquiry."));
     }
 
     @Test

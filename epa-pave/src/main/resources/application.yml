@@ -92,7 +92,9 @@ tracking:
   record-member-id: false     # mock overrides to true
   record-npi: true            # an NPI is not PHI
   salt-file: ""               # blank: installation-salt inside the config store directory
-  slow-threshold-ms: 0        # 0: use onyx.read-timeout-ms
+  # A call slower than this is marked slow. Not the read timeout: the vendor may take up to two
+  # minutes, and a mark that came only that late would no longer mean anything.
+  slow-threshold-ms: 15000    # 0: use onyx.read-timeout-ms
 
 codelist:
   # The path of the P32H code list export. A relative path is taken from the directory the tool is
@@ -124,6 +126,18 @@ codelist:
   #     MCR: [Medicare]
   #     "[Medicaid/CHIP (MassHealth)]": [Medicaid]
 
+# Saved test members and providers, kept in test-lists/ inside the configuration store folder,
+# readable by this account only, never in the ledger or the log. false turns them off: the lists
+# then answer empty and nothing is read from or written to that folder.
+test-lists:
+  enabled: true
+
+# The requests and answers of the last runs, kept beside the ledger with secrets masked. They hold
+# member data, which is why there is a switch and a limit.
+trail:
+  enabled: true
+  max-entries: 500
+
 app:
   scenario-dir: ""
   autocomplete-limit: 25
@@ -138,7 +152,9 @@ onyx:
   pas: { url: "", attachment-mode: fhir }     # fhir | x12-275
   subscription: { url: "", callback-url: "" }
   connect-timeout-ms: 5000
-  read-timeout-ms: 15000
+  # The vendor's sandbox took longer than 20 s to answer an inquiry that Postman waited for, so
+  # PAVE waits as long by default. An environment can state a shorter wait of its own on screen.
+  read-timeout-ms: 120000
   auth: { enabled: false, token-url: "", client-id: "", client-secret: "", scopes: "" }
   variables: {}
 
