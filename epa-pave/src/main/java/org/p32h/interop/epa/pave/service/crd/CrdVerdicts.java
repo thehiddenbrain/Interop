@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Says what a CRD result means in plain language, and what the tester should do next.
@@ -371,6 +374,7 @@ public final class CrdVerdicts {
                     smartLink.appContext().hasValue() ? List.of(smartLink.appContext().value()) : List.of());
         }
         carry.put(NextStepView.CARRY_DELEGATED_VENDOR, vendors);
+        carry.put(NextStepView.CARRY_COVERAGE_INFORMATION, coverageInformation(coverage, exchange));
 
         String vendor = vendors.isEmpty() ? null : String.join(" and ", vendors);
         String asked = information.isEmpty() ? null : "The payer also asks for: " + String.join("; ", information) + "."
@@ -521,6 +525,80 @@ public final class CrdVerdicts {
 
     private static String prefix(CoverageInformationView view, boolean named) {
         return named ? view.subject() + ": " : "";
+    }
+
+    /**
+     * The coverage-information extensions to hand on to DTR, one value per answer tied to an order:
+     * {@code {"order": "<reference>", "extension": {...}}} with the extension exactly as received,
+     * so DTR puts it back on the order it sends without asserting anything the payer did not say.
+     * An answer that names no order, or whose place in the response is not a FHIR extension
+     * object, is not handed on: rebuilding it would be this tool's own statement of coverage.
+     */
+    static List<String> coverageInformation(List<CoverageInformationView> coverage, VendorExchange exchange) {
+        List<String> out = new ArrayList<>();
+        // Read through the masks, as the view is: a secret the service repeats is handed on as its mask, which the next step refuses.
+        JsonNode root = exchange == null ? null : exchange.withReturnedSecretsMasked().json();
+        if (root == null) {
+            return out;
+        }
+        for (CoverageInformationView view : coverage) {
+            if (!view.appliesTo().hasValue()) {
+                continue;
+            }
+            JsonNode extension = at(root, view.foundAt());
+            if (extension == null || !extension.isObject()
+                    || !CrdCodes.COVERAGE_INFORMATION.equals(JsonSafe.text(extension, "url"))) {
+                continue;
+            }
+            ObjectNode value = JsonNodeFactory.instance.objectNode();
+            value.put("order", view.appliesTo().value());
+            value.set("extension", extension.deepCopy());
+            addOnce(out, value.toString());
+        }
+        return out;
+    }
+
+    /**
+     * The node at a place in the response as the mapper names it, such as
+     * {@code systemActions[0].resource.extension[1]}, or null when the path does not lead to one.
+     * Read one character at a time, so its cost is the length of the path.
+     */
+    static JsonNode at(JsonNode root, String path) {
+        if (Texts.blank(path)) {
+            return null;
+        }
+        JsonNode node = root;
+        int i = 0;
+        int length = path.length();
+        while (i < length && node != null) {
+            char c = path.charAt(i);
+            if (c == '.') {
+                i++;
+            } else if (c == '[') {
+                int close = path.indexOf(']', i);
+                if (close < 0) {
+                    return null;
+                }
+                int index = 0;
+                for (int d = i + 1; d < close; d++) {
+                    char digit = path.charAt(d);
+                    if (digit < '0' || digit > '9' || index > 100_000) {
+                        return null;
+                    }
+                    index = index * 10 + (digit - '0');
+                }
+                node = node.isArray() && index < node.size() ? node.get(index) : null;
+                i = close + 1;
+            } else {
+                int end = i;
+                while (end < length && path.charAt(end) != '.' && path.charAt(end) != '[') {
+                    end++;
+                }
+                node = node.isObject() ? node.get(path.substring(i, end)) : null;
+                i = end;
+            }
+        }
+        return node;
     }
 
     private static void addOnce(List<String> values, String value) {
