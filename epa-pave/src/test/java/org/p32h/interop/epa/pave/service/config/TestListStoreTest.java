@@ -56,9 +56,11 @@ class TestListStoreTest {
                 memberId, "active", "2026-01-01", "2026-12-31", "patient-7");
     }
 
+    /** One vendor patient id names one saved member, so each sample member but the first has one of its own. */
     private static TestMemberInput input(String memberId) {
+        String vendorPatientId = MEMBER_ID.equals(memberId) ? "patient-7" : "patient-" + memberId.toLowerCase(java.util.Locale.ROOT);
         return new TestMemberInput("Needs prior authorization", memberId, "Sample", SURNAME, "1980-01-31", "female", "Commercial", "Gold",
-                memberId, "active", "2026-01-01", "2026-12-31", "patient-7");
+                memberId, "active", "2026-01-01", "2026-12-31", vendorPatientId);
     }
 
     @Test
