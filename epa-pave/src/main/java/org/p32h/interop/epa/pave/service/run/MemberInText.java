@@ -60,8 +60,11 @@ public final class MemberInText {
     /** The column of a suite row that holds its case id, which every ledger line of the case keeps as written. */
     public static final String CASE_ID = "caseId";
 
+    /** The field of a DTR package request that holds the questionnaire addresses typed for it. */
+    public static final String QUESTIONNAIRES = "questionnaires";
+
     private static final Map<String, String> LABELS = Map.of("note", "The note", "testerRef", "The tester reference", "expected",
-            "The expectation", CASE_ID, "The case id");
+            "The expectation", CASE_ID, "The case id", QUESTIONNAIRES, "The questionnaire address");
 
     /**
      * Every outcome code this tool defines. An expectation that is one of them names an outcome of
@@ -129,6 +132,23 @@ public final class MemberInText {
             problems.put(CASE_ID, message(CASE_ID, kinds, ending));
         }
         return problems;
+    }
+
+    /**
+     * What is wrong with a typed questionnaire address that holds member data the request carries,
+     * in the words of {@link #problems}, or null when nothing is. The ledger keeps the address as
+     * written, so it is free text like any other. An address that is exactly one of this tool's own
+     * bundled addresses is its own vocabulary, as a bundled case id is, and is never refused: those
+     * addresses and the mock surnames are made of the same placeholder words (round2-left 2).
+     *
+     * @param ownAddress true when the address is exactly one of this tool's own bundled addresses
+     */
+    public static String problemInQuestionnaireAddress(String address, MemberDetail member, boolean ownAddress, String ending) {
+        if (member == null || Texts.blank(address) || ownAddress) {
+            return null;
+        }
+        List<String> kinds = kinds(address, member);
+        return kinds.isEmpty() ? null : message(QUESTIONNAIRES, kinds, ending);
     }
 
     /** True when a problem or a reason holds the refusal of a case id for member data. */

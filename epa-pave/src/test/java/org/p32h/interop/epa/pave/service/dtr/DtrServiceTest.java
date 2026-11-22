@@ -497,7 +497,8 @@ class DtrServiceTest {
         assertThat(ledger.last().coverageCodes()).isEmpty();
 
         // A questionnaire that was asked for by name and did not come back is named, not left to be noticed.
-        String wanted = "https://example.org/p32h-placeholder/Questionnaire/wanted";
+        // Not under the bundled placeholder path: a typed address other than the tool's own is held to the member-name check.
+        String wanted = "https://example.org/forms/Questionnaire/wanted";
         RunEnvelope<DtrDetail> asked = service().runPackage(DtrFixtures.packageRequest("P32H-DTR-NOBUNDLE").questionnaires(List.of(wanted))
                 .build(), RunOrigin.manual(), null);
         assertThat(asked.verdict().outcomeCode()).isEqualTo("NO_QUESTIONNAIRE");
@@ -515,7 +516,7 @@ class DtrServiceTest {
 
     @Test
     void aQuestionnaireThatWasAskedForAndNotReturnedIsNeverCoveredByTheOnesThatWere() {
-        String other = "https://example.org/p32h-placeholder/Questionnaire/another-questionnaire";
+        String other = "https://example.org/forms/Questionnaire/another-questionnaire";
         RunEnvelope<DtrDetail> result = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").questionnaires(List.of(SLEEP, other))
                 .expected("questionnaire-kind=static").build(), RunOrigin.manual(), null);
         assertThat(result.verdict().outcomeCode()).isEqualTo("PACKAGE_INCOMPLETE");
@@ -628,7 +629,7 @@ class DtrServiceTest {
         Map<String, List<String>> handedOn = Map.of(NextStepView.CARRY_QUESTIONNAIRE, List.of(SLEEP),
                 NextStepView.CARRY_COVERAGE_ASSERTION_ID, List.of("assertion-from-crd"),
                 NextStepView.CARRY_PROCEDURE_CODES, List.of("95811"));
-        String typed = "https://example.org/p32h-placeholder/Questionnaire/typed-on-the-form";
+        String typed = "https://example.org/forms/Questionnaire/typed-on-the-form";
         RunEnvelope<DtrDetail> result = service().runPackage(DtrFixtures.packageRequest("P32H-DOC-DTR").questionnaires(List.of(typed))
                 .coverageAssertionId("assertion-typed").carry(handedOn).build(), RunOrigin.manual(), null);
         String body = result.wire().request().body();
@@ -1466,7 +1467,7 @@ class DtrServiceTest {
         assertThat(first.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The questionnaire was copied into the "
                 + "QuestionnaireResponse and shaped to the DTR 2.0.1 adaptive questionnaire profile (dtr-questionnaire-adapt): its url was "
                 + "taken off"));
-        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(firstSent.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         assertThat(firstSent.has("item")).isFalse();
         // The member is named by the local id of the Patient resource. The member ID is not in the request, and is not shown as sent.
         assertThat(firstSent.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
@@ -2013,7 +2014,7 @@ class DtrServiceTest {
         assertThat(completed.at("/item/1/item/1/answer/0/valueString").asString()).isEqualTo("Placeholder description of the skilled need");
         assertThat(completed.at("/item/2/answer/0/valueInteger").asInt()).isEqualTo(21);
         assertThat(completed.at("/subject/reference").asString()).isEqualTo("Patient/patient-1");
-        assertThat(completed.get("authored").asString()).isEqualTo("2026-03-10T11:00:00-04:00");
+        assertThat(completed.get("authored").asString()).isEqualTo("2026-03-10T15:00:00Z");
         // Each answer says a person gave it and who, and the response says which coverage and order it is for: what PAS submits
         // is what the DTR guide asks a client to produce.
         for (String answer : List.of("/item/0/item/0/answer/0", "/item/0/item/1/answer/0", "/item/0/item/1/answer/1", "/item/1/item/1/answer/0",

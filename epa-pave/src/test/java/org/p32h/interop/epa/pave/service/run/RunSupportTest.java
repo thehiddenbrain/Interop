@@ -146,4 +146,125 @@ class RunSupportTest {
                 Map.of(RunRecord.CORR_SUBSCRIPTION_ID, "{\"name\":\"Placeholder-Surname\"}"));
         assertThat(ledger.only().correlation().get(RunRecord.CORR_SUBSCRIPTION_ID)).startsWith("(not recorded, ").doesNotContain("Placeholder");
     }
+
+    // ------------------------------------------------------------------------------------------
+    // D1b: the words of a timeout and the member ID forms follow the environment's settings
+    // ------------------------------------------------------------------------------------------
+
+    /** A request that names a member and nothing else, for the member ID line of a wire view. */
+    private record MemberOnly(org.p32h.interop.epa.pave.model.MemberDetail member) implements RunRequest {
+        public List<String> memberOverrides() { return List.of(); }
+        public org.p32h.interop.epa.pave.model.ProviderDetail provider() { return null; }
+        public List<String> providerOverrides() { return List.of(); }
+        public List<org.p32h.interop.epa.pave.model.CodeInput> procedureCodes() { return List.of(); }
+        public String dateOfService() { return null; }
+        public String scenarioId() { return null; }
+        public String expected() { return null; }
+        public String testerRef() { return null; }
+        public String note() { return null; }
+        public String chainId() { return null; }
+        public org.p32h.interop.epa.pave.service.config.RequestRef request() { return null; }
+        public String rawBody() { return null; }
+        public Map<String, String> variables() { return Map.of(); }
+        public Map<String, List<String>> carry() { return Map.of(); }
+        public Long configEpoch() { return null; }
+        public Map<String, Object> unrecognised() { return Map.of(); }
+    }
+
+    /** An 11-character placeholder member ID, the length the spaced rule applies to. */
+    private static final String MEMBER_ID = "S1234567890";
+
+    private static MemberOnly member() {
+        return new MemberOnly(org.p32h.interop.epa.pave.model.MemberDetail.builder().memberId(MEMBER_ID).build());
+    }
+
+    /** A live store whose active environment states a read timeout of 60000 ms and the spaced rule. */
+    private static org.p32h.interop.epa.pave.service.config.ConfigFixture statedSettings(java.nio.file.Path directory) throws Exception {
+        org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = org.p32h.interop.epa.pave.service.config.ConfigFixture.on(directory)
+                .live().onyx("crd.url", "https://sandbox.onyx.example.invalid").build();
+        org.springframework.test.web.servlet.MockMvc mvc = org.p32h.interop.epa.pave.testsupport.TestMvc.standalone(
+                new org.p32h.interop.epa.pave.web.ConfigController(fixture.service));
+        String body = "{\"kind\": \"sandbox\", \"acknowledgeNotProd\": true, \"environmentExport\": {\"fileName\": \"s.json\", \"text\": "
+                + org.p32h.interop.epa.pave.model.JsonSafe.mapper().writeValueAsString(org.p32h.interop.epa.pave.postman.PostmanFiles.text(
+                org.p32h.interop.epa.pave.postman.PostmanFiles.SANDBOX_ENVIRONMENT))
+                + "}, \"timeouts\": {\"readMs\": 60000}, \"memberIdRule\": \"SPACED\", \"signIn\": {\"method\": \"NONE\"}}";
+        int status = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/config/environments/settings")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse().getStatus();
+        assertThat(status).isEqualTo(200);
+        fixture.service.activate("Onyx Sandbox", null);
+        return fixture;
+    }
+
+    private RunSupport supportOver(org.p32h.interop.epa.pave.service.config.OperationGateway gateway) {
+        RunSupport support = support();
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("gateway", gateway);
+        support.gateway(beans.getBeanProvider(org.p32h.interop.epa.pave.service.config.OperationGateway.class));
+        return support;
+    }
+
+    private static org.p32h.interop.epa.pave.model.VendorExchange failed(org.p32h.interop.epa.pave.model.OnyxFailureType failure) {
+        org.p32h.interop.epa.pave.model.WireRequest request = new org.p32h.interop.epa.pave.model.WireRequest("POST",
+                "https://sandbox.onyx.example.invalid/x", "https://sandbox.onyx.example.invalid/x", List.of(), "{}", true, null);
+        return new org.p32h.interop.epa.pave.model.VendorExchange(request, null, List.of(), null, null, null, null, 5, failure,
+                "No access token was obtained. The request was not sent.", java.util.Set.of(), null, null, List.of());
+    }
+
+    @Test
+    void aTimeoutNamesTheReadTimeoutOfTheCallAndWhereItIsChanged(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)
+            throws Exception {
+        org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = statedSettings(directory);
+        RunSupport support = supportOver(fixture.gateway);
+        org.p32h.interop.epa.pave.service.config.PreparedCall call = fixture.gateway.prepare(
+                org.p32h.interop.epa.pave.service.config.CallIntent.of(EpaOperation.CRD_DISCOVERY));
+        org.p32h.interop.epa.pave.model.VendorExchange timedOut = failed(org.p32h.interop.epa.pave.model.OnyxFailureType.TIMEOUT);
+        String stated = "No response arrived within the read timeout of 60000 ms (the read timeout this environment states in "
+                + "Configuration > Environments).";
+        assertThat(support.faultView(timedOut, List.of(), call).title()).isEqualTo(stated);
+        // Without the call at hand, the gateway's answer for the active environment says the same.
+        assertThat(support.faultView(timedOut, List.of()).title()).isEqualTo(stated);
+        // With nothing stated, application.yml's value and its property.
+        assertThat(support().faultView(timedOut, List.of()).title()).isEqualTo("No response arrived within the read timeout of "
+                + OnyxProperties.defaults().readTimeoutMs() + " ms (onyx.read-timeout-ms).");
+    }
+
+    @Test
+    void theWireViewNamesTheMemberIdAsTheRuleOfTheCallSendsIt(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)
+            throws Exception {
+        org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = statedSettings(directory);
+        RunSupport support = supportOver(fixture.gateway);
+        org.p32h.interop.epa.pave.service.config.PreparedCall call = fixture.gateway.prepare(
+                org.p32h.interop.epa.pave.service.config.CallIntent.of(EpaOperation.CRD_DISCOVERY));
+        org.p32h.interop.epa.pave.model.VendorExchange notSignedIn = failed(org.p32h.interop.epa.pave.model.OnyxFailureType.NOT_SIGNED_IN);
+        RunEnvelope<Object> unsigned = support.notSignedIn(EpaOperation.CRD_DISCOVERY, call, notSignedIn,
+                support.draft(EpaOperation.CRD_DISCOVERY, call, notSignedIn, RunOrigin.manual()), member());
+        assertThat(unsigned.wire().memberId().sent()).isEqualTo("S12345678   90");
+        assertThat(unsigned.wire().memberId().rule()).isEqualTo("spaced");
+        // The environment signs in as its own settings say, so the panel points at its form, not at onyx.auth.
+        assertThat(unsigned.error().action()).startsWith("Check the sign-in of the active environment in Configuration > Environments");
+
+        // A blocked run never became a call: the active environment's rule is the one it would have gone by.
+        RunEnvelope<Object> blocked = support.blocked(EpaOperation.PAS_SUBMIT, refusal(EpaOperation.PAS_SUBMIT), member(), null);
+        assertThat(blocked.wire().memberId().rule()).isEqualTo("spaced");
+        assertThat(blocked.wire().memberId().sent()).isEqualTo("S12345678   90");
+        // The ledger keeps the packed form, so one member stays one key.
+        assertThat(ledger.records().get(ledger.records().size() - 1).memberId()).isEqualTo(MEMBER_ID);
+    }
+
+    @Test
+    void aCallUnderAnEnvironmentWhoseSignInIsNoneIsToldToChooseItsSignInNotToSwitchOnOnyxAuth(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        org.p32h.interop.epa.pave.service.config.ConfigFixture fixture = statedSettings(directory);
+        RunSupport support = supportOver(fixture.gateway);
+        org.p32h.interop.epa.pave.model.WireRequest request = new org.p32h.interop.epa.pave.model.WireRequest("POST",
+                "https://sandbox.onyx.example.invalid/x", "https://sandbox.onyx.example.invalid/x", List.of(), "{}", true, null);
+        org.p32h.interop.epa.pave.model.VendorExchange refused = new org.p32h.interop.epa.pave.model.VendorExchange(request, 401, List.of(),
+                "{}", 2L, null, null, 5, org.p32h.interop.epa.pave.model.OnyxFailureType.BAD_REQUEST, null, java.util.Set.of(), null, null,
+                List.of());
+        assertThat(support.faultView(refused, List.of()).action()).startsWith("This tool sent no Authorization header: the active "
+                + "environment's sign-in is None");
+        org.p32h.interop.epa.pave.model.NextStepView step = support.unsignedNextStep(org.p32h.interop.epa.pave.model.NextStepView.of(
+                NextAction.REVIEW, "Next: read it.", "Because."), refused);
+        assertThat(step.headline()).isEqualTo("Next: choose the environment's sign-in, then send again.");
+    }
 }

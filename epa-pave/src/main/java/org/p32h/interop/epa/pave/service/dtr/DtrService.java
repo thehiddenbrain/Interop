@@ -25,8 +25,10 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.RunEnvelope;
 import org.p32h.interop.epa.pave.model.RunOrigin;
 import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
@@ -150,7 +152,7 @@ public class DtrService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            sent = builder.buildPackage(request, reads);
+            sent = builder.buildPackage(request, reads, call.memberIdRule());
             body = reads.body(sent.json());
             requestNotes.addAll(packageNotes(sent));
         }
@@ -191,18 +193,19 @@ public class DtrService {
     public RequestPreview previewPackage(DtrPackageRequest request, ProdUnlock unlock) {
         validatePackage(request);
         EpaOperation operation = EpaOperation.DTR_QUESTIONNAIRE_PACKAGE;
-        MemberIdForms shown = shownMemberId(request);
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            // No call carries a rule: the active environment's is the one it would have gone by.
+            return RequestPreview.blocked(operation, refusal, CaseResources.memberIdForms(request.member(), gateway.memberIdRule()));
         }
+        MemberIdForms shown = CaseResources.memberIdForms(request.member(), call.memberIdRule());
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), shown);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
-        DtrRequestBuilder.Package built = builder.buildPackage(request, reads);
+        DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule());
         return RequestPreview.of(operation, call, reads.shown(built.json()), packageNotes(built), shown);
     }
 
@@ -438,7 +441,7 @@ public class DtrService {
             verdict = masked.on(verdict);
             nextStep = masked.on(nextStep);
         }
-        return new Interpreted(reading, findings, verdict, expectation, nextStep, error(reading, exchange), timing, correlation);
+        return new Interpreted(reading, findings, verdict, expectation, nextStep, error(reading, exchange, call), timing, correlation);
     }
 
     private RunEnvelope<DtrDetail> finish(EpaOperation operation, RunRequest request, PreparedCall call, VendorExchange exchange,
@@ -469,7 +472,8 @@ public class DtrService {
                 .additionalFields(read.reading().additionalFields())
                 // A next-question request names the member by a local reference and carries no member ID,
                 // so its wire view does not show one as sent.
-                .wire(exchange.wire(operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE ? shownMemberId(request) : null))
+                .wire(exchange.wire(operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE
+                        ? CaseResources.memberIdForms(request.member(), call.memberIdRule()) : null))
                 .error(read.error())
                 .ledger(receipt)
                 .timing(read.timing())
@@ -482,11 +486,12 @@ public class DtrService {
      * status. A questionnaire that cannot be used arrived with a success status, so the shared
      * description of a transport fault has nothing to say about it, and it is described here.
      */
-    private ErrorView error(DtrReading reading, VendorExchange exchange) {
+    private ErrorView error(DtrReading reading, VendorExchange exchange, PreparedCall call) {
         if (!reading.outcome().fault()) {
             return null;
         }
-        ErrorView transport = support.faultView(exchange, reading.detail().issues());
+        // The call's own read timeout words a timeout: a save since the gateway was last asked may have changed the active one.
+        ErrorView transport = support.faultView(exchange, reading.detail().issues(), call);
         if (transport != null) {
             return transport;
         }
@@ -509,13 +514,9 @@ public class DtrService {
                 .withExpectedEpoch(request.configEpoch()).withOrigin(origin);
     }
 
+    /** A mock scenario is chosen by the packed form, so a sentinel picks its scenario under every rule. */
     private static MockSelection selection(RunRequest request) {
         return MockSelection.of(request.scenarioId(), RunSupport.memberId(request).sent(), RunSupport.npi(request));
-    }
-
-    private static MemberIdForms shownMemberId(RunRequest request) {
-        MemberIdForms memberId = RunSupport.memberId(request);
-        return memberId.typed().isEmpty() ? null : memberId;
     }
 
     /**
@@ -545,7 +546,7 @@ public class DtrService {
             // copies are optional. Whatever the form does hold is still checked.
             optionalCase(inputs, request);
         } else {
-            inputs.member(request.member()).provider(request.provider());
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider());
             if (!request.procedureCodes().isEmpty()) {
                 inputs.codes(request.procedureCodes());
             } else {
@@ -560,9 +561,14 @@ public class DtrService {
         }
         for (int i = 0; i < request.questionnaires().size(); i++) {
             String canonical = request.questionnaires().get(i);
-            inputs.require(Texts.blank(canonical) || CANONICAL.matcher(canonical.strip()).matches(), "questionnaires[" + i + "]",
+            boolean wellFormed = Texts.blank(canonical) || CANONICAL.matcher(canonical.strip()).matches();
+            inputs.require(wellFormed, "questionnaires[" + i + "]",
                     "Name a questionnaire by its canonical url, with its version after a bar if it has one, for example "
                             + "https://example.org/Questionnaire/name|1.0. It must be one unbroken url.");
+            // The ledger keeps a typed address as written, so it is held to the member-name check like a note.
+            String holdsMember = wellFormed ? MemberInText.problemInQuestionnaireAddress(canonical, request.member(),
+                    BundledQuestionnaires.isBundled(canonical), "Nothing was sent.") : null;
+            inputs.require(holdsMember == null, "questionnaires[" + i + "]", holdsMember);
         }
         carriedRun(inputs, request);
         inputs.date("dateOfService", request.dateOfService())
@@ -640,14 +646,19 @@ public class DtrService {
      */
     private static void authorNamed(RunInputs inputs, DtrAnswers.Posted posted, RunRequest request) {
         if (posted.errors().isEmpty() && DtrRequestBuilder.marksAnAnswer(posted)) {
-            inputs.require(request.provider() != null && Texts.present(request.provider().npi()), "provider.npi", AUTHOR_NEEDED);
+            inputs.require(namesAProvider(request.provider()), "provider.npi", AUTHOR_NEEDED);
         }
+    }
+
+    /** True when the form names the provider by an NPI or by a vendor practitioner id (R-40). */
+    static boolean namesAProvider(ProviderDetail provider) {
+        return provider != null && (Texts.present(provider.npi()) || Texts.present(provider.vendorPractitionerId()));
     }
 
     /** Why a step that adds an answer with no provider is refused. */
     static final String AUTHOR_NEEDED = "An answer given in this step is marked as given by a person, and DTR 2.0.1 then requires the "
             + "answer to name its author (invariant dtrx-1 of the information-origin extension). This tool names the provider on the form "
-            + "as the author, so give the provider's NPI. An answer posted as a FHIR answer that already carries its own information-origin "
+            + "as the author, so give the provider's NPI or vendor practitioner id. An answer posted as a FHIR answer that already carries its own information-origin "
             + "extension is sent as written.";
 
     /** The notes of a package request this tool built: what it leaves out that DTR 2.0.1 requires first, then the builder's own. */
@@ -672,8 +683,8 @@ public class DtrService {
         if (request.member() != null && Texts.present(request.member().memberId())) {
             inputs.member(request.member());
         }
-        if (request.provider() != null && Texts.present(request.provider().npi())) {
-            inputs.provider(request.provider());
+        if (namesAProvider(request.provider())) {
+            inputs.providerByNpiOrVendorId(request.provider());
         }
         List<CodeInput> codes = request.procedureCodes() == null ? List.of() : request.procedureCodes();
         for (int i = 0; i < codes.size(); i++) {

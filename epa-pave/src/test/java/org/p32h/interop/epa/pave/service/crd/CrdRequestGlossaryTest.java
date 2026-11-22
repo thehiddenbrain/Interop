@@ -217,6 +217,8 @@ class CrdRequestGlossaryTest {
         Set<String> remarks = new LinkedHashSet<>();
         List<String> documents = new ArrayList<>(List.of("hookInstance", "fhirServer", "fhirAuthorization", "context.encounterId", "context.selections",
                 "prefetch", "prefetch.*", "context.draftOrders.entry", "context.draftOrders.entry.fullUrl", "hook"));
+        remarks.add(String.valueOf(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.DIFFERENT_VALUE)));
+        remarks.add(String.valueOf(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.DIFFERENT_VALUE)));
         List<String> resources = new ArrayList<>(CrdRequestGlossary.listed().keySet());
         for (DifferenceKind kind : DifferenceKind.values()) {
             documents.forEach(path -> remarks.add(String.valueOf(glossary.remark(new ElementPath(path, null), kind))));
@@ -247,10 +249,10 @@ class CrdRequestGlossaryTest {
                         + "value, and a medical record number typed MR only when the variable patientMrn has a value.");
         assertThat(glossary.remark(new ElementPath("prefetch.*.identifier", "Coverage.identifier"), DifferenceKind.ONLY_IN_TOOL))
                 .isEqualTo("This tool writes the member ID as an identifier typed MB, with a system only when the variable memberIdSystem has a value.");
-        assertThat(bare.at("/prefetch/patient/identifier")).hasSize(1);
+        assertThat(bare.at("/prefetch/patientBundle/entry/0/resource/identifier")).hasSize(1);
         assertThat(build(everything().build(), new FakeGateway().variable("patientMrn", "MRN-PLACEHOLDER-1"))
-                .at("/prefetch/patient/identifier/1/type/coding/0/code").asString()).isEqualTo("MR");
-        for (String resource : List.of("patient", "coverage")) {
+                .at("/prefetch/patientBundle/entry/0/resource/identifier/1/type/coding/0/code").asString()).isEqualTo("MR");
+        for (String resource : List.of("patientBundle/entry/0/resource", "coverageBundle/entry/0/resource")) {
             assertThat(bare.at("/prefetch/" + resource + "/identifier/0/type/coding/0/code").asString()).isEqualTo("MB");
             assertThat(bare.at("/prefetch/" + resource + "/identifier/0").has("system")).isFalse();
             assertThat(configured.at("/prefetch/" + resource + "/identifier/0").has("system")).isTrue();
@@ -258,9 +260,9 @@ class CrdRequestGlossaryTest {
 
         assertThat(glossary.remark(new ElementPath("prefetch.*.payor", "Coverage.payor"), DifferenceKind.ONLY_IN_YOURS))
                 .isEqualTo("This tool names a payer only when the variable payerIdentifier or payerName has a value.");
-        assertThat(bare.at("/prefetch/coverage").has("payor")).isFalse();
-        assertThat(configured.at("/prefetch/coverage").has("payor")).isTrue();
-        assertThat(build(everything().build(), new FakeGateway().variable("payerName", "Placeholder payer")).at("/prefetch/coverage").has("payor")).isTrue();
+        assertThat(bare.at("/prefetch/coverageBundle/entry/0/resource").has("payor")).isFalse();
+        assertThat(configured.at("/prefetch/coverageBundle/entry/0/resource").has("payor")).isTrue();
+        assertThat(build(everything().build(), new FakeGateway().variable("payerName", "Placeholder payer")).at("/prefetch/coverageBundle/entry/0/resource").has("payor")).isTrue();
 
         // Said only of two values that differ in their spaces and in nothing else, which is the difference it explains.
         ElementPath identifierValue = new ElementPath("prefetch.*.identifier.value", "Coverage.identifier.value");
@@ -269,8 +271,8 @@ class CrdRequestGlossaryTest {
         assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE, Shown.of("S1234567801"), Shown.of("S222222222"))).isNull();
         assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE, Shown.of("S1234567801"), Shown.empty())).isNull();
         assertThat(glossary.remark(identifierValue, DifferenceKind.DIFFERENT_VALUE)).isNull();
-        assertThat(bare.at("/prefetch/patient/identifier/0/value").asString()).isEqualTo("S1234567801");
-        assertThat(bare.at("/prefetch/coverage/identifier/0/value").asString()).isEqualTo("S1234567801");
+        assertThat(bare.at("/prefetch/patientBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo("S1234567801");
+        assertThat(bare.at("/prefetch/coverageBundle/entry/0/resource/identifier/0/value").asString()).isEqualTo("S1234567801");
     }
 
     @Test
@@ -279,13 +281,17 @@ class CrdRequestGlossaryTest {
         JsonNode select = build(everything().hook("order-select").build(), CONFIGURED);
         assertThat(glossary.remark(new ElementPath("fhirAuthorization", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo("This tool does not build fhirAuthorization.");
         assertThat(glossary.remark(new ElementPath("context.encounterId", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo("This tool does not build an encounterId.");
+        // R-37: every entry carries a fullUrl, so one only in the pasted request is no longer a difference this tool explains.
         assertThat(glossary.remark(new ElementPath("context.draftOrders.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.ONLY_IN_YOURS))
-                .isEqualTo("This tool does not write a fullUrl on the entries of its draft orders.");
+                .isNull();
+        assertThat(glossary.remark(new ElementPath("context.draftOrders.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.ONLY_IN_TOOL))
+                .isEqualTo("This tool writes a fullUrl on every entry: the FHIR server, the resource type and its id when the variable "
+                        + "fhirServer has a value, else a urn:uuid.");
         assertThat(glossary.remark(new ElementPath("context.selections", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo("This tool selects every order it builds, and sends selections for order-select only.");
         for (JsonNode request : List.of(sign, select)) {
             assertThat(request.has("fhirAuthorization")).isFalse();
             assertThat(request.at("/context").has("encounterId")).isFalse();
-            request.at("/context/draftOrders/entry").forEach(entry -> assertThat(entry.propertyNames()).containsExactly("resource"));
+            request.at("/context/draftOrders/entry").forEach(entry -> assertThat(entry.propertyNames()).containsExactly("fullUrl", "resource"));
         }
         assertThat(sign.at("/context").has("selections")).isFalse();
         assertThat(select.at("/context/selections")).hasSize(2).hasSameSizeAs(select.at("/context/draftOrders/entry"));
@@ -299,6 +305,45 @@ class CrdRequestGlossaryTest {
         assertThat(glossary.remark(new ElementPath("prefetch", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo("This tool left prefetch out because the form said so.");
         assertThat(sign.has("prefetch")).isTrue();
         assertThat(build(everything().includePrefetch(false).build(), CONFIGURED).has("prefetch")).isFalse();
+    }
+
+    @Test
+    void theRemarksAboutTheNamedBundlesOfThePrefetchAreTrueOfTheBuilder() {
+        JsonNode person = build(everything().build(), CONFIGURED);
+        JsonNode organization = build(everything().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder Clinic")
+                .build()).build(), NOTHING_SET);
+        List<String> personKeys = new ArrayList<>(person.at("/prefetch").propertyNames());
+        List<String> organizationKeys = new ArrayList<>(organization.at("/prefetch").propertyNames());
+        assertThat(personKeys).containsExactly("patientBundle", "coverageBundle", "practitionerBundle", "practitionerRoleBundle",
+                "serviceRequestBundle");
+        assertThat(organizationKeys).containsExactly("patientBundle", "coverageBundle", "organizationBundle", "practitionerRoleBundle",
+                "serviceRequestBundle");
+        String named = glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.ONLY_IN_TOOL);
+        assertThat(named).startsWith(CrdRequestGlossary.NAMED_BUNDLES).endsWith(CrdRequestGlossary.PREFETCH_KEYS);
+        for (String key : personKeys) {
+            assertThat(CrdRequestGlossary.NAMED_BUNDLES).contains(key);
+        }
+        assertThat(CrdRequestGlossary.NAMED_BUNDLES).contains("organizationBundle in place of practitionerBundle");
+        assertThat(glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.DIFFERENT_KEY)).isEqualTo(named);
+        assertThat(glossary.remark(new ElementPath("prefetch.*", null), DifferenceKind.ONLY_IN_YOURS)).isEqualTo(CrdRequestGlossary.PREFETCH_KEYS);
+
+        // Each named Bundle is of type collection, and each of its entries has a fullUrl, as on the orders.
+        for (JsonNode request : List.of(person, organization)) {
+            request.at("/prefetch").forEach(bundle -> {
+                assertThat(bundle.at("/resourceType").asString()).isEqualTo("Bundle");
+                assertThat(bundle.at("/type").asString()).isEqualTo("collection");
+                bundle.at("/entry").forEach(entry -> assertThat(entry.propertyNames()).containsExactly("fullUrl", "resource"));
+            });
+        }
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo("This tool sends each prefetch Bundle as type collection.");
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Bundle.type"), DifferenceKind.ONLY_IN_TOOL))
+                .isEqualTo(CrdRequestGlossary.PREFETCH_BUNDLE_TYPE);
+        // A Coverage sent bare under a key has a type of its own at the same path, which this remark is not about.
+        assertThat(glossary.remark(new ElementPath("prefetch.*.type", "Coverage.type"), DifferenceKind.DIFFERENT_VALUE)).isNull();
+        assertThat(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.DIFFERENT_VALUE))
+                .isEqualTo(CrdRequestGlossary.FULL_URL);
+        assertThat(glossary.remark(new ElementPath("prefetch.*.entry.fullUrl", "Bundle.entry.fullUrl"), DifferenceKind.ONLY_IN_YOURS)).isNull();
     }
 
     @Test
@@ -331,15 +376,15 @@ class CrdRequestGlossaryTest {
                 .isEqualTo("This tool sends a provider known only by an organization name as an Organization, which the PractitionerRole names.");
         JsonNode organization = build(everything().provider(org.p32h.interop.epa.pave.model.ProviderDetail.builder().npi("1234567893")
                 .organizationName("Placeholder Clinic").build()).build(), NOTHING_SET);
-        assertThat(organization.at("/prefetch/practitionerRole/organization/reference").asString()).isEqualTo("Organization/organization-1");
-        assertThat(organization.at("/prefetch").has("practitioner")).isFalse();
+        assertThat(organization.at("/prefetch/practitionerRoleBundle/entry/0/resource/organization/reference").asString()).isEqualTo("Organization/organization-1");
+        assertThat(organization.at("/prefetch").has("practitionerBundle")).isFalse();
 
         // The period is sent from the lookup's dates.
         assertThat(glossary.remark(new ElementPath("x", "Coverage.period"), DifferenceKind.ONLY_IN_YOURS))
                 .isEqualTo("This tool sends the coverage period only when the member lookup gives the coverage dates.");
-        assertThat(built.at("/prefetch/coverage").has("period")).isFalse();
+        assertThat(built.at("/prefetch/coverageBundle/entry/0/resource").has("period")).isFalse();
         assertThat(build(everything().member(MemberDetail.builder().memberId("S123456789").coverageStart("2026-01-01").build()).build(),
-                NOTHING_SET).at("/prefetch/coverage/period/start").asString()).isEqualTo("2026-01-01");
+                NOTHING_SET).at("/prefetch/coverageBundle/entry/0/resource/period/start").asString()).isEqualTo("2026-01-01");
 
         assertThat(glossary.remark(new ElementPath("x", "Patient.gender"), DifferenceKind.ONLY_IN_YOURS))
                 .isEqualTo("This tool sends a gender only when the case gives one it can read as male, female, other or unknown.");
@@ -347,10 +392,10 @@ class CrdRequestGlossaryTest {
                 .isEqualTo("This tool sends a coverage status only when the case gives one of active, cancelled, draft or entered-in-error.");
         JsonNode unreadable = build(everything().member(MemberDetail.builder().memberId("S123456789").gender("X").coverageStatus("Termed").build()).build(),
                 NOTHING_SET);
-        assertThat(unreadable.at("/prefetch/patient").has("gender")).isFalse();
-        assertThat(unreadable.at("/prefetch/coverage").has("status")).isFalse();
-        assertThat(built.at("/prefetch/patient/gender").asString()).isEqualTo("female");
-        assertThat(built.at("/prefetch/coverage/status").asString()).isEqualTo("active");
+        assertThat(unreadable.at("/prefetch/patientBundle/entry/0/resource").has("gender")).isFalse();
+        assertThat(unreadable.at("/prefetch/coverageBundle/entry/0/resource").has("status")).isFalse();
+        assertThat(built.at("/prefetch/patientBundle/entry/0/resource/gender").asString()).isEqualTo("female");
+        assertThat(built.at("/prefetch/coverageBundle/entry/0/resource/status").asString()).isEqualTo("active");
     }
 
     @Test

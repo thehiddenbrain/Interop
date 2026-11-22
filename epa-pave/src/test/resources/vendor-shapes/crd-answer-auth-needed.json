@@ -1,0 +1,30 @@
+{
+  "cards": [
+    {"summary": "Prior Authorization required", "indicator": "info", "source": {"label": "Placeholder payer"}}
+  ],
+  "systemActions": [
+    {
+      "type": "update",
+      "description": "Coverage information",
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "id": "service-request-1",
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+            "extension": [
+              {"url": "coverage", "valueReference": {"reference": "Coverage/coverage-1"}},
+              {"url": "covered", "valueCode": "covered"},
+              {"url": "pa-needed", "valueCode": "auth-needed"},
+              {"url": "doc-needed", "valueCode": "clinical"},
+              {"url": "doc-purpose", "valueCode": "withpa"},
+              {"url": "questionnaire", "valueCanonical": "https://payer.example.invalid/Questionnaire/placeholder-sleep|1.0"},
+              {"url": "date", "valueDate": "2026-03-18"},
+              {"url": "coverage-assertion-id", "valueString": "ASSERTION-PLACEHOLDER-1"}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

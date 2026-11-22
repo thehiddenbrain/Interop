@@ -50,6 +50,18 @@ public final class CrdRequestGlossary implements Glossary {
     static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. The button "
             + "Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.";
 
+    /** What this tool writes as the fullUrl of every bundle entry it sends (R-37). */
+    static final String FULL_URL = "This tool writes a fullUrl on every entry: the FHIR server, the resource type and its id when the "
+            + "variable " + CaseResources.VAR_FHIR_SERVER + " has a value, else a urn:uuid.";
+
+    /** The keys and the shape of the prefetch this tool sends (R-37), so a key only it has is read as how it builds. */
+    static final String NAMED_BUNDLES = "This tool sends its prefetch as Bundles of type collection under the keys patientBundle, "
+            + "coverageBundle, practitionerBundle, practitionerRoleBundle and serviceRequestBundle, with organizationBundle in place of "
+            + "practitionerBundle for a provider known only by an organization name.";
+
+    /** What this tool writes as the type of each prefetch Bundle. */
+    static final String PREFETCH_BUNDLE_TYPE = "This tool sends each prefetch Bundle as type collection.";
+
     static final String PREFETCH_SHAPES = "In CDS Hooks a prefetch entry is the answer to a FHIR read or search: a read gives the "
             + "resource itself and a search gives a Bundle. The button Discover the CDS services this environment offers, on the CRD tab, "
             + "shows the query the service names for each key.";
@@ -548,12 +560,21 @@ public final class CrdRequestGlossary implements Glossary {
                 return onlyInTool ? "This tool sends prefetch unless the form says to leave it out."
                         : onlyInYours ? "This tool left prefetch out because the form said so." : null;
             case "prefetch.*":
-                return onlyInTool || onlyInYours || kind == DifferenceKind.DIFFERENT_KEY ? PREFETCH_KEYS
-                        : differentValue ? PREFETCH_SHAPES : null;
+                return onlyInTool || kind == DifferenceKind.DIFFERENT_KEY ? NAMED_BUNDLES + " " + PREFETCH_KEYS
+                        : onlyInYours ? PREFETCH_KEYS : differentValue ? PREFETCH_SHAPES : null;
+            case "prefetch.*.entry.fullUrl":
+                // The fullUrl of an entry of one of the named Bundles, written as on the orders.
+                return onlyInYours || !fhir.equals("Bundle.entry.fullUrl") ? null : FULL_URL;
+            case "prefetch.*.type":
+                // Only the Bundle's own type: a Coverage sent bare under a key has a type of another kind at this path.
+                return (onlyInTool || differentValue) && fhir.equals("Bundle.type") ? PREFETCH_BUNDLE_TYPE : null;
             case "context.draftOrders.entry":
                 return onlyInTool || onlyInYours ? "This tool builds one ServiceRequest for each procedure code." : null;
             case "context.draftOrders.entry.fullUrl":
-                return onlyInYours ? "This tool does not write a fullUrl on the entries of its draft orders." : null;
+                return onlyInYours ? null : FULL_URL;
+            case "context.draftOrders.type":
+                return onlyInTool || onlyInYours ? "This tool sends draftOrders type unless the environment's setting draftOrders type, or "
+                        + "the order-sign sample of the collection the call came from, says Left out." : null;
             default:
                 break;
         }
