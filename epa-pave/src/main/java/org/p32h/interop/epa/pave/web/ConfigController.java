@@ -12,6 +12,7 @@ import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.FieldError;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.config.ConfigService;
+import org.p32h.interop.epa.pave.service.config.ConfigViews;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.Activated;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.CollectionList;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.CollectionUploaded;
@@ -290,6 +291,16 @@ public class ConfigController {
     }
 
     /** What a request would be, before it is sent. Nothing is sent and nothing is recorded. */
+    /** The file as the list of unreadable stored files names it. */
+    public record UnreadableRemoveRequest(String file) {
+    }
+
+    /** "Remove it from the store": moves an unreadable stored file aside, never deleting it, and takes it out of store.json. */
+    @PostMapping("/unreadable/remove")
+    public ConfigViews.UnreadableRemoved removeUnreadable(@RequestBody UnreadableRemoveRequest body) {
+        return service.removeUnreadable(body.file());
+    }
+
     @PostMapping("/resolve")
     public Resolved resolve(@RequestBody ResolveRequest body, HttpServletRequest http) {
         if (Texts.blank(body.operation())) {

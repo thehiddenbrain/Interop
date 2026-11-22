@@ -553,7 +553,17 @@ public class ConfigService {
         }
         return new Effective(epa.mode(), snapshot.activeRef(), snapshot.epoch(), store.problems(), store.allowProdWrites(),
                 gateway.writeAccess(unlock), store.directory().toString(), rows, settings(), productionDestinations(snapshot),
-                readiness(snapshot, rows, signInNames));
+                readiness(snapshot, rows, signInNames),
+                store.unreadable().stream().map(each -> new ConfigViews.UnreadableView(each.file(), each.line())).toList());
+    }
+
+    /** "Remove it from the store": the unreadable file moves aside into the store's unreadable folder and leaves store.json. */
+    public ConfigViews.UnreadableRemoved removeUnreadable(String file) {
+        if (Texts.blank(file)) {
+            throw ValidationException.of("file", "Name the stored file to remove, as the list of unreadable files gives it.");
+        }
+        ConfigStore.UnreadableRemoved removed = store.removeUnreadable(file);
+        return new ConfigViews.UnreadableRemoved(removed.removed(), removed.movedTo(), removed.epoch());
     }
 
     /** The names a variable is matched against, lower case with underscores, hyphens and dots taken out. */

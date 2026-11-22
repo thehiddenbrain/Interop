@@ -116,6 +116,22 @@ public final class ConfigViews {
     public record ProductionDestinationView(String environment, String destination, boolean stored) {
     }
 
+    /**
+     * A stored file that could not be read at the start and is left out (R-32).
+     *
+     * @param file the file as the store names it, relative to the store folder: what
+     *             {@code POST /api/config/unreadable/remove} is given back
+     * @param line what is wrong and what to do, in words. The same sentence is among the problems
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableView(String file, String line) {
+    }
+
+    /** What "Remove it from the store" answers: the file as listed, where it was moved (absent when it was not there), the new epoch. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record UnreadableRemoved(String removed, String movedTo, long epoch) {
+    }
+
     /** What switching the active environment answers: the environment now in force, the new epoch, and whether a write would be sent. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Activated(EnvironmentRef environment, long epoch, WriteAccess writeAccess, List<String> addressWarnings) {
@@ -588,9 +604,11 @@ public final class ConfigViews {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Effective(String mode, EnvironmentRef environment, long epoch, List<String> problems, boolean allowProdWrites,
                             WriteAccess writeAccess, String storeDirectory, List<OperationRow> operations, List<SettingRow> settings,
-                            List<ProductionDestinationView> productionDestinations, Readiness readiness) {
+                            List<ProductionDestinationView> productionDestinations, Readiness readiness,
+                            List<UnreadableView> unreadable) {
 
         public Effective {
+            unreadable = unreadable == null ? List.of() : List.copyOf(unreadable);
             productionDestinations = productionDestinations == null ? List.of() : List.copyOf(productionDestinations);
             problems = problems == null ? List.of() : List.copyOf(problems);
             operations = operations == null ? List.of() : List.copyOf(operations);
