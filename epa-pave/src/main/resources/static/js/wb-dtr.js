@@ -508,6 +508,10 @@ export function mount(root, ctx) {
             send.title = blocked;
         }
         const latest = session.latest && session.latest.entry === entry.index ? session.latest.envelope : null;
+        const card = latest ? ctx.card(latest) : null;
+        const formWhy = () => el('div', {class: 'why__part dtr-why'}, el('p', {class: 'small'}, SMART),
+            (entry.view.notApplied || []).map(line => el('p', {class: 'small muted'}, line)),
+            (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line)));
         return el('div', {class: 'panel__section dtr-form'},
             head,
             changeLines(entry).map(words => el('p', {class: 'small dtr-change'}, words)),
@@ -518,10 +522,32 @@ export function mount(root, ctx) {
             el('p', {class: 'small dtr-withdrawn', hidden: true}, el('strong', null, WITHDRAWN)),
             el('div', {class: 'step-refusal dtr-step-refusal'}),
             entry.steps.length > 0 ? stepsFold(entry) : null,
-            fold({summary: 'Why', body: () => el('div', null, el('p', {class: 'small'}, SMART),
-                (entry.view.notApplied || []).map(line => el('p', {class: 'small muted'}, line)),
-                (entry.form && entry.form.notes ? entry.form.notes : []).map(line => el('p', {class: 'small muted'}, line)))}),
-            el('div', {class: 'step-result dtr-step-result'}, latest ? ctx.card(latest) : null));
+            joinWhy(card, formWhy) ? null : fold({summary: 'Why', body: formWhy}),
+            el('div', {class: 'step-result dtr-step-result'}, card));
+    }
+
+    /**
+     * A result has one Why fold (look-10): when the step's card has its own, the form's lines go at
+     * its end, drawn after the card's lines when it is first opened. Returns whether they were joined.
+     */
+    function joinWhy(card, lines) {
+        const why = card ? Array.from(card.querySelectorAll('.fold')).find(each => {
+            const summary = each.querySelector('summary');
+            return summary && summary.childNodes[0] && String(summary.childNodes[0].textContent).trim() === 'Why';
+        }) : null;
+        if (!why) {
+            return false;
+        }
+        let joined = false;
+        const join = () => {
+            if (!joined && why.open) {
+                joined = true;
+                why.querySelector('.fold__body').append(lines());
+            }
+        };
+        why.addEventListener('toggle', join);
+        join();
+        return true;
     }
 
     /** "Steps and changes": each step sent for the questionnaire, and what appeared, disappeared or was dropped. */
@@ -650,6 +676,11 @@ export function mount(root, ctx) {
         };
         mark();
         vocabulary().then(mark, () => null);
+        // While the card offers Continue to Submit, that is the one filled button (I-6): the form's
+        // own send is drawn plain, and filled again once the answers differ from the response.
+        for (const send of work.querySelectorAll('.dtr-send')) {
+            send.classList.toggle('btn--primary', !(completed && !pending));
+        }
     }
 
     function handOn(carry) {
