@@ -267,6 +267,33 @@ class ConfigPagesFrontendTest {
                 "[\"asked\",2]");
     }
 
+    /** A lookup set up on screen is in force from there: no row tells the tester to type its address where none can go (look-19). */
+    @Test
+    void aLookupSetUpOnScreenIsNotToldToBeSetUnderTheEnvironment(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "cfg-inforce.js", PRELUDE + """
+            fake.mode = {mode: 'live', environment: {name: 'PAVE Sample Sandbox', kind: 'sandbox', active: true},
+                writeAccess: {production: false, writesAllowed: true, floorAllows: true, reason: 'The active environment is not production.'}};
+            const missing = name => ({operation: name, label: name === 'MEMBER_LOOKUP' ? 'Member lookup' : 'Provider lookup', outbound: true, method: 'GET',
+                unavailable: 'No address for ' + (name === 'MEMBER_LOOKUP' ? 'member' : 'provider') + ' lookup. Type one under Addresses of the environment in Configuration.'});
+            fake.answers['GET /api/config/effective'] = {status: 200, body: {mode: 'live', problems: [], settings: [],
+                operations: [missing('MEMBER_LOOKUP'), missing('PROVIDER_LOOKUP')]}};
+            fake.answers['GET /api/config/environments'] = {status: 200, body: {environments: []}};
+            fake.answers['GET /api/config/lookups'] = {status: 200, body: {
+                member: {inForce: {from: 'this screen', words: 'POST, signs in with client credentials'}},
+                provider: {inForce: {from: 'not set', words: 'No lookup is configured: the tester types the details'}}}};
+            const {mount} = await import('./js/cfg-inforce.js');
+            const root = document.createElement('div');
+            document.body.append(root);
+            mount(root, ['advanced', 'in-force']);
+            await settle();
+            const all = text(root);
+            say([all.includes('No address for member lookup'), all.includes('No address for provider lookup'),
+                all.includes('POST, signs in with client credentials, this screen')]);
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[false,true,true]");
+    }
+
     @Test
     void withNoEnvironmentActiveInForceNowSaysSoOnceOnMockAndOnLive(@TempDir Path folder) throws Exception {
         // The server's words as ConfigService and ConfigStoreGateway write them with no environment active.

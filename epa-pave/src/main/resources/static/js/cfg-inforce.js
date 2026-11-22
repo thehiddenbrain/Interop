@@ -69,7 +69,7 @@ export function mount(root, route) {
             ready,
             unreadablePart(data),
             pointed(data, mode, environments.ok ? environments.data : null, ready !== null),
-            operationsPart(data, ready !== null),
+            operationsPart(data, ready !== null, lookups.ok ? lookups.data : null),
             settingsPart(data),
             lookups.ok ? lookupsPart(lookups.data, ready !== null) : null);
     }
@@ -205,8 +205,16 @@ export function mount(root, route) {
 
     /* ---------- every operation, where it goes, and what stands in its way ---------- */
 
-    function operationsPart(data, saidAbove) {
-        const rows = (Array.isArray(data.operations) ? data.operations : []).filter(row => row.operation !== 'UNMAPPED');
+    /** Each lookup set up on screen is in force from there, so 'Lookups in force' says where it goes, not this table. */
+    const SET_ON_SCREEN = 'this screen';
+    const LOOKUP_KIND = {MEMBER_LOOKUP: 'member', PROVIDER_LOOKUP: 'provider'};
+
+    function operationsPart(data, saidAbove, lookups) {
+        const onScreen = operation => {
+            const view = lookups && LOOKUP_KIND[operation] ? lookups[LOOKUP_KIND[operation]] : null;
+            return Boolean(view && view.inForce && view.inForce.from === SET_ON_SCREEN);
+        };
+        const rows = (Array.isArray(data.operations) ? data.operations : []).filter(row => row.operation !== 'UNMAPPED' && !onScreen(row.operation));
         if (rows.length === 0) {
             return null;
         }
