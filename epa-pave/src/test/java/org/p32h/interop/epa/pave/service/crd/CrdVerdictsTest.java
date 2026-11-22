@@ -152,7 +152,7 @@ class CrdVerdictsTest {
         // No authorization needed: the flow ends, and that is itself a finding worth recording.
         NextStepView ends = next("P32H-NO-AUTH");
         assertThat(ends.action()).isEqualTo(NextAction.FLOW_ENDS);
-        assertThat(ends.headline()).isEqualTo("The flow ends here. Record this result.");
+        assertThat(ends.headline()).isEqualTo("The flow ends here: nothing further to send.");
         assertThat(ends.reason()).contains("prior authorization is not required");
         assertThat(next("P32H-PA-SAT").action()).isEqualTo(NextAction.FLOW_ENDS);
         assertThat(next("P32H-NOCOV").action()).isEqualTo(NextAction.FLOW_ENDS);
@@ -418,7 +418,7 @@ class CrdVerdictsTest {
         for (int status : new int[] {401, 403}) {
             NextStepView next = next(status, outcome);
             assertThat(next.action()).as("HTTP " + status).isEqualTo(NextAction.OPEN_CONFIG);
-            assertThat(next.headline()).isEqualTo("Next: check the credentials on the Config tab.");
+            assertThat(next.headline()).isEqualTo("Next: check the credentials in Configuration > Environments > Sign-in.");
             assertThat(next.reason()).contains("HTTP " + status);
         }
         NextStepView notFound = next(404, outcome);
@@ -563,7 +563,7 @@ class CrdVerdictsTest {
         // Only a 400 names a refused element; credentials and addresses keep their own next steps.
         assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 422, REFUSES_TYPE), "Vendor sandbox").action()).isEqualTo(NextAction.FIX_REQUEST);
         assertThat(nextAfter(sentAndAnswered(WITH_TYPE, 401, REFUSES_TYPE), "Vendor sandbox").headline())
-                .isEqualTo("Next: check the credentials on the Config tab.");
+                .isEqualTo("Next: check the credentials in Configuration > Environments > Sign-in.");
         // A body that is not JSON shows no type either way.
         assertThat(nextAfter(sentAndAnswered("not json", 400, REFUSES_TYPE), "Vendor sandbox").action()).isEqualTo(NextAction.FIX_REQUEST);
     }

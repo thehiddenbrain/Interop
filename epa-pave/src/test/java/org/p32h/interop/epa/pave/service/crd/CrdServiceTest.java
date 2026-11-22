@@ -1251,7 +1251,7 @@ class CrdServiceTest {
 
         assertThat(result.verdict().maskedReading()).isEqualTo("Read from a mask, not from what the service sent: valueCode was read as "
                 + "[secret paWord]. The variable or setting the mask names holds a value that the answers of this service use as an "
-                + "ordinary word, so what is read from it may be wrong. Look at that value in the Config tab.");
+                + "ordinary word, so what is read from it may be wrong. Look at that value in Configuration.");
         assertThat(result.nextStep().headline()).startsWith(org.p32h.interop.epa.pave.model.MaskedReading.STEP_FIRST);
         assertThat(result.findings().get(0).kind()).isEqualTo(FindingKind.MASKED_READING);
         assertThat(ledger.only().findings()).contains("MASKED_READING");

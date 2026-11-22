@@ -157,7 +157,7 @@ public final class ChainCaseStep implements CaseStep {
                 return submit(context, expectation, chainId, handedOn(afterPackage.carry(), fetched), done);
             }
             if (afterPackage.action() == NextAction.ANSWER_NEXT_QUESTION || afterPackage.action() == NextAction.SUBMIT_RESPONSE) {
-                return "The chain stopped at DTR: the questionnaire has to be answered by a person. Continue this chain on the DTR tab. "
+                return "The chain stopped at DTR: the questionnaire has to be answered by a person. Continue this chain in step 2 Questionnaire of the Workbench. "
                         + "The step said: " + afterPackage.headline();
             }
             return stoppedAt("DTR", afterPackage);

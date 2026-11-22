@@ -163,13 +163,13 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
         return switch (operation) {
             case DTR_NEXT_QUESTION, DTR_RESPONSE -> operation.label() + " answers a questionnaire, and the answers are a person's: a "
-                    + "case does not hold them. Run it from the DTR tab, or run a chain, which stops where a person has to answer.";
+                    + "case does not hold them. Run it from step 2 Questionnaire of the Workbench, or run a chain, which stops where a person has to answer.";
             case SUBSCRIPTION_CREATE, SUBSCRIPTION_GET, SUBSCRIPTION_UPDATE, SUBSCRIPTION_DELETE -> operation.label() + " works on a "
-                    + "subscription this tool holds for a submission, which a case does not set up. Run it from the PAS tab.";
-            case CRD_DISCOVERY -> "This build does not run CRD discovery from a case. Run it from the CRD tab.";
+                    + "subscription this tool holds for a submission, which a case does not set up. Run it from step 4 Status of the Workbench.";
+            case CRD_DISCOVERY -> "This build does not run CRD discovery from a case. Run it from step 1 Coverage check of the Workbench.";
             case MEMBER_LOOKUP, PROVIDER_LOOKUP -> "A lookup is made for every case already, before its request is built. It is not a "
                     + "case of its own.";
-            case UNMAPPED -> "A request that is mapped to no operation is sent from the Config tab as it is. A case does not hold its body.";
+            case UNMAPPED -> "A request that is mapped to no operation is sent from Configuration as it is. A case does not hold its body.";
             default -> "This build cannot run " + operation.label() + " from a case.";
         };
     }

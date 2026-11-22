@@ -551,10 +551,10 @@ class CrdRequestComparerTest {
         assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patientBundle` and your request holds it under "
                 + "`patientRequest`. " + NAMED_BUNDLES
                 + " A CDS service names the prefetch keys it asks for in its discovery response. "
-                + "The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.");
+                + "The button Discover the CDS services this environment offers, in step 1 Coverage check of the Workbench, lists the keys the service names.");
         assertThat(at(comparison, "prefetch.practitionerRoleBundle").explanation()).isEqualTo("The tool's request has the key `practitionerRoleBundle` here "
                 + "and your request does not. It holds a Bundle resource. " + NAMED_BUNDLES + " A CDS service names the prefetch keys it asks "
-                + "for in its discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the "
+                + "for in its discovery response. The button Discover the CDS services this environment offers, in step 1 Coverage check of the Workbench, lists the "
                 + "keys the service names.");
         // A key only the pasted request has is not one of the tool's, so only where keys come from is said.
         assertThat(at(comparison, "prefetch.encounterRequest").explanation()).doesNotContain("patientBundle")

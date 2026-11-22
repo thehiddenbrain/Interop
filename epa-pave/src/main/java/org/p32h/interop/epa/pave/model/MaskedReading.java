@@ -232,11 +232,11 @@ public record MaskedReading(List<String> readings) {
     public String line() {
         return "Read from a mask, not from what the service sent: " + String.join("; ", readings) + ". The variable or setting the mask "
                 + "names holds a value that the answers of this service use as an ordinary word, so what is read from it may be wrong. "
-                + "Look at that value in the Config tab.";
+                + "Look at that value in Configuration.";
     }
 
     /** The words put before the next step, so that it is not taken as resting on what the service sent. */
-    public static final String STEP_FIRST = "First settle the masked value the verdict names, in the Config tab. Until then, this next "
+    public static final String STEP_FIRST = "First settle the masked value the verdict names, in Configuration. Until then, this next "
             + "step rests on the masked reading: ";
 
     /** The verdict with this line in it. */

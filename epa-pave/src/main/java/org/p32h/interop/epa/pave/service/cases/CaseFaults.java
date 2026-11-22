@@ -55,7 +55,7 @@ public final class CaseFaults {
         }
         if (e instanceof UnresolvedVariablesException unresolved) {
             return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, "The active configuration has no value for: "
-                    + String.join(", ", unresolved.variables()) + ". Set it on the Config tab and run the case again.", null);
+                    + String.join(", ", unresolved.variables()) + ". Set it in Configuration and run the case again.", null);
         }
         if (e instanceof ConfigurationChangedException) {
             return new CaseRun.Interruption(CaseStatus.NOT_CONFIGURED, pinned ? CONFIGURATION_MOVED : e.getMessage(), null);
