@@ -17,7 +17,7 @@ import {call} from './api.js';
 import {el, clear, fill, chip, badge, fold, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel, faultReport} from './fault.js';
 import {readText} from './files.js';
-import {filesChangedNote, chooserInField, shownFile} from './cfg-parts.js';
+import {filesChangedNote, chooserInField, shownFile, labelsOf} from './cfg-parts.js';
 
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
@@ -938,6 +938,7 @@ export function createEditor(options) {
             const read = await readChosen(slot);
             if (read.ok === false) {
                 fill(banner, el('p', {class: 'config-warning'}, read.line), filesChangedNote());
+                bannerInView();
                 return;
             }
         }
@@ -979,7 +980,6 @@ export function createEditor(options) {
     /** A refusal: each field error at its field, its fold opened; the title and what has no field above the form. */
     function refused(error) {
         const placed = [];
-        let firstPlaced = null;
         for (const each of Array.isArray(error.fieldErrors) ? error.fieldErrors : []) {
             if (each.field === 'acknowledgeNotProd') {
                 ackField.hidden = false;
@@ -987,7 +987,6 @@ export function createEditor(options) {
                 line.textContent = each.message;
                 line.hidden = false;
                 placed.push(each.field);
-                firstPlaced = firstPlaced || inputs.acknowledge;
                 continue;
             }
             if (each.field === 'environmentExport' || each.field === 'collectionExport') {
@@ -1003,13 +1002,30 @@ export function createEditor(options) {
             setFieldError(part.wrapper, each.message);
             openFold(part.fold);
             placed.push(each.field);
-            firstPlaced = firstPlaced || part.wrapper.querySelector('input, select, textarea');
         }
         // The title says what was refused and why (which address, which production environment):
         // a field error says only where, so the panel is drawn even when every field error was placed.
-        fill(banner, errorPanel(error, {fieldsPlaced: placed}));
-        if (firstPlaced && typeof firstPlaced.focus === 'function') {
-            firstPlaced.focus();
+        fill(banner, errorPanel(error, {fieldsPlaced: placed, labelOf: labelsOf(name => {
+            const part = parts.fields.get(name) || fileField(name);
+            return part ? part.wrapper : null;
+        })}));
+        bannerInView();
+    }
+
+    /**
+     * The banner is what says why a save was refused. A focus moved to a field further down
+     * scrolled it out of the dialog body (look-guardrail-8), so the body is scrolled to it and its
+     * first line takes the focus; Tab goes on from there into the form, where each field the
+     * server named is marked.
+     */
+    function bannerInView() {
+        if (typeof banner.scrollIntoView === 'function') {
+            banner.scrollIntoView({block: 'start'});
+        }
+        const first = banner.querySelector('p');
+        if (first) {
+            first.setAttribute('tabindex', '-1');
+            first.focus({preventScroll: true});
         }
     }
 

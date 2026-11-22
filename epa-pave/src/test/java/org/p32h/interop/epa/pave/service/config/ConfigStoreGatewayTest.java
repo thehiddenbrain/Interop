@@ -71,7 +71,7 @@ class ConfigStoreGatewayTest {
         assertThat(call.url().template()).isEmpty();
         assertThat(call.url().value()).isNull();
         assertThat(call.url().display()).isNull();
-        assertThat(call.url().source()).isEqualTo("No collection request is mapped to CRD order-sign, and onyx.crd.url is not set.");
+        assertThat(call.url().source()).isEqualTo("No address for order-sign. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
         assertThat(call.headers()).isEmpty();
         assertThat(call.environment().active()).isFalse();
         assertThat(call.requestName()).isNull();
@@ -98,9 +98,10 @@ class ConfigStoreGatewayTest {
         }
         assertThat(prepared).isEqualTo(EpaOperation.values().length - 2);
         assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_DISCOVERY)).url().source()).isEqualTo(
-                "No collection request is mapped to CDS Hooks discovery, onyx.crd.url is not set, and no CRD hook request is mapped to derive it from.");
+                "No address for discovery: no CRD hook request is mapped to derive it from"
+                + ". Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
         assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.MEMBER_LOOKUP)).url().source())
-                .isEqualTo("No collection request is mapped to Member lookup, and lookup.member.url is not set.");
+                .isEqualTo("No address for member lookup. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: lookup.member.url.)");
         assertThat(fixture.gateway.prepare(CallIntent.of(EpaOperation.UNMAPPED)).url().source())
                 .isEqualTo("An unmapped request has no target of its own. It is sent by naming the request.");
     }
@@ -186,8 +187,8 @@ class ConfigStoreGatewayTest {
 
         PreparedCall call = mock.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
         assertThat(call.url().configured()).isFalse();
-        assertThat(call.url().source()).isEqualTo("The only collection requests mapped to CRD order-sign are samples of an error, which "
-                + "are used only when one is chosen, and onyx.crd.url is not set.");
+        assertThat(call.url().source()).isEqualTo("No address for order-sign: the only collection requests mapped to it are samples of an error, used only "
+                + "when one is chosen. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
         // Chosen by name, it is used.
         assertThat(mock.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN).withRequest(ref(onlyErrors, "order-sign Error")))
                 .url().value()).isEqualTo("https://error.example.invalid/cds-services/order-sign-a");
@@ -249,7 +250,7 @@ class ConfigStoreGatewayTest {
         assertThatThrownBy(() -> fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE).withRequest(submit)))
                 .isInstanceOfSatisfying(BadInputException.class, e -> {
                     assertThat(e.getMessage()).isEqualTo("The request \"submit Happy Path\" is mapped to PAS submit, so it cannot be sent as PAS inquire.");
-                    assertThat(e.action()).isEqualTo("Choose a request that is mapped to PAS inquire, or correct the mapping on the Config tab.");
+                    assertThat(e.action()).isEqualTo("Choose a request that is mapped to PAS inquire, or correct the mapping in Configuration > Collections.");
                 });
         // The other way round is refused too: the mapping is what a button means.
         assertThatThrownBy(() -> fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_SUBMIT)
@@ -427,8 +428,8 @@ class ConfigStoreGatewayTest {
         PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_DISCOVERY));
 
         assertThat(call.url().configured()).isFalse();
-        assertThat(call.url().source()).isEqualTo("No collection request is mapped to CDS Hooks discovery, onyx.crd.url is not set, and the "
-                + "url of the hook request \"order-select Happy Path\" shows no /cds-services to derive it from.");
+        assertThat(call.url().source()).isEqualTo("No address for discovery: the url of the hook request "
+                + "\"order-select Happy Path\" shows no /cds-services to derive it from. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.crd.url.)");
     }
 
     // ------------------------------------------------------------------------------------------
@@ -832,7 +833,7 @@ class ConfigStoreGatewayTest {
         }
         assertThatThrownBy(() -> fixture.gateway.prepare(CallIntent.of(EpaOperation.PAS_INQUIRE)))
                 .isInstanceOf(EndpointNotConfiguredException.class)
-                .hasMessage("No collection request is mapped to PAS inquire, and onyx.pas.url is not set.");
+                .hasMessage("No address for PAS inquire. Type one under Addresses of the environment in Configuration. (Not set as PAVE was started: onyx.pas.url.)");
     }
 
     @Test

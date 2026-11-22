@@ -331,7 +331,27 @@ public class ConfigStoreGateway implements OperationGateway {
         // The active production environment's own addresses are its own: its sign-in is not a write to another.
         String exempt = active != null && active.kind() == EnvironmentKind.PROD ? active.name() : null;
         List<String> owners = TokenUrlGuard.owners(snapshot, destination, exempt);
-        return owners.isEmpty() ? null : TokenUrlGuard.atSending(destination, owners);
+        if (owners.isEmpty()) {
+            return null;
+        }
+        String refusal = TokenUrlGuard.atSending(destination, owners);
+        return owners.stream().anyMatch(owner -> snapshot.byName(owner) != null) ? refusal : refusal + " " + removedTokenOwners(owners);
+    }
+
+    /**
+     * What follows the refusal of a token url when every production environment it reaches into
+     * was removed (I-19, I-28): the token url such an environment signed in with went with it, so a
+     * sandbox that shares it can no longer be told from one that writes to production. Names that,
+     * and the two ways out that work today.
+     */
+    private String removedTokenOwners(List<String> owners) {
+        boolean several = owners.size() > 1;
+        String entries = owners.stream().map(owner -> "\"" + ConfigStore.quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
+        return quotedAll(owners) + (several ? " are" : " is") + " no longer stored, so this tool no longer knows the token url "
+                + (several ? "they" : "it") + " signed in with. To sign in at a token url shared with " + (several ? "one of them" : "it")
+                + ", store " + (several ? "that production environment" : "it") + " again. If " + (several ? "they were" : "it was")
+                + " stored as prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
+                + store.directory().resolve(ConfigStore.STATE_FILE) + ", and start PAVE again.";
     }
 
     @Override
@@ -1083,9 +1103,9 @@ public class ConfigStoreGateway implements OperationGateway {
                 skeleton = skeleton.upTo(DISCOVERY_MARKER);
                 cutInsideAVariable = UrlForms.endOfSegment(template, DISCOVERY_MARKER) != template.length();
                 if (skeleton == null) {
-                    target = Target.none("No collection request is mapped to " + operation.label() + ", onyx.crd.url is not set, and "
-                            + "the url of the hook request \"" + target.request().request().quotedName() + "\" shows no "
-                            + DISCOVERY_MARKER + " to derive it from.");
+                    target = Target.none(Readiness.noAddress(operation, "the url of the hook request \""
+                            + target.request().request().quotedName() + "\" shows no " + DISCOVERY_MARKER + " to derive it from",
+                            fallbackProperty(operation)));
                 }
             }
             if (skeleton != null) {
@@ -1204,7 +1224,7 @@ public class ConfigStoreGateway implements OperationGateway {
             if (operation != EpaOperation.UNMAPPED && request.effective() != operation) {
                 throw new BadInputException("The request \"" + Names.shown(request.request().name()) + "\" is mapped to " + request.effective().label()
                         + ", so it cannot be sent as " + operation.label() + ".", "Choose a request that is mapped to "
-                        + operation.label() + ", or correct the mapping on the Config tab.");
+                        + operation.label() + ", or correct the mapping in Configuration > Collections.");
             }
             return requestTarget(new Located(collection, request));
         }
@@ -1233,12 +1253,12 @@ public class ConfigStoreGateway implements OperationGateway {
             return Target.none("An unmapped request has no target of its own. It is sent by naming the request.");
         }
         // A request that is a sample of a failure is mapped, and is not what a call uses unasked.
-        String mapped = firstMapped(snapshot, operation, true) == null ? "No collection request is mapped to " + operation.label()
-                : "The only collection requests mapped to " + operation.label() + " are samples of an error, which are used only "
-                + "when one is chosen";
-        return Target.none(operation == EpaOperation.CRD_DISCOVERY
-                ? mapped + ", " + property + " is not set, and no CRD hook request is mapped to derive it from."
-                : mapped + ", and " + property + " is not set.");
+        String why = firstMapped(snapshot, operation, true) == null ? null
+                : "the only collection requests mapped to it are samples of an error, used only when one is chosen";
+        if (operation == EpaOperation.CRD_DISCOVERY && why == null) {
+            why = "no CRD hook request is mapped to derive it from";
+        }
+        return Target.none(Readiness.noAddress(operation, why, property));
     }
 
     /**

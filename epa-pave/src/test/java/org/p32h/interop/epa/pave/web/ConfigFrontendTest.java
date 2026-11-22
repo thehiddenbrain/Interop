@@ -95,6 +95,7 @@ class ConfigFrontendTest {
                 say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Said above the form.'));
                 say(dialog.querySelector('.config-form__banner').textContent.includes('Type an absolute address.'));
+                say(dialog.querySelectorAll('.config-form__banner .error-fields li').map(each => each.textContent));
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
@@ -102,8 +103,9 @@ class ConfigFrontendTest {
                 "[[\"timeouts\",true],[\"shapes\",false],[\"values\",true]]",
                 "[\"Between 100 and 600000.\",\"Type an absolute address.\"]",
                 "true",
-                // A refusal placed at its field is not said a second time above the form.
-                "false");
+                // I-3 (live-config-8): the panel names each field by its label with its sentence, also when it is placed at the field.
+                "true",
+                "[\"Wait for a response up to (ms) Between 100 and 600000.\",\"FHIR server Type an absolute address.\",\"Said above the form.\"]");
     }
 
     @Test
@@ -123,7 +125,33 @@ class ConfigFrontendTest {
                 say([banner.includes('declared as sandbox'), banner.includes('vendor-live'), banner.includes('Declared as sandbox.')]);
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
-        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,false]");
+        // I-3 (live-config-8): the panel also names the field, Kind, with its sentence.
+        assertThat(run.lines()).containsExactly("[\"Declared as sandbox.\"]", "[true,true,true]");
+    }
+
+    @Test
+    void aRefusalBringsThePanelThatSaysWhyIntoViewAndFocusesItNotAFieldFurtherDown(@TempDir Path folder) throws Exception {
+        // look-guardrail-8: the focus went to Kind, which scrolled the dialog body past the title naming the address.
+        NodeRun run = StaticSources.runModule(folder, "the refusal in view", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/settings'] = {status: 422, body: {kind: 'VALIDATION', heading: 'A problem with what was submitted',
+                    title: 'This environment was declared as sandbox, and its address http://127.0.0.1:8950/fhir/Claim/$submit is an address of the production environment "vendor-live". It was not stored.',
+                    fieldErrors: [{field: 'signIn.tokenUrl', message: 'Not the token url of a production environment.'}]}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                const banner = dialog.querySelector('.config-form__banner');
+                const scrolled = [];
+                banner.scrollIntoView = how => scrolled.push(how.block);
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const active = document.activeElement;
+                say([scrolled, Boolean(active) && banner.contains(active), active && active.getAttribute('tabindex'), active && active.textContent]);
+                say(dialog.querySelectorAll('.field--error').map(each => each.querySelector('.field__error').textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"start\"],true,\"-1\",\"A problem with what was submitted\"]",
+                "[\"Not the token url of a production environment.\"]");
     }
 
     @Test

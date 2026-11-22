@@ -11,6 +11,8 @@ import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.dtr.DtrOutcome;
+import org.p32h.interop.epa.pave.model.dtr.FormStateView;
+import org.p32h.interop.epa.pave.model.dtr.QuestionRef;
 import org.p32h.interop.epa.pave.testsupport.TestExchanges;
 
 /**
@@ -204,5 +206,38 @@ class DtrVerdictsTest {
         NextStepView unnamed = DtrVerdicts.nextStep(EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, empty, exchange, handoff());
         assertThat(unnamed.headline()).startsWith("Next: record this run as \"no questionnaire returned\"");
         assertThat(List.of(named.headline(), named.reason(), unnamed.reason())).noneMatch(line -> line.contains("cannot say"));
+    }
+
+    private static FormStateView unanswered(QuestionRef... missing) {
+        return new FormStateView(missing.length, missing.length, 0, null, false, List.of(), List.of(), List.of(missing), List.of(), null,
+                List.of());
+    }
+
+    @Test
+    void theHeadlineOfAResponseThatIsNotCompleteNamesTheQuestionsThatHaveNoAnswer() {
+        QuestionRef first = new QuestionRef("q1", "First question?");
+        QuestionRef second = new QuestionRef("q2", "Second question");
+        QuestionRef third = new QuestionRef("q3", null);
+        QuestionRef fourth = new QuestionRef("q4", "Fourth");
+        QuestionRef fifth = new QuestionRef("q5", "Fifth");
+        assertThat(DtrVerdicts.unansweredHeadline(unanswered(first))).isEqualTo("A required question has no answer: \"First question?\".");
+        assertThat(DtrVerdicts.unansweredHeadline(unanswered(first, second)))
+                .isEqualTo("2 required questions have no answer: \"First question?\", \"Second question\".");
+        // A question the payer gave no text is named by its linkId.
+        assertThat(DtrVerdicts.unansweredHeadline(unanswered(first, second, third)))
+                .isEqualTo("3 required questions have no answer: \"First question?\", \"Second question\", \"q3\".");
+        assertThat(DtrVerdicts.unansweredHeadline(unanswered(first, second, third, fourth, fifth)))
+                .isEqualTo("5 required questions have no answer: \"First question?\", \"Second question\", \"q3\" and 2 more.");
+        // No form at all (a step that held none) keeps the sentence without a name.
+        assertThat(DtrVerdicts.unansweredHeadline(null)).isEqualTo("A required question has no answer.");
+    }
+
+    @Test
+    void aLongQuestionTextIsCutAtEightyCharactersInTheHeadline() {
+        String longText = "Does the patient have documented daytime sleepiness   that interferes with work,\ndriving or other daily activities?";
+        String headline = DtrVerdicts.unansweredHeadline(unanswered(new QuestionRef("q1", longText)));
+        String cut = "Does the patient have documented daytime sleepiness that interferes with work, d";
+        assertThat(cut).hasSize(80);
+        assertThat(headline).isEqualTo("A required question has no answer: \"" + cut + "...\".");
     }
 }

@@ -2164,7 +2164,11 @@ input[type="radio"] {
         display: none;
     }
 
+    /* The chooser names the environment in force, so the sign-in chip, whose words its title
+       holds, gives way first (live-config-7): two names that share a prefix stay told apart. */
     .topbar__signin {
+        flex-shrink: 8;
+        min-width: 80px;
         max-width: 96px;
     }
 }

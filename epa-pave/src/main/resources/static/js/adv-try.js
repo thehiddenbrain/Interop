@@ -14,7 +14,7 @@ import {app} from './app.js';
 import {el, fill, clear, chip, button, fold, kv, field, setFieldError} from './dom.js';
 import {errorPanel} from './fault.js';
 import {jsonView} from './json-view.js';
-import {pageHead, section, part, during, sentences, none} from './cfg-parts.js';
+import {pageHead, section, part, during, sentences, none, labelsOf} from './cfg-parts.js';
 
 /** Draws the page into root. route: the parts of the address after #configuration. */
 export function mount(root, route) {
@@ -159,7 +159,7 @@ export function mount(root, route) {
                     placed.push(each.field);
                 }
             }
-            fill(problem, errorPanel(got.error, {fieldsPlaced: placed}));
+            fill(problem, errorPanel(got.error, {fieldsPlaced: placed, labelOf: labelsOf(name => fields.get(name))}));
             return;
         }
         last = got.data || {};

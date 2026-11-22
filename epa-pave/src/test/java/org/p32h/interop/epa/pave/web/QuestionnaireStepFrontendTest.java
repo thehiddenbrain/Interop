@@ -115,7 +115,8 @@ class QuestionnaireStepFrontendTest {
                     card: envelope => {
                         const {el} = globalThis.domForTest;
                         return el('div', {class: 'result'}, el('div', {class: 'verdict__foot'},
-                            envelope.nextStep.action === 'START_PAS' ? el('button', {class: 'btn btn--primary'}, 'Continue to Submit') : null));
+                            envelope.nextStep.action === 'START_PAS' ? el('button', {class: 'btn btn--primary'}, 'Continue to Submit') : null),
+                            globalThis.domForTest.fold({summary: 'Why', body: () => el('p', null, 'The card says why.')}));
                     }
                 };
                 globalThis.domForTest = await import('./js/dom.js');
@@ -147,14 +148,20 @@ class QuestionnaireStepFrontendTest {
                 const sent = posted[posted.length - 1];
                 say([sent.path, JSON.stringify(sent.body.answers), Object.keys(sent.body).sort().join(',')]);
                 const cont = () => root.querySelector('.dtr-step-result .btn--primary');
-                say([cont().disabled, root.querySelector('.dtr-withdrawn').hidden, handed[handed.length - 1]]);
+                // One filled button and one Why fold once Continue is offered (I-6, look-10).
+                const sendFilled = () => root.querySelector('.dtr-send').classList.contains('btn--primary');
+                const whys = root.querySelectorAll('summary').filter(each => each.textContent.startsWith('Why'));
+                whys[0].parentNode.open = true;
+                whys[0].parentNode.dispatchEvent({type: 'toggle'});
+                say([cont().disabled, root.querySelector('.dtr-withdrawn').hidden, handed[handed.length - 1], sendFilled(), whys.length,
+                  whys[0].parentNode.textContent.includes('The card says why.') && whys[0].parentNode.textContent.includes('no SMART launch')]);
                 // A typed answer that differs from the completed response withdraws Continue and the hand-over.
                 const no = root.querySelectorAll('[data-link-id=q-2] input').find(each => each.value === 'no');
                 yes.checked = false;
                 no.checked = true;
                 no.dispatchEvent({type: 'change'});
                 await settle();
-                say([cont().disabled, cont().title, root.querySelector('.dtr-withdrawn').hidden, handed[handed.length - 1]]);
+                say([cont().disabled, cont().title, root.querySelector('.dtr-withdrawn').hidden, handed[handed.length - 1], sendFilled()]);
                 // Put back as completed, it is offered again.
                 no.checked = false;
                 yes.checked = true;
@@ -185,8 +192,8 @@ class QuestionnaireStepFrontendTest {
                 "[true,1]",
                 "[\"/api/dtr/response\",\"[{\\\"linkId\\\":\\\"q-2\\\",\\\"values\\\":[\\\"yes\\\"]}]\","
                         + "\"answers,carry,chainId,configEpoch,member,memberOverrides,procedureCodes,provider,providerOverrides,questionnaire,questionnaireResponse\"]",
-                "[false,true,[3,\"questionnaireResponse,runId\"]]",
-                "[true,\"Complete the response again before Submit.\",false,[3,null]]",
+                "[false,true,[3,\"questionnaireResponse,runId\"],false,1,true]",
+                "[true,\"Complete the response again before Submit.\",false,[3,null],true]",
                 "[false,[3,\"questionnaireResponse,runId\"]]",
                 "\"0 of 0 answered \u00b7 turn 0 \u00b7 in progress\"",
                 "[\"0 of 1 answered \u00b7 turn 1 \u00b7 in progress\",[\"Now asked: How many weeks?\"]]",

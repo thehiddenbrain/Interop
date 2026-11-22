@@ -28,6 +28,6 @@ public final class RunIds {
      */
     public static NotFoundException notFound(String runId) {
         return new NotFoundException("There is no run with that id.",
-                "Copy the run id from the list on the History tab, or from the result that gave it, and try again.");
+                "Copy the run id from the list in Audit, or from the result that gave it, and try again.");
     }
 }

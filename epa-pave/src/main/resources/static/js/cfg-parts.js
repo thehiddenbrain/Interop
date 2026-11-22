@@ -11,6 +11,19 @@ import {errorPanel} from './fault.js';
 // lines these pages draw themselves need nothing more from it.
 const FILES_CHANGED = "PAVE's files changed on disk since it started, which can cause this. Stop PAVE and start it again, then try once more.";
 
+/**
+ * The labels a refusal's panel names its fields by (I-3): from the server's field name to the
+ * label on screen, read from the field's wrapper; null for a field this form does not draw, whose
+ * sentence the panel then gives alone.
+ */
+export function labelsOf(wrapperOf) {
+    return name => {
+        const wrapper = wrapperOf(name);
+        const label = wrapper ? wrapper.querySelector('.field__label') : null;
+        return label ? label.textContent : null;
+    };
+}
+
 /** The line under a refusal while /api/mode says PAVE's files changed on disk; null otherwise. */
 export function filesChangedNote() {
     const mode = app.mode();
