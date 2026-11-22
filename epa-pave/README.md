@@ -17,12 +17,8 @@ nothing leaves the machine, and no credential or configuration is needed.
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
 ledger) is the one PAVE had. The top bar shows the build's day and time in UTC; the same time is
 `build.time` in `GET /api/mode`.
-<!-- R1-LAST: the release build (head, build stamp, jar, hand-over hour) once it is built whole after the corrections -->
-Release 1 is handed over on 2026-11-22 at 15:00 UTC: the integration branch's release candidate
-`7fc32c8` with the corrections the checks asked for. The build handed over is the release branch
-at the head named in `PROGRESS.md`, built whole after the corrections; its stamp is the time that
-build was made.
-<!-- /R1-LAST -->
+Release 1 is handed over on 2026-11-22 at 15:00 UTC: the release branch at `TO-FILL-HEAD`, the
+release candidate `7fc32c8` with two rounds of corrections. Its top bar reads `TO-FILL-STAMP`.
 
 What release 1 holds:
 
@@ -41,10 +37,8 @@ What release 1 holds:
   sandbox accepted; one retry after a refused token; a wait of up to 120 s for the vendor.
 - The fixes for the ways an upload was found to fail, except one after a rebuild under a PAVE
   started with `-Dpave.classes.load-at-start=false` (see [Limitations](#limitations)).
-  <!-- R1-LAST: I-21, I-23, I-24, AU-1, AU-2, AU-3, features-6 -->
   A file that is not text is named as what it is; a CSV saved with semicolons or tabs is told how
   to save it again; a Postman file of the wrong kind is told where it goes.
-  <!-- /R1-LAST -->
 
 **Not in release 1; release 2, at 22:00 UTC the same day, brings them:**
 
@@ -54,9 +48,8 @@ What release 1 holds:
   release."
 - A reload of the Workbench that keeps the case. In release 1 a reload starts a new case; the runs
   of the case before are in Audit.
-  <!-- R1-LAST: I-8, wb-mock-6, wbm3-6, features-4 -->
-  The page says so under the top bar after a reload.
-  <!-- /R1-LAST -->
+  After a reload the page says so under the top bar: "A reload starts a new case. The runs of the
+  case before are in Audit."
 - Member and provider lookups configured on screen (GET or POST, their own sign-in). In release 1
   they come from `application.yml`, or you type the details (see
   [Lookups and test lists](#lookups-and-test-lists)); Configuration has no Lookups page.
@@ -70,13 +63,9 @@ What release 1 holds:
   listed, a lock against a second copy on one store), and the place names below brought up to
   date.
 
-**Old place names in some server sentences.** Some sentences the server writes still name the old
-screens.
-<!-- R1-LAST: I-1 -->
-The sentences of the Workbench name the new places in release 1; the others, in Configuration,
-Audit and the API, keep the old names until release 2.
-<!-- /R1-LAST -->
-Read them this way:
+**Old place names in some server sentences.** Release 1 brought the sentences a tester meets on the
+Workbench to the new places; some others the server writes, in a fold, in Configuration, Audit or
+the API, keep the old names until release 2. Read them this way:
 
 | A sentence says | It means |
 | --- | --- |
@@ -90,8 +79,26 @@ Read them this way:
 | the environment strip | the top bar |
 
 The sentences of the production guardrail keep their words in release 1 (release 2 may change only
-their place names), "the Config tab" and "the environment strip" included: there the Config tab is
-Configuration and the strip is the top bar.
+their place names): in a production refusal "the Config tab" is Configuration (Production writes,
+for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip is the top bar.
+
+**Known to be open in release 1**, each with what to do:
+
+- Started with `-Dpave.classes.load-at-start=false` (not the default), an internal error just after
+  the IDE rebuilt the classes can ask you to report it: stop PAVE and start it again (release 2).
+- A replay sent from Audit that fails just after a pull does not say that PAVE's files changed:
+  stop PAVE and start it again, then replay once more.
+- A folder whose name ends in `.json` or `.csv`, chosen in place of a file, is told the file "can
+  no longer be read": choose the exported file inside the folder.
+- Dates in the questionnaire show in the browser's own form (for example 01/10/2026); the value sent
+  is the ISO date whatever it shows.
+- On live, type the member's date of birth and the date of service in step 2 yourself.
+- At a window 1024 pixels wide the top bar can cut the environment's name; the whole name is in the
+  list when you open it, and in Configuration > Environments.
+- "Save environment" on an empty new environment names the missing field (Kind) at the field only,
+  not in the panel at the top.
+- A red `Failed to load resource: ... 422` line in the browser console after a refused form is
+  expected: the page shows the refusal.
 
 **Before you rely on it**: nothing here has been run against the vendor's service or on the
 operator's Windows workstation; see [Before you rely on it](#before-you-rely-on-it). How release 1
@@ -149,12 +156,10 @@ Project, and start it again after. If you did not, PAVE keeps its old classes wh
 rebuilds them, and a line under the top bar says "PAVE's files changed on disk since it started.
 Stop PAVE and start it again." An internal error that names `NoClassDefFoundError` or
 `NoSuchMethodError` means the same: stop and start it.
-<!-- R1-LAST: I-12, I-13, STS-1, STS-2 -->
-While that line shows, a refusal on any screen ends with "PAVE's files changed on disk since it
+While that line shows, a refusal on a screen ends with "PAVE's files changed on disk since it
 started, which can cause this. Stop PAVE and start it again, then try once more." A page left open
-while PAVE restarts shows what the new start holds, without a notice that the configuration
-changed in another window.
-<!-- /R1-LAST -->
+while PAVE restarts shows what the new start holds and says only "PAVE was started again." Both
+were seen in the real STS 5.4.0 on the jar of `19ddf8e`.
 
 **One copy of PAVE per configuration store and ledger folder.** To run mock and live side by side,
 give the second copy folders and a port of its own:
@@ -230,10 +235,8 @@ they are different outcomes with different codes in the ledger.
 
 **A service fault and a tool fault look different.** When the service fails or refuses, the
 headline says so ("The service failed (HTTP 500).").
-<!-- R1-LAST: critic-1, critic-8, wbm3-3, look-3, look-5 -->
-Under it, in the same one card, come the service's own words (a CDS service's summary and detail
-included), its issues and the next step.
-<!-- /R1-LAST -->
+Under it, in the same one card, come what the service said (a CDS service's summary and detail
+included), the issues it sent, and the next step beside its button.
 When PAVE
 itself fails, the result is headed "A failure of this tool, not of the service" and shows
 `Reference` with an id, and "Cause, as the server log names it:". Press "Copy reference and cause" and
@@ -253,15 +256,11 @@ by the next call.
    when one is chosen, otherwise typed; it cannot be changed once saved (see "Moving from the
    sandbox to UAT" below).
 2. **Kind**: sandbox, uat or prod. It is never guessed:
-   <!-- R1-LAST: I-15, look-14 -->
    the field reads "Choose a kind" until you choose.
-   <!-- /R1-LAST -->
    An environment whose name or address reads as production cannot be saved as sandbox or uat until
    "This environment is not production" is ticked.
 3. **Sign-in**, filled from the export's variable names:
-   <!-- R1-LAST: I-15, look-14 -->
    "As PAVE was started" (the `onyx.auth` settings of `application.yml`),
-   <!-- /R1-LAST -->
    "None", "Client credentials" (token url, client id, client secret, scope, client authentication
    "Basic header" or "In the form body") or "Bearer token". A 401 from the service drops the token,
    signs in again and sends the call once more; the wire view says "The first attempt was refused
@@ -291,14 +290,16 @@ copy of the sample environment export with the stand-in's addresses, and the sam
 saved and made active, a coverage check refused with HTTP 400, draftOrders type
 set to Left out and saved, and the same check answered "Documentation is required." with no
 restart.
-<!-- R1-LAST: I-32, I-34, live-config-1, live-config-4 -->
 When a sign-in fails, "Open Configuration" opens the active environment's form at Sign-in; when an
-answer points at the address, at Addresses.
-<!-- /R1-LAST -->
+answer points at the address (404, unknown host, refused connection), at Addresses. A token url
+that does not answer is named first: "Check the token url of the environment <name>, set in
+Configuration > Environments > Sign-in: <url>." Both were seen again on live against the stand-in,
+on the jar of `19ddf8e`.
 
 **Secrets.** A secret field left blank keeps the stored value; "Remove the stored secret" removes
 it. Type `{{env:PAVE_NAME}}` to read it from an operating system variable at the moment of sending
-(only names that start with `PAVE_` are read); anything else is stored as typed, and the save
+(only names that start with `PAVE_` are read). **A client secret or bearer token typed any other way
+is kept as typed in `config-store/store.json`**, a file only your account can read, and the save
 warns once. **A token pasted on Configuration > Access token** ("Paste a token", then "Use this
 token") is held in memory for the active environment only, never saved, and dropped by a 401, a
 restart or any change of the configuration. It is refused on mock. "Test the sign-in" on the same
@@ -322,11 +323,11 @@ leaves its addresses remembered as production, also after it is removed, and a s
 environment on that address is refused. In release 1, with PAVE stopped, delete the entries whose
 environment is that name from `productionDestinations` in `config-store/store.json`, and start
 again; the upload refusal's field note says the same.
-<!-- R1-LAST: I-19, features-1 -->
 A send refused for this reason says so under the guardrail's sentence, names the environment the
 address was remembered from and gives the same way out, and Configuration > Production writes and
-`GET /api/mode` say that writes to that address are blocked.
-<!-- /R1-LAST -->
+`GET /api/mode` say that writes to that address are blocked (seen again on the jar of `19ddf8e`).
+The sandbox's sign-in and reads go on: only a token url at an address a production environment
+uses for Submit or for a subscription change is refused.
 From release 2 a button on Configuration > Production writes does it, for an address whose
 environment is no longer stored.
 
@@ -334,7 +335,7 @@ environment is no longer stored.
 
 | Refused before | Now |
 | --- | --- |
-| HTTP 400 on CRD for `context.draftOrders.type` | Request shapes, "Left out (this vendor refuses it)"; filled from the collection's sample when it leaves the type out. "Open Configuration" opens the list of environments: press Edit on the active one and open Request shapes. <!-- R1-LAST: look-3, look-5, wbm3-3 --> After that 400 the next step names the setting. <!-- /R1-LAST --> |
+| HTTP 400 on CRD for `context.draftOrders.type` | Request shapes, "Left out (this vendor refuses it)"; filled from the collection's sample when it leaves the type out. "Open Configuration" opens the list of environments: press Edit on the active one and open Request shapes. After that 400 the card says what the service said and "Set draftOrders type to Left out for <name> in Configuration > Environments, then run the check again." |
 | A member ID with spaces | Member ID rule packed, the default |
 | An inquiry with no declared profile | The inquiry Claim declares its profile; nothing to set |
 | A patient or practitioner id its FHIR server did not hold | "Vendor patient id" in the Member card, "Vendor practitioner id" in the Provider card and on saved entries |
@@ -350,11 +351,10 @@ flagged, and every run that uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_
 **A file that cannot be read is told so in a sentence**, on every upload: the environment form,
 "Upload collection" and the lists' "Import CSV". In the checks on `9dbf61a`, none of 453 uploads
 of broken or wrong files in those three places ended in the internal error box.
-<!-- R1-LAST: I-21, I-23, I-24, AU-1, AU-2, AU-3, features-6 -->
-A zip, a compressed file, a picture or a PDF is named as what it is; a CSV saved with semicolons
-or tabs, or a JSON file chosen as CSV, is told how to save it again; an environment export chosen
-as a collection, or the reverse, is told where it goes.
-<!-- /R1-LAST -->
+A zip, a compressed file, a picture or a PDF is named as what it is ("<name> is a zip file. Unzip
+it and choose the .json file inside."); a CSV saved with semicolons or tabs, or a JSON file chosen
+as CSV, is told how to save it again; an environment export chosen as a collection, or the
+reverse, is told where it goes. Seen again in all three places on the jar of `19ddf8e`.
 
 ### Variables
 
@@ -392,10 +392,8 @@ element and the result names it and the variable.
   variable is secret when Postman typed it `secret` or its name reads as a credential. Masking
   goes by name: a key written inside a url, or held by a variable with an ordinary name, is shown
   as written. Keep every key in a variable of its own whose name says what it is.
-  <!-- R1-LAST: I-35 -->
   A name that says where, not what (`authBase`, `authServer`: its last word is `base`, `server`,
   `domain`, `address`, `origin`, `hostname` or `port`), is not read as a secret.
-  <!-- /R1-LAST -->
 - **A credential typed into a collection** is named at upload and masked wherever the collection is
   shown. The file on disk keeps it.
 - **Keep the secret out of the file**: give the variable the value `{{env:PAVE_NAME}}` in Postman
@@ -464,14 +462,15 @@ A PAS submit against production creates a real prior authorization request again
 - **A replay or a suite never carries an unlock**: a write in one against production is reported
   as blocked, with the next step to send it on its own.
 - **A value typed for one run may not move a write** to another scheme, host, port or base path.
-<!-- R1-LAST: I-28, I-29, look-guardrail-3, look-guardrail-4 -->
-- **A token url is held against the production addresses too**: a sign-in's token url that is, or
-  lies beneath, an address a production environment uses for a call is refused at its field and
-  never sent to. A token url shared with a production environment's own sign-in stays allowed.
+- **A token url is held against the production write addresses too**: a sign-in's token url that
+  is, or lies beneath, an address a production environment (stored or remembered) uses for Submit
+  or for a subscription create, update or delete is refused at its field (`signIn.tokenUrl`) and
+  never sent to. A token url shared with a production environment's own sign-in, or on the same
+  host as its reads, stays allowed.
 - **An address is compared as a server reads it**: each percent-escape of its path decoded once,
   so `%24submit` is `$submit`; an address that still holds a `%` after that is refused ("An address
-  holds no percent-escape of an escape.").
-<!-- /R1-LAST -->
+  holds no percent-escape of an escape."). Seen again on the jar of `19ddf8e`, with every spelling
+  refused before still refused.
 - **An address PAVE cannot read the way the HTTP client reads it is never taken as "not
   production"**: a write to it is refused with 403, "Blocked: the address it would go to could not
   be read." A production environment whose address PAVE does not know exactly (unreadable, a
@@ -544,16 +543,12 @@ sign-in, a test of the saved lookup) come in release 2. The provider lookup's ow
 - **One run**: its result, "Run again" (sends the same case again and compares the answers, for
   example "Same outcome."), and a note and tester reference ("Save note"). A run whose ledger line
   lacks what a replay needs says so in the button's place.
-  <!-- R1-LAST: I-20, features-2 -->
   On live with the default policy that is every run: "This run cannot be run again: its member ID
   was not kept."
-  <!-- /R1-LAST -->
 - **A run's request and answer** are shown only by the page that made the run, while it stays
   open.
-  <!-- R1-LAST: I-26, AU-6 -->
   Another page says "The request and answer are shown only by the page that made the run, while it
   stays open."
-  <!-- /R1-LAST -->
 - **From release 2**: the run's request and answer from the trail with Download for the vendor,
   Journeys and Suites (the suite and journey endpoints already answer, see
   [Endpoints](#endpoints)). The trail will hold member data, is never to be committed, and is
@@ -1025,9 +1020,11 @@ under the running tool brought the files-changed line to the open page in about 
 sent over the API still answered 200 (one from a page reloaded before the restart was refused,
 STS-2); a restart from the Boot Dashboard moved the build stamp and removed the line (and showed a
 notice of a change in another window, STS-1).
-<!-- R1-LAST: I-11 -->
-The release build itself was imported and started in the same IDE before the hand-over.
-<!-- /R1-LAST -->
+The release branch at `19ddf8e` was imported into the same IDE and started from the Boot
+Dashboard: the files-changed line and the restart behaved as "Start here" says. The Problems view
+showed one error, in a test line the Eclipse compiler rejects, which made STS ask before every
+start; that line was corrected, and every source set of the release is compiled with the Eclipse
+compiler STS 5.4.0 brings before it is handed over.
 What one Windows workstation reported is at the end of this section.
 
 **1. Which Spring Tools.** Spring Tools 5 for Eclipse: PAVE is a Spring Boot 4 application, and the
@@ -1085,7 +1082,8 @@ Package Explorer shows `epa-pave [boot]`.
 - **Red markers before Gradle has fetched the dependencies are normal.** If they stay, right click
   the project and choose Gradle, Refresh Gradle Project: that is the first thing to try.
 
-**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`. **Never apply the quick fix of
+**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`, and on the release
+it shows no error. **Never apply the quick fix of
 "Unnecessary path variable definition"**: without the names the controllers give their request
 parameters, calls such as the Audit list would answer HTTP 500, and `HandlerArgumentNamesTest`
 fails the build.
@@ -1189,11 +1187,13 @@ open item, the worst first, with the entry that gives the reason.
   at start), the first internal error within about 10 seconds after the IDE rebuilt the classes
   can ask you to report it instead of saying to restart, and the top bar's environment list can
   fail. Stop PAVE and start it again. Release 2 corrects it.
-<!-- R1-LAST: I-25, AU-4 -->
-- **A folder chosen in place of a file** is told that the file "can no longer be read: it was
-  moved, renamed, deleted or changed after you chose it". Choose the exported file inside the
-  folder.
-<!-- /R1-LAST -->
+- **A folder chosen in place of a file** is told "<name> is a folder. Choose the exported file
+  inside it.", but a folder whose name ends in `.json` or `.csv` is told that the file "can no
+  longer be read: it was moved, renamed, deleted or changed after you chose it". Choose the
+  exported file inside the folder.
+- **A replay from Audit that fails just after a pull** does not add the files-changed line: stop
+  PAVE and start it again, then replay once more.
+- **Dates in the questionnaire** show in the browser's own form; the ISO date is sent.
 
 ## How release 1 was checked
 
@@ -1204,13 +1204,13 @@ under a virtual display on Linux, with a Team > Pull under the running tool (`1a
 `9dbf61a`); Audit, every broken upload, and every feature of release 1 on mock and on live against
 a stand-in (`9dbf61a`); the production guardrail, what is sent on live, configuration on live and
 secrets (`0b69049`). A second agent confirmed or refuted each finding: 86 were confirmed (31
-major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-35, and three more of the
-integrator's own).
-<!-- R1-LAST: every finding of findings.jsonl, I-1 to I-35, integrator-1, integrator-2, and what INTEGRATOR_R1.md holds at the last pass -->
-Every confirmed finding is being corrected for release 1 and checked again before the hand-over by
-agents that wrote no correction, except two the integrator moved to release 2 (named in
-[Limitations](#limitations)) and five a decision answered with no change a tester meets.
-<!-- /R1-LAST -->
+major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-36 with I-28a,
+and three more of the integrator's own).
+Four correctors then corrected the confirmed findings and the decisions (11:57 to 12:45 UTC), and
+agents that wrote no correction looked again on the jar of `19ddf8e` (the Workbench's screens on
+that of `e5d0972`): the guardrail, secrets, Audit and uploads, configuration and what is sent on
+live, and the real STS 5.4.0. A second, short round corrected what they left. What stays open on
+purpose is in [This release](#this-release) and [Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
 ## What this README was checked against
@@ -1223,12 +1223,11 @@ on a loopback port, "Setting up a service" from New environment to a coverage ch
 a setting changed, and Access token. Every example of [Endpoints](#endpoints) was run on it in
 order. Every endpoint listed is one the controllers at that head map. Every sentence quoted from a
 screen was searched in `src/main/resources/static` at that head, or, where the server writes it, in
-the server's code; the sentences inside the marks wait for the last pass: corrections not made at
-that head, the IDE rerun and the release's builds. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
+the server's code. In the last pass, on `19ddf8e` (the candidate with the first round of
+corrections), every sentence this README quotes from a screen in the parts that changed was
+searched again in `src/main` at that head; those parts were not walked again in a browser, and
+what they say was seen is what the rechecks name. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
 README; the lines step 4 shows are those `run.sh` prints at that head.
-<!-- R1-LAST: SWEEP.md, the whole builds of the release -->
-The candidate `7fc32c8` has not been built whole yet (a try at 11:30 UTC was stopped by the
-runner's time limit). The last whole build that holds no slice of release 2 is that of `037efb6`,
-the commit before the last slice (H2) was merged: 3,519 tests, 0 failures, 0 errors, 2 skipped. The release handed over is
-built whole twice after the corrections; `PROGRESS.md` gives its counts.
-<!-- /R1-LAST -->
+Whole builds: the candidate `7fc32c8`, 3,519 tests, 0 failures, 0 errors, 2 skipped; `19ddf8e`,
+after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped. The release
+handed over, `TO-FILL-HEAD`, was built whole twice and once from a fresh clone: TO-FILL-COUNTS.
