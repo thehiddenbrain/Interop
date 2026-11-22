@@ -275,6 +275,35 @@ class CollectionFindsTest {
                 "\"Odd context\": its context.userId names no Practitioner (it does not read Practitioner/<id>), so it was left out.");
     }
 
+    /**
+     * A collection in Postman's older format v2.0 (D-307): its url written as text, a header
+     * written as text, a helper written as an object and a request written as a bare url. The
+     * reading was built when the parser refused such a file whole; it now reads what the parser
+     * gives, as for v2.1.
+     */
+    @Test
+    void aCollectionInFormatV20IsReadAsV21Is() {
+        String text = """
+                {"info": {"name": "Older sample", "schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json"},
+                 "auth": {"type": "bearer", "bearer": {"token": "{{accessToken}}"}},
+                 "item": [
+                   {"name": "Order sign", "request": {"method": "POST", "url": "{{crdBase}}/cds-services/order-sign-crd",
+                     "header": "Content-Type: application/json\\nAccept: application/json",
+                     "body": {"mode": "raw", "raw": %s}}},
+                   {"name": "Read patient", "request": "{{fhirBase}}/Patient/pat-002"}]}""".formatted(
+                quote(orderSign("{{patientId}}", "Practitioner/prac-001", PATIENT_PREFETCH)));
+        Finds finds = read(text, Map.of("crdBase", "https://sandbox.example.test", "fhirBase", "https://fhir.example.test",
+                "patientId", "pat-001"));
+
+        assertThat(finds.members()).extracting(FoundMember::vendorPatientId, FoundMember::memberId, FoundMember::from)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("pat-001", "S123456789", "Order sign"),
+                        org.assertj.core.groups.Tuple.tuple("pat-002", null, "Read patient"));
+        assertThat(finds.providers()).extracting(FoundProvider::npi, FoundProvider::vendorPractitionerId)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("1234567893", "prac-001"));
+        assertThat(finds.codes()).extracting(FoundCode::code).containsExactly("97110", "E0601");
+        assertThat(finds.notUsed()).isEmpty();
+    }
+
     @Test
     void savedExampleResponsesAreNotRead() {
         String text = """

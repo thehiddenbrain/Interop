@@ -132,9 +132,15 @@ class FoundListsControllerTest {
     void anyFileAnswersWithALineAboutItAndAMissingCollectionIsRefusedAtItsField() throws Exception {
         ConfigFixture fixture = ConfigFixture.mock(directory.resolve("store"));
         MockMvc mvc = mvc(fixture, true);
-        found(mvc, body(collection("https://schema.getpostman.com/json/collection/v2.0.0/collection.json"), null, null, null))
+        // The parser reads format v2.0 since D-307, so the lists read it too; a format it does not
+        // read is still one line, and nothing is taken from it.
+        found(mvc, body(collection("https://schema.getpostman.com/json/collection/v2.0.0/collection.json"),
+                environment("Vendor UAT", "pat-001"), null, null))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.line").doesNotExist())
+                .andExpect(jsonPath("$.members", hasSize(1))).andExpect(jsonPath("$.members[0].vendorPatientId").value("pat-001"));
+        found(mvc, body(collection("https://schema.getpostman.com/json/collection/v3.0.0/collection.json"), null, null, null))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.line").value(startsWith("The collection was not read: This is a Postman "
-                        + "collection in format v2.0.0. This tool reads format v2.1 only.")))
+                        + "collection in format v3.0.0. This tool reads formats v2.1 and v2.0.")))
                 .andExpect(jsonPath("$.members").isEmpty());
         for (String broken : List.of("not json at all", "{\"info\": 1}", environment("Wrong slot", "pat-001"), "[" .repeat(5000))) {
             found(mvc, body(broken, null, null, null)).andExpect(status().isOk())
