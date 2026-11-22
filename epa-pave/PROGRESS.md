@@ -9,8 +9,9 @@ screens unusable, the integrator had them rebuilt on the model of the operator's
 PAVE's server: one top bar, three tabs (Workbench, Audit, Configuration), the Workbench a case column
 and four steps (Coverage check, Questionnaire, Submit, Status), a result made of chips, one headline,
 a few facts and closed folds, environments configured on screen, saved test members and providers,
-Submit after Da Vinci PAS 2.2.1, the request shapes the vendor's sandbox accepted. It reaches the
-operator in two releases on 2026-11-22: release 1, handed over at 15:00 UTC; release 2, handed over at
+Submit after Da Vinci PAS 2.0.1 (2.2.1 a choice of the environment), the request shapes the vendor's
+sandbox accepted. It reaches the operator in two releases on 2026-11-22: release 1, handed over at
+16:00 UTC (first planned for 15:00); release 2, handed over at
 22:00 UTC, which adds to release 1 and is never its repair. Each is handed over only after its checks.
 Hours here are UTC.
 
@@ -42,13 +43,25 @@ the release branch from 11:57 to 12:45 UTC; their work was merged without confli
 (`rebuild/r1/close1/build-19ddf8e.log`; its jar `rebuild/r1/jars/epa-pave-19ddf8e-k2.jar`). Agents that
 wrote no correction checked it again (D-299). A second, short round of three correctors corrected what those rechecks left,
 in commits from 12:52 to 13:14 UTC, each seen by its corrector on its own jar; it was merged at 13:23 UTC
-into `22478b8` (`22478b8164e1184622013b71a758b35a435f2043`), the commit whose code is handed over, which
-the branch of these records merges; these records were committed after it. D-299 says what the recheck of the final
-build had reported when this was written: on `22478b8` it saw features-8 as decided and fifteen corrected
-items closed, and found look-19 regressed and critic-k3-1, features-9 and wb-mock-10 open (open lines below). The Eclipse compiler STS 5.4.0 brings finds 0 errors over
-every source set of `22478b8` (`rebuild/r1/ecj-22478b8/ecj.txt`). The top bar shows the day and time
-(UTC) the running build was made. The integrator's two whole builds of `22478b8` and its build from a
-fresh clone gave TO-FILL-COUNTS.
+into `22478b8` (`22478b8164e1184622013b71a758b35a435f2043`). The Eclipse compiler STS 5.4.0 brings finds
+0 errors over every source set of `22478b8` (`rebuild/r1/ecj-22478b8/ecj.txt`). Agents that wrote no
+correction rechecked `22478b8` (D-299): every earlier finding of their areas was closed or made as
+decided, features-8 included, and they found four faults: In force now saying "No environment is
+active." 14 times on mock (look-19, regressed), a refused form not naming Member ID by its label
+(wb-mock-10), a table cell breaking a word in its middle at 1024 (critic-k3-1), and no "This release"
+section in the README at `22478b8` (features-9; the README committed after it has one). The integrator's
+whole build of `22478b8` failed in one test, `ListsFrontendTest`, whose expectation the second round had
+not brought up to its own change (3,561 tests, 1 failure). A third, short round corrected all of it
+(`e783589`, `ab65809`, `011ead9`, merged into `f0dace9`), each correction seen by its corrector on the
+running tool and by no independent recheck; the whole build of `f0dace9` gave 3,563 tests, 0 failures,
+0 errors, 2 skipped (`rebuild/r1/close3/build-f0dace9.log`).
+**Submit is back on Da Vinci PAS 2.0.1** (D-300): the operator said again at about 13:40 UTC that the
+payer uses 2.0.1, so the guide Submit follows is the request shape "PAS guide" of the environment, 2.0.1
+unless the environment chooses 2.2.1 (`94069f6` and `5c47893` on the branch `release1-pas`, merged into
+the release branch as `6e1bff3`). No second agent rechecked it, and nothing was sent to the vendor's service.
+**The code handed over** is `6e1bff3`, at 16:00 UTC; these records were committed after it. The top bar
+shows the day and time (UTC) the running build was made. The integrator's two whole builds of
+`6e1bff3` and its build from a fresh clone gave TO-FILL-COUNTS.
 
 **The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
 and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
@@ -72,13 +85,14 @@ replaced, and what of it stays in the code; D-283 the member's name a suite row'
 into the ledger, a gap in a hard rule found by its close; D-284 the other older faults that close
 found; D-285 how the rebuild was planned and built, with its limits; D-286 to D-297 the decisions of
 the rebuild by area (the frame and the Workbench, the result, short words, environment settings and
-the store's version 2, sign-in, the vendor's request shapes, member ID rules, PAS 2.2.1, saved lists,
+the store's version 2, sign-in, the vendor's request shapes, member ID rules, Submit and PAS, saved lists,
 uploads and run scripts, Audit, mock and live); D-298 how the saved lists and the trail bend two rules
 of the specification; D-299 the checks of release 1, what they found, the integrator's three findings on
 the candidate and what was decided, the corrections, the rechecks on `19ddf8e` and `e5d0972`, the second
-round and the real STS check. Older
+round and the real STS check; D-300 Submit brought back to PAS 2.0.1, the third round and the recheck
+of the final build. Older
 entries whose rule or contract the rebuild changed carry a "Later:" line; the file's head says once
-that the old screens are gone. The commit that records this changes this file and `DECISIONS.md` only.
+that the old screens are gone. The commit that records D-300 changes this file, `DECISIONS.md` and `README.md` only.
 
 **Before the rebuild.** The line up to `6ab0e69`, the head handed over before the rebuild, is
 described by D-269 to D-280 and by the sections below from "Gates, first" on, which are kept as they
@@ -103,9 +117,10 @@ Each line can be read alone. The detail of each is in the entry named.
    not known. Their verdict (D-281) is the only judgement of the tool by the person it was built for;
    they have said nothing about the two rounds of changes before the rebuild (D-276, D-282) or the
    rebuild itself. The operator says the vendor's sandbox follows 2.0.1 for CRD and DTR (D-269), not
-   observed; that Submit should follow PAS 2.2.1 is their answer (D-293). The lookups have never met the
-   real member API or a provider directory, and how the vendor wants the client to sign in is an
-   assumption (D-233, D-290).
+   observed, and said again on 2026-11-22 that the payer uses PAS 2.0.1, so Submit follows 2.0.1 unless
+   the environment chooses 2.2.1 (D-300; their earlier answer that named 2.2.1 is D-293). The lookups
+   have never met the real member API or a provider directory, and how the vendor wants the client to
+   sign in is an assumption (D-233, D-290).
 2. **What release 1 does not hold, and release 2 brings at 22:00 UTC**, each with how the screen tells
    the tester:
    - the trail of the full requests and responses of the last 500 exchanges, secrets masked (B5), and
@@ -192,15 +207,14 @@ Each line can be read alone. The detail of each is in the entry named.
      in view (look-guardrail-8, `178deb1`). The test line the Eclipse compiler rejected, which made STS
      ask before every start, was corrected too (STS-3, `1772d37`) and checked with the Eclipse batch
      compiler, by its corrector and by the integrator over every source set of `22478b8`, not on a jar.
-   - Left open, each with what a tester does: on mock, Configuration > Advanced > In force now says "No
-     environment is active." 14 times, in Ready to send? and in every operation row (look-19, major, regressed on
-     `22478b8`, found by the recheck of the final build): read it once and ignore the repeats. At 1024 the
-     Element column of the "Response detail" table breaks "questionnaire" mid-word as "questionnair / e"
-     (critic-k3-1, minor, found by the same recheck): read the two lines as one word. The README at
-     `22478b8` has no "This release" section and no line on the slip of features-8 (features-9, minor); the
-     README committed after `22478b8` on the branch `release1-readme` has both. On step 1 of the Workbench a
-     run refused for a missing member ID lists "Enter a member ID." in the panel without its label
-     (wb-mock-10, minor, found by the same recheck): the field is Member ID in the case column. Dates show in the browser's own form (for example
+   - Found by the recheck of the final build on `22478b8` and corrected in the third round, each seen by its
+     corrector on the running tool and by no independent recheck (D-300): In force now says "No environment
+     is active." once, in Ready to send? with its link (look-19, `011ead9`); a refused form names Member ID
+     by its label in the panel (wb-mock-10, `ab65809`); a response table cell wraps at spaces and hyphens
+     only (critic-k3-1, `ab65809`); `ListsFrontendTest` expects the refused date of birth twice, as the
+     page shows it (`e783589`). The README committed after `22478b8` has the "This release" section and
+     the line on the slip of features-8 (features-9).
+   - Left open, each with what a tester does: dates show in the browser's own form (for example
      01/10/2026) beside ISO dates elsewhere; the value sent is the ISO date (look-12). A replay sent again
      from Audit that fails does not carry the line that PAVE's files changed on disk; after a pull, restart
      PAVE before replaying (the Audit part of I-12, not done). Configuration's mapping note and raw-send
@@ -227,8 +241,18 @@ Each line can be read alone. The detail of each is in the entry named.
      rebuild (STS-2) held; the Eclipse compiler marked one error in a test line, so STS asked before every
      start (STS-3, corrected in the second round, `1772d37`; the integrator now compiles every source set with that
      compiler before a release).
-   - The PAS finding that lists what a request left out reads "The request left out <n> elements PAS 2.2.1
-     requires" since `44f09fe` (integrator-1, D-293); it named 2.0.1 at the candidate.
+   - The PAS finding that lists what a request left out names the guide in force since `94069f6` ("The
+     request left out <n> elements PAS 2.0.1 requires", or 2.2.1 for an environment that chose it; D-300);
+     it named 2.0.1 at the candidate and 2.2.1 from `44f09fe` (integrator-1, D-293).
+   - **Submit back on PAS 2.0.1 was rechecked by no second agent** (D-300). Its corrector compared the
+     mock preview with the build before the rebuild, walked the Workbench to step 3 on mock, and ran
+     Submit and the inquiry live against the strict stand-in under both guides; nothing was sent to the
+     vendor's service.
+   - **Whether the X12 role code SJ that Submit sends for a servicing provider is in the X12 value set PAS
+     2.0.1 binds to `careTeam.role`** was not settled: that value set was not at hand. The role is sent
+     when given (D-300).
+   - **Whether the X12 unit codes of an item's quantity are in the X12 value set PAS 2.0.1 binds** was not
+     settled, for the same reason. The quantity and its unit are sent when given (D-300).
 4. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here

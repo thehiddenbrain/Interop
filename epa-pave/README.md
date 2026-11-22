@@ -16,10 +16,10 @@ nothing leaves the machine, and no credential or configuration is needed.
 **Release 1 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
 ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
 ledger) is the one PAVE had.
-Release 1 is handed over on 2026-11-22 at 15:00 UTC: the code of commit `22478b8` of the release
-branch, the release candidate `7fc32c8` with two rounds of corrections; this README and the records
-were committed after it. The top bar of a running build shows the day and time (UTC) that build
-was made; the same time is `build.time` in `GET /api/mode`.
+Release 1 is handed over on 2026-11-22 at 16:00 UTC: the code of commit `6e1bff3` of the release
+branch, the release candidate `7fc32c8` with three rounds of corrections and Submit brought back to
+Da Vinci PAS 2.0.1; this README and the records were committed after it. The top bar of a running
+build shows the day and time (UTC) that build was made; the same time is `build.time` in `GET /api/mode`.
 
 What release 1 holds:
 
@@ -34,8 +34,9 @@ What release 1 holds:
   force now, Send as written, Try a value, Check this installation, CDS discovery and Compare with
   a request that works.
 - Audit: the runs with filters, one run with "Run again", "Export CSV", "Replay the runs listed".
-- Submit follows Da Vinci PAS 2.2.1 (CRD and DTR stay at 2.0.1); the request shapes the vendor's
-  sandbox accepted; one retry after a refused token; a wait of up to 120 s for the vendor.
+- Submit follows Da Vinci PAS 2.0.1, as CRD and DTR do, unless the environment's "PAS guide"
+  chooses 2.2.1 (see [Submit](#submit)); the request shapes the vendor's sandbox accepted; one
+  retry after a refused token; a wait of up to 120 s for the vendor.
 - The fixes for the ways an upload was found to fail, except one after a rebuild under a PAVE
   started with `-Dpave.classes.load-at-start=false` (see [Limitations](#limitations)).
   A file that is not text is named as what it is; a CSV saved with semicolons or tabs is told how
@@ -98,11 +99,6 @@ for the unlock), "the PAS tab" is step 3 Submit or step 4 Status, and the strip 
   mistake and then removed (on the same host, for example) cannot sign in, reads included: the refusal says that production environment "is no longer stored";
   stop PAVE, delete its entries from `productionDestinations` in `store.json` and start again (see
   [A production address remembered by mistake](#a-production-address-remembered-by-mistake)).
-- On mock with no environment active, Configuration > Advanced > In force now says "No
-  environment is active." once in each operation row and three times in "Ready to send?" (the
-  recheck of the final build found it again on `22478b8`).
-- At 1024 pixels the Element column of a response's detail table can break a word in two (seen by
-  the recheck of the final build on `22478b8`).
 - A red `Failed to load resource: ... 422` line in the browser console after a refused form is
   expected: the page shows the refusal.
 
@@ -283,6 +279,9 @@ by the next call.
      refuses it)". Filled from the collection's own sample when the environment states none. The
      builders' sample collection carries the type, so the vendor's sandbox (and the stand-in that
      plays it) answers the first coverage check with HTTP 400 until this reads Left out.
+     "PAS guide", "2.0.1" or "2.2.1": the version of Da Vinci PAS that Submit and the inquiry
+     follow, 2.0.1 when the environment states none ("Submit follows Da Vinci PAS 2.0.1 unless the
+     service asks for 2.2.1."). See [Submit](#submit).
    - **Values**: the FHIR server, the payer's name and identifier, the member ID system, the PAS
      request, service, certification and report types, the callback url, and any other variable a
      request reads. A value lies over the export's own; blank brings the export's back. A name that
@@ -389,13 +388,13 @@ element and the result names it and the variable.
 | --- | --- | --- |
 | CRD, DTR, PAS | `memberIdSystem` | The identifier system of the member ID |
 | CRD, DTR | `patientMrn`, `patientMrnSystem` | The medical record number, never filled from the member ID |
-| CRD, DTR, PAS | `payerIdentifier`, `payerIdentifierSystem`, `payerName` | The payer; the insurer of a PAS claim, which PAS 2.2.1 requires |
+| CRD, DTR, PAS | `payerIdentifier`, `payerIdentifierSystem`, `payerName` | The payer; the insurer of a PAS claim, which PAS requires (2.2.1 also requires the identifier's system) |
 | CRD, PAS | `fhirServer` | The hook's `fhirServer`, and the base of every `fullUrl` PAVE sends |
 | CRD | `crdOrderSignServiceId`, `crdOrderSelectServiceId` | The CDS service ids |
 | DTR | `dtrIntendedUse`, `dtrCoverageExtension` | The intended use; `qr-context` (2.0.1) or `qr-coverage` (the 2.2.0 ballot) |
 | PAS | `pasRequestType`, `pasServiceType`, `pasCertificationType` | Each item's request type, service type and certification type, when the Service card gives none |
-| PAS | `pasReportType` | The X12 report type of the documentInformation of each attachment and of the questionnaire response |
-| PAS | `itemTraceNumberSystem` | The system of the item trace numbers PAS 2.2.1 requires |
+| PAS | `pasReportType` | Under PAS 2.2.1 only, the X12 report type of the documentInformation of each attachment and of the questionnaire response; PAS 2.0.1 has no place for it, so it is not sent and a note says so |
+| PAS | `itemTraceNumberSystem` | The system of the item trace numbers, which PAS 2.2.1 requires and 2.0.1 does not |
 | PAS | `pasHcpcsSystem`, `coverageRelationship`, `claimIdentifierSystem`, `claimType`, `claimPriority`, `attachmentControlNumberSystem` | Parts of the claim |
 | PAS | `pasRequestorType`, `pasRequestingOrgIdentifier`, `pasRequestingOrgIdentifierSystem` | The requesting organization, and a subscription's filter by it |
 | PAS | `subscriptionTopic`, `subscriptionFilter`, `subscriptionStatus`, `subscriptionReason`, `subscriptionChannelType`, `subscriptionPayloadContent`, `subscriptionHeartbeatSeconds`, `subscriptionEnd` | Parts of a subscription |
@@ -507,22 +506,38 @@ Its sentences are those of `79a7c25`, word for word.
 
 ## Submit
 
-**Submit follows Da Vinci PAS 2.2.1**, at the operator's word; CRD and DTR stay at 2.0.1.
-`GET /api/pas/options` names the version (`"version":"Da Vinci PAS 2.2.1"`) and serves the code
-lists the Service card offers.
+**Submit follows Da Vinci PAS 2.0.1**, the version the operator says the payer uses, unless the
+active environment chooses 2.2.1 under "PAS guide" (Configuration > Environments, Request shapes;
+see [Setting up a service](#setting-up-a-service)). An environment that states no guide, and mock
+with no environment active, get 2.0.1. CRD, DTR and the reading of PAS answers follow 2.0.1
+throughout. `GET /api/pas/options` names the guide in force (`"version":"Da Vinci PAS 2.0.1"`, or
+`"Da Vinci PAS 2.2.1"` for an environment that chose it) and serves the code lists the Service card
+offers. Every Submit and inquiry carries a note that names the guide it follows and where it is set.
+Submit was first built to 2.2.1 on an answer of the operator's; they then said again that the payer
+uses 2.0.1, so 2.0.1 is the default and 2.2.1 is kept as a choice, with everything built for it
+(D-300).
 
 - **What it reads**: from the Service card, each code with its quantity and unit, the date and
   place of service, the diagnosis codes and, in "Service details", the level of service, the
   certification type, the request type and the service type; from the Provider card, the phone
   or fax (PAS asks for one) and an optional servicing provider; from the environment's values or
-  its variables, `payerName` and `payerIdentifier` (the insurer, which 2.2.1 requires),
-  `pasRequestType`, `pasServiceType`, `pasCertificationType` and `pasReportType` when the card
-  gives none, and `itemTraceNumberSystem`.
-- **"To complete before sending"** lists what the request would go without, one dashed chip each
-  (on mock with a mock member: Report type, Insurer, Service type, Request type, Place of
-  service); pressing one opens the field, on the card or in the environment's Values. Sending stays possible:
-  an incomplete request is a negative test, and the request notes say what was left out ("This
-  request goes out without N elements PAS 2.2.1 requires, because nobody supplied them: ...").
+  its variables, `payerName` and `payerIdentifier` (the insurer, which PAS requires),
+  `pasRequestType`, `pasServiceType` and `pasCertificationType` when the card gives none,
+  `itemTraceNumberSystem`, and under 2.2.1 only `pasReportType` (under 2.0.1 it is not sent, and a
+  note says PAS 2.0.1 has no place for it).
+- **Under 2.0.1** each Service card field is sent when given. What 2.0.1 only marks must-support
+  (the request type, the certification type, the place of service, the level of service, the
+  subscriber, the claim identifier's system) is never counted as left out: when it is missing, a
+  note says so. An attachment given by its url is sent by its url, with a note.
+- **Under 2.2.1** the request and its checks are those slices E1 to E3 built: more is required (the
+  identifier and trace number systems, the request and certification types, the place of service,
+  the provider's phone or fax, among others), so more is listed as left out.
+- **"To complete before sending"** lists what the guide in force requires that the request would
+  go without, one dashed chip each (on mock under 2.0.1, with the member P32H-DTR-PREPOP: Insurer,
+  Service type); pressing one opens the field, on the card or in the environment's Values. Sending
+  stays possible: an incomplete request is a negative test, and the first request note says what
+  was left out and names the guide ("This request goes out without N elements PAS 2.0.1 requires,
+  ...").
 - **Attachments**: "Add files" in step 3. PDF, PNG, JPEG, TIFF, GIF, text and Word files, up to 5 MB
   each and 10 MB in all. In the attachment mode `fhir` (the default, `onyx.pas.attachment-mode`)
   each file travels inside the bundle as a document reference with its data; in `x12-275` PAVE
@@ -608,8 +623,9 @@ is sent). Its **Trail** page says "This page comes in the next release."
   server, no launch handshake and no EHR embedding. When you exercise DTR in PAVE you exercise the
   operations behind a provider-facing SMART launch, not the launch itself. Do not report a DTR run
   here as a test of the SMART launch.
-- **PAVE is held to version 2.0.1 of CRD and DTR, and to 2.2.1 of PAS** (D-136; Submit since the
-  rebuild). Content of a later version is read and named with its version, never called wrong.
+- **PAVE is held to version 2.0.1 of CRD, DTR and PAS** (D-136); Submit and the inquiry follow PAS
+  2.2.1 instead for an environment whose "PAS guide" says so (D-293, D-300). Content of a later
+  version is read and named with its version, never called wrong.
   US Core, SDC, HRex, the subscriptions backport, FHIR R4 core and the X12 code lists were not
   available as rules, so a request PAVE builds can still be refused by a conformant service for
   reasons that are PAVE's.
@@ -1165,7 +1181,7 @@ Each of these is unknown. PAVE uses an obvious placeholder rather than a plausib
 | The code list's header row, flag spellings, dates, encoding | The bundled placeholder and candidate headers | `codelist.file`, `codelist.columns.*`; check with the self-check |
 | The PAS attachment mechanism in use | `fhir` | `onyx.pas.attachment-mode` |
 | Whether the receiver is reachable from Onyx | Assumed not | Not to be changed before PAVE has a sign-in (D-270) |
-| Which guide version the sandbox follows | 2.0.1 for CRD and DTR, on the operator's word; PAS 2.2.1 for Submit, at the operator's request | `dtrCoverageExtension`, and `wrapInParameter` on a next-question request |
+| Which guide version the sandbox follows | 2.0.1 for CRD, DTR and PAS, on the operator's word (for PAS said again on 2026-11-22); never observed | `dtrCoverageExtension`, `wrapInParameter` on a next-question request, and the environment's "PAS guide" (2.0.1 or 2.2.1) |
 | How Onyx signals an unknown member or provider, inactive coverage and the delegated vendor (D-033) | A rule in the client layer, stated in each mock scenario | `client/crd/OnyxCrdConventions.java`, `client/pas/OnyxPasConventions.java`, `client/dtr/OnyxDtrConventions.java` |
 | Values only the payer's or provider's set-up knows (D-141) | Nothing: the request goes without them and names each | [Variables](#variables), or Values in Configuration |
 | The shape of a notification from Onyx | Both published forms are read | Check the first real one |
@@ -1189,6 +1205,9 @@ open item, the worst first, with the entry that gives the reason.
   from the case come in release 2).
 - **PAS**: no claim update and no `$submit-attachment`; `x12-275` sends no 275 transaction; a
   resubmission reuses the claim id.
+- **Two PAS 2.0.1 value sets were not settled**: whether the X12 role code SJ PAVE sends for a
+  servicing provider, and the X12 unit codes of an item's quantity, are in the X12 value sets PAS
+  2.0.1 binds was not settled, because those value sets were not at hand. Both are sent when given.
 - **The receiver** has never been called by a real payer, does not check its caller and keeps at
   most 200 notifications, in memory.
 - **Conformance** is checked against hand-written rules of the guides' versions, not against
@@ -1235,16 +1254,27 @@ corrections on the running tool (`correct-workbench.json`, `correct-server.json`
 `correct-config-audit.json`), among them a folder named like a file now told it is a folder, the
 environment's whole name at 1024 pixels, and a refused environment save that names each field in
 its panel and keeps that panel in view; what it left on purpose is said below. The Eclipse compiler STS 5.4.0 brings, run by the
-integrator over every source set of `22478b8`, found 0 errors. The recheck of the final build had
-reported, when this was written, on three things. On the guardrail: on `22478b8` a sandbox that
-shared its token url with a production copy saved, made active and removed again stayed not signed
-in, and the refusal ended with the note and the way out quoted in
-[A production address remembered by mistake](#a-production-address-remembered-by-mistake). On the
-README as it stood at `22478b8`, before this README was committed: it had no This release section.
-On the Workbench's screens and words on mock and live: what it looked at again was as corrected,
-except two minor faults said in [This release](#this-release) (In force now saying "No environment
-is active." in every row, a regression; a word broken in two at 1024 pixels). What stays open on
-purpose is in [This release](#this-release) and [Limitations](#limitations).
+integrator over every source set of `22478b8`, found 0 errors. Agents that wrote no correction then
+rechecked the final build, `22478b8`: the guardrail and every feature, the Workbench on mock, the
+look and words, and configuration on live against the strict stand-in. They saw every earlier
+finding of their areas closed or made as decided (on the guardrail: a sandbox that shared its token
+url with a production copy saved, made active and removed again stayed not signed in, and the
+refusal ended with the note and the way out quoted in
+[A production address remembered by mistake](#a-production-address-remembered-by-mistake)), and
+found four faults: on mock with no environment active, In force now said "No environment is
+active." 14 times, a regression; a form refused for a missing member ID did not name Member ID by
+its label; a table cell broke a word in its middle at 1024 pixels; and the README as it stood at
+`22478b8` had no This release section (this README has one). The integrator's whole build of
+`22478b8` failed in one test, whose expectation the second round had not brought up to its own
+change (3,561 tests, 1 failure). A third, short round corrected all of it: In force now says it
+once, the panel names Member ID, table cells wrap at spaces and hyphens only, and the test expects
+what the page shows. Each corrector saw its correction on the running tool; no agent that wrote no
+correction has looked at them again. Last, Submit was brought back to Da Vinci PAS 2.0.1
+([Submit](#submit)): its corrector compared the mock preview with that of the build before the
+rebuild, walked the Workbench to step 3 on mock, and ran Submit and the inquiry live against the
+strict stand-in under both guides. No second agent rechecked that change, and nothing was sent to
+the vendor's service. What stays open on purpose is in [This release](#this-release) and
+[Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
 ## What this README was checked against
@@ -1263,8 +1293,14 @@ searched again in `src/main` at that head; those parts were not walked again in 
 what they say was seen is what the rechecks name. In the final touch, the sentences quoted in the
 parts that changed (the token url refusal and its no-longer-stored note) were searched in
 `src/main` at `22478b8`; those parts were not walked in a browser, and what they say was seen is
-what the correctors' reports and the recheck of the final build name. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
+what the correctors' reports and the recheck of the final build name. In the pass for the code
+handed over, the sentences quoted in the parts that changed (This release, Setting up a service,
+Variables, Submit, Limitations, How release 1 was checked) were searched in `src/main` at
+`6e1bff3`; those parts were not walked in a browser, and what they say was seen is what the
+correctors' reports name. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
 README; the lines step 4 shows are those `run.sh` prints at that head.
 Whole builds: the candidate `7fc32c8`, 3,519 tests, 0 failures, 0 errors, 2 skipped; `19ddf8e`,
-after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped. The release
-handed over, `22478b8`, was built whole twice and once from a fresh clone: TO-FILL-COUNTS.
+after the first round of corrections, 3,551 tests, 0 failures, 0 errors, 2 skipped; `22478b8`,
+after the second round, 3,561 tests, 1 failure; `f0dace9`, after the third round, 3,563 tests, 0
+failures, 0 errors, 2 skipped. The code handed over, `6e1bff3`, was built whole twice and once from
+a fresh clone: TO-FILL-COUNTS.

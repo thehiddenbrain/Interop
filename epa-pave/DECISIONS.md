@@ -47,7 +47,7 @@ entry.
 | D-282 | A second round of changes to the old screens was built and closed, then replaced by the rebuild before it was handed over | Its server changes stay: a call that could not sign in is recorded as `NOT_SIGNED_IN`, replays can be left out of the run list, and more |
 | D-283 | A member's name typed into the case id of a suite row reached the ledger, found by the close of the second round | **A gap in a hard rule, older than the round**, now refused in the run and the preview; whether a real suite ever did so is not known |
 | D-284 | The other faults older than the round that its close found | A suite expectation refused as a name, a PAS run that named another run than the screen said, a mock subscription pointing to a property; each corrected with a test |
-| D-285 | How the rebuild was planned and built: two releases at fixed hours (15:00 and 22:00 UTC on 2026-11-22), nine builders, a queue and a merger | Every live check used a stand-in on a loopback port, never the vendor's service; nothing ran on Windows; no person has used the new screens. What release 1 holds and what waits for release 2 is first in `PROGRESS.md` |
+| D-285 | How the rebuild was planned and built: two releases at fixed hours (planned for 15:00 and 22:00 UTC on 2026-11-22; release 1 was handed over at 16:00, D-300), nine builders, a queue and a merger | Every live check used a stand-in on a loopback port, never the vendor's service; nothing ran on Windows; no person has used the new screens. What release 1 holds and what waits for release 2 is first in `PROGRESS.md` |
 | D-286 | The Workbench: one top bar, three tabs, a case column and four steps carried from one to the next | All of it is in release 1. Seen on mock to "The prior authorization is approved." and live against the strict stand-in, on the jars the checks used; the Submit step as merged last (H2) by its builder only. A reload starts a new case: keeping it is release 2 |
 | D-287 | A result is chips, one headline, a few facts and closed folds, with one way on | The word gates held at 1440 and 1024. A failure drawn as two boxes was corrected and seen as one card on `e5d0972`; a CDS service's own reason for a 400 on live is shown in that card since the second round (D-299) |
 | D-288 | Short words and tones, served once by `GET /api/vocabulary` | Every outcome of every protocol has a short label of its own |
@@ -55,13 +55,14 @@ entry.
 | D-290 | Sign-in belongs to the environment; a pasted token for the session; one retry after a refused token | **A hole the rebuild opened**: a token url could be a production write address and receive the client secret. Found by the checks before any hand-over; decided I-28. Since a production environment saved by mistake and removed again keeps its addresses remembered, a sandbox on the same host cannot sign in until they are forgotten by hand (features-8; release 2 brings the button) |
 | D-291 | Requests take the shapes the vendor's sandbox accepted; draftOrders type is a setting of the environment | Accepted by the strict stand-in that refuses what the sandbox refused; never seen against the vendor's service |
 | D-292 | Member ID rules: packed, spaced and split, per environment | The ledger keeps the packed form, so one member stays one key |
-| D-293 | Submit follows Da Vinci PAS 2.2.1, with files as attachments | The operator's answer. Nothing blocks sending: an incomplete request is a negative test. The finding of what a request left out names PAS 2.2.1 since `44f09fe` (integrator-1) |
+| D-293 | Submit follows Da Vinci PAS 2.2.1, with files as attachments | The operator's answer. Nothing blocks sending: an incomplete request is a negative test. The finding of what a request left out names PAS 2.2.1 since `44f09fe` (integrator-1). **Later (D-300): Submit follows 2.0.1 unless the environment chooses 2.2.1** |
 | D-294 | Saved lists of test members and providers | Member data kept on purpose, on the operator's leave, within the bounds of D-298 |
 | D-295 | Uploads, the classes on disk, the build stamp and the run scripts | The likeliest cause of the operator's failed uploads now has its line and its action. Seen in the real STS 5.4.0 and under Wine, not on Windows |
 | D-296 | Audit: the runs, one run and replay | Journeys, Suites and a run's request and answer from the trail are release 2 |
 | D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile |
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
-| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test, six of which the recheck of the final build saw closed on `22478b8`; what the rechecks left was corrected in a second round, except what `PROGRESS.md` lists as open (features-8 among them, I-28a being withdrawn); each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
+| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors and seen again on `19ddf8e` or, for the screens, on `e5d0972`, apart from nine corrected with a test, six of which the recheck of the final build saw closed on `22478b8`; what the rechecks left was corrected in a second round, except what `PROGRESS.md` lists as open (features-8 among them, I-28a being withdrawn); each left open is an open line of `PROGRESS.md`. The recheck of the final build found four more, corrected in a third round (D-300). Nothing was checked on Windows itself or against the vendor's service |
+| D-300 | Submit is back on Da Vinci PAS 2.0.1: the guide is the environment's request shape "PAS guide", 2.0.1 unless it chooses 2.2.1; the third round of corrections; the code handed over is `6e1bff3`, at 16:00 UTC | The operator said twice that the payer uses 2.0.1; the integrator should have put that against their answer naming 2.2.1 and did not. **No second agent rechecked the change or the third round**, and nothing was sent to the vendor's service. Two X12 value sets of PAS 2.0.1 were not settled |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -939,6 +940,8 @@ to D-142 and what each protocol now does is D-155 to D-166.)
 the operator's statement, not an observation of the sandbox: D-269.)
 Later: D-293. Since the rebuild, on the operator's answer, Submit and the inquiry follow Da Vinci PAS
 2.2.1; CRD and DTR stay at 2.0.1, and the readers of PAS answers were written from 2.0.1.
+Later: D-300. Submit and the inquiry follow PAS 2.0.1 again unless the environment's "PAS guide"
+chooses 2.2.1.
 
 **D-137. The build prompt's CRD tables and CRD 2.0.1 disagree, and 2.0.1 decides.**
 The build prompt names "Da Vinci CRD v2.2.1" in three places and gives the value sets of the
@@ -1753,6 +1756,8 @@ From PAS-02 to PAS-08, PAS-11, PAS-12, PAS-15, DTR-06, and the verification.
 Later: D-293. The PAS bundle follows Da Vinci PAS 2.2.1 since the rebuild (E2): the elements 2.2.1
 requires that nobody supplied are named in the notes, and the request type, service type and
 certification type come from the Service card first.
+Later: D-300. The bundle follows PAS 2.0.1 again unless the environment chooses 2.2.1; under 2.0.1
+what is counted as left out is what this entry lists, and the Service card fields are sent when given.
 
 **D-159. PAS: how a decision is read.**
 From PAS-01, PAS-09, PAS-10, PAS-13, PAS-14, NOT-01, NOT-02, MOCK-01 to MOCK-03, and the verification.
@@ -7108,6 +7113,8 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   the real STS 5.4.0 under a virtual display imported the tree of `1a14611`, started it from the Boot
   Dashboard, took a Team > Pull to the tree of `9dbf61a` under the running tool and restarted it. No
   person has used the new screens.
+Later: D-300. Release 1 was handed over at 16:00 UTC, not 15:00, with Submit on PAS 2.0.1 unless the
+environment chooses 2.2.1; release 2's hour is unchanged.
 
 **D-286. The frame and the four-step journey of the Workbench.**
 - **What a tester met before.** Five tabs (CRD, DTR, PAS, History, Config), each a long form beside a
@@ -7312,7 +7319,7 @@ at once; and the Configuration pages.**
   Addresses after an answer that points at the address (I-32, live-config-4); a refused upload or import is
   one plain line (AU-5). Seen on `e5d0972`: the options "As PAVE was started" and "Choose a kind" (I-15),
   and In force now saying "No environment is active." once (look-19); the recheck of the final build found
-  it regressed on `22478b8`, the sentence 14 times on mock (open, D-299). The readiness sentence for an
+  it regressed on `22478b8`, the sentence 14 times on mock; corrected in the third round (D-300). The readiness sentence for an
   operation with no address, "No address for <the operation's short words>. Type one under Addresses of the
   environment in Configuration.", is in the code at `19ddf8e` with `ReadinessWordsTest` and was seen on a
   running jar of `22478b8` by the recheck of the final build (look-14). Left for time by the
@@ -7531,6 +7538,9 @@ attachments.**
   live-content-4); an answer on Submit that asks for more documents offers no "Continue to Submit" (seen on
   `e5d0972`), and its headline "Add the documents asked for and send again." is in the code at `19ddf8e`
   with `PasVerdictsTest` (I-17).
+Later: D-300. On the operator's word, given again, Submit and the inquiry follow PAS 2.0.1 unless the
+environment's "PAS guide" chooses 2.2.1; everything this entry describes stays for that choice, and the
+finding's title names the guide in force.
 
 **D-294. Saved lists of test members and providers.**
 - **What a tester met before.** Every member and provider typed again for every case; "no member data
@@ -7839,35 +7849,31 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
   seen on a jar: its corrector checked it with the Eclipse batch compiler, and so did the integrator's
   check over every source set of `22478b8`.
   The narrowing of the token url rule (I-28a) was not made and was withdrawn. The three branches were
-  merged at 13:23 UTC into `22478b8`, the commit whose code is handed over; these records were committed
-  after it. Of the recheck of the final build (round k3 of `findings.jsonl`), when this was written, the features
-  area (`rebuild/r1/recheck3/features/`), the Workbench-and-look area (`rebuild/r1/recheck3/critic/`) and
-  the Workbench-on-mock area (`rebuild/r1/recheck3/wb-mock/`) had reported. On `22478b8` they saw closed: features-8 as decided (a sandbox after its production copy was
+  merged at 13:23 UTC into `22478b8`. The recheck of the final build (round k3 of `findings.jsonl`), by
+  agents that wrote no correction, covered four areas on `22478b8`: the features and the guardrail
+  (`cont57`), the Workbench and the look (`cont56`), the Workbench on mock (`cont56`), and live
+  configuration against the strict stand-in (`cont57`). They saw closed: features-8 as decided (a sandbox after its production copy was
   removed is still not signed in, and the refusal ends with the note that the production environment is
   no longer stored and the way out by hand); the tables of "Response detail" inside the fold at 1440 and
   1024 (critic-2, look-2); the readiness words (critic-3, look-14); the sample code E0470 (critic-4, wb-mock-9); the end
   of a flow (critic-9); the Status step's headline (wbm3-1); one filled button on each step (wb-mock-4,
   wbm3-4); the line on what to change after a service's refusal on live (look-3); the muted
   question that waits on another answer and takes typing (look-9, wbm3-9); one Complete button, one "Why" fold and the headline
-  naming the question (look-10); a refusal cleared by "Start a new case" (critic-k1-1); and the native
-  date inputs as decided (look-12). They found four open: on mock, Configuration > Advanced > In force now
-  says "No environment is active." 14 times (look-19, regressed, major); at 1024 the Element column of the
-  "Response detail" table breaks "questionnaire" mid-word (critic-k3-1, new, minor); the README at
-  `22478b8` has no "This release" section (features-9, minor); a run refused for a missing member ID names
-  that field in the panel without its label (wb-mock-10, minor). The live configuration area had not reported when this was written; the other items of the second round had
-  not been seen again by an agent that wrote no correction. The integrator builds
-  `22478b8` whole twice and once from a fresh clone: TO-FILL-COUNTS.
+  naming the question (look-10); a refusal cleared by "Start a new case" (critic-k1-1); the environment's
+  name at 1024 and a refused environment save naming its field (live-config-7, live-config-8); and the native
+  date inputs as decided (look-12). They found four: on mock, Configuration > Advanced > In force now
+  said "No environment is active." 14 times (look-19, regressed, major); at 1024 the Element column of the
+  "Response detail" table broke "questionnaire" mid-word (critic-k3-1, new, minor); the README at
+  `22478b8` had no "This release" section (features-9, minor); a run refused for a missing member ID named
+  that field in the panel without its label (wb-mock-10, minor). The other items of the second round were
+  not seen again by an agent that wrote no correction. The integrator's whole build of `22478b8` gave
+  3,561 tests, 1 failure. All of it was corrected in a third round (D-300).
 - **Left open, each an open line of `PROGRESS.md` with what a tester does.** An environment saved as prod by
   mistake on the same host as a working sandbox, and then removed, stops that sandbox from signing in,
   reads included, until its remembered addresses are forgotten (features-8, I-28 as built); the refusal
   says the production environment is no longer stored and gives the way out by hand, and release 2 brings
-  the "Forget this production address" button. On mock, Configuration > Advanced > In force now says "No
-  environment is active." 14 times, in Ready to send? and in every operation row (look-19, regressed on
-  `22478b8`, major): read it once and ignore the repeats. At 1024 the Element column of the "Response detail"
-  table breaks "questionnaire" mid-word as "questionnair / e" (critic-k3-1, minor): read the two lines as
-  one word. The README at `22478b8` has no "This release" section and no line on the slip above
-  (features-9, minor); the README committed after `22478b8` on the branch `release1-readme` has both. On step 1 of the Workbench, a run refused for a missing member ID lists "Enter a member ID." in the
-  panel without its label (wb-mock-10, minor): the field is Member ID in the case column.
+  the "Forget this production address" button. Found by the recheck of the final build and corrected
+  in the third round (D-300): look-19, critic-k3-1, features-9 and wb-mock-10.
   Dates show in the browser's
   own form beside ISO dates elsewhere; the value sent is the ISO date (look-12, no change in release 1).
   With `-Dpave.classes.load-at-start=false` the advice after a rebuild under a running PAVE misses two ways
@@ -7901,3 +7907,90 @@ after the first recheck I-28a, I-36 and the notes on look-12 and STS-3; I-28a wa
 - **What is not known.** Anything on Windows itself, on the operator's workstation or against the
   vendor's service.
 
+
+**D-300. Submit is back on Da Vinci PAS 2.0.1, the guide a request shape of the environment; the third
+round of corrections; the code handed over.**
+- **What happened.** In an earlier session the operator had said that the vendor's sandbox follows 2.0.1
+  (D-269). Asked during the rebuild which version the new Submit should follow, they chose the answer
+  that named 2.2.1 and their own tool (D-281); decision O1 took it, and slices E1 to E3 built Submit and
+  the inquiry to 2.2.1 (D-293). On 2026-11-22 at about 13:40 UTC, before any hand-over, they said again
+  that the payer uses 2.0.1. The two statements conflict, and the integrator should have put that
+  conflict in front of the operator when the answer naming 2.2.1 came; it did not. That was the
+  integrator's fault.
+- **Decided** (by the integrator at 13:45 UTC, operator-1). The guide Submit and the inquiry follow is a
+  request shape of the environment, "PAS guide", with the options 2.0.1 and 2.2.1. Its default, and what
+  mock and every environment that states nothing get, is 2.0.1. 2.2.1 stays as a choice, with everything
+  E1 to E3 built and their tests. CRD, DTR and the reading of PAS answers were on 2.0.1 throughout and
+  are not changed. The operator chose one hand-over at 16:00 UTC with this in it over a hand-over at
+  15:00 UTC without it; release 2's hour, 22:00 UTC, is unchanged.
+- **Why.** What the operator says the payer runs, said twice, outweighs an answer to a question that
+  named their own tool: a payer on 2.0.1 may refuse what only 2.2.1 defines. Keeping 2.2.1 as a choice
+  keeps that work for a service that asks for it, in the place where the other differences between
+  services already live.
+- **What changed under 2.0.1** (`94069f6` and `5c47893` on the branch `release1-pas`, merged into the
+  release branch as `6e1bff3`). The request, what counts as left out and "To complete before sending"
+  are held against the PAS 2.0.1 profiles, as the build before the rebuild did. Counted as left out when
+  nobody supplied them: the insurer, the beneficiary's name, gender and identifier system, the coverage
+  status, the payor, item.category, the practitioner's identifier and family name, an item on the
+  inquiry, a document's type and category (US Core 3.1.1, which 2.0.1 builds on), and a code with no
+  system. What 2.0.1 marks must-support only (the request type, the certification type, the place of
+  service, the level of service, the subscriber, the claim identifier's system) gets a note when it is
+  missing, never a count. Every Service card field is sent when given. The PAS report type is not sent,
+  with a note that PAS 2.0.1 has no place for it (2.0.1 has no documentInformation). An attachment by url
+  is allowed, with a note. Each element was decided from the PAS 2.0.1 guide source, and the corrector's
+  report names the file that shows each (`Claim.fsh`, `Claim-update.fsh`, `Coverage.fsh`,
+  `Identifier.fsh`, `Practitioner.fsh`, `Terminology.fsh`). Every Submit and inquiry carries one note that
+  names the guide in force and where it is set, and every other note and the finding's title name the
+  guide ("The request left out <n> elements PAS 2.0.1 requires"). `GET /api/pas/options` names the guide
+  of the active environment ("Da Vinci PAS 2.0.1", or "Da Vinci PAS 2.2.1" when it chose that). The
+  environment form shows "PAS guide" under Request shapes with the hint "Submit follows Da Vinci PAS 2.0.1
+  unless the service asks for 2.2.1.". The Configuration hints of `payerName`, `payerIdentifier` and
+  `pasReportType` no longer speak of 2.2.1 alone.
+- **What changed under 2.2.1.** Nothing in what is sent or checked: it is D-293. The tests written for it
+  now choose it (`Pas221SubmitTest`, `PasRequestBuilderTest`, `PasAttachmentFilesTest`, `PasServiceTest`,
+  `PasControllerTest`).
+- **What holds it.** `Pas201SubmitTest` (6 tests, each expectation cited to a 2.0.1 source file, fixture
+  `pas/submit-201.json`): the default, a bare submission's left-out list and count as the build before the
+  rebuild gave them, each card field sent, the report type not sent with its note, the url attachment, the
+  inquiry under both guides, the profile url. `PasServiceTest`'s new case
+  `anEnvironmentThatStatesNoGuideIsHeldAgainst201AndOneThatChose221Against221`. `PasOptionsControllerTest`
+  (the default label, and 2.2.1 when the environment chose it). `EnvironmentSettingsTest` (the PAS guide
+  stored and read back, and its entry in the view). The first run of the older tests after the change
+  failed in 21 places, each a 2.2.1 test meeting the 2.0.1 default; the new tests were not run on their
+  own against the code before the change.
+- **What was seen, and where.** By the corrector, on its own build of `5c47893`. On mock, the preview of
+  the reproduction body named PAS 2.0.1 and never 2.2.1, listed Insurer and Service type to complete, and
+  left out the same eight elements the jar of `79a7c25`, the build before the rebuild, gives for that body
+  (the two bodies differ in two timestamps, now whole seconds UTC). On mock, the Workbench with
+  P32H-DTR-PREPOP to step 3 at 1440 and 1024 read "To complete before sending (2)" with Insurer and
+  Service type. Live against the strict stand-in, with an environment that states no guide, Submit was
+  answered "The prior authorization is approved." with the finding that the request left out 3 elements
+  PAS 2.0.1 requires, and the inquiry was approved. With PAS guide set to 2.2.1 in the form and saved,
+  `GET /api/pas/options` named 2.2.1, Submit was approved with 6 elements left out that PAS 2.2.1 requires,
+  and the inquiry's notes named 2.2.1.
+- **Limits.** No independent recheck by a second agent was run on this change: the operator asked for
+  spending to stop. The integrator compared the request with that of the earlier 2.0.1 build and runs
+  the whole builds (below). Nothing was sent to the vendor's service. The materials did not settle
+  whether the X12 role code SJ sent for a servicing provider is in the X12 value set PAS 2.0.1 binds to
+  `careTeam.role`, or whether the X12 unit codes of an item's quantity are in the value set it binds:
+  those value sets were not at hand. Both are sent when given; each is an open line of `PROGRESS.md`.
+- **The third round of corrections.** After the recheck of the final build (D-299), three short
+  corrections, each with a test seen to fail without it where the reports say so: In force now says "No
+  environment is active." once, in Ready to send? with its link, on mock and on live (look-19, `011ead9`,
+  `ConfigPagesFrontendTest.withNoEnvironmentActiveInForceNowSaysSoOnceOnMockAndOnLive`, which failed
+  without it); a refused form names Member ID by its label in the panel, and the requesting provider's
+  NPI by its own (wb-mock-10, `ab65809`, `WorkbenchRecheckFrontendTest.aRefusedMemberIdOrNpiIsNamedByItsLabel`,
+  which failed without it); a cell of a response table wraps at spaces and hyphens only (critic-k3-1,
+  `ab65809`, `WorkbenchRecheckFrontendTest.aResponseTableWrapsItsCellsInsideTheFold`, which failed without
+  it). `ListsFrontendTest`, which failed in the integrator's whole build of `22478b8` because the second
+  round had not brought its expectation up to its own change (I-3), expects the refused date of birth
+  twice, at the field and in the panel (`e783589`). features-9 is answered by the README committed after
+  `22478b8`. Each correction was seen by its corrector on the running tool at 1440 and 1024 (In force now
+  on mock and on live with no environment active), and by no independent recheck. Left by the table
+  correction: at 1024 the table of SMART links is wider than the fold and scrolls by about 96 px in its own
+  frame, because a long url in it has no place to break; the page does not scroll sideways. Merged into
+  `f0dace9`, whose whole build gave 3,563 tests, 0 failures, 0 errors, 2 skipped
+  (`rebuild/r1/close3/build-f0dace9.log`).
+- **The code handed over** is `6e1bff3` of the release branch (`22478b8`, the third round, and Submit back
+  on PAS 2.0.1), at 16:00 UTC on 2026-11-22; these records were committed after it. The integrator's two
+  whole builds of `6e1bff3` and its build from a fresh clone gave TO-FILL-COUNTS.
