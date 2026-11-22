@@ -190,15 +190,15 @@ public final class SubscriptionVerdicts {
                     "The subscription exists. A notification about a request arrives only after a request is submitted.", carry);
             // After a read, a list, an update and a delete there is nothing to do. None of them is the end of
             // a case's journey, which is what FLOW_ENDS says, so none of them says that.
-            case READ, LISTED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing follows from a read. Record this result.",
+            case READ, LISTED -> new NextStepView(NextAction.NOTHING_FURTHER, "Nothing follows from a read: nothing further to send.",
                     "The call read what the service holds and changed nothing.", carry);
             // An update that names no receiver is the same case on mock: a setting would change nothing there.
             case UPDATED -> Texts.present(callbackProblem) && exchange != null && Texts.present(exchange.scenarioId())
                     ? toTheSample("update", carry)
                     : Texts.present(callbackProblem) ? noReceiver("updated", callbackProblem, ownBody, carry)
-                    : new NextStepView(NextAction.NOTHING_FURTHER, "The update is done. Record this result.",
+                    : new NextStepView(NextAction.NOTHING_FURTHER, "The update is done: nothing further to send.",
                     "The service accepted the new state of the subscription.", carry);
-            case DELETED -> new NextStepView(NextAction.NOTHING_FURTHER, "The subscription is gone. Record this result.",
+            case DELETED -> new NextStepView(NextAction.NOTHING_FURTHER, "The subscription is gone: nothing further to send.",
                     "The service accepted the delete, so there is nothing further to do with this subscription.", carry);
             case NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the subscription id. The list shows the ids the service knows.",
                     "The service does not know the id that was asked for. The environment answered normally.", carry);
@@ -285,11 +285,11 @@ public final class SubscriptionVerdicts {
     private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry) {
         int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 401 || status == 403) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials in Configuration > Environments > Sign-in.",
                     RunSupport.credentialsReason(status, exchange), carry);
         }
         if (status == 404) {
-            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the subscription url on the Config tab.",
+            return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the subscription url in Configuration > Environments > Addresses.",
                     "The service answered HTTP 404 and did not say that the subscription is unknown, so the address is the likely cause.",
                     carry);
         }

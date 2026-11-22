@@ -50,7 +50,9 @@ public final class Secrets {
      */
     private static final Set<String> DESCRIPTOR_WORDS = Set.of("url", "uri", "endpoint", "host", "path", "id", "type",
             "name", "scope", "scopes", "ttl", "expiry", "enabled", "prefix", "algorithm", "alg", "method", "mode",
-            "grant", "realm", "audience", "issuer", "format");
+            "grant", "realm", "audience", "issuer", "format",
+            // Words that name a place: authBase or authServer holds a url, and masking it masked every answer that repeated it (I-35).
+            "base", "server", "domain", "address", "origin", "hostname", "port");
 
     /** A mask as {@link #mask} writes it, with the name it stands for. */
     private static final Pattern MASK = Pattern.compile("\\[secret ([^\\[\\]]+)]");

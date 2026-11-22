@@ -566,9 +566,9 @@ class ConfigStoreTest {
                 .hasMessageStartingWith("This file is not complete");
         assertThatThrownBy(() -> fixture.collection(PostmanFiles.V1_COLLECTION)).isInstanceOf(BadInputException.class);
         assertThatThrownBy(() -> fixture.collection(PostmanFiles.SANDBOX_ENVIRONMENT)).isInstanceOf(BadInputException.class)
-                .hasMessage("This file is a Postman environment, not a collection.");
+                .hasMessage("This file is a Postman environment export, not a collection.");
         assertThatThrownBy(() -> fixture.environment(PostmanFiles.VENDOR_COLLECTION, EnvironmentKind.SANDBOX)).isInstanceOf(BadInputException.class)
-                .hasMessage("This file is a Postman collection, not an environment.");
+                .hasMessage("This file is a Postman collection, not an environment export.");
         assertThatThrownBy(() -> fixture.store.uploadEnvironment("empty.json", new byte[0], EnvironmentKind.SANDBOX, false))
                 .isInstanceOf(BadInputException.class).hasMessage("The uploaded file is empty.");
 

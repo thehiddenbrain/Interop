@@ -143,8 +143,8 @@ class ConfigControllerTest {
         mvc.perform(multipart("/api/config/environments").file(file(PostmanFiles.VENDOR_COLLECTION)).param("kind", "sandbox"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.kind").value("VALIDATION"))
-                .andExpect(jsonPath("$.title").value("This file is a Postman collection, not an environment."))
-                .andExpect(jsonPath("$.action", startsWith("Upload it under Collections.")));
+                .andExpect(jsonPath("$.title").value("This file is a Postman collection, not an environment export."))
+                .andExpect(jsonPath("$.action", startsWith("Choose it as the Collection export")));
         mvc.perform(multipart("/api/config/environments").file(file("page.html", "<html>placeholder-secret-in-a-page</html>")).param("kind", "uat"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title", startsWith("This file is not a Postman environment export: it is not valid JSON")));
@@ -330,8 +330,8 @@ class ConfigControllerTest {
         mvc.perform(multipart("/api/config/collections").file(file(PostmanFiles.TRUNCATED_COLLECTION))).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title", startsWith("This file is not complete")));
         mvc.perform(multipart("/api/config/collections").file(file(PostmanFiles.SANDBOX_ENVIRONMENT))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("This file is a Postman environment, not a collection."))
-                .andExpect(jsonPath("$.action", startsWith("Upload it under Environments.")));
+                .andExpect(jsonPath("$.title").value("This file is a Postman environment export, not a collection."))
+                .andExpect(jsonPath("$.action", startsWith("Choose it as the Environment export")));
         mvc.perform(multipart("/api/config/collections")).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("file"));
         // Posted as something other than an upload.

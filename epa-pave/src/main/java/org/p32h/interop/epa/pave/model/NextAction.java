@@ -4,20 +4,20 @@ package org.p32h.interop.epa.pave.model;
  * What the tester should do after a run. Each value is something the screen can offer as a step.
  *
  * <p>Each value carries its instruction in plain words. It is the one wording of the code: the chain
- * view, the suite rows and the vocabulary the scenarios endpoints serve to the History tab all read
+ * view, the suite rows and the vocabulary the scenarios endpoints serve to Audit all read
  * it from here, so no screen keeps a copy that can say something else.
  */
 public enum NextAction {
     /** Answer the payer's questionnaire. */
     START_DTR("Answer the payer's questionnaire (DTR).", "Continue to the questionnaire"),
     /**
-     * Answer the next adaptive question. The label is the name of the DTR tab's button that does
+     * Answer the next adaptive question. The label is the name of the Workbench's button that does
      * it, so the next step and the screen give the action one name.
      */
     ANSWER_NEXT_QUESTION("Send answers and get the next question", "Send answers and get the next question"),
-    /** Answer the questionnaire that was loaded and complete the response, named as the DTR tab's button is. */
+    /** Answer the questionnaire that was loaded and complete the response, named as the Workbench's button is. */
     SUBMIT_RESPONSE("Complete the response", "Complete the response"),
-    /** Submit the prior authorization request, named as the PAS tab's button that sends it is. */
+    /** Submit the prior authorization request, named as the Workbench's button that sends it is. */
     START_PAS("Send PAS request", "Continue to Submit"),
     /**
      * On mock, after a subscription a scenario answered: no service holds it and none calls back, so
@@ -25,7 +25,7 @@ public enum NextAction {
      * and the button the new screens give it. It follows no request, so no journey step precedes it.
      */
     DELIVER_SAMPLE_NOTIFICATION("In the Status step, Deliver a sample for this submission.", "Deliver a sample"),
-    /** Ask for the status of a pended authorization, named as the PAS tab's button that sends the inquiry is. */
+    /** Ask for the status of a pended authorization, named as the Workbench's button that sends the inquiry is. */
     CHECK_STATUS("Send inquiry", "Send inquiry"),
     /** The journey is complete at this step. That is itself a finding worth recording. */
     FLOW_ENDS("Nothing more to do. The journey is complete at this step."),

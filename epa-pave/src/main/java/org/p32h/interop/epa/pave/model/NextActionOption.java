@@ -8,7 +8,7 @@ import java.util.List;
  * One next action as the browser needs it: the code a ledger line stores and its words.
  *
  * <p>The words are {@link NextAction#label()}, the same the chain view and the suite rows use, so
- * the History tab can say what a run's next step was without keeping a copy of its own.
+ * Audit can say what a run's next step was without keeping a copy of its own.
  *
  * @param button the name of the button that does the action, or null, and then left off the wire,
  *               when no button does it

@@ -152,6 +152,29 @@ class EnableWhenEvaluatorTest {
                 .state("item[1]").enabled()).isEqualTo(ItemEnabled.ENABLED);
     }
 
+    // ---- the words under a question ----
+
+    @Test
+    void oneConditionIsSaidByTheQuestionItReadsAndTheAnswerThatAsksTheItem() {
+        // Plan 3.2 step 2 (wbm3-9): plain words, from the questionnaire only, never from an answer the tester gave.
+        JsonNode yes = guarded(null, on("q1", "=", "\"answerBoolean\":true"));
+        assertThat(EnableWhenEvaluator.evaluate(yes, Map.of()).state("item[1]").reason())
+                .isEqualTo("Not asked until the answer to \"First\" is Yes.");
+        assertThat(EnableWhenEvaluator.evaluate(yes, answers("q1", "{\"valueBoolean\":true}")).state("item[1]").reason())
+                .isEqualTo("Asked because the answer to \"First\" is Yes.");
+        JsonNode coded = guarded(null, on("q1", "=", "\"answerCoding\":{\"code\":\"y\",\"display\":\"Family history\"}"));
+        assertThat(EnableWhenEvaluator.evaluate(coded, Map.of()).state("item[1]").reason())
+                .isEqualTo("Not asked until the answer to \"First\" is Family history.");
+        JsonNode count = guarded(null, on("q1", ">", "\"answerInteger\":2"));
+        assertThat(EnableWhenEvaluator.evaluate(count, answers("q1", "{\"valueInteger\":5}")).state("item[1]").reason())
+                .isEqualTo("Asked because the answer to \"First\" is more than 2.");
+        JsonNode exists = guarded(null, on("q1", "exists", "\"answerBoolean\":true"));
+        assertThat(EnableWhenEvaluator.evaluate(exists, Map.of()).state("item[1]").reason())
+                .isEqualTo("Not asked until \"First\" has an answer.");
+        // The answer the tester typed is never quoted.
+        assertThat(EnableWhenEvaluator.evaluate(count, answers("q1", "{\"valueInteger\":5}")).state("item[1]").reason()).doesNotContain("5");
+    }
+
     // ---- enableBehavior ----
 
     @Test
@@ -164,15 +187,15 @@ class EnableWhenEvaluatorTest {
         Form all = EnableWhenEvaluator.evaluate(guarded("all", first, second), onlyFirstHolds);
         assertThat(all.state("item[1]").conditions()).extracting(Condition::state).containsExactly(ConditionState.TRUE, ConditionState.FALSE);
         assertThat(all.state("item[1]").enabled()).isEqualTo(ItemEnabled.DISABLED);
-        assertThat(all.state("item[1]").reason()).isEqualTo("Disabled: at least one of its conditions does not hold.");
+        assertThat(all.state("item[1]").reason()).isEqualTo("Not asked until the answers above meet its conditions.");
         assertThat(EnableWhenEvaluator.evaluate(guarded("all", first, second), bothHold).state("item[1]").enabled()).isEqualTo(ItemEnabled.ENABLED);
 
         Form any = EnableWhenEvaluator.evaluate(guarded("any", first, second), onlyFirstHolds);
         assertThat(any.state("item[1]").enabled()).isEqualTo(ItemEnabled.ENABLED);
-        assertThat(any.state("item[1]").reason()).isEqualTo("Enabled: at least one of its conditions holds.");
+        assertThat(any.state("item[1]").reason()).isEqualTo("Asked because at least one condition on the answers above holds.");
         Form anyOfNone = EnableWhenEvaluator.evaluate(guarded("any", first, second), Map.of());
         assertThat(anyOfNone.state("item[1]").enabled()).isEqualTo(ItemEnabled.DISABLED);
-        assertThat(anyOfNone.state("item[1]").reason()).isEqualTo("Disabled: none of its conditions holds.");
+        assertThat(anyOfNone.state("item[1]").reason()).isEqualTo("Not asked until the answers above meet its conditions.");
     }
 
     @Test

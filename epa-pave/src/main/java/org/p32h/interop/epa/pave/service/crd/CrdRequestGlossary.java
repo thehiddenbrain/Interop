@@ -48,7 +48,7 @@ public final class CrdRequestGlossary implements Glossary {
             CrdRequestReader.CODE_ELEMENT, "fhirServer");
 
     static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. The button "
-            + "Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.";
+            + "Discover the CDS services this environment offers, in step 1 Coverage check of the Workbench, lists the keys the service names.";
 
     /** What this tool writes as the fullUrl of every bundle entry it sends (R-37). */
     static final String FULL_URL = "This tool writes a fullUrl on every entry: the FHIR server, the resource type and its id when the "
@@ -63,7 +63,7 @@ public final class CrdRequestGlossary implements Glossary {
     static final String PREFETCH_BUNDLE_TYPE = "This tool sends each prefetch Bundle as type collection.";
 
     static final String PREFETCH_SHAPES = "In CDS Hooks a prefetch entry is the answer to a FHIR read or search: a read gives the "
-            + "resource itself and a search gives a Bundle. The button Discover the CDS services this environment offers, on the CRD tab, "
+            + "resource itself and a search gives a Bundle. The button Discover the CDS services this environment offers, in step 1 Coverage check of the Workbench, "
             + "shows the query the service names for each key.";
 
     /** The hook request itself, by its path from the top of the document. */

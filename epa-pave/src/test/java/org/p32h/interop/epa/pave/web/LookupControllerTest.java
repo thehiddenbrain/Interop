@@ -178,7 +178,8 @@ class LookupControllerTest {
         assertThat(member.has("error")).isFalse();
         assertThat(member.has("member")).isFalse();
         assertThat(member.has("wire")).isFalse();
-        assertThat(member.at("/memberId/typed").asString()).isEqualTo("P32H-PA-REQ");
+        // Nothing was sent, so no form it was sent in is named.
+        assertThat(member.has("memberId")).isFalse();
 
         JsonNode provider = provider(mvc, "1234567893");
         assertThat(provider.get("status").asString()).isEqualTo("DISABLED");

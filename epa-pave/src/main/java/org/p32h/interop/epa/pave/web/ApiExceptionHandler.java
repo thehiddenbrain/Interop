@@ -107,17 +107,17 @@ public class ApiExceptionHandler {
         List<FieldError> fields = e.variables().stream()
                 .map(v -> new FieldError("variables." + v, e.reasons().containsKey(v)
                         ? "No value for " + written.apply(v) + ": " + e.reasons().get(v)
-                        : "No value for " + written.apply(v) + ". Type one here, or add it to the environment on the Config tab."))
+                        : "No value for " + written.apply(v) + ". Type one here, or add it under Values of the environment in Configuration."))
                 .toList();
         return respond(HttpStatus.UNPROCESSABLE_CONTENT, new ErrorView(ErrorKind.CONFIGURATION, title, anyPlaceholder
-                ? "Type a value for each marked variable, or define it in the active environment on the Config tab."
+                ? "Type a value for each marked variable, or add it under Values of the active environment in Configuration."
                 : "Give the identifier the url is waiting for, then send again.", null, fields, List.of(), null));
     }
 
     @ExceptionHandler(EndpointNotConfiguredException.class)
     public ResponseEntity<ErrorView> notConfigured(EndpointNotConfiguredException e) {
         return respond(HttpStatus.CONFLICT, ErrorView.of(ErrorKind.CONFIGURATION, e.getMessage() + " Nothing was sent.",
-                "Open the Config tab, upload a collection that contains this request, or set the fallback url in application.yml."));
+                "Upload a collection that contains this request in Configuration > Collections, or type its address under Addresses of the environment in Configuration."));
     }
 
     @ExceptionHandler(ConfigurationChangedException.class)
