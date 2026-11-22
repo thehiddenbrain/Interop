@@ -86,4 +86,23 @@ public sealed interface PreparedCall permits IssuedCall {
      * the secrets it carried. The values never leave the type that holds them.
      */
     SentSecrets heldSecrets();
+
+    /**
+     * How this call signs in, as the environment it was prepared under states it, with its values
+     * resolved against the same snapshot. Null when the environment states no method, and then
+     * {@code onyx.auth} applies as it always has.
+     */
+    default SignInSettings signIn() {
+        return null;
+    }
+
+    /**
+     * The connect and read timeouts in force for this call, never null and both values present,
+     * each with its source. This default is the onyx properties' own defaults; the gateway of this
+     * tool answers with the values application.yml gives for the operation (a lookup's own for a
+     * lookup) and, once an environment states its own, with those.
+     */
+    default Timeouts timeouts() {
+        return Timeouts.APPLICATION;
+    }
 }
