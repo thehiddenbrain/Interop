@@ -615,11 +615,11 @@ a:hover {
     color: var(--ink-soft);
 }
 
-/* The mock mark of a result: a hatched end and the word, so it reads without colour. */
+/* The mock mark of a result: yellow like the MOCK badge of the top bar (plan R-01), and the word
+   says it without the colour. */
 .chip--mock {
-    padding-left: 22px;
-    border: 1.5px solid var(--ink-strong);
-    background: var(--hatch) left / 14px 100% no-repeat, var(--surface);
+    border: 1px solid var(--mock-edge);
+    background: var(--mock-bg);
     color: var(--ink-strong);
     font-weight: 700;
 }
@@ -2014,6 +2014,17 @@ a:hover {
 
 /* ---------- narrow screens: a laptop in a meeting ---------- */
 
+/* The chooser says what it is by what it lists; below 1600 px its label is for a screen reader only. */
+@media (max-width: 1599px) {
+    .topbar__env label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+    }
+}
+
 @media (max-width: 1200px) {
     .topbar {
         gap: var(--s-4);
@@ -2022,14 +2033,6 @@ a:hover {
 
     .topbar__brand {
         font-size: 19px;
-    }
-
-    .topbar__env label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0 0 0 0);
     }
 
     .topbar__env .select {

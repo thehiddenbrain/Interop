@@ -50,6 +50,10 @@ public final class CrdRequestGlossary implements Glossary {
     static final String PREFETCH_KEYS = "A CDS service names the prefetch keys it asks for in its discovery response. The button "
             + "Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.";
 
+    /** What this tool writes as the fullUrl of every bundle entry it sends (R-37). */
+    static final String FULL_URL = "This tool writes a fullUrl on every entry: the FHIR server, the resource type and its id when the "
+            + "variable " + CaseResources.VAR_FHIR_SERVER + " has a value, else a urn:uuid.";
+
     static final String PREFETCH_SHAPES = "In CDS Hooks a prefetch entry is the answer to a FHIR read or search: a read gives the "
             + "resource itself and a search gives a Bundle. The button Discover the CDS services this environment offers, on the CRD tab, "
             + "shows the query the service names for each key.";
@@ -553,7 +557,10 @@ public final class CrdRequestGlossary implements Glossary {
             case "context.draftOrders.entry":
                 return onlyInTool || onlyInYours ? "This tool builds one ServiceRequest for each procedure code." : null;
             case "context.draftOrders.entry.fullUrl":
-                return onlyInYours ? "This tool does not write a fullUrl on the entries of its draft orders." : null;
+                return onlyInYours ? null : FULL_URL;
+            case "context.draftOrders.type":
+                return onlyInTool || onlyInYours ? "This tool sends draftOrders type unless the environment's setting draftOrders type, or "
+                        + "the order-sign sample of the collection the call came from, says Left out." : null;
             default:
                 break;
         }
