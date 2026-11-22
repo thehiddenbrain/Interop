@@ -2,6 +2,7 @@
   "id": "crd-07-member-not-found",
   "number": 7,
   "label": "Member not found",
+  "short": "member not found",
   "description": "The service does not recognise the member. This is a finding about the test data, not about the environment. CRD 2.0.1 has no code for this.",
   "sentinelMemberId": "P32H-NOMEM",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},

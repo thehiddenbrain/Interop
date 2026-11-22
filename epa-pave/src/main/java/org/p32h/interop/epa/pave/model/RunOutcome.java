@@ -8,23 +8,30 @@ package org.p32h.interop.epa.pave.model;
 public enum RunOutcome implements OutcomeCode {
 
     /** The production guardrail refused a write. Nothing was sent. */
-    BLOCKED("Blocked: nothing was sent", Tone.BLOCKED, false),
+    BLOCKED("Blocked", "Blocked: nothing was sent", Tone.BLOCKED, false),
     /**
      * Authentication is on and this tool obtained no access token, so nothing was sent. Neutral, not
      * the guardrail's purple: that frame keeps the one meaning the colour key gives it.
      */
-    NOT_SIGNED_IN("Not sent: this tool could not sign in", Tone.NEUTRAL, false),
+    NOT_SIGNED_IN("Not signed in", "Not sent: this tool could not sign in", Tone.NEUTRAL, false),
     /** The service was called and this tool then failed to read its answer. */
-    TOOL_ERROR("This tool failed after the call was made", Tone.FAULT, true);
+    TOOL_ERROR("Tool error", "This tool failed after the call was made", Tone.FAULT, true);
 
+    private final String shortLabel;
     private final String label;
     private final Tone tone;
     private final boolean fault;
 
-    RunOutcome(String label, Tone tone, boolean fault) {
+    RunOutcome(String shortLabel, String label, Tone tone, boolean fault) {
+        this.shortLabel = shortLabel;
         this.label = label;
         this.tone = tone;
         this.fault = fault;
+    }
+
+    @Override
+    public String shortLabel() {
+        return shortLabel;
     }
 
     @Override

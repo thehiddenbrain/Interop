@@ -2,6 +2,7 @@
   "id": "pas-08-attachment-accepted",
   "number": 8,
   "label": "Attachment accepted",
+  "short": "documents accepted",
   "description": "Answers as if the documentation the payer asked for had been accepted, whether or not the request carries any: the request is certified in total. PAS 2.0.1 fixes a documentation request's status to active, so acceptance shows as a later decision, not as a closed request. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-ATTACH-OK",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

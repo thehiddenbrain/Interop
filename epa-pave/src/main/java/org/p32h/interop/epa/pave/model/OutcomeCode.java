@@ -14,6 +14,13 @@ public interface OutcomeCode {
     /** The outcome in plain language, for the verdict strip and the history list. */
     String label();
 
+    /**
+     * The outcome in two or three words, at most 24 characters, for a chip, a step of the journey
+     * and a table cell, where the label does not fit. The label stays the one sentence a result
+     * gives; this is the same answer said shorter, so the two never disagree.
+     */
+    String shortLabel();
+
     Tone tone();
 
     /** True when no usable answer came back: a transport failure, an HTTP error or an unreadable body. */

@@ -2,6 +2,7 @@
   "id": "crd-12-server-error-500",
   "number": 12,
   "label": "Server error, HTTP 500",
+  "short": "server error, HTTP 500",
   "description": "The service fails while handling the request. This is a finding about the environment.",
   "sentinelMemberId": "P32H-ERR500",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
