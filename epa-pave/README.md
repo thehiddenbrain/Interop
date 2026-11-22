@@ -13,6 +13,15 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Tonight's head is release 2 with four additions made after it**, each with its decision: the switch
+between mock and live in the top bar (D-304); the sign-in read from the files, and a refused sign-in
+that says why (D-305); the saved lists filled from a collection, with a third list for procedure codes
+(D-306); and the form that takes and shows everything the files give (D-307). They were built apart,
+after the operator's first run against the vendor's UAT, and joined on this head, which also carries
+what the join itself needed (the merge `e09dfe8` and the commits after it). The four parts below say
+what each gives, the newest first; [Setting up a service](#setting-up-a-service) gives the joined form
+step by step.
+
 **A third correction after release 2: the form takes, and shows, everything the files give.** After
 "Fill the form from these files" on that first UAT run the addresses and the values had to be typed by
 hand, and on Edit they stood as empty boxes; a typed address then replaced the collection's request.
@@ -42,11 +51,14 @@ changes that:
 - In the environment form, choose the collection export (and the environment export if you have it)
   and press "Fill the form from these files". A part "Found in the collection" lists the members,
   providers and procedure codes the collection's requests state, each with the request it was found
-  in, and under "Seen and not used" what cannot be used and why.
+  in, and under "Seen and not used" what cannot be used and why. It stands after "What these files
+  give": what configures the environment first, the case data after.
 - Leave "Add these to the saved lists when the environment is saved" ticked and press "Save
   environment": they go into Configuration > Members, Providers and Procedure codes, each labelled
   "From <request name>", and one line says what was added, for example "Added to the saved lists: 2
-  members, 2 providers, 4 procedure codes.", with links to the lists. On Configuration > Collections,
+  members, 2 providers, 4 procedure codes.", with links to the lists; the same result says the request
+  chosen for an operation, if one was ("CRD order-sign uses the request "Coverage / Prior auth
+  sample"."). On Configuration > Collections,
   after an upload, "Add to the saved lists" does the same.
 - They are then picks in the Case column, like any saved entry. Configuration > Procedure codes is a
   third saved list, and the Service card has "Saved codes": a pick adds the code with its description
@@ -364,6 +376,10 @@ by the next call.
      each with what the files give and the variable it comes from ("from the export's variable
      fhirServer"), or "not given". A value these files do not give is left out of the requests that
      read it; type it in its box there, or on Edit.
+   - **Found in the collection**, after "What these files give" when a collection is chosen: the
+     members, providers and procedure codes its requests state, each with the request it was found in,
+     what was seen and not used, and the box "Add these to the saved lists when the environment is
+     saved", ticked. See [Lookups and test lists](#lookups-and-test-lists).
 3. **Kind**: sandbox, uat or prod. It is never guessed:
    the field reads "Choose a kind" until you choose.
    An environment whose name or address reads as production cannot be saved as sandbox or uat until
@@ -399,9 +415,13 @@ by the next call.
    signs in again and sends the call once more; the wire view says "The first attempt was refused
    with HTTP 401; PAVE signed in again and sent it once more."
 5. **Save environment**, then make it active with "Make active" in the list or in the top bar's
-   Environment. Saving never changes the active environment. If a request chosen in step 2 could not
-   be mapped, the save says "The environment is saved, but the request chosen for <operation> was not
-   recorded." and the environment stays saved: choose it again in Configuration > Collections.
+   Environment. Saving never changes the active environment. Once the environment is saved, the
+   request chosen in step 2 for an operation is mapped and the entries found are added to the saved
+   lists (with the box ticked), and the result says both: "CRD order-sign uses the request "Coverage /
+   Prior auth sample"." and "Added to the saved lists: 2 members, 1 provider, 4 procedure codes.", with
+   links to the lists. If a chosen request could not be mapped, the save says "The environment is
+   saved, but the request chosen for <operation> was not recorded." and the environment stays saved:
+   choose it again in Configuration > Collections.
 6. **Edit** the saved environment for the rest. A new environment chosen without files says "The
    member ID rule, request shapes, values, timeouts and addresses can be set once the environment is
    saved." On Edit, nothing in force stands as an empty box: a value or an address shows what is in
@@ -409,7 +429,9 @@ by the next call.
    - **Member ID rule**: packed (spaces removed, the default and what the vendor's sandbox wants),
      spaced (nine characters, three spaces, the last two, as on the card) or split (the first nine
      of an 11-character ID). Every result shows the form sent: "Sent as <sent>, rule: <rule>".
-   - **Timeouts**: the wait for an answer is 120000 ms unless the environment states its own.
+   - **Timeouts**: the wait for an answer is 120000 ms unless the environment states its own. Their
+     boxes stay boxes: the value in force stands in the empty box as its hint ("120000, from
+     application.yml").
    - **Request shapes**: "draftOrders type", "Sent (FHIR requires it)" or "Left out (this vendor
      refuses it)". Filled from the collection's own sample when the environment states none. The
      builders' sample collection carries the type, so the vendor's sandbox (and the stand-in that
@@ -747,8 +769,9 @@ added only once the save went through); and Configuration > Collections, after a
 button "Add to the saved lists". An entry a list already holds (the same member ID, vendor patient id,
 NPI, vendor practitioner id, or code and code system) is left as it is; a full list says how many did
 not fit; an entry the list's rules refuse is named with why. Choose the collection at that moment: a
-collection already stored is not read again. A collection in Postman's older format v2.0 is not read
-("The collection was not read: ... This tool reads format v2.1 only.").
+collection already stored is not read again. A collection in Postman's older format v2.0 is read as
+v2.1 is (D-307); a format the parser does not read gives one line ("The collection was not read: ...
+This tool reads formats v2.1 and v2.0.").
 
 **Lookups.** On mock, lookups answer from PAVE's synthetic fixtures ("On mock, lookups answer from
 PAVE's test fixtures. These settings are used on live."). On live, Configuration > Members holds
@@ -1493,8 +1516,11 @@ open item, the worst first, with the entry that gives the reason.
   collection, are held by tests only, not seen on a screen.
 - **A collection already stored is not read again** for the saved lists: choose it again in the
   environment form, or upload it again.
-- **A collection in Postman's format v2.0** is not read for the saved lists, as it is refused at
-  upload.
+- **On Edit, Timeouts** still show the value in force as the hint of an empty box, not as a line
+  with "Change" as Values and Addresses do.
+- **A request chosen for an operation** in "What these files give" is the collection's mapping, shared
+  by every environment, and is not checked at save against the production rules a typed address
+  meets; the guardrail at sending still is.
 - **Placeholders of a collection read for the saved lists** are filled from the environment and the
   collection only, never from `onyx.variables` of `application.yml`.
 - **An entry the list's rules refuse** (a description over 500 characters, for one) is not cut down to
@@ -1651,3 +1677,27 @@ quote from a screen or the server was searched in `src/main` at that head, and `
 found in `ModeController`. What they say was seen is what the builder's report, the independent check
 and the closing agent's own walk name. The gates of section 0 are run by the integrator on the commit
 that carries this README; their result is reported with the hand-over.
+
+For tonight's head, the four additions joined (D-304 to D-307), the parts that changed (This release,
+Setting up a service, Collections, Lookups and test lists, Limitations) were brought to the join. The
+sentences they quote from a screen were searched in `src/main` at the commit of the join's last code
+change, `7c14ef8`. Its jar was walked in Chromium at 1440 by 900, with placeholder files written for the
+walk (an environment export and a collection with a token request, a coverage request the tool does
+not recognise, and a PAS submit Bundle that states members, a provider and codes), as the tester will
+walk it: started on mock; "Switch to live" in the top bar, "Now on live." on a fresh Workbench;
+Configuration > Environments > New environment, both files, "Fill the form from these files"; "What
+these files give" (the sign-in from the token request, each address, each value) and after it "Found
+in the collection" (2 members, 1 provider, 4 procedure codes); the coverage request chosen for CRD
+order-sign from the list; kind uat; saved, the result saying "CRD order-sign uses the request
+"Coverage / Prior auth sample"." and "Added to the saved lists: 2 members, 1 provider, 4 procedure
+codes."; made active; Edit showing every value and address in force as a line with "Change"
+(Timeouts excepted, see [Limitations](#limitations)); "Test the sign-in" signed in at the stand-in on a
+loopback port; on the Workbench the saved member, the saved provider and the saved code picked, a date
+of service typed, and the coverage check sent with a token to the chosen request's address, answered
+with HTTP 400 for `context.draftOrders.type`; draftOrders type set to Left out from its list, and the
+same check answered "Documentation is required."; "Switch to mock", "Now on mock." on a fresh
+Workbench. The environment form after Fill, the Workbench and Configuration > Procedure codes were also
+looked at at 1024 by 768, on mock. A v2.0 collection was read for the saved lists through the running
+jar's endpoint, not on a screen. Not seen: the Edit form's own "Fill the form from these files", the
+vendor's files or service, Windows, STS. The gates of section 0 are run by the integrator on the
+commit that carries this README; their result is reported with the hand-over.

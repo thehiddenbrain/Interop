@@ -12,7 +12,13 @@ last. The code of the first three merged without a conflict; the fourth conflict
 form (`config-environments.js`, `config.css`), where both the part "What these files give" and the part
 "Found in the collection" are kept, and in this file, `DECISIONS.md` and `README.md`, which keep what both
 sides wrote. Each paragraph below was written on its own branch and speaks of its own commits. The gates
-of section 0 are run by the integrator on the merged commit; their result is reported with the hand-over.
+of section 0 are run by the integrator on the commit that carries these records; their result is reported with the hand-over.
+**What the join itself needed**, after the merge `e09dfe8`: the saved lists read a v2.0 collection, as
+the parser now does (`879033f`); a save in the environment form says the request it recorded beside
+what the lists took, held by a test of the two parts together (`7c14ef8`); and these records. The joined
+jar was walked once, by the agent that joined it, on mock and on live against the stand-in at 1440 by
+900, and looked at at 1024 by 768 (README, "What this README was checked against"); no second agent
+checked the join.
 
 **A second correction after release 2: the saved lists filled from a collection** (D-306). On the same
 first run against the vendor's UAT the operator typed every member, provider and procedure code by hand,
@@ -239,21 +245,24 @@ Each line can be read alone. The detail of each is in the entry named.
    stored variables filling the placeholders), the button "Add to the saved lists" on Configuration >
    Collections, a full list, lists switched off, a body with a placeholder nothing fills. Not done: a
    collection already stored is not read again (choose it again in the environment form, or upload it
-   again); a collection in format v2.0 is not read; placeholders are not filled from `onyx.variables`; an
+   again); placeholders are not filled from `onyx.variables`; an
    entry the lists' rules refuse is not cut down to fit, it is not added and a line says why. At 1024
-   pixels the Service card's code line is crowded, as it was before.
+   pixels the Service card's code line is crowded, as it was before. A collection in format v2.0 is read
+   for the lists since the join (D-307, `879033f`).
 3. **The correction of the sign-in was built and walked by one builder and checked by no one else**
-   (D-305). Not read from the files: a collection in format v2.0 (the parser refuses it whole), a token
-   request whose body is JSON, a script. PAVE sends the client id and secret in a Basic header without
+   (D-305). Not read from the files: a token request whose body is JSON, a script. PAVE sends the client id and secret in a Basic header without
    form-encoding them first (RFC 6749 section 2.3.1): a strict endpoint can refuse a secret holding `+`,
    `%` or `:` there; "In the form body" then works. An audience or a header the vendor's token request
-   sends cannot be added to PAVE's sign-in: the draft names it. Later: a v2.0 collection is read (D-307).
+   sends cannot be added to PAVE's sign-in: the draft names it. A v2.0 collection, refused whole when
+   this was built, is read since D-307. "Test the sign-in" still writes its elapsed time after the
+   sentence's full stop ("... Sign-in)., 62 ms").
 4. **The correction that shows what the files give was built and walked by one builder and checked by no
    one else** (D-307). A request chosen for an operation is not checked at save against the production
    rules a typed address meets; the guardrail at sending still is. A value is matched to a variable of its
    own name only. A collection stored before is asked first by every environment, and the row says so.
    The Edit form's own "Fill the form from these files" (a draft for a stored environment) was not seen in
-   a browser, and no test of this correction drives it.
+   a browser, and no test of this correction drives it. On Edit, Timeouts still show the value in force
+   as the hint of an empty box, not as a line with "Change" as Values and Addresses do.
 5. **Release 2 was checked once, and its corrections by nobody but their corrector** (D-303). The merge of
    release 1 into it was walked by its own agent on mock at 1440 only (D-302); two agents that built none
    of it checked the merge once; one corrector corrected their five findings. No second check and no

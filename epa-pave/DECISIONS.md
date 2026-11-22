@@ -8520,6 +8520,10 @@ round of corrections; the code handed over.**
   Placeholders are not filled from `onyx.variables` of `application.yml`. At 1024 pixels the Service
   card's code line was crowded before this change; the "from saved list" mark was put under the line so
   as not to add to it.
+  Later: a collection in format v2.0 is read for the saved lists as for v2.1, since the parser reads it
+  (D-307); `CollectionFindsTest` and `FoundListsControllerTest` hold it (`879033f`). In the joined form
+  "Found in the collection" stands after "What these files give" (D-307), and the result of a save says
+  the request chosen for an operation beside what the lists took (`7c14ef8`).
 
 **D-307. A third correction after release 2: the form takes, and shows, everything the files give.**
 - **What happened.** On the same first run against the vendor's UAT (D-305), the operator chose both
@@ -8635,3 +8639,7 @@ round of corrections; the code handed over.**
   never matched to a variable of another name. A collection stored before is asked first by every
   environment; the row says so, and only removing it there changes it. A request's form body (`urlencoded`)
   is not read by the detector, as before.
+  Later: joined with D-306 on tonight's head. After Fill, "Found in the collection" stands after "What
+  these files give": what configures the environment first, the case data after. A save records the
+  requests chosen and then adds the entries found, and its result says both; a recorded pick is now
+  said ("CRD order-sign uses the request "...".") where before only a failed one was (`7c14ef8`).
