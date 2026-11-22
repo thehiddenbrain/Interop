@@ -157,4 +157,40 @@ class ClassesOnDiskTest {
             assertThat(ClassesOnDisk.install(before)).isSameAs(unknown);
         }
     }
+
+    @Test
+    void aFailureToLinkLooksAtTheFolderNowEvenRightAfterAThrottledLook(@TempDir Path dir) throws IOException {
+        // B3a.rejected hunts-1: a page polls every 4 s, so the throttled look is always fresh and a
+        // rebuild made just before the failure was missed until the next look 10 s later.
+        Path classes = dir.resolve("classes");
+        Path rebuilt = file(classes, "org/p32h/interop/epa/pave/postman/A.class", START.minusSeconds(60));
+        HandClock clock = new HandClock(START);
+        ClassesOnDisk.Watch watch = ClassesOnDisk.Watch.ofFolder(classes, null, clock);
+        ClassesOnDisk.Watch before = ClassesOnDisk.install(watch);
+        try {
+            assertThat(ClassesOnDisk.changedSinceStart()).isFalse();
+            Files.setLastModifiedTime(rebuilt, FileTime.from(START.plusSeconds(1)));
+            clock.advance(Duration.ofSeconds(1));
+            // The page's poll still gets the throttled answer.
+            assertThat(ClassesOnDisk.changedSinceStart()).isFalse();
+            // A failure to link a class looks now and names the rebuild at once.
+            assertThat(FaultAdvice.advice(new RuntimeException(new NoClassDefFoundError()))).isEqualTo(FaultAdvice.CLASSES_CHANGED);
+            assertThat(ClassesOnDisk.changedSinceStart()).isTrue();
+        } finally {
+            ClassesOnDisk.install(before);
+        }
+    }
+
+    @Test
+    void aFailureToLinkWithNoRebuildStillGetsNoAdvice(@TempDir Path dir) throws IOException {
+        Path classes = dir.resolve("classes");
+        file(classes, "org/p32h/interop/epa/pave/postman/A.class", START.minusSeconds(60));
+        ClassesOnDisk.Watch before = ClassesOnDisk.install(ClassesOnDisk.Watch.ofFolder(classes, null, new HandClock(START)));
+        try {
+            assertThat(FaultAdvice.advice(new NoClassDefFoundError())).isNull();
+            assertThat(ClassesOnDisk.Watch.ofJar(dir.resolve("absent.jar")).changedNow()).isFalse();
+        } finally {
+            ClassesOnDisk.install(before);
+        }
+    }
 }
