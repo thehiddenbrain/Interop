@@ -23,8 +23,11 @@ import org.junit.jupiter.api.io.TempDir;
 import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
 import org.p32h.interop.epa.pave.model.EnvironmentKind;
+import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.postman.PostmanEnvironment;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The configuration store tells a problem with this computer's files from a failure of its own
@@ -454,5 +457,58 @@ class StoreWriteFailuresTest {
         // The start the sentence asks for reads what the first copy wrote, and opens.
         assertThat(store(new PlantedDisk()).snapshot().environments()).extracting(StoredEnvironment::name)
                 .containsExactly("Vendor Sandbox A");
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Names outside ASCII
+    // ------------------------------------------------------------------------------------------
+
+    private static long outsideAscii(byte[] bytes) {
+        long count = 0;
+        for (byte each : bytes) {
+            count += each < 0 ? 1 : 0;
+        }
+        return count;
+    }
+
+    @Test
+    void aNameWithCharactersOutsideAsciiSurvivesARestartAndStoreJsonHoldsOnlyAscii() throws IOException {
+        // Accents, another script and an emoji, written as escapes so that this file stays ASCII.
+        String name = "Vendor Sandbox \u00e9\u00fc\u00f8 \u65e5\u672c \ud83d\ude00";
+        String collection = "Vendor Collection \u00e7\u00e0";
+        ConfigStore store = store(new PlantedDisk());
+        upload(store, name);
+        store.uploadCollection("c.json", ("{\"info\": {\"name\": \"" + collection + "\", \"schema\": "
+                + "\"https://schema.getpostman.com/json/collection/v2.1.0/collection.json\"}, \"item\": []}").getBytes(StandardCharsets.UTF_8));
+        store.activate(name);
+
+        byte[] written = Files.readAllBytes(state());
+        assertThat(outsideAscii(written)).isZero();
+        assertThat(new String(written, StandardCharsets.US_ASCII)).contains("\"Vendor Sandbox \\u00e9\\u00fc\\u00f8 \\u65e5\\u672c "
+                + "\\ud83d\\ude00\"").contains("\"Vendor Collection \\u00e7\\u00e0\"");
+
+        ConfigSnapshot restarted = store(new PlantedDisk()).snapshot();
+        assertThat(restarted.environments()).extracting(StoredEnvironment::name).containsExactly(name);
+        assertThat(restarted.activeName()).isEqualTo(name);
+        assertThat(restarted.collections()).extracting(StoredCollection::name).containsExactly(collection);
+    }
+
+    @Test
+    void aNameHoldingHalfASurrogatePairIsWrittenAsItsEscapeAndReadsBackTheSame() {
+        // The hunt's broken emoji, half of a pair. Written as text, store.json held a question mark in its
+        // place, the uploaded file kept the half, and the next start refused the store over two names
+        // that looked the same. Built here without the parser, which may come to refuse such a name.
+        String broken = "Vendor Sandbox \ud83d broken emoji";
+        StoredEnvironment stored = new StoredEnvironment("vendor-sandbox", broken, EnvironmentKind.SANDBOX,
+                new PostmanEnvironment(null, broken, null, List.of(), List.of()), "environments/vendor-sandbox.json", null,
+                "2026-01-05T15:04:05Z", false, List.of());
+
+        String text = ConfigStore.stateJson(new ConfigSnapshot(7L, List.of(stored), broken, List.of()));
+
+        assertThat(text).contains("\"name\" : \"Vendor Sandbox \\ud83d broken emoji\"").doesNotContain("?");
+        // What the store writes is these characters as UTF-8, and what it reads back is those bytes decoded.
+        JsonNode read = JsonSafe.parse(new String(text.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8)).node();
+        assertThat(JsonSafe.presentText(JsonSafe.elements(read, "environments").get(0), "name")).isEqualTo(broken);
+        assertThat(JsonSafe.presentText(read, "activeEnvironment")).isEqualTo(broken);
     }
 }

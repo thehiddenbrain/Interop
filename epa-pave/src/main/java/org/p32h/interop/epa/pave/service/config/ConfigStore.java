@@ -1121,7 +1121,8 @@ public class ConfigStore {
         }
     }
 
-    private static String stateJson(ConfigSnapshot snapshot) {
+    /** The text of store.json for a snapshot. Every character outside ASCII is written as its escape, see {@link #asciiOnly}. */
+    static String stateJson(ConfigSnapshot snapshot) {
         ObjectNode root = JsonSafe.mapper().createObjectNode();
         root.put("version", STATE_VERSION);
         root.put("epoch", snapshot.epoch());
@@ -1165,7 +1166,28 @@ public class ConfigStore {
                 }
             }
         }
-        return JsonSafe.pretty(root) + "\n";
+        return asciiOnly(JsonSafe.pretty(root)) + "\n";
+    }
+
+    /**
+     * JSON text with every character outside ASCII written as its escape, which JSON allows
+     * anywhere in a string; outside strings the text is ASCII already. Written as it was, a name
+     * holding half of a surrogate pair (a broken emoji) became a question mark in the file, while
+     * the uploaded file kept it, and the store refused its own files at the next start because the
+     * two names differed. Escaped, every name reads back exactly, and an editor that saves the
+     * file in another encoding cannot change one.
+     */
+    static String asciiOnly(String json) {
+        StringBuilder out = new StringBuilder(json.length());
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c < 0x80) {
+                out.append(c);
+            } else {
+                out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
+            }
+        }
+        return out.toString();
     }
 
     private static void putIfPresent(ObjectNode node, String field, String value) {
