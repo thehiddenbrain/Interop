@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * What the request builder says about the request it built: one plain sentence for each thing
- * left out or worked out, and, apart from those, the elements a PAS 2.0.1 profile requires that
+ * left out or worked out, and, apart from those, the elements a PAS 2.2.1 profile requires that
  * went out without a value.
  *
  * <p>The two are kept apart because they lead to different things on the result. Every note is
@@ -27,7 +27,7 @@ final class PasNotes {
     }
 
     /**
-     * An element PAS 2.0.1 requires that the request goes out without: one a profile requires, a
+     * An element PAS 2.2.1 requires that the request goes out without: one a profile requires, a
      * code without the system its required binding needs, or a resource a reference in the bundle
      * names, which the specification requires the bundle to carry.
      *
@@ -85,7 +85,7 @@ final class PasNotes {
     static String summary(List<String> leftOut) {
         int count = leftOut.size();
         return "This request goes out without " + count + (count == 1 ? " element" : " elements")
-                + " PAS 2.0.1 requires, because nobody supplied " + (count == 1 ? "it" : "them") + ": "
+                + " PAS 2.2.1 requires, because nobody supplied " + (count == 1 ? "it" : "them") + ": "
                 + String.join("; ", leftOut) + ". The service may refuse the request for that alone.";
     }
 }

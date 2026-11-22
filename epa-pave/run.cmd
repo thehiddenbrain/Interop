@@ -46,44 +46,52 @@ shift
 goto scan
 :scanned
 
-if not defined JAVA_HOME goto javafrompath
-if not exist "%JAVA_HOME%\bin\java.exe" goto javafrompath
-set "JAVA=%JAVA_HOME%\bin\java.exe"
-goto havejava
-:javafrompath
-where java >nul 2>nul
-if not errorlevel 1 goto javaonpath
-echo run.cmd: no Java was found. PAVE needs a JDK 21. 1>&2
-echo Install a JDK 21, then either put its bin folder on the PATH or set JAVA_HOME to it. 1>&2
+rem The first Java 21 or newer wins, looked for in this order: PAVE_JAVA (a java.exe), JAVA_HOME,
+rem the java on the PATH, then the Java that STS brings in its usual install folders. A workstation
+rem can have only Java 8 on the PATH and in JAVA_HOME while STS carries a Java 21 or newer of its
+rem own, so an older Java is passed over with a line that says so instead of ending the search.
+rem A JAVA set before this script ran must not stop the search before it starts.
+set "JAVA="
+set "SOURCE="
+if not defined PAVE_JAVA goto nopavejava
+rem A path typed with quotes around it, as set PAVE_JAVA="C:\...\java.exe", is still one path.
+set "PAVE_JAVA=%PAVE_JAVA:"=%"
+call :trycandidate "%PAVE_JAVA%" "named by PAVE_JAVA"
+if defined JAVA goto havejava
+:nopavejava
+if not defined JAVA_HOME goto nojavahome
+set "JAVA_HOME=%JAVA_HOME:"=%"
+call :trycandidate "%JAVA_HOME%\bin\java.exe" "named by JAVA_HOME"
+if defined JAVA goto havejava
+:nojavahome
+rem cmd searches the PATH itself here, folder by folder in the PATH's order, starting nothing.
+set "PATHJAVA="
+for %%P in (java.exe) do set "PATHJAVA=%%~$PATH:P"
+if not defined PATHJAVA goto nopathjava
+call :trycandidate "%PATHJAVA%" "the java on the PATH"
+if defined JAVA goto havejava
+:nopathjava
+rem STS unpacks into a folder named sts-<version>, either directly in one of these folders or one
+rem level down when the operator unpacked it into a folder of their own, such as C:\sts.
+for /d %%S in ("%USERPROFILE%\sts*" "%SystemDrive%\sts*" "%ProgramFiles%\sts*" "%LOCALAPPDATA%\Programs\sts*") do if not defined JAVA call :stsfolder "%%~fS"
+if defined JAVA goto havejava
+echo run.cmd: no Java 21 or newer was found, and PAVE needs one to build and to run. 1>&2
+echo It looked at PAVE_JAVA, JAVA_HOME, the java on the PATH and the Java STS brings in its usual folders. 1>&2
+echo If STS is installed, point PAVE_JAVA at the Java it brings with this line, then start run.cmd again in the same window: 1>&2
+echo set PAVE_JAVA=^<the folder STS is in^>\plugins\^<the justj folder^>\jre\bin\java.exe 1>&2
+echo The justj folder is the one whose name starts with org.eclipse.justj.openjdk.hotspot.jre.full. 1>&2
+echo setx instead of set keeps it for every window opened afterwards. Without STS, install a JDK 21 and set JAVA_HOME to it. 1>&2
 exit /b 1
-:javaonpath
-set "JAVA=java"
 :havejava
-
-rem "java -version" prints for example: openjdk version "21.0.5" 2024-10-15. Java 8 prints
-rem "1.8.0_402", where the major version is the second number. The output goes through a file,
-rem not FOR /F with a command: FOR /F hands a command to cmd /c, which strips the first and the
-rem last quote of a command that starts with one, and the java path has to be quoted.
-set "JVFILE=%TEMP%\pave-java-version-%RANDOM%.txt"
-"%JAVA%" -version 2>"%JVFILE%" >nul
-set "JVERSION="
-for /f "usebackq tokens=1-3" %%a in ("%JVFILE%") do if not defined JVERSION if /i "%%b"=="version" set "JVERSION=%%~c"
-del "%JVFILE%" >nul 2>nul
-if defined JVERSION goto haveversion
-echo run.cmd: could not read the Java version of %JAVA%. PAVE needs a JDK 21. 1>&2
-exit /b 1
-:haveversion
-set "MAJOR="
-for /f "tokens=1,2 delims=._-+" %%a in ("%JVERSION%") do (
-    set "MAJOR=%%a"
-    if "%%a"=="1" set "MAJOR=%%b"
-)
-set "MAJORNUM=0"
-set /a MAJORNUM=MAJOR+0 >nul 2>nul
-if %MAJORNUM% GEQ 21 goto javaok
-echo run.cmd: %JAVA% is Java %JVERSION%. PAVE needs a JDK 21. 1>&2
-echo Install a JDK 21 and set JAVA_HOME to it, or put its bin folder first on the PATH. 1>&2
-exit /b 1
+echo Using Java %JVERSION% at %JAVA%, %SOURCE%.
+rem Gradle builds with the same Java, so a JAVA_HOME left at an older Java cannot stop the build.
+rem The setlocal at the top keeps this change inside this script. The java on the PATH can sit in
+rem a folder of links with no Java home above it, so Gradle is then left to find it on the PATH.
+if "%SOURCE%"=="the java on the PATH" goto gradleonpath
+for %%D in ("%JAVA%\..\..") do set "JAVA_HOME=%%~fD"
+goto javaok
+:gradleonpath
+set "JAVA_HOME="
 :javaok
 
 rem The jar is built before every start, not only when it is missing. Every build calls itself
@@ -119,4 +127,54 @@ echo Usage: run.cmd [mock^|live] [application arguments]
 echo   run.cmd                            mock profile on port 8057
 echo   run.cmd live                       live profile on port 8057
 echo   run.cmd mock "--server.port=8091"  mock profile on another port
+echo Java: the first Java 21 or newer of PAVE_JAVA (a java.exe), JAVA_HOME, the PATH and STS's own.
+exit /b 0
+
+rem Tries one java.exe: %1 is its path, %2 says where it was found. Sets JAVA, SOURCE, JVERSION
+rem and MAJORNUM when it is a Java 21 or newer, and otherwise says why it was passed over.
+:trycandidate
+set "CANDIDATE=%~1"
+set "CANDIDATESOURCE=%~2"
+if exist "%CANDIDATE%" goto candidatefound
+echo Not using %CANDIDATE%, %CANDIDATESOURCE%: there is no such file.
+exit /b 0
+:candidatefound
+call :readversion
+if %MAJORNUM% GEQ 21 goto candidateok
+if not defined JVERSION echo Not using %CANDIDATE%, %CANDIDATESOURCE%: its Java version could not be read.
+if defined JVERSION echo Not using %CANDIDATE%, %CANDIDATESOURCE%: it is Java %JVERSION%, and PAVE needs 21 or newer.
+exit /b 0
+:candidateok
+set "JAVA=%CANDIDATE%"
+set "SOURCE=%CANDIDATESOURCE%"
+exit /b 0
+
+rem "java -version" prints for example: openjdk version "21.0.5" 2024-10-15. Java 8 prints
+rem "1.8.0_402", where the major version is the second number. The output goes through a file,
+rem not FOR /F with a command: FOR /F hands a command to cmd /c, which strips the first and the
+rem last quote of a command that starts with one, and the java path has to be quoted.
+:readversion
+set "JVERSION="
+set "MAJOR="
+set "MAJORNUM=0"
+set "JVFILE=%TEMP%\pave-java-version-%RANDOM%.txt"
+"%CANDIDATE%" -version 2>"%JVFILE%" >nul
+for /f "usebackq tokens=1-3" %%a in ("%JVFILE%") do if not defined JVERSION if /i "%%b"=="version" set "JVERSION=%%~c"
+del "%JVFILE%" >nul 2>nul
+if not defined JVERSION exit /b 0
+for /f "tokens=1,2 delims=._-+" %%a in ("%JVERSION%") do (
+    set "MAJOR=%%a"
+    if "%%a"=="1" set "MAJOR=%%b"
+)
+set /a MAJORNUM=MAJOR+0 >nul 2>nul
+exit /b 0
+
+rem Looks for the Java STS brings in the folder %1 and in each sts* folder directly inside it.
+:stsfolder
+call :stsplugins "%~1"
+for /d %%T in ("%~1\sts*") do if not defined JAVA call :stsplugins "%%~fT"
+exit /b 0
+
+:stsplugins
+for /d %%J in ("%~1\plugins\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_*") do if not defined JAVA call :trycandidate "%%~fJ\jre\bin\java.exe" "the Java STS brings"
 exit /b 0

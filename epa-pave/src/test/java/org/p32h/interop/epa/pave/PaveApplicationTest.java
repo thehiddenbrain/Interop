@@ -20,6 +20,7 @@ import org.p32h.interop.epa.pave.config.ConfigStoreProperties;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.config.LookupProperties;
 import org.p32h.interop.epa.pave.config.OnyxProperties;
+import org.p32h.interop.epa.pave.config.TestListProperties;
 import org.p32h.interop.epa.pave.config.TrackingProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -100,7 +101,7 @@ class PaveApplicationTest {
         assertThat(codelist.format()).isEqualTo("auto");
         assertThat(codelist.columns().code()).isNotEmpty();
         assertThat(app.autocompleteLimit()).isEqualTo(25);
-        assertThat(onyx.readTimeoutMs()).isEqualTo(15000);
+        assertThat(onyx.readTimeoutMs()).isEqualTo(120000);
         assertThat(onyx.pas().attachmentMode()).isEqualTo("fhir");
         assertThat(onyx.auth().enabled()).isFalse();
         assertThat(lookup.member().readTimeoutMs()).isEqualTo(5000);
@@ -115,7 +116,7 @@ class PaveApplicationTest {
         // the operating system environment of whoever runs the build cannot fail it.
         Map<String, Class<?>> records = Map.of("epa", EpaProperties.class, "config-store", ConfigStoreProperties.class,
                 "tracking", TrackingProperties.class, "codelist", CodelistProperties.class, "app", AppProperties.class,
-                "onyx", OnyxProperties.class, "lookup", LookupProperties.class);
+                "onyx", OnyxProperties.class, "lookup", LookupProperties.class, "test-lists", TestListProperties.class);
         NoUnboundElementsBindHandler strict = new NoUnboundElementsBindHandler(BindHandler.DEFAULT,
                 source -> source.getUnderlyingSource() instanceof OriginTrackedMapPropertySource);
         records.forEach((prefix, type) -> assertThatCode(() -> Binder.get(environment).bind(prefix, Bindable.of(type), strict))
