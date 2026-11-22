@@ -164,6 +164,9 @@ const FROM_STEP_3 = 'from step 3';
 
 /** HH:MM:SS of an instant, as the browser's clock shows it; '' when it cannot be read. */
 export function clock(instant) {
+    if (instant === null || instant === undefined) {
+        return '';
+    }
     const date = instant instanceof Date ? instant : new Date(instant);
     if (Number.isNaN(date.getTime())) {
         return '';
@@ -655,6 +658,25 @@ export function mount(root, ctx) {
         },
         hide() {
             poll.stop();
+        },
+        /**
+         * An inquiry or a subscription call read back after a reload: its row shows it with the
+         * time the ledger gave it, and the card under the rows shows the later of the two.
+         */
+        restored(envelope, how) {
+            const kind = envelope && envelope.operation === 'PAS_INQUIRE' ? 'inquiry'
+                : envelope && String(envelope.operation || '').startsWith('SUBSCRIPTION_') ? 'subscription' : null;
+            if (!kind) {
+                return;
+            }
+            const at = how && typeof how.at === 'string' ? new Date(how.at) : null;
+            latest[kind] = envelope;
+            when[kind] = at && !Number.isNaN(at.getTime()) ? at : null;
+            const other = kind === 'inquiry' ? 'subscription' : 'inquiry';
+            if (!shownCard || !when[other] || (when[kind] && when[kind] >= when[other])) {
+                shownCard = kind;
+            }
+            draw();
         },
         caseChanged() {
             fill(handed, ctx.handedLine ? ctx.handedLine(4) : '');

@@ -9,7 +9,7 @@
 
 import {el, chip, fold, fill, clear} from './dom.js';
 import {sentAs} from './result.js';
-import {caseField, caseChanged, fieldsOf, MARKS} from './wb-case.js';
+import {caseField, caseChanged, fieldsOf, restoreFields, MARKS} from './wb-case.js';
 import {cardHead, latestOnly, lookUp, fillFromLookup, clearLookedUp, statusChip, lookupLine, returnedFold, returnedValue} from './wb-lookup.js';
 
 const GENDERS = [['', 'Not stated'], ['female', 'female'], ['male', 'male'], ['other', 'other'], ['unknown', 'unknown']];
@@ -233,7 +233,9 @@ export function createMemberCard(env) {
         fill(summary, 
             el('div', {class: 'summary__line'}, el('span', {class: 'summary__name'}, name || memberId), notReturned('firstName'), status),
             values.dateOfBirth || values.lineOfBusiness || found ? el('div', {class: 'summary__line'},
-                el('span', null, 'DOB ', values.dateOfBirth ? el('span', {class: 'mono'}, values.dateOfBirth) : notReturned('dateOfBirth')),
+                // A date of birth nobody gave (a case read back from the ledger) is left out, not drawn as an empty label.
+                values.dateOfBirth || found ? el('span', null, 'DOB ', values.dateOfBirth ? el('span', {class: 'mono'}, values.dateOfBirth)
+                    : notReturned('dateOfBirth')) : null,
                 values.lineOfBusiness ? el('span', null, values.lineOfBusiness) : notReturned('lineOfBusiness')) : null);
         fill(sent, ...(answer && answer.memberId ? [sentAs(answer.memberId),
             answer.memberId.note ? el('span', null, ' ' + answer.memberId.note) : null] : []));
@@ -293,6 +295,23 @@ export function createMemberCard(env) {
         clear() {
             picker.value = '';
             clearAll();
+            drawSummary();
+        },
+        /**
+         * The member of a case read back after a reload, marked where it came from. Nothing is
+         * looked up: the card shows what was sent, and "Look up" asks again when the tester wants.
+         */
+        restore(given, overrides, mark) {
+            picker.value = '';
+            clearAll();
+            const values = given && typeof given === 'object' ? given : {};
+            if (typeof values.memberId === 'string' && values.memberId !== '') {
+                id.set(values.memberId, mark);
+            }
+            const rest = restoreFields(fields, values, overrides, mark);
+            delete rest.memberId;
+            extra = rest;
+            source = mark;
             drawSummary();
         },
         source() {
