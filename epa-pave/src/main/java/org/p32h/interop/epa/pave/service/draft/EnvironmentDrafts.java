@@ -28,13 +28,13 @@ import org.p32h.interop.epa.pave.service.config.ConfigService;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.EnvironmentList;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.EnvironmentView;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.VariableView;
+import org.p32h.interop.epa.pave.service.config.SecretSetting;
 import org.p32h.interop.epa.pave.service.config.SignInSettings;
 import org.p32h.interop.epa.pave.service.crd.ShapeEvidence;
 import org.p32h.interop.epa.pave.service.crd.VendorSamples;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.Draft;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.FileLine;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.OperationRow;
-import org.p32h.interop.epa.pave.service.draft.DraftViews.SecretReference;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.ShapeRow;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.SignInDraft;
 import org.p32h.interop.epa.pave.service.error.FileGuard;
@@ -273,18 +273,18 @@ public class EnvironmentDrafts {
         }
         if (tokenUrl != null && clientId != null) {
             return new SignInDraft(SignInSettings.Method.CLIENT_CREDENTIALS.name(), tokenUrl, clientId, scope, null,
-                    clientSecret == null ? null : new SecretReference(true, clientSecret), null, FROM_VARIABLE_NAMES);
+                    clientSecret == null ? null : SecretSetting.of(clientSecret), null, FROM_VARIABLE_NAMES);
         }
         if (bearer != null) {
             return new SignInDraft(SignInSettings.Method.BEARER_TOKEN.name(), null, null, null, null, null,
-                    new SecretReference(true, bearer), FROM_VARIABLE_NAMES);
+                    SecretSetting.of(bearer), FROM_VARIABLE_NAMES);
         }
         // Some of the names but not a whole client credentials sign-in: the method is not stated,
         // and what was found is offered for the fields, never a method the file does not show.
         if (tokenUrl == null && clientId == null && clientSecret == null) {
             return null;
         }
-        return new SignInDraft(null, tokenUrl, clientId, scope, null, clientSecret == null ? null : new SecretReference(true, clientSecret),
+        return new SignInDraft(null, tokenUrl, clientId, scope, null, clientSecret == null ? null : SecretSetting.of(clientSecret),
                 null, FROM_VARIABLE_NAMES);
     }
 
@@ -417,7 +417,7 @@ public class EnvironmentDrafts {
                 return oauth2(warnings);
             }
             if ("bearer".equals(type)) {
-                SecretReference token = secret(fields.get("token"), "a bearer token", "Bearer token", warnings);
+                SecretSetting token = secret(fields.get("token"), "a bearer token", "Bearer token", warnings);
                 if (token == null) {
                     return null;
                 }
@@ -448,7 +448,7 @@ public class EnvironmentDrafts {
             } else if ("body".equalsIgnoreCase(authentication)) {
                 clientAuthentication = SignInSettings.ClientAuthentication.BODY.name();
             }
-            SecretReference clientSecret = secret(fields.get("clientSecret"), "a client secret", "Client secret", warnings);
+            SecretSetting clientSecret = secret(fields.get("clientSecret"), "a client secret", "Client secret", warnings);
             return new SignInDraft(SignInSettings.Method.CLIENT_CREDENTIALS.name(), Texts.trimToNull(fields.get("accessTokenUrl")),
                     Texts.trimToNull(fields.get("clientId")), Texts.trimToNull(fields.get("scope")), clientAuthentication, clientSecret,
                     null, FROM_COLLECTION_SIGN_IN);
@@ -458,12 +458,12 @@ public class EnvironmentDrafts {
          * A secret field: filled only when it is wholly one reference. A value typed into the file
          * is never filled and never shown, and one line says so (R-08).
          */
-        private static SecretReference secret(String value, String what, String field, List<String> warnings) {
+        private static SecretSetting secret(String value, String what, String field, List<String> warnings) {
             if (!Texts.present(value)) {
                 return null;
             }
             if (Placeholders.sole(value) != null) {
-                return new SecretReference(true, value.strip());
+                return SecretSetting.of(value);
             }
             warnings.add("The collection's sign-in holds " + what + " typed into the file. It was not filled: type it in " + field
                     + ", or a {{variable}} or {{env:PAVE_NAME}} reference.");
@@ -538,7 +538,7 @@ public class EnvironmentDrafts {
             if (operation == EpaOperation.UNMAPPED || rows.containsKey(operation)) {
                 continue;
             }
-            rows.put(operation, new OperationRow(operation.name(), shortLabel(operation), operation.label(), request.name(), request.url(),
+            rows.put(operation, new OperationRow(operation.name(), operation.shortLabel(), operation.label(), request.name(), request.url(),
                     request.scripted()));
         }
         return new ArrayList<>(rows.values());
@@ -546,28 +546,5 @@ public class EnvironmentDrafts {
 
     private static EpaOperation detect(PostmanRequest request) {
         return OperationDetector.detect(request.name(), request.method(), request.url(), request.folderPath()).operation();
-    }
-
-    /**
-     * The operation in a word or two, as the environment form names it (plan 7.5). The same
-     * words as the configuration server's short labels; kept here until that label is on the
-     * operation itself.
-     */
-    static String shortLabel(EpaOperation operation) {
-        return switch (operation) {
-            case CRD_ORDER_SIGN -> "order-sign";
-            case CRD_ORDER_SELECT -> "order-select";
-            case CRD_DISCOVERY -> "discovery";
-            case DTR_QUESTIONNAIRE_PACKAGE -> "DTR package";
-            case DTR_NEXT_QUESTION -> "next question";
-            case DTR_RESPONSE -> "questionnaire response";
-            case PAS_SUBMIT -> "PAS submit";
-            case PAS_INQUIRE -> "PAS inquire";
-            case SUBSCRIPTION_CREATE, SUBSCRIPTION_GET, SUBSCRIPTION_UPDATE, SUBSCRIPTION_DELETE -> "Subscription";
-            case SUBSCRIPTION_NOTIFICATION -> "notification";
-            case MEMBER_LOOKUP -> "member lookup";
-            case PROVIDER_LOOKUP -> "provider lookup";
-            case UNMAPPED -> "unmapped request";
-        };
     }
 }

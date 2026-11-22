@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import org.p32h.interop.epa.pave.service.config.ConfigViews.VariableView;
+import org.p32h.interop.epa.pave.service.config.SecretSetting;
 
 /**
  * What {@code POST /api/config/environments/draft} answers (plan 5.3). Nothing here holds the
@@ -63,18 +64,14 @@ public final class DraftViews {
      * @param method               NONE, CLIENT_CREDENTIALS or BEARER_TOKEN; absent when the files
      *                             show some sign-in fields but not a whole method
      * @param clientAuthentication BASIC or BODY, only when the collection states it
-     * @param clientSecret         set with its reference; absent when the files hold none or hold a value typed in
+     * @param clientSecret         set with its reference, which is all a secret is ever given as; absent when the files hold
+     *                             none or hold a value typed in
      * @param bearerToken          as {@code clientSecret}
      * @param from                 the collection's sign-in, or the environment's variable names
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SignInDraft(String method, String tokenUrl, String clientId, String scope, String clientAuthentication,
-                              SecretReference clientSecret, SecretReference bearerToken, String from) {
-    }
-
-    /** A secret as the form may see it: only ever a reference such as {{clientSecret}} or {{env:PAVE_NAME}}. */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record SecretReference(boolean set, String reference) {
+                              SecretSetting clientSecret, SecretSetting bearerToken, String from) {
     }
 
     /**
