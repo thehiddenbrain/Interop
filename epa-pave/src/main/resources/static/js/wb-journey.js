@@ -56,6 +56,36 @@ export function stepOfAction(action) {
     }
 }
 
+/**
+ * True when a submission hands the Status step a claim to ask about. A submission that cannot have
+ * reached the service hands on no claim identifier (the server leaves it out of its carry), so no
+ * inquiry is offered from it, played or live; one that may have arrived keeps the way (history T19).
+ */
+export function offersInquiryWay(envelope) {
+    if (!envelope || envelope.operation !== 'PAS_SUBMIT' || !envelope.nextStep || !envelope.nextStep.carry) {
+        return false;
+    }
+    const claims = envelope.nextStep.carry.claimId;
+    return Array.isArray(claims) && claims.some(one => typeof one === 'string' && one.trim() !== '');
+}
+
+/**
+ * What a submission hands to the Status step: its claim, the submission's own run id (what an
+ * inquiry and a sample notification are about) and the codes it sent. Null when it offers no inquiry.
+ */
+export function statusCarry(envelope) {
+    if (!offersInquiryWay(envelope)) {
+        return null;
+    }
+    const carry = envelope.nextStep.carry;
+    const strings = values => (Array.isArray(values) ? values.filter(one => typeof one === 'string') : []);
+    return {
+        claimId: strings(carry.claimId),
+        runId: typeof envelope.runId === 'string' && envelope.runId !== '' ? [envelope.runId] : [],
+        procedureCodes: strings(carry.procedureCodes)
+    };
+}
+
 export function createJourney() {
     let chainId = null;
     let results = {};

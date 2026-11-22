@@ -25,6 +25,8 @@ import org.p32h.interop.epa.pave.model.ScenarioSummary;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.VerdictView;
 import org.p32h.interop.epa.pave.model.crd.CoverageInformationView;
+import org.p32h.interop.epa.pave.model.pas.NotificationList;
+import org.p32h.interop.epa.pave.model.pas.NotificationView;
 import org.p32h.interop.epa.pave.model.pas.PasDecision;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.model.ErrorView;
@@ -136,7 +138,29 @@ class StaticServerWordsTest {
             new Read("wb-preview.js", "preview.notes", RequestPreview.class, "notes"),
             new Read("wb-preview.js", "preview.toComplete", RequestPreview.class, "toComplete"),
             new Read("wb-preview.js", "url.unresolved", ResolvedUrl.class, "unresolved"),
-            new Read("wb-preview.js", "url.source", ResolvedUrl.class, "source"));
+            new Read("wb-preview.js", "url.source", ResolvedUrl.class, "source"),
+            new Read("app.js", "mode.build.version", ModeView.Build.class, "version"),
+            new Read("app.js", "mode.build.time", ModeView.Build.class, "time"),
+            new Read("app.js", "mode.build.changedOnDisk", ModeView.Build.class, "changedOnDisk"),
+            new Read("app.js", "mode.build", ModeView.class, "build"),
+            new Read("wb-status.js", "mode.bindAddress", ModeView.class, "bindAddress"),
+            new Read("wb-status.js", "mode.bindNote", ModeView.class, "bindNote"),
+            new Read("wb-status.js", "answer.data.latest", NotificationList.class, "latest"),
+            new Read("wb-status.js", "got.notifications", NotificationList.class, "notifications"),
+            new Read("wb-status.js", "got.held", NotificationList.class, "held"),
+            new Read("wb-status.js", "counts.received", NotificationList.class, "received"),
+            new Read("wb-status.js", "item.receivedAt", NotificationView.class, "receivedAt"),
+            new Read("wb-status.js", "item.correlatedRunId", NotificationView.class, "correlatedRunId"),
+            new Read("wb-status.js", "item.faultReference", NotificationView.class, "faultReference"),
+            new Read("wb-status.js", "item.faultCause", NotificationView.class, "faultCause"),
+            new Read("wb-status.js", "item.payload", NotificationView.class, "payload"),
+            new Read("wb-status.js", "item.bytesReceived", NotificationView.class, "bytesReceived"),
+            new Read("wb-status.js", "item.verdict", NotificationView.class, "verdict"),
+            new Read("wb-status.js", "item.nextStep", NotificationView.class, "nextStep"),
+            new Read("wb-status.js", "newest.id", NotificationView.class, "id"),
+            new Read("wb-status.js", "envelope.protocol", RunEnvelope.class, "protocol"),
+            new Read("wb-status.js", "envelope.ledger", RunEnvelope.class, "ledger"),
+            new Read("wb-status.js", "step.carry", NextStepView.class, "carry"));
 
     /** A copy the page kept of the server's words, which the server now serves: where to look, the pattern that finds it, and why it must not come back. */
     private record Copy(String script, String pattern, String why) {
