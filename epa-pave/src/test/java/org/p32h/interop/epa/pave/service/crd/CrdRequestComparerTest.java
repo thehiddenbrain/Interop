@@ -75,6 +75,10 @@ class CrdRequestComparerTest {
         return comparison;
     }
 
+    private static final String NAMED_BUNDLES = "This tool sends its prefetch as Bundles of type collection under the keys patientBundle, "
+            + "coverageBundle, practitionerBundle, practitionerRoleBundle and serviceRequestBundle, with organizationBundle in place of "
+            + "practitionerBundle for a provider known only by an organization name.";
+
     static String fixture(String name) {
         try (InputStream in = CrdRequestComparerTest.class.getResourceAsStream("/compare/" + name)) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
@@ -545,13 +549,16 @@ class CrdRequestComparerTest {
         assertThat(key.yourValue().value()).isEqualTo("patientRequest");
         assertThat(key.what()).isEqualTo("The member, as a FHIR Patient resource.");
         assertThat(key.explanation()).isEqualTo("The tool's request holds this Patient under the key `patientBundle` and your request holds it under "
-                + "`patientRequest`. "
-                + "A CDS service names the prefetch keys it asks for in its discovery response. "
+                + "`patientRequest`. " + NAMED_BUNDLES
+                + " A CDS service names the prefetch keys it asks for in its discovery response. "
                 + "The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the service names.");
         assertThat(at(comparison, "prefetch.practitionerRoleBundle").explanation()).isEqualTo("The tool's request has the key `practitionerRoleBundle` here "
-                + "and your request does not. It holds a Bundle resource. A CDS service names the prefetch keys it asks for in its "
-                + "discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the keys the "
-                + "service names.");
+                + "and your request does not. It holds a Bundle resource. " + NAMED_BUNDLES + " A CDS service names the prefetch keys it asks "
+                + "for in its discovery response. The button Discover the CDS services this environment offers, on the CRD tab, lists the "
+                + "keys the service names.");
+        // A key only the pasted request has is not one of the tool's, so only where keys come from is said.
+        assertThat(at(comparison, "prefetch.encounterRequest").explanation()).doesNotContain("patientBundle")
+                .endsWith("lists the keys the service names.");
 
         Difference date = at(comparison, "context.draftOrders.entry[ServiceRequest #1].resource.occurrenceDateTime");
         assertThat(date.toolValue().value()).isEqualTo("2026-03-20");
@@ -640,6 +647,42 @@ class CrdRequestComparerTest {
         assertThat(lines(wrapped)).containsExactlyElementsOf(expected);
         // The case is still read from inside the Bundle.
         assertThat(source(wrapped, "member.memberId").path()).isEqualTo("prefetch.coverageSearch.entry[0].resource.subscriberId");
+    }
+
+    // ---- a request in the named Bundles the vendor's sandbox accepted (R-37) ----
+
+    private static Difference endingIn(RequestComparison comparison, String start, String end) {
+        return comparison.differences().stream().filter(d -> d.path().startsWith(start) && d.path().endsWith(end)).findFirst()
+                .orElseThrow(() -> new AssertionError("no difference under " + start + " ending in " + end + " among " + lines(comparison)));
+    }
+
+    @Test
+    void aRequestInTheNamedBundlesIsReadFromInsideThemAndComparedBundleByBundle() {
+        // The tool's own request as a vendor might send it back: its Bundles under the same keys, two of them written otherwise.
+        JsonNode root = JsonSafe.parse(sent(form("order-sign", 1, true).build())).node();
+        ((tools.jackson.databind.node.ObjectNode) root.at("/prefetch/patientBundle")).put("type", "searchset");
+        ((tools.jackson.databind.node.ObjectNode) root.at("/prefetch/coverageBundle/entry/0"))
+                .put("fullUrl", "https://fhir.vendor.example.invalid/Coverage/coverage-1");
+        RequestComparison comparison = compare(CrdRunRequest.builder().rawBody(root.toString()).build());
+
+        // The case is read out of the named Bundles, each value from where the Bundle holds it.
+        assertThat(source(comparison, "member.memberId").pointer()).startsWith("/prefetch/patientBundle/entry/0/resource/identifier/");
+        assertThat(source(comparison, "provider.npi").pointer()).startsWith("/prefetch/practitionerBundle/entry/0/resource/identifier/");
+        assertThat(source(comparison, "procedureCodes[0].code").path()).startsWith("context.draftOrders.entry[0]");
+        // The order the tool also sends in serviceRequestBundle is one order, not two codes.
+        assertThat(comparison.caseSource()).noneMatch(value -> value.field().startsWith("procedureCodes[1]"));
+
+        // Bundle by Bundle under the same keys: only the two changes, each explained by what this tool writes there.
+        assertThat(lines(comparison)).hasSize(3).contains(ONLY_HOOK_INSTANCE);
+        assertThat(lines(comparison)).noneMatch(line -> line.contains("ONLY_IN_TOOL") || line.contains("ONLY_IN_YOURS"));
+        Difference type = endingIn(comparison, "prefetch.patientBundle", ".type");
+        assertThat(type.toolValue().value()).isEqualTo("collection");
+        assertThat(type.yourValue().value()).isEqualTo("searchset");
+        assertThat(type.explanation()).endsWith("This tool sends each prefetch Bundle as type collection.");
+        Difference fullUrl = endingIn(comparison, "prefetch.coverageBundle", ".fullUrl");
+        assertThat(fullUrl.toolValue().value()).startsWith("urn:uuid:");
+        assertThat(fullUrl.explanation()).endsWith("This tool writes a fullUrl on every entry: the FHIR server, the resource type and its id "
+                + "when the variable fhirServer has a value, else a urn:uuid.");
     }
 
     // ---- the form wins, and what is borrowed is never mixed between two members ----

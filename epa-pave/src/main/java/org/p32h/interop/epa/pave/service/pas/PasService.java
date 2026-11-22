@@ -15,6 +15,8 @@ import org.p32h.interop.epa.pave.model.Finding;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.LedgerReceipt;
 import org.p32h.interop.epa.pave.model.MemberIdForms;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
+import org.p32h.interop.epa.pave.model.MemberIds;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.Protocol;
 import org.p32h.interop.epa.pave.model.ResolvedText;
@@ -100,7 +102,6 @@ public class PasService {
         validateSubmit(request);
         EpaOperation operation = EpaOperation.PAS_SUBMIT;
         boolean ownBody = RunSupport.ownBody(request);
-        MemberIdForms memberId = RunSupport.memberId(request);
 
         PreparedCall call;
         try {
@@ -126,7 +127,7 @@ public class PasService {
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
-                    "urn:uuid:" + UUID.randomUUID(), reads);
+                    "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule());
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
@@ -134,7 +135,7 @@ public class PasService {
             leftOut = built.leftOut();
         }
 
-        VendorExchange exchange = client.submit(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
+        VendorExchange exchange = client.submit(call, body, MockSelection.of(request.scenarioId(), mockKey(request), RunSupport.npi(request)));
 
         // From here on the call has been made, so whatever happens next the run is recorded. A later
         // step is linked to this run, so its id is settled now.
@@ -153,7 +154,6 @@ public class PasService {
         validateInquire(request);
         EpaOperation operation = EpaOperation.PAS_INQUIRE;
         boolean ownBody = RunSupport.ownBody(request);
-        MemberIdForms memberId = RunSupport.memberId(request);
 
         PreparedCall call;
         try {
@@ -177,14 +177,14 @@ public class PasService {
             Codes codes = inquiryCodes(request, claimId);
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
             PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
-                    reads);
+                    reads, call.memberIdRule());
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             sent = built.sent();
             leftOut = built.leftOut();
         }
 
-        VendorExchange exchange = client.inquire(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
+        VendorExchange exchange = client.inquire(call, body, MockSelection.of(request.scenarioId(), mockKey(request), RunSupport.npi(request)));
 
         // The submission this inquiry follows from: the one the carry names, otherwise the run the
         // ledger holds for the claim id that was asked about.
@@ -204,7 +204,7 @@ public class PasService {
                                           VendorExchange exchange, SentClaim sent, List<String> requestNotes, List<String> leftOut,
                                           String attachmentMode,
                                           boolean ownBody, String runId, String correlatedRunId, String followsRunId) {
-        MemberIdForms memberId = RunSupport.memberId(request);
+        MemberIdForms memberId = MemberIds.forms(typedMemberId(request), call.memberIdRule());
         Map<String, String> known = new LinkedHashMap<>();
         if (Texts.present(sent.claimId())) {
             known.put(RunRecord.CORR_CLAIM_ID, sent.claimId());
@@ -308,7 +308,8 @@ public class PasService {
         }
         // The error panel is for a fault. A member the service does not recognise is a finding
         // about test data and is presented as an answer, even when it arrived with an error status.
-        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues()) : null;
+        // A timeout is worded from the read timeout this call ran under, which the environment may set.
+        ErrorView error = outcome.fault() ? support.faultView(exchange, reading.detail().issues(), call) : null;
 
         Map<String, String> correlation = new LinkedHashMap<>(known);
         if (Texts.present(reading.claimResponseId())) {
@@ -324,40 +325,41 @@ public class PasService {
     public RequestPreview previewSubmit(PasSubmitRequest request, ProdUnlock unlock) {
         validateSubmit(request);
         EpaOperation operation = EpaOperation.PAS_SUBMIT;
-        MemberIdForms shown = shown(request);
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            return RequestPreview.blocked(operation, refusal, shown(request, gateway.memberIdRule()));
         }
+        MemberIdForms shown = shown(request, call.memberIdRule());
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
-                NEW_ID, reads);
-        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
+                NEW_ID, reads, call.memberIdRule());
+        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown)
+                .withToComplete(built.toComplete());
     }
 
     /** What the inquiry would be, without sending it. Nothing is recorded. */
     public RequestPreview previewInquire(PasInquireRequest request, ProdUnlock unlock) {
         validateInquire(request);
         EpaOperation operation = EpaOperation.PAS_INQUIRE;
-        MemberIdForms shown = shown(request);
         PreparedCall call;
         try {
             call = gateway.prepare(intent(operation, request, unlock, null));
         } catch (ProdWriteBlockedException refusal) {
-            return RequestPreview.blocked(operation, refusal, shown);
+            return RequestPreview.blocked(operation, refusal, shown(request, gateway.memberIdRule()));
         }
+        MemberIdForms shown = shown(request, call.memberIdRule());
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown);
         }
         String claimId = claimId(request, false);
         Codes codes = inquiryCodes(request, claimId);
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
-        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads);
+        PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads, call.memberIdRule());
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
@@ -369,9 +371,22 @@ public class PasService {
         return RequestPreview.of(operation, call, body, notes, shown);
     }
 
-    private static MemberIdForms shown(RunRequest request) {
-        MemberIdForms memberId = RunSupport.memberId(request);
+    /** The member ID as typed and as the environment's rule sends it, or null when none was typed. */
+    private static MemberIdForms shown(RunRequest request, MemberIdRule rule) {
+        MemberIdForms memberId = MemberIds.forms(typedMemberId(request), rule);
         return memberId.typed().isEmpty() ? null : memberId;
+    }
+
+    private static String typedMemberId(RunRequest request) {
+        return request.member() == null ? null : request.member().memberId();
+    }
+
+    /**
+     * The member ID the mock answers by: always the packed form, whatever the environment's rule,
+     * because the mock's members are keyed by one form and a rule changes only what goes on the wire.
+     */
+    private static String mockKey(RunRequest request) {
+        return MemberIds.noSpace(typedMemberId(request));
     }
 
     /** @param origin where the run came from, so the gateway can word a refusal for a replay or a suite. Null for a preview */
@@ -504,7 +519,10 @@ public class PasService {
         RunInputs inputs = shared(request);
         claimIdShape(inputs, "claimId", request.claimId());
         if (!RunSupport.ownBody(request)) {
-            inputs.member(request.member()).provider(request.provider()).codes(request.procedureCodes());
+            // An NPI, or the vendor's own practitioner id with the NPI then optional (R-40).
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider()).codes(request.procedureCodes());
+            // The card's fields go into the built request only, so a body of the tester's own is not refused for them.
+            PasCardChecks.check(request, inputs);
         }
         for (int i = 0; i < request.diagnosisCodes().size(); i++) {
             CodeInput code = request.diagnosisCodes().get(i);
@@ -522,7 +540,7 @@ public class PasService {
         if (!RunSupport.ownBody(request)) {
             inputs.require(claimId(request, false) != null, "claimId",
                     "Enter the claim id of the submission to ask about, or start the inquiry from a submission.");
-            inputs.member(request.member()).provider(request.provider());
+            inputs.member(request.member()).providerByNpiOrVendorId(request.provider());
             // The codes are optional for an inquiry. When they are given, none may be blank.
             for (int i = 0; i < request.procedureCodes().size(); i++) {
                 CodeInput code = request.procedureCodes().get(i);
@@ -541,8 +559,8 @@ public class PasService {
             if (request.member() != null && Texts.present(request.member().memberId())) {
                 inputs.member(request.member());
             }
-            if (request.provider() != null && Texts.present(request.provider().npi())) {
-                inputs.provider(request.provider());
+            if (request.provider() != null && (Texts.present(request.provider().npi()) || Texts.present(request.provider().vendorPractitionerId()))) {
+                inputs.providerByNpiOrVendorId(request.provider());
             }
         }
         claimIdShape(inputs, "carry." + NextStepView.CARRY_CLAIM_ID, first(request, NextStepView.CARRY_CLAIM_ID));
