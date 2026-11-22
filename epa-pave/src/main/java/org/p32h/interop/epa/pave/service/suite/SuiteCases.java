@@ -108,6 +108,12 @@ public final class SuiteCases {
      * whether that id was refused for holding member data.
      */
     private record Built(SuiteRow row, String key, boolean withheld) {
+
+        /** The position only: the key is a case id as written, which can hold member data. */
+        @Override
+        public String toString() {
+            return "Built[" + row.number() + "]";
+        }
     }
 
     /**
