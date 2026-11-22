@@ -15,7 +15,7 @@ operator in two releases on 2026-11-22: release 1, handed over at 15:00 UTC; rel
 Hours here are UTC.
 
 **The release candidate** of release 1 is `7fc32c8` (`7fc32c80e0202762b2cfe29e87c3a9800f9ad68d`) of the
-integration branch `rebuild/main`, cut at 11:48 UTC; the branch of these records merges it (`65d5069`)
+integration branch `rebuild/main`, cut at 11:48 UTC; the branch of these records merged it (`65d5069`)
 onto the records of D-280. It starts from `79a7c25`, the head of the second round of changes to the old
 screens (D-282; whole build 3,188 tests, 0 failures, 0 errors, 2 skipped). It holds every slice release
 1 must hold and the three it took only if merged by 12:30 UTC (D5, F2b, I3), and no slice of release 2:
@@ -27,29 +27,39 @@ of the guard and static tests. Its jar, built from that commit without running t
 `rebuild/r1/jars/epa-pave-7fc32c8.jar` in the integrator's scratch directory (sha1
 `6552b74113c343f8330580b6088f9bffdaf48a48`).
 
-**The last whole build** is that of `037efb6`, the commit just before H2 was merged (the merger's fifth
+**The last whole build before the candidate** was that of `037efb6`, the commit just before H2 was merged (the merger's fifth
 sweep, ended 11:21 UTC): BUILD SUCCESSFUL in 13m 36s, 355 classes, 3,519 tests, 0 failures, 0 errors, 2
 skipped (the two that need a folder that cannot be written, which a build running as root cannot make);
 its jar's sha1 is `b68338f30d61ce6f064e653f1b6ddefe2bb73814`. H2's builder's whole build on its own
-branch before the merge gave 3,508 tests, 0 failures, 0 errors, 2 skipped. <!-- R1-LAST: the merger's whole build of 7fc32c8, the last line of SWEEP.md -->No
-whole build of the candidate itself is known yet: the merger's first try at `7fc32c8` (11:30 UTC) was
-stopped by the runner's time limit with no result, and the merger's next sweep (`748ed1f`, 3,576 tests, 0
-failures, 0 errors, 2 skipped) holds slices of release 2 and is not a build of the candidate.<!-- /R1-LAST -->
+branch before the merge gave 3,508 tests, 0 failures, 0 errors, 2 skipped. The integrator's own whole build
+of the candidate `7fc32c8` gave 3,519 tests, 0 failures, 0 errors, 2 skipped
+(`rebuild/r1/base/build-7fc32c8.log`).
+
+**The corrections and the revision handed over.** Four correctors corrected the findings of the checks on
+the release branch from 11:57 to 12:45 UTC; their work was merged without conflict into `19ddf8e`
+(`19ddf8e19a152c22075d8a3b81d4223dfc5aa162`, 13:05 UTC), which the branch of these records merges
+(`f35e82d`). The integrator's whole build of `19ddf8e` gave 3,551 tests, 0 failures, 0 errors, 2 skipped
+(`rebuild/r1/close1/build-19ddf8e.log`; its jar `rebuild/r1/jars/epa-pave-19ddf8e-k2.jar`). Agents that
+wrote no correction checked it again (D-299). A second, short round corrected what those rechecks left,
+until 13:35 UTC; it was merged and checked again, and the release was built whole twice and once from a
+fresh clone. The revision handed over is TO-FILL-HEAD, with the build stamp TO-FILL-STAMP; its two whole
+builds and its build from a fresh clone gave TO-FILL-COUNTS.
 
 **The checks of release 1** (D-299) ran before the candidate, on the merged jars of `1a14611`, `9dbf61a`
 and `0b69049`, by agents that built none of it: 86 confirmed findings, 31 major and 55 minor. Among them
 are **two holes in the production guardrail that the rebuild opened**, found before any hand-over and
 held by no build handed over: a sandbox's token url could be a production write address and receive the
 client secret, and a typed address could reach production spelled `/Claim/%24submit` (look-guardrail-3
-and -4, decided I-28 and I-29). The integrator decided I-1 to I-34 on what the checks left to them. On
+and -4, decided I-28 and I-29). The integrator decided I-1 to I-36 (with I-28a) on what the checks left to
+them. On
 the candidate itself the integrator found three more, each with its decision: a callback url typed in an
 environment is shown and masked but not used by the subscription call (integrator-2, major); a url under
 a name such as `authBase` is masked as a secret, so on live the questionnaire url can reach DTR masked
 and be refused (integrator-3, major, decided I-35); the PAS finding titled with 2.0.1 (integrator-1,
 minor).
-<!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29, every line of findings.jsonl, I-35, integrator-1, integrator-2 -->Four
-correctors are correcting the findings on the release branch until about 13:25 UTC, the two holes first;
-the release is then built whole twice and checked again by agents that wrote no correction.<!-- /R1-LAST -->
+Four correctors corrected them from 11:57 to 12:45 UTC, the two holes first; agents that wrote no correction
+checked the result again, on `19ddf8e` and, for the screens alone, on `e5d0972`; a second round corrected
+what those checks left, until 13:35 UTC (D-299).
 
 **The entries.** D-281 records the operator's verdict, what was found about the Config error and the
 uploads, and their four answers; D-282 the second round of the old screens, built, closed and
@@ -95,75 +105,103 @@ Each line can be read alone. The detail of each is in the entry named.
    - the trail of the full requests and responses of the last 500 exchanges, secrets masked (B5), and
      what reads it: a run's request and answer in Audit with Copy and Download (B4b), and the Advanced
      Trail page (I4): Configuration > Advanced > Trail says "This page comes in the next
-     release."; Audit shows a run's request and answer only while the page that made the run stays open
-     <!-- R1-LAST: AU-6, I-26 -->, and a run opened by another page says "The request and answer are shown
-     only by the page that made the run, while it stays open."<!-- /R1-LAST -->;
+     release."; Audit shows a run's request and answer only while the page that made the run stays open,
+     and a run opened by another page says "The request and answer are shown only by the page that made the
+     run, while it stays open." (seen on `19ddf8e`);
    - the member and provider lookups configured on screen, with "Test the lookup" (D3, F4, C2c): no page
      of Configuration offers them; until then `lookup.member` and `lookup.provider` in `application.yml`, and typing by hand;
-     <!-- R1-LAST: critic-3, look-8, I-1 -->the Member and Provider cards say "No lookup is configured" and
-     "Type the details." and leave the fields open<!-- /R1-LAST -->;
+     the Member and Provider cards say "No lookup is configured" and "Type the details." and leave the
+     fields open (seen on `e5d0972`);
    - questionnaire answers filled from the case (E4, H4): every answer the questionnaire response does
      not already hold is typed, and nothing marks an answer as coming from the case;
    - Journeys and Suites in Audit (B4b, G4), and the suites' Postman fix with the repeated case id of
      D-283 (G3): Audit draws no
      sub-navigation while Runs is its only page, so neither is offered;
    - a reload that keeps the case and every step's result, and "Load into the Workbench" (A2c): a reload starts a new case, the runs
-     made before it being in Audit; <!-- R1-LAST: wb-mock-6, wbm3-6, features-4, I-8 -->one notice under the top
-     bar says "A reload starts a new case. The runs of the case before are in Audit."<!-- /R1-LAST -->;
+     made before it being in Audit; one notice under the top bar says "A reload starts a new case. The runs
+     of the case before are in Audit." (seen on `e5d0972` and `19ddf8e`);
    - "Forget this production address" (D6, I4): Production writes lists the addresses remembered as
-     production and offers no way to forget one; <!-- R1-LAST: features-1, I-19 -->a send refused for such an
-     address names the environment it was remembered from and gives the way out that works today (stop
-     PAVE, remove that environment's entries from `productionDestinations` in `store.json`, start it
-     again), and Production writes and `/api/mode` say the same (D-295)<!-- /R1-LAST -->;
+     production and offers no way to forget one; a send refused for such an address names the environment it
+     was remembered from and gives the way out that works today (stop PAVE, remove that environment's
+     entries from `productionDestinations` in `store.json`, start it again), and Production writes and
+     `/api/mode` say the same (D-295; seen on `19ddf8e`);
    - also release 2: values for one run on the step that was refused for them (A2c); a stored file that
      cannot be read listed instead of refusing the start, and a lock against a second copy on one store
      (D6); the place names in server sentences brought up to the new screens (R-16), the guardrail's
      sentences changed in their place names only (I-30); the advice after a rebuild for a PAVE started
      with loading at start off (hunts-1, hunts-2, I-9).
 3. **What the checks of release 1 and the integrator's own findings on the candidate left** (D-299).
-   - **Two holes in the guardrail the rebuild opened**, found by the check on `0b69049` before any
+   - **Two holes in the guardrail the rebuild opened, closed before any hand-over**, found by the check on
+     `0b69049` before any
      hand-over: a sandbox's token url set to a production environment's remembered `$submit` address
      received a POST with the client secret, with no unlock and `allow-prod-writes` false
      (look-guardrail-3, I-28, D-290); a typed Submit address ending `/Claim/%24submit` was stored and sent
-     to an address that is production (look-guardrail-4, I-29). <!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29 -->Both
-     are being corrected for release 1, first of all, with tests.<!-- /R1-LAST -->
-   - **A callback url typed in the environment is not used by the subscription.** At the candidate it is
+     to an address that is production (look-guardrail-4, I-29). Both were closed before any hand-over
+     (`e318758`, merged in `19ddf8e`) and are held by `TokenUrlAndEscapeGuardrailTest` (the token url at
+     save in 13 spellings; the look's 21 refused spellings and five escaped forms of `$`) and
+     `TokenUrlAtSendingTest` (nothing is sent to such a token url, whatever the store holds); the recheck of
+     the guardrail on `19ddf8e` saw both refused and every earlier spelling still refused (D-299). As first
+     built the token url rule also stopped a sandbox's reads after a slip (features-8); since the second
+     round a token url is held against the production submit and subscription addresses only (I-28a), the
+     hole staying closed.
+   - **A callback url typed in the environment was not used by the subscription.** At the candidate it was
      shown in the settings view and held for masking, but the subscription call still names
      `onyx.subscription.callback-url` of `application.yml` (integrator-2, major, found by the integrator on
-     `7fc32c8`; D-289). <!-- R1-LAST: integrator-2 -->Being corrected for release 1 (integrator-2).<!-- /R1-LAST -->
-   - **A url under a name such as `authBase` is masked as a secret.** On live, every answer that repeats
-     it is masked, and when the FHIR addresses lie under the same host the questionnaire url CRD returns
+     `7fc32c8`; D-289). Corrected (`44f09fe`): the subscription names the typed address when there is one,
+     held by `SubscriptionCallbackFromTheEnvironmentTest`; not seen on a running jar since.
+   - **A url under a name such as `authBase` was masked as a secret.** On live, at the candidate, every answer
+     that repeated it was masked, and when the FHIR addresses lie under the same host the questionnaire
+     url CRD returns
      reaches DTR masked and is refused (integrator-3, major, on `7fc32c8`, first seen in the merger's
-     smoke of F2b; decided I-35; D-291). <!-- R1-LAST: integrator-3, I-35 -->Being corrected for release
-     1.<!-- /R1-LAST -->
-   - <!-- R1-LAST: wbm3-2, look-4, live-content-5, look-guardrail-2 -->Put right in the candidate's code by H2
-     and seen by no check since: the purple bar under the Submit head off kind prod (wbm3-2, look-4,
-     live-content-5) and the link "Production writes" drawn purple on purple (look-guardrail-2); no
-     corrector's list names them (D-299).<!-- /R1-LAST -->
-   - <!-- R1-LAST: every line of findings.jsonl not named in this line -->The other confirmed findings are being
-     corrected for release 1, to be seen again by agents that wrote no correction; each that is not
-     becomes an open line here.<!-- /R1-LAST -->
-   - Left open for time, minor, each with what a tester does: a refusal box 2 px under the panel head
-     (critic-8); a step chip that wraps at 1024 (look-17); the browser's own blue checkbox for "Send
-     prefetch", which works as the others do (critic-11); the line of an empty store wrapping in a narrow
-     box, where the tester presses "New environment" (look-18); the browser's own file inputs (look-11);
-     a scroll of 33 px after "+" adds a code (critic-10); a folder chosen in place of a file, told the
-     file can no longer be read, where the tester chooses the exported file inside it (AU-4, I-25).
+     smoke of F2b; decided I-35; D-291). Corrected (`44f09fe`), held by `SecretsTest`; not seen on a running
+     jar since.
+   - Put right in the candidate's code by H2 and seen closed by the rechecks: the purple bar under the
+     Submit head off kind prod (wbm3-2 and look-4 on `e5d0972`, live-content-5 on `19ddf8e`) and the link
+     "Production writes" drawn purple on purple (look-guardrail-2, on `19ddf8e`; D-299).
+   - The other confirmed findings were corrected in the first round and seen closed by the rechecks (D-299),
+     except these, corrected with a test and not seen on a running jar since (their screen halves were seen
+     on `e5d0972`, before the server halves were merged): the readiness words of the Workbench (critic-3,
+     look-14), the sample code E0470 on the list for every line of business (critic-4, wb-mock-9), "The flow
+     ends here: nothing further to send." (critic-9), the Status step's headline "A notification arrived for
+     this submission." (wbm3-1). Corrected in the second round, until 13:35 UTC, and checked again before
+     the hand-over: the coverage table of "Response detail" fits its fold (critic-2, look-2); a CDS
+     service's refusal on live shows what the service said in its card (look-3); on step 2 one filled button
+     once the response is complete (wb-mock-4, wbm3-4, I-6); a question that waits on another answer is
+     drawn muted and can be typed into (wbm3-9, look-9, I-36); the headline of an incomplete response names
+     the question, with one "Why" fold (look-10); "Start a new case" clears the NPI's old error
+     (critic-k1-1); the page shows the second part of the sentences of I-19 and I-34; a run id, the sign-in
+     line of a suite or a replay, and a send with no address name Configuration or Audit, not a tab or a
+     property alone; the refusal panel of the environment form stays in view (look-guardrail-8); the test
+     line the Eclipse compiler rejected, which made STS ask before every start (STS-3).
+   - Left open, each with what a tester does: a folder whose name ends in `.json` or `.csv`, chosen in place
+     of a file, is told the file can no longer be read; choose the exported file inside it (AU-4, I-25).
+     Dates show in the browser's own form (for example 01/10/2026) beside ISO dates elsewhere; the value
+     sent is the ISO date (look-12). A replay sent again from Audit that fails does not carry the line that
+     PAVE's files changed on disk; after a pull, restart PAVE before replaying (the Audit part of I-12, not
+     done). With two environments whose names begin alike, the chooser in the top bar at 1024 cuts both to
+     the same letters; read the active one in Configuration > Environments (live-config-7). A save of the
+     empty environment form names its missing field (Kind) at the field only, not in the panel; look at the
+     marked field (live-config-8).
+   - Left for time by the sorter and corrected all the same, seen closed on `e5d0972`: critic-8, critic-10,
+     critic-11, look-11, look-17, look-18 (D-299).
    - Left by the integrator's decision: hunts-1 and hunts-2 (release 2, line 2), hunts-3 (the measure
      was wrong, I-10), the browser's own console line for a planned refusal (wb-mock-5, live-config-6,
      I-7, I-33), M6 at 5 typed values (live-config-3, I-31), the guardrail's sentences still naming the
-     Config tab and the PAS tab (look-guardrail-6, I-30).
-   - <!-- R1-LAST: secrets-1 -->The README did not say that a client secret or a bearer token typed into the
-     form is kept in plain text in `config-store/store.json`, that `store.json.before-v2` is written once,
-     or that an older build refuses a version 2 store (secrets-1); the README is the integrator's, to say
-     it for the hand-over.<!-- /R1-LAST -->
-   - Checked by none of the checking agents: F2b (seen by the merger's smoke only), H2 (by its builder
-     only), both merged after the jars the checks used, and the candidate itself, on which only the
-     integrator found the three findings above.
-     <!-- R1-LAST: I-11 -->The real STS check at the candidate (I-11) is due before the hand-over.<!-- /R1-LAST -->
-   - <!-- R1-LAST: integrator-1 -->The PAS finding that lists what a request left out is titled "The request
-     left out <n> elements PAS 2.0.1 requires" though its elements are those of 2.2.1; the integrator
-     decided it says 2.2.1 for release 1 (integrator-1, D-293).<!-- /R1-LAST -->
+     Config tab and the PAS tab (look-guardrail-6, I-30): in a production refusal "the Config tab" means
+     Configuration (Production writes for the unlock) and "the PAS tab" means Workbench step 3, Submit.
+   - The README says what secrets-1 asked: a client secret or bearer token typed in the environment form is
+     kept as typed in `config-store/store.json` (owner-only) unless it is typed as `{{env:PAVE_NAME}}`; the
+     first saved setting makes the store version 2 after one copy to `store.json.before-v2`; an older build
+     refuses a version 2 store; going back means stopping PAVE and renaming the copy back (D-289).
+   - Checked by none of the first checks: F2b, H2 and the candidate itself; the rechecks ran on `19ddf8e`,
+     which holds all three.
+     The real STS 5.4.0 check (I-11) ran on `19ddf8e`: the import, a start from the Boot Dashboard, a
+     restart told apart from another window (STS-1) and the changed-files line under a refusal after a
+     rebuild (STS-2) held; the Eclipse compiler marked one error in a test line, so STS asked before every
+     start (STS-3, corrected in the second round; the integrator now compiles every source set with that
+     compiler before a release).
+   - The PAS finding that lists what a request left out reads "The request left out <n> elements PAS 2.2.1
+     requires" since `44f09fe` (integrator-1, D-293); it named 2.0.1 at the candidate.
 4. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
@@ -186,9 +224,9 @@ Each line can be read alone. The detail of each is in the entry named.
 7. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
-   production environment's. <!-- R1-LAST: look-guardrail-4, I-29 -->On production's server a sandbox whose base
-   path holds `%00`, `%20` or `%2e`, or a production base path holding `%2F`, is warned about and not
-   refused.<!-- /R1-LAST --> Not proven: IPv6,
+   production environment's. A base path holding an encoded separator is refused when it decodes onto a
+   production address and is otherwise warned about and not refused (I-29, `EncodedSeparatorGuardrailTest`).
+   Not proven: IPv6,
    explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
    redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
    production checks since D1b; the two holes the checks of release 1 found in the rebuild's new
@@ -216,8 +254,9 @@ Each line can be read alone. The detail of each is in the entry named.
     null and empty; a subscription's headers have no presence of their own; the repeated-key detail
     says "the value shown above" for a key not drawn; the action of a "not configured" error does not
     fit a url that is not valid as filled. The checks of release 1 did not look for these. Some server
-    sentences still name the old tabs: <!-- R1-LAST: critic-3, I-1 -->those the Workbench shows are being brought
-    to the new places for release 1 (I-1 (d)); the rest wait for release 2 (R-16)<!-- /R1-LAST -->, and the
+    sentences still name the old tabs: those the Workbench shows name the new places since `629a584` and
+    `7a1dbe7` (I-1 (d)), three more come with the second round (a run id, the sign-in line of a suite or a
+    replay, a send with no address); the rest wait for release 2 (R-16), and the
     guardrail's keep their words in release 1 (I-30).
 10. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
     while the tool runs on mock is recorded as answered by a mock scenario; lines written between

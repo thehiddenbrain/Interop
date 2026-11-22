@@ -49,19 +49,19 @@ entry.
 | D-284 | The other faults older than the round that its close found | A suite expectation refused as a name, a PAS run that named another run than the screen said, a mock subscription pointing to a property; each corrected with a test |
 | D-285 | How the rebuild was planned and built: two releases at fixed hours (15:00 and 22:00 UTC on 2026-11-22), nine builders, a queue and a merger | Every live check used a stand-in on a loopback port, never the vendor's service; nothing ran on Windows; no person has used the new screens. What release 1 holds and what waits for release 2 is first in `PROGRESS.md` |
 | D-286 | The Workbench: one top bar, three tabs, a case column and four steps carried from one to the next | All of it is in release 1. Seen on mock to "The prior authorization is approved." and live against the strict stand-in, on the jars the checks used; the Submit step as merged last (H2) by its builder only. A reload starts a new case: keeping it is release 2 |
-| D-287 | A result is chips, one headline, a few facts and closed folds, with one way on | The word gates held at 1440 and 1024. <!-- R1-LAST: critic-1, wb-mock-3, wbm3-3, look-5, look-3 -->A failure drawn as two boxes and a service's own reason for a 400 left off the screen are being corrected (D-299)<!-- /R1-LAST --> |
+| D-287 | A result is chips, one headline, a few facts and closed folds, with one way on | The word gates held at 1440 and 1024. A failure drawn as two boxes was corrected and seen as one card on `e5d0972`; a CDS service's own reason for a 400 on live is shown in that card since the second round (D-299) |
 | D-288 | Short words and tones, served once by `GET /api/vocabulary` | Every outcome of every protocol has a short label of its own |
-| D-289 | Environments carry settings edited on screen, stored in version 2 of the store and used at once; the Configuration pages | **An older build refuses a store a newer one has written settings into**; going back needs one file renamed and loses those settings. Seen used with no restart, live against a stand-in. <!-- R1-LAST: integrator-2 -->At the candidate a typed callback url is not used by the subscription call; being corrected for release 1 (integrator-2)<!-- /R1-LAST --> |
+| D-289 | Environments carry settings edited on screen, stored in version 2 of the store and used at once; the Configuration pages | **An older build refuses a store a newer one has written settings into**; going back needs one file renamed and loses those settings. Seen used with no restart, live against a stand-in. A typed callback url, which the subscription call did not use at the candidate, is used since `44f09fe` (integrator-2) |
 | D-290 | Sign-in belongs to the environment; a pasted token for the session; one retry after a refused token | **A hole the rebuild opened**: a token url could be a production write address and receive the client secret. Found by the checks before any hand-over; decided I-28 |
 | D-291 | Requests take the shapes the vendor's sandbox accepted; draftOrders type is a setting of the environment | Accepted by the strict stand-in that refuses what the sandbox refused; never seen against the vendor's service |
 | D-292 | Member ID rules: packed, spaced and split, per environment | The ledger keeps the packed form, so one member stays one key |
-| D-293 | Submit follows Da Vinci PAS 2.2.1, with files as attachments | The operator's answer. Nothing blocks sending: an incomplete request is a negative test. <!-- R1-LAST: integrator-1 -->One finding title still names PAS 2.0.1; the integrator decided it says 2.2.1 for release 1<!-- /R1-LAST --> |
+| D-293 | Submit follows Da Vinci PAS 2.2.1, with files as attachments | The operator's answer. Nothing blocks sending: an incomplete request is a negative test. The finding of what a request left out names PAS 2.2.1 since `44f09fe` (integrator-1) |
 | D-294 | Saved lists of test members and providers | Member data kept on purpose, on the operator's leave, within the bounds of D-298 |
 | D-295 | Uploads, the classes on disk, the build stamp and the run scripts | The likeliest cause of the operator's failed uploads now has its line and its action. Seen in the real STS 5.4.0 and under Wine, not on Windows |
 | D-296 | Audit: the runs, one run and replay | Journeys, Suites and a run's request and answer from the trail are release 2 |
 | D-297 | Mock and live are still chosen when PAVE starts | The integrator's decision; PAVE is started once per profile |
 | D-298 | The saved lists and the trail bend two rules of the specification: no member data persisted, and no raw JSON in the ledger | Only as far as the operator allowed: lists entered on purpose, test data, never logged or in the ledger, off by one setting; the trail a store of its own, in release 2, the ledger rule unchanged |
-| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-35, integrator-1 and integrator-2 | **Two holes in the production guardrail that the rebuild opened** were found before any hand-over (I-28, I-29). **A callback url typed in an environment is not used by the subscription call** (integrator-2). <!-- R1-LAST: every line of findings.jsonl, I-1 to I-35, integrator-1, integrator-2 -->The findings are being corrected for release 1; each that is not is an open line of `PROGRESS.md`<!-- /R1-LAST -->. None of the checking agents checked the candidate itself; nothing was checked on Windows or against the vendor's service |
+| D-299 | The checks of release 1, on merged jars before the candidate: 86 confirmed findings; three more the integrator found on the candidate; the integrator's decisions I-1 to I-36; the corrections and the rechecks | **Two holes in the production guardrail that the rebuild opened** were found and closed before any hand-over (I-28, I-29; `e318758`, held by `TokenUrlAndEscapeGuardrailTest` and `TokenUrlAtSendingTest`). The findings were corrected by four correctors, seen again on `19ddf8e`, and what the rechecks left corrected in a second round; each left open is an open line of `PROGRESS.md`. Nothing was checked on Windows itself or against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -6615,6 +6615,8 @@ briefs as `TASK_ECHO_SECRETS.md`, `TASK_ECHO_VERDICT.md`, `TASK_ECHO_LOCATION.md
     secret in the Config tab." (a claim id the same way).
   - A replay sends no carried value, and a masked id is on its line as "(not recorded, N characters)",
     before and now: all nine runs a check tried were not replayable.
+  Later: D-299. Each sentence quoted in this entry that says "in the Config tab" says "in Configuration"
+  since `629a584`.
 - **The cost of the search.** One pass over the answer whatever the number of secrets. Measured on the
   classes of the jars, one machine: 2 MB with 1, 20 and 200 secrets held 30, 22 and 20 ms, 20 MB 199,
   200 and 226 ms (the old search, as the first check measured it: 6, 74 and 702 ms; 50, 775 and
@@ -7118,9 +7120,10 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   words (R-25); a reload that keeps the case (R-38, O9) is release 2, because it reads the trail.
 - **What a tester sees at the release candidate** (`7fc32c8`: A1 `1d0c4c0`, A2a `37dc560`, A2b with A2a's
   correction `7581cae`, H1 `6f756a0`, H2 `7fc32c8`). The top bar: the brand, the three tabs (Audit with
-  the count of today's runs), the environment chooser (<!-- R1-LAST: look-1, live-config-2, live-content-3 -->its
-  name cut to "Stand..." at 1024 on live on `0b69049`, the LIVE badge over the kind badge, being corrected
-  for release 1<!-- /R1-LAST -->), the kind badge, "MOCK" (a yellow
+  the count of today's runs), the environment chooser (at the candidate, at 1024 on live, the LIVE badge
+  drawn over the kind badge; corrected, and seen with nothing overlapping on `19ddf8e`; with two
+  environments whose names begin alike the chooser still cuts both to the same first letters,
+  live-config-7), the kind badge, "MOCK" (a yellow
   pill) or "LIVE", the sign-in chip on live (D-290), the build stamp (version, time, and whether files
   changed on disk), and the lines under the bar for production, UAT, the ledger alarm and one notice at
   a time. The case column: the Member, Provider and Service cards; on mock "Choose a member", the mock
@@ -7156,14 +7159,20 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   piece of them under Node; no test drives a browser. The `.ready` files do not say whether each was
   shown to fail without its change. A1's builder saw the frame in Chromium at 1024 and 1440 on mock and
   against a stand-in.
-- **Left at the candidate** (D-299). <!-- R1-LAST: wb-mock-4, wbm3-4, I-6, wb-mock-6, wbm3-6, features-4, I-8, critic-9, I-4, wbm3-1, wbm3-10, I-16, I-18, look-1, live-config-2, live-content-3, wb-mock-7, wbm3-7, wb-mock-1, look-7 -->Being
-  corrected for release 1: two filled buttons after a result (one at a time, I-6); a reload that drops
-  the case in silence (a notice, "A reload starts a new case. The runs of the case before are in Audit.",
-  I-8); the live banner ("Type a member ID to begin.", I-4); a sample notification that belongs to the
-  case shown as "Unmatched" (the Status step leads with this case's notification, I-16, I-18); the top
-  bar overlapping itself at 1024 on live; the focus lost after "Run check"; the folds of the case column
-  at 1024.<!-- /R1-LAST --> Left open for time, minor: a scroll of 33 px after "+" adds a code (critic-10), a
-  chip that wraps at 1024 (look-17), the browser's own blue checkbox for "Send prefetch" (critic-11).
+- **Left at the candidate** (D-299). Corrected and seen again on `e5d0972`: one filled button after a result
+  on steps 1, 3 and 4 (I-6); the notice "A reload starts a new case. The runs of the case before are in
+  Audit." with a link to Audit (I-8); the live banner "Type a member ID to begin." (I-4); the Status step's
+  chip "Matched to this submission", from this case's notifications only, the others in a closed fold (I-16,
+  I-18); the focus kept after "Run check"; the fields of the case column at 1024 (wb-mock-1, look-7). Seen
+  on `19ddf8e`: the top bar at 1024 on live with nothing overlapping (look-1, live-config-2,
+  live-content-3). In the code at `19ddf8e` with their tests, and not seen on a running jar since: the
+  Status step's headline "A notification arrived for this submission." (wbm3-1, `NotificationReceiverTest`)
+  and "The flow ends here: nothing further to send." where a result ends the flow (critic-9,
+  `CrdVerdictsTest`, `PasVerdictsTest`). Since the second round step 2 also shows one filled button once the
+  response is complete (wb-mock-4, wbm3-4). Left for time by the sorter and corrected all the same, seen on
+  `e5d0972`: no scroll after "+" adds a code
+  (critic-10), the step chips on one line at 1024 (look-17), the "Send prefetch" box in the tool's colour
+  (critic-11).
 
 **D-287. A result is chips, one headline, a few facts and one way on.**
 - **What a tester met before.** A result of about 2.7 window heights on CRD and 3.2 on PAS after the
@@ -7191,14 +7200,15 @@ slices `cont40/`, and the build's record `rebuild/` (the queue's table `QUEUE.md
   picked, under the plan's limits of 100 and 130. The checks measured the same on the jars of
   `1a14611` and `9dbf61a` (D-299): 94 and 93 fresh, 124 and 110 with a member picked, 107 words in the
   work column after the check, with the headline, every fact and the way on in view without a scroll.
-- **Left at the candidate** (D-299). <!-- R1-LAST: critic-1, wb-mock-3, wbm3-3, look-5, look-3, wb-mock-2, critic-2, look-2, look-13, I-14, critic-7 -->Being
-  corrected for release 1: a service failure drawn as two boxes that say the failure three times and
-  the service's sentence three times (241 words on the first round), where the plan's prototype has one
-  card; the reason a CDS service gave for a refusal (HTTP 400 with a
-  summary and a detail) not on the screen although the page said to read the issues; the open
-  "Response detail" laid out wider than its fold, its sentences cut mid-word; a fact's display shown
-  beside its chip when it only repeats the code (I-14); an answer that is not JSON said twice.<!-- /R1-LAST -->
-  Left open for time, minor: a refusal box 2 px under the panel head (critic-8).
+- **Left at the candidate** (D-299). Corrected and seen again on `e5d0972`: a service failure drawn as one
+  card, its headline, what the service said once and a fold of the issues it sent (critic-1, wb-mock-3,
+  wbm3-3, look-5); the open "Response detail" within its fold, its sentences wrapped (wb-mock-2); a fact's
+  display shown only when it adds words (I-14); an answer that is not JSON said once, under the top bar
+  (critic-7). Corrected in the second round: the coverage table of "Response detail" fits its fold with no
+  column cut (critic-2, look-2), and a CDS service's refusal on live shows in its card what the service said
+  and the issues it sent (look-3). Left for time by the sorter and corrected all the same, seen on
+  `e5d0972`: a refusal box has the rule and
+  the gap of a result under the panel head (critic-8).
 
 **D-288. Short words and tones, served once by the server.**
 - **What a tester met before.** Long labels, the colour of a step decided in the page, and each screen
@@ -7236,12 +7246,13 @@ at once; and the Configuration pages.**
   start-up arguments and a restart (D-276, letter G).
 - **Decided** (R-02, R-04, R-05, R-09, R-28, R-42). Each environment carries settings: its sign-in,
   an address per operation, values the requests read (the FHIR server, the payer, the PAS codes, the
-  address to call back), its timeouts, its member ID rule and its request shapes. <!-- R1-LAST: integrator-2 -->At
-  the candidate the address to call back typed under the values is shown in the settings view and held
-  for masking, but the subscription call does not use it: it still names `onyx.subscription.callback-url`
-  of `application.yml` (`SubscriptionService` builds its request from that property alone; found by the
-  integrator on `7fc32c8`, integrator-2). Being corrected for release 1 (integrator-2): the subscription
-  names the typed address when there is one.<!-- /R1-LAST --> Where a call goes,
+  address to call back), its timeouts, its member ID rule and its request shapes. At the candidate the
+  address to call back typed under the values was shown in the settings view and held for masking, but the
+  subscription call named `onyx.subscription.callback-url` of `application.yml` alone (found by the
+  integrator on `7fc32c8`, integrator-2). Corrected (`44f09fe`): a create or update, and its preview, name
+  the address the active environment types, resolved by the call, and `application.yml`'s otherwise; held by
+  `SubscriptionCallbackFromTheEnvironmentTest`, which failed without the change. Not seen on a running jar
+  since. Where a call goes,
   in order: a collection request named for the run, the address typed for the operation, the first
   collection request mapped to it, `application.yml`. A secret field is never returned: blank keeps
   the stored value, a value that is wholly a reference is kept as that reference. The name of a stored
@@ -7267,8 +7278,8 @@ at once; and the Configuration pages.**
   since (R-05).
 - **Merged: the settings at run time** (D1b `e922c7d`). Every call uses the active environment's
   settings as saved, with no restart: the typed address, the values as a layer between the run's values
-  and the export (<!-- R1-LAST: integrator-2 -->except the address to call back, which the subscription does not
-  read at the candidate, see above<!-- /R1-LAST -->), its sign-in and its timeouts; typed addresses are among the production checks; the
+  and the export (the address to call back included since `44f09fe`, see above), its sign-in and its
+  timeouts; typed addresses are among the production checks; the
   page posts an export as JSON text (`{fileName, text}`; multipart is kept for curl). Held by
   `JsonUploadTest`, `SettingsAddressGuardrailTest`, `ShapeEvidenceTest`, `ValuesLayerTest`,
   `RunSupportTest`. Seen by the merger live against the strict stand-in, with no restart: a typed
@@ -7290,14 +7301,20 @@ at once; and the Configuration pages.**
   with no error and no dead end on mock; on live up to the first call, which the strict stand-in refused
   with HTTP 400 until draftOrders type was set to Left out by hand (the line naming the setting came with
   F2b, after that jar); and every Advanced tool present and answering.
-- **Left at the candidate** (D-299). <!-- R1-LAST: look-guardrail-1, look-14, I-15, features-3, live-config-4, I-32, AU-5, look-19 -->Being
-  corrected for release 1: a sandbox saved with a production address showed only the note at Kind, not
-  the refusal's sentence that names the production environment; the options "Not stated: use
-  application.yml" and "Choose: never guessed" become "As PAVE was started" and "Choose a kind" (I-15);
-  In force now and Check this installation asked for an endpoint release 1 does not have and logged a
-  404; "Open Configuration" opened the list, not the place to change (I-32).<!-- /R1-LAST --> Left open for time,
-  minor: the line of an empty store wraps in a narrow box (look-18); the file inputs are the browser's
-  own (look-11).
+- **Left at the candidate** (D-299). Corrected and seen again on `19ddf8e`: a sandbox saved with a
+  production address shows, above the form, the refusal's sentence that names the production environment
+  (look-guardrail-1); In force now and Check this installation ask for no endpoint release 1 lacks
+  (features-3); "Open Configuration" opens Sign-in of the active environment after a failed sign-in and
+  Addresses after an answer that points at the address (I-32, live-config-4); a refused upload or import is
+  one plain line (AU-5). Seen on `e5d0972`: the options "As PAVE was started" and "Choose a kind" (I-15),
+  and In force now saying "No environment is active." once (look-19). The readiness sentence for an
+  operation with no address, "No address for <the operation's short words>. Type one under Addresses of the
+  environment in Configuration.", is in the code at `19ddf8e` with `ReadinessWordsTest` and not seen on a
+  running jar since (look-14). Left for time by the
+  sorter and corrected all the same, seen on `e5d0972`: the line of an empty store spans the grid (look-18),
+  and a file is chosen with a "Choose file" button (look-11). Still open: a save of the empty form names its
+  missing field at the field only, not in the panel (live-config-8). Since the second round the panel of a
+  refused save stays in view (look-guardrail-8).
 - **Timeouts.** `application.yml` now waits 120000 ms for the vendor (`onyx.read-timeout-ms`; it was
   15000, section 19's value) because the vendor's inquiry took longer than 20 s in the earlier
   sessions; `tracking.slow-threshold-ms` is 15000, so the slow chip keeps its meaning; the connect
@@ -7348,12 +7365,22 @@ is fetched again once.**
   url that is, or lies beneath, an address a production environment uses for a call is refused at its
   field when the settings are saved, in the words of the address refusal; the token client refuses such
   a url at the moment it would send, whatever was stored; a sandbox that shares a production
-  environment's own token url stays allowed; nothing of the guardrail is loosened. <!-- R1-LAST: look-guardrail-3, I-28 -->It
-  is first on the guardrail corrector's list for release 1, with tests for both refusals.<!-- /R1-LAST -->
-- **Left at the candidate.** <!-- R1-LAST: live-config-1, I-34 -->Being corrected for release 1: a token url that
-  does not answer was named on the screen as "onyx.auth.token-url on the Config tab", although the url
-  was the environment's own; the sentence names the environment's token url and its place in
-  Configuration first (I-34).<!-- /R1-LAST -->
+  environment's own token url stays allowed; nothing of the guardrail is loosened. It was corrected before
+  any hand-over (`e318758`, merged in `19ddf8e`): the save refuses such a token url at `signIn.tokenUrl`,
+  and the token client refuses it at the moment it would send, with nothing sent. Held by
+  `TokenUrlAndEscapeGuardrailTest` (13 spellings of the token url, the shared token url allowed) and
+  `TokenUrlAtSendingTest` (a token url stored before a production environment named that address: no request
+  reaches the service); the recheck of the guardrail on `19ddf8e` saw it refused. As first built it refused
+  a token url beneath any address a production environment calls, so that after a slip a sandbox could not
+  sign in and its reads stopped too (features-8). Decided (I-28a) and made in the second round: a token url
+  is refused when it is, or lies beneath, an address a production environment uses for PAS submit or for a
+  subscription create, update or delete, at save and at send; the hole the look found stays closed with its
+  tests.
+- **Left at the candidate.** Corrected and seen again on `19ddf8e`: a token url that does not answer, where
+  the environment states it, is named as that environment's token url with its place in Configuration >
+  Environments > Sign-in first, and "Open Configuration" opens Sign-in (I-34, I-32;
+  `TokenUrlAndServiceSaidTest`, which failed without the change). Since the second round the page also shows
+  the second line, "If the url is right, the sign-in service may be down: try again later."
 - **Left.** How the vendor wants the client to sign in is still not observed (D-233); the form body is
   now a choice, not a fact.
 
@@ -7411,7 +7438,9 @@ setting.**
   returns reaches the Questionnaire step masked and DTR refuses the carry. Decided by the integrator
   (I-35): the words that name a place (`base`, `server`, `domain`, `address`, `origin`, `hostname`,
   `port`) are descriptors, so such a name is no longer a secret; nothing else of the rule changes.
-  <!-- R1-LAST: integrator-3, I-35 -->Being corrected for release 1.<!-- /R1-LAST -->
+  Corrected (`44f09fe`): `Secrets.DESCRIPTOR_WORDS` holds the seven words; `SecretsTest` lists each with a
+  name now shown and a name still masked (`authServerToken`, `serverPassword`), and failed without the
+  change. Not seen on a running jar since.
 
 **D-292. Member ID rules: packed, spaced and split, per environment.**
 - **What a tester met before.** One rule, every space removed. The vendor's sandbox wanted the packed
@@ -7432,10 +7461,9 @@ setting.**
   merger on mock (spaced: "P32H-PA-R   EQ", nine characters, three spaces, two) and on `0b69049` live
   against the strict stand-in (D-299): spaced and split sent as the rules say, and the note for a
   9-character ID on the card and the result.
-- **Left at the candidate.** <!-- R1-LAST: live-content-1, live-content-2 -->Being corrected for release 1: the
-  screen drew the three spaces of a spaced ID as one in every "Sent as" line, and before any run the
-  Member card said "Sent as <id>, rule: packed" on an environment set to spaced or split, although
-  nothing had been sent.<!-- /R1-LAST -->
+- **Left at the candidate.** Corrected and seen again on `19ddf8e` on live: the three spaces of a spaced ID
+  are drawn in every "Sent as" line, and a member lookup that is not configured draws no "Sent as" line
+  before a run (live-content-1, live-content-2).
 
 **D-293. Submit follows Da Vinci PAS 2.2.1, with the Service card fields it needs and files as
 attachments.**
@@ -7482,12 +7510,13 @@ attachments.**
   exactly 5 MiB attached and sent. Seen on mock on `9dbf61a`: a PDF and a PNG attached to
   P32H-PAS-ATTACH-REQ and sent. The checks saw the Submit step as H1 built it; H2 was merged after every
   check and seen by its builder only.
-- **Left at the candidate.** <!-- R1-LAST: integrator-1 -->The finding that lists what was left out is still
-  titled "The request left out <n> elements PAS 2.0.1 requires", although its elements are those of
-  2.2.1 (`PasFindings`; found by the integrator on `7fc32c8`, integrator-1). Decided by the integrator:
-  the title and its Javadoc say "PAS 2.2.1" for release 1.<!-- /R1-LAST --> <!-- R1-LAST: live-content-4, wbm3-5, I-17 -->Being corrected
-  for release 1: a file just over 5 MB was refused as being 5 MB with a limit of 5 MB; an answer on
-  Submit that asks for more documents offered "Continue to Submit" to a tester already there (I-17).<!-- /R1-LAST -->
+- **Left at the candidate.** At the candidate the finding that lists what was left out was titled with PAS
+  2.0.1, although its elements are those of 2.2.1 (integrator-1). Since `44f09fe` it reads "The request left
+  out <n> elements PAS 2.2.1 requires", held by `PasServiceTest`, which failed without the change.
+  Corrected: a file just over 5 MB is told its size in bytes against the limit of 5 MB (seen on `19ddf8e`,
+  live-content-4); an answer on Submit that asks for more documents offers no "Continue to Submit" (seen on
+  `e5d0972`), and its headline "Add the documents asked for and send again." is in the code at `19ddf8e`
+  with `PasVerdictsTest` (I-17).
 
 **D-294. Saved lists of test members and providers.**
 - **What a tester met before.** Every member and provider typed again for every case; "no member data
@@ -7515,9 +7544,9 @@ attachments.**
   `ListsFrontendTest`. Seen on `9dbf61a` by the completeness check (D-299): a member added, the template's
   three sample rows, an import read and then made, and on live the picker filling the card "from saved
   list"; by the uploads check, a 201st row refused with "This list holds 200 entries, the most it keeps."
-- **Left at the candidate.** <!-- R1-LAST: AU-2, I-23, AU-7, I-27 -->Being corrected for release 1: a CSV
-  separated by semicolons was told it had no memberId column, and a JSON file the same; an import of 201
-  rows put the refused row below the rows to add, off the screen.<!-- /R1-LAST -->
+- **Left at the candidate.** Corrected and seen again on `19ddf8e`: a CSV separated by semicolons or tabs,
+  and a JSON file, are told what they are (I-23); the import button names what it will not import, as
+  "Import 200 rows (1 refused)", and the refused rows are listed first (I-27).
 
 **D-295. Uploads, the classes on disk, the build stamp and the run scripts.**
 - **What a tester met before.** The failures of D-281: an upload answered the internal error after
@@ -7568,16 +7597,19 @@ attachments.**
   file alone showed the line after 8.8 s, the worst case being about 14 s (the server looks every 10 s,
   the page every 4 s) against the plan's gate of 10 s; under Wine, the read-only, in-use and disk-full sentences over the API; on
   `9dbf61a`, 453 uploads of broken files in the three upload places with no internal error box.
-- **Left at the candidate.** <!-- R1-LAST: AU-1, features-6, I-21, AU-3, I-24, STS-2, I-12, STS-1, I-13 -->Being
-  corrected for release 1: a zip, a gzip, a picture or a PDF told it was saved in another encoding (it is
-  told what it is, I-21); the two sentences for the wrong kind of Postman file named a place that does
-  not exist (I-24); a refusal met between a pull and the restart named a cure the tester cannot use (a
-  line says changed files can be the cause, I-12); a restart announced as a change in another window
-  (I-13).<!-- /R1-LAST --> Left for release 2 by the integrator: with loading at start switched off
+- **Left at the candidate.** Corrected and seen again on `19ddf8e`: a zip, a gzip, a picture or a PDF is
+  told what it is (I-21); the two sentences for the wrong kind of Postman file name Configuration >
+  Environments and Configuration > Collections (I-24). In the real STS 5.4.0 on `19ddf8e`: after STS rebuilt
+  the classes under the running tool, a refusal carried the line "PAVE's files changed on disk since it
+  started, which can cause this. Stop PAVE and start it again, then try once more." (I-12, STS-2), and a
+  restart was not told as a change in another window (I-13, STS-1). A replay sent again from Audit that
+  fails does not carry that line: the Audit part of I-12 was not done. Left for release 2 by the integrator:
+  with loading at start switched off
   (`-Dpave.classes.load-at-start=false`), the first upload within 10 s of the last look gets the bare
   report action instead of R-24's, and a missing class on the environment list is not covered by it
-  (hunts-1, hunts-2, I-9); the default start never meets either. Left open for time: a folder chosen in
-  place of a file is told the file can no longer be read (AU-4, I-25).
+  (hunts-1, hunts-2, I-9); the default start never meets either. Still open: a folder whose name ends in
+  `.json` or `.csv`, chosen in place of a file, is told the file can no longer be read; the tester chooses
+  the exported file inside it (AU-4, I-25).
 - **Left for release 2** (the plan's D6 and its other items): a stored file that cannot be read listed
   instead of refusing the start, a lock against a second copy on one store, "Forget this production
   address". Until then the upload refused for an address remembered from a removed environment keeps
@@ -7588,8 +7620,8 @@ attachments.**
   and that `/api/mode` and Production writes said writes were not blocked (features-1). Decided (I-19):
   the refusal names the environment the address was remembered from and gives the same way out, and
   `/api/mode` and Production writes say what the refusal will say; the guardrail's own sentences stay
-  word for word and nothing of it is loosened. <!-- R1-LAST: features-1, I-19 -->Being corrected for release
-  1.<!-- /R1-LAST -->
+  word for word and nothing of it is loosened. Corrected (`b50332c`, `RememberedProductionNoteTest`, which
+  failed without the change) and seen again on `19ddf8e`.
 
 **D-296. Audit: the runs, one run, and replay.**
 - **What a tester met before.** History, with filters in the address, the runs of one journey not
@@ -7607,10 +7639,10 @@ attachments.**
   (D-299): an empty Audit, a journey's runs with their chips, the JSON of a run while the page that made
   it stays open, "Run again" answering "Same outcome.", a CSV with no name, date of birth, address or raw
   JSON, and the count on the tab.
-- **Left at the candidate.** <!-- R1-LAST: features-2, I-20, AU-6, I-26 -->Being corrected for release 1: on live
-  with the default policy "Run again" was offered on runs that cannot be replayed (their member ID was not
-  kept, I-20); a run opened by a page that did not make it said nothing about the request and answer it
-  cannot show (I-26).<!-- /R1-LAST -->
+- **Left at the candidate.** Corrected and seen again on `19ddf8e`: a run whose member ID was not kept says
+  "This run cannot be run again: its member ID was not kept." in place of "Run again" (I-20); a run opened
+  by a page that did not make it says "The request and answer are shown only by the page that made the run,
+  while it stays open." (I-26).
 
 **D-297. Mock and live are still chosen when PAVE starts.**
 - **Decided** (R-01; the integrator: stays later). No switch at run time: it would cost 35 to 50
@@ -7656,11 +7688,13 @@ attachments.**
   not byte for byte (R-06).
 
 **D-299. The checks of release 1: what they measured, what they found, what the integrator decided,
-and what is left at the release candidate.**
+what was corrected and seen again, and what is left.**
 The reports are in the integrator's scratch directory: `cont43/` to `cont49/`, a look and a second
 reader's verification per area; every confirmed finding is one line of `rebuild/r1/findings.jsonl`; the
 integrator's decisions on what the checks left to them are `rebuild/r1/INTEGRATOR_R1.md` (I-1 to I-34,
-and, on the three findings the integrator added on the candidate, I-35, integrator-1 and integrator-2).
+and, on the three findings the integrator added on the candidate, I-35, integrator-1 and integrator-2;
+after the first recheck I-28a, I-36 and the notes on look-12 and STS-3). The correctors' reports are
+`rebuild/r1/close1/reports/`; the rechecks `cont51/` to `cont53/` and `rebuild/r1/recheck2/`.
 - **Who checked, and on what.** Agents that built none of the rebuild, on merged jars before the
   release candidate; in each area a first agent looked and a second saw each finding again or refuted
   it. On `1a14611`, where step 1 was the only step merged: the Workbench on mock, measured, and the look
@@ -7711,11 +7745,10 @@ and, on the three findings the integrator added on the candidate, I-35, integrat
   belongs to the case shown as "Unmatched"; a production address remembered by a slip blocking the
   sandbox with no way out on the screen while `/api/mode` said writes were allowed (features-1); the
   spaced member ID drawn with one space; a zip or a picture told to save itself as UTF-8.
-  <!-- R1-LAST: wbm3-2, look-4, live-content-5, look-guardrail-2 -->Two were already put right in the
-  candidate's code when the correctors began, by H2, and no check has seen them since: the purple bar
-  drawn under the Submit head off kind prod (wbm3-2, look-4, live-content-5), and the link "Production
-  writes" on Submit drawn purple on purple (look-guardrail-2). No corrector's list names them, and
-  `findings.jsonl` still marks them open.<!-- /R1-LAST -->
+  Two were already put right in the candidate's code by H2 when the correctors began, and the rechecks saw
+  them closed: the purple bar drawn under the Submit head off kind prod (wbm3-2 and look-4 on `e5d0972`,
+  live-content-5 on `19ddf8e`), and the link "Production writes" on Submit, purple on purple at the
+  candidate (look-guardrail-2, on `19ddf8e`).
 - **What the integrator found on the candidate.** Three more findings, each with the head `7fc32c8`,
   added to `findings.jsonl` at 12:20 UTC, two major and one minor: a callback url typed in the
   environment's values is shown and masked but never used by the subscription call, which still names
@@ -7731,9 +7764,13 @@ and, on the three findings the integrator added on the candidate, I-35, integrat
   and sent although `/Claim/$submit` at that host is production, because the form used for the
   comparison left `%24` encoded and servers decode it (look-guardrail-4). Decided (I-29): that form
   decodes every percent-escape of the path once, an escape that cannot be decoded or a `%` left after one
-  decoding is refused as an address, and every spelling refused before is still refused. <!-- R1-LAST: look-guardrail-3, look-guardrail-4, I-28, I-29 -->Both
-  come first on the guardrail corrector's list and are being corrected for release 1, with tests.<!-- /R1-LAST -->
-- **What the integrator decided** (I-1 to I-34; they amend the plan and win over it). Plain words on the
+  decoding is refused as an address, and every spelling refused before is still refused. Both were corrected
+  before any hand-over (`e318758`, merged in `19ddf8e`) and are held by `TokenUrlAndEscapeGuardrailTest`
+  (the token url at save in 13 spellings; the look's 21 refused spellings and five escaped forms of `$` as
+  test cases; an escape of an escape refused) and `TokenUrlAtSendingTest` (nothing sent to such a token url,
+  whatever the store holds). The recheck of the guardrail on `19ddf8e`, by an agent that wrote no
+  correction, saw both refused and every earlier spelling still refused.
+- **What the integrator decided** (I-1 to I-36 with I-28a; they amend the plan and win over it). Plain words on the
   Workbench, never property names or braces, and the server's next-step sentences shown there name the
   new places (I-1, I-15, I-34); a mock member's sample case never trips the tool's own check (I-2); a
   refused form names its fields (I-3); the live banner and the end of a flow (I-4); one filled button
@@ -7749,21 +7786,58 @@ and, on the three findings the integrator added on the candidate, I-35, integrat
   candidate (I-11). The guardrail's sentences stay word for word in release 1, old tab names included
   (I-30). hunts-1 and I-9 stay with release 2. On the integrator's own findings: a name that says where,
   not what, is not a secret (I-35, integrator-3); the subscription names the typed callback url when
-  there is one (integrator-2); the PAS finding's title says 2.2.1 (integrator-1).
-- **Being corrected, and what is left.** Four correctors work on the release branch until about 13:25
-  UTC; then the release is built whole twice and checked again by agents that wrote no correction,
-  before the hand-over at 15:00 UTC. <!-- R1-LAST: every line of findings.jsonl not left open below and not among the four put right by H2, integrator-1, integrator-2, integrator-3, I-35 -->Every
-  other confirmed finding, the integrator's three included, is being corrected for release 1, to be seen
-  again before the hand-over.<!-- /R1-LAST --> The four put right by H2 are said above. Left open by
-  decision, each an open line of `PROGRESS.md`: for time, seven minor findings, left for time by the
-  integrator (`close1/left-open.json`): critic-8, critic-10, critic-11, look-11, look-17, look-18, and
-  AU-4 with I-25; by the integrator,
-  hunts-1 and hunts-2 (release 2, I-9), hunts-3 (the measure, I-10), the console line for a planned
-  refusal (wb-mock-5, live-config-6), the guardrail's old place names (look-guardrail-6, I-30), M6's
-  typed values (live-config-3, I-31); and the README's lines on a typed secret kept in `store.json`, on
-  `store.json.before-v2` and on an older build refusing a version 2 store (secrets-1), which the
-  integrator's README is to say. <!-- R1-LAST: I-11 -->The real STS check at the candidate (I-11) is due before
-  the hand-over.<!-- /R1-LAST -->
-- **What is not known.** How each correction ends until it is seen again; anything on Windows itself,
-  on the operator's workstation or against the vendor's service.
+  there is one (integrator-2); the PAS finding's title says 2.2.1 (integrator-1). After the first recheck: a
+  question that waits on
+  another answer is never locked (I-36); a token url is held against production write addresses only
+  (I-28a); the browser's own date input stays in release 1 (look-12); the Eclipse compiler of STS 5.4.0
+  compiles every source set before a release (STS-3).
+- **What was corrected, how it was seen again, and what is left.** Four correctors corrected the findings
+  from 11:57 to 12:45 UTC, each on its own list (the Workbench; Configuration and Audit; the guardrail; the
+  server), in the commits from `e63b70a` to `7a1dbe7`, merged without conflict into `19ddf8e` at 13:05 UTC.
+  The integrator's whole build of `19ddf8e` gave 3,551 tests, 0 failures, 0 errors, 2 skipped, against
+  3,519, 0, 0 and 2 for the candidate `7fc32c8`. Agents that wrote no correction then checked again, each
+  writing the status of every finding it saw into `findings.jsonl`: the Workbench on mock and the look on
+  `e5d0972`, which held the screen corrections only (`cont51`); the guardrail and the secrets (`cont52`),
+  Audit and uploads and every feature (`cont53`), live configuration and what live sends, and the real STS
+  5.4.0 (`rebuild/r1/recheck2/`), on `19ddf8e`. Every finding corrected in that round was seen closed but
+  these, corrected with a test and not seen on a running jar since, their screen halves seen on `e5d0972`
+  before the server halves were merged: the readiness words of the Workbench (critic-3, look-14), the sample
+  code E0470 (critic-4, wb-mock-9), the end of a flow (critic-9), the Status step's headline (wbm3-1), and
+  the integrator's three findings (integrator-1, integrator-2, integrator-3). A second, short round, until
+  13:35 UTC, corrected what the rechecks left: the coverage table (critic-2, look-2); the service's words in
+  a live refusal (look-3); one filled button on step 2 (wb-mock-4, wbm3-4); a question that waits on another
+  answer drawn muted and open to typing (wbm3-9, look-9, I-36); the headline of an incomplete response
+  naming the question, with one "Why" fold (look-10); the NPI's old error kept after "Start a new case"
+  (critic-k1-1); the second part of the sentences of I-19 and I-34 shown on the page; three server sentences
+  that still named a tab or a property alone (a run id, the sign-in line of a suite or a replay, a send with
+  no address); the refusal panel of the environment form kept in view (look-guardrail-8); the token url held
+  against production write addresses only (features-8, I-28a); and the test line the Eclipse compiler
+  rejected (STS-3). It was merged and checked again, and the release was built whole twice and once from a
+  fresh clone (TO-FILL-COUNTS) at TO-FILL-HEAD.
+- **Left open, each an open line of `PROGRESS.md` with what a tester does.** A folder whose name ends in
+  `.json` or `.csv`, chosen in place of a file, is told the file can no longer be read: the line for a
+  folder was built, but the recheck on `19ddf8e` did not meet it (AU-4, I-25). Dates show in the browser's
+  own form beside ISO dates elsewhere; the value sent is the ISO date (look-12, no change in release 1).
+  With `-Dpave.classes.load-at-start=false` the advice after a rebuild under a running PAVE misses two ways
+  a missing class shows (hunts-1, hunts-2, I-9; release 2); the default start meets neither. The measure M12
+  is run with fresh file times (hunts-3, I-10). The guardrail's sentences still name the Config tab and the
+  PAS tab (look-guardrail-6, I-30). A replay from Audit that fails does not carry the changed-files line
+  (the Audit part of I-12). With two environments whose names begin alike the chooser at 1024 cuts both to
+  the same letters (live-config-7). A save of the empty environment form names its missing field at the
+  field, not in the panel (live-config-8). The browser's own console line for a planned refusal (wb-mock-5,
+  live-config-6, I-7, I-33) and M6 at five typed values (live-config-3, I-31) are by decision. The six minor
+  findings the sorter left for time (critic-8, critic-10, critic-11, look-11, look-17, look-18) were
+  corrected all the same and seen closed on `e5d0972`. The README says what secrets-1 asked: a client secret
+  or bearer token typed in the environment form is kept as typed in `config-store/store.json` (owner-only)
+  unless it is typed as `{{env:PAVE_NAME}}`; the first saved setting makes the store version 2 after one
+  copy to `store.json.before-v2`; an older build refuses a version 2 store; going back means stopping PAVE
+  and renaming the copy back.
+- **The real STS check** (I-11) ran on `19ddf8e`: the project imported, PAVE started from the Boot
+  Dashboard, a restart told apart from a change in another window (STS-1), and a refusal after STS rebuilt
+  the classes under the running tool carrying the changed-files line (STS-2). The Eclipse compiler STS
+  brings marked one error, in a test line javac accepts, so STS asked before every start (STS-3); the line
+  was changed in the second round, and the integrator now compiles every source set with that compiler
+  before a release (`rebuild/ecj-check.sh`): a release with an Eclipse error is not handed over.
+- **What is not known.** Anything on Windows itself, on the operator's workstation or against the
+  vendor's service.
 
