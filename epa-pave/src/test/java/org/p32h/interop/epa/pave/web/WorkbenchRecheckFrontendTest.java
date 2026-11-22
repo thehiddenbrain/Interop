@@ -115,4 +115,12 @@ class WorkbenchRecheckFrontendTest {
                 "[\"Set draftOrders type to Left out for Sample Sandbox in Configuration > Environments, then run the check again.\",\"Open Configuration\"]",
                 "[\"Continue to the questionnaire\"]");
     }
+
+    @Test
+    void theSignInChipGivesWayBeforeTheEnvironmentChooser() throws Exception {
+        // At 1100 px and under the chooser keeps the room to name the environment in force (live-config-7).
+        String css = StaticSources.withoutComments(StaticSources.read("css/pave.css"));
+        String narrow = css.substring(css.indexOf("@media (max-width: 1100px)"));
+        assertThat(StaticSources.body(narrow, ".topbar__signin {")).contains("flex-shrink: 8;", "min-width: 80px;", "max-width: 96px;");
+    }
 }
