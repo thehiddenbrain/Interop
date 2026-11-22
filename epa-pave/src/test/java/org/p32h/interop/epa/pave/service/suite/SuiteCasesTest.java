@@ -463,4 +463,28 @@ class SuiteCasesTest {
         assertThat(rows.get(1).problems()).singleElement().asString().startsWith("The note holds this run's member ID.");
         assertThat(rows.get(2).problems()).isEmpty();
     }
+    /**
+     * round2-left 1: a row that names another member can run under an id a later row is refused for
+     * (the id holds the later row's member's last name). The id is member data all the same, so the
+     * row that runs is named by its position on screen and in the results, and its case carries that
+     * name to the ledger, never the id as written.
+     */
+    @Test
+    void aRowThatRunsUnderAnIdALaterRowIsRefusedForIsNamedAndRecordedByItsPosition() {
+        org.p32h.interop.epa.pave.service.MemberLookup byMember = id -> new org.p32h.interop.epa.pave.model.MemberLookupResult(
+                org.p32h.interop.epa.pave.model.LookupStatus.FOUND, org.p32h.interop.epa.pave.model.MemberIds.forms(id),
+                org.p32h.interop.epa.pave.model.MemberDetail.builder().memberId(id)
+                        .lastName("P32H-NO-AUTH".equals(id) ? SuiteTestBed.SURNAME : "Other").build(),
+                List.of(), List.of(), List.of(), null, null, "message");
+        org.p32h.interop.epa.pave.service.cases.ProtocolCaseRunner runner = new SuiteTestBed().runner().previewMembers(byMember);
+        String text = SuiteTestBed.suite("asked-" + SuiteTestBed.SURNAME + ",crd,P32H-EMPTY,1234567893,95810,NO_AUTH_REQUIRED",
+                "asked-" + SuiteTestBed.SURNAME + ",crd,P32H-NO-AUTH,1234567893,95810,NO_AUTH_REQUIRED",
+                "TC-3,crd,P32H-NO-AUTH,1234567893,95810,NO_AUTH_REQUIRED");
+        SuiteDefinition definition = SuiteCases.define("cases.csv", reader.read("cases.csv", text), true, OUTCOMES, runner);
+        assertThat(definition.rows()).extracting(SuiteRow::caseId).containsExactly("case-1 [id not shown]", "case-2 [id not shown]", "TC-3");
+        assertThat(definition.rows().get(0).runnable()).isTrue();
+        assertThat(definition.rows().get(0).spec().caseId()).isEqualTo("case-1 [id not shown]");
+        assertThat(definition.rows().get(1).runnable()).isFalse();
+        assertThat(definition.rows().get(2).spec().caseId()).isEqualTo("TC-3");
+    }
 }
