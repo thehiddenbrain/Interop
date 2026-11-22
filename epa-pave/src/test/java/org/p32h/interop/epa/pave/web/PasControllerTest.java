@@ -223,6 +223,32 @@ class PasControllerTest {
     }
 
     @Test
+    void aServiceCardFieldThatCannotBeSentIs422AtItsFieldAndTheSubmitPreviewSaysWhatIsLeftToComplete() throws Exception {
+        MockMvc mvc = mvc("mock");
+        mvc.perform(json(post("/api/pas/submit"), submission("P32H-PAS-APPROVED", ",\"placeOfService\":\"office\",\"certificationType\":\"Z\","
+                        + "\"servicingProvider\":{\"npi\":\"1234567890\"}")))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.kind").value("VALIDATION"))
+                .andExpect(jsonPath("$.fieldErrors[*].field").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "placeOfService", "certificationType", "servicingProvider.npi")));
+        mvc.perform(json(post("/api/pas/submit/preview"), "{\"member\":{\"memberId\":\"P32H-PAS-APPROVED\"},\"provider\":{\"npi\":"
+                        + "\"1234567893\"},\"procedureCodes\":[{\"code\":\"95810\",\"quantity\":-1,\"unit\":\"DAYS\"}]}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.fieldErrors[*].field").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        "procedureCodes[0].quantity", "procedureCodes[0].unit")));
+        assertThat(ledger.records()).isEmpty();
+        assertThat(gateway.intents()).isEmpty();
+
+        JsonNode preview = send(mvc, json(post("/api/pas/submit/preview"), submission("P32H-PAS-APPROVED", "")), 200);
+        assertThat(preview.at("/toComplete/0/field").asString()).isEqualTo("values.payerName");
+        assertThat(preview.at("/toComplete/1/field").asString()).isEqualTo("provider.phone");
+        assertThat(preview.at("/toComplete/1/line").asString())
+                .isEqualTo("Provider phone or fax: none. PAS rule pd-1 needs one: add it in Edit provider fields.");
+        assertThat(send(mvc, json(post("/api/pas/inquire/preview"), inquiry("P32H-PAS-INQUIRE", ",\"claimId\":\"claim-test-0001\"")), 200)
+                .has("toComplete")).isFalse();
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
     void anAttachmentMayCarryItsDocumentTypeAndCategoryAndAMisspeltPartOfEitherIsRefusedByName() throws Exception {
         MockMvc mvc = mvc("mock");
         // The document type and category an attachment may carry, for US Core 3.1.1 DocumentReference, are read by those names.

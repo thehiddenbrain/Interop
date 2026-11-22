@@ -63,6 +63,7 @@ import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.UnresolvedVariablesException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
+import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
 import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
 import org.p32h.interop.epa.pave.testsupport.FakeCodeList;
@@ -1483,5 +1484,92 @@ class PasServiceTest {
                     assertThat(finding.detail()).contains("first \"collection\", then \"batch\"").doesNotContain("wrong");
                 });
         assertThat(result.additionalFields()).extracting(f -> f.path()).contains("type (value 1 of 2)", "type (value 2 of 2)");
+    }
+
+    // ---- the Service card's fields and what is left to complete (E3) ----
+
+    @Test
+    void eachServiceCardFieldThatCannotBeSentIsRefusedAtItsOwnFieldAndNothingIsSent() {
+        PasSubmitRequest wrong = submission("P32H-PAS-APPROVED").certificationType("X").requestType("hs").levelOfService("Emergency")
+                .placeOfService("1").serviceType("medical").servicingProvider(ProviderDetail.builder().npi("1234567890").vendorPractitionerId("P 1/x").build())
+                .procedureCodes(List.of(new CodeInput("95810", null, null, java.math.BigDecimal.ZERO, "units"))).build();
+        assertThatThrownBy(() -> service().runSubmit(wrong, RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).extracting(FieldError::field)
+                        .containsExactlyInAnyOrder("certificationType", "requestType", "levelOfService", "placeOfService", "serviceType",
+                                "procedureCodes[0].quantity", "procedureCodes[0].unit", "servicingProvider.npi",
+                                "servicingProvider.vendorPractitionerId"));
+        assertThatThrownBy(() -> service().previewSubmit(wrong, null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                        .contains(new FieldError("certificationType", "A certification type is one of I (Initial), S (Revised), 4 (Extension), "
+                                + "R (Renewal), 3 (Cancel), 1 (Appeal, immediate), 2 (Appeal, standard)."),
+                                new FieldError("placeOfService", "A place of service is a two-digit CMS code, such as 11 for office."),
+                                new FieldError("procedureCodes[0].quantity", "A quantity is more than 0. Leave it blank when none is stated.")));
+        assertThat(gateway.intents()).isEmpty();
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aCodeOutsideTheShortListsIsSentWhereTheGuideBindsALongerList() {
+        // Place of service 31 and service type BV are real codes the screen's short lists lack; a quantity of 1.5 hours keeps its form.
+        PasSubmitRequest request = submission("P32H-PAS-APPROVED").placeOfService("31").serviceType("BV").certificationType("I")
+                .requestType("HS").levelOfService("03")
+                .procedureCodes(List.of(new CodeInput("95810", null, null, new java.math.BigDecimal("1.50"), "HS"))).build();
+        JsonNode bundle = sentBundle(service().runSubmit(request, RunOrigin.manual(), null));
+        JsonNode item = bundle.at("/entry/0/resource/item/0");
+        assertThat(item.at("/locationCodeableConcept/coding/0/code").asString()).isEqualTo("31");
+        assertThat(item.at("/category/coding/0/code").asString()).isEqualTo("BV");
+        assertThat(item.at("/quantity/value").decimalValue()).isEqualByComparingTo("1.50");
+        // A body of the tester's own is not refused for a field of the card it does not carry.
+        RequestPreview own = service().previewSubmit(PasSubmitRequest.builder().rawBody("{\"resourceType\":\"Bundle\"}").placeOfService("1")
+                .build(), null);
+        assertThat(own.toComplete()).isNull();
+    }
+
+    @Test
+    void theSubmitPreviewListsWhatToCompleteBeforeSendingAndNoOtherPreviewDoes() {
+        RequestPreview bare = service().previewSubmit(submission("P32H-PAS-APPROVED").build(), null);
+        assertThat(bare.toComplete()).extracting(RequestPreview.ToComplete::field)
+                .containsExactly("values.payerName", "provider.phone", "serviceType", "requestType", "placeOfService");
+        assertThat(bare.toComplete().get(0).line()).isEqualTo("Insurer: none. PAS 2.2.1 requires the payer: add Payer name and Payer "
+                + "identifier under Values in Configuration > Environments.");
+
+        // The environment's values close the gaps they hold: a value typed under Values reaches the request as a variable.
+        gateway.variable("payerName", "Placeholder payer").variable("payerIdentifier", "PAYER-PLACEHOLDER-1")
+                .variable("pasServiceType", "1").variable("pasRequestType", "HS");
+        PasSubmitRequest complete = submission("P32H-PAS-APPROVED").placeOfService("11")
+                .provider(ProviderDetail.builder().npi("1234567893").firstName("Pat").lastName("Provider").phone("555-0100").build()).build();
+        assertThat(service().previewSubmit(complete, null).toComplete()).isEmpty();
+        assertThat(JsonSafe.mapper().writeValueAsString(service().previewSubmit(complete, null))).contains("\"toComplete\":[]");
+
+        // A typed claim id says nothing about initial or revised, so the certification type becomes a gap.
+        PasSubmitRequest typed = submission("P32H-PAS-APPROVED").placeOfService("11").claimId(CLAIM)
+                .provider(ProviderDetail.builder().npi("1234567893").firstName("Pat").lastName("Provider").fax("555-0101").build()).build();
+        assertThat(service().previewSubmit(typed, null).toComplete()).extracting(RequestPreview.ToComplete::field)
+                .containsExactly("certificationType");
+
+        // Not checked is not the same as nothing missing: every other preview leaves the list out.
+        RequestPreview inquiry = service().previewInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM).build(), null);
+        assertThat(inquiry.toComplete()).isNull();
+        assertThat(JsonSafe.mapper().writeValueAsString(inquiry)).doesNotContain("toComplete");
+        gateway.failing(blockedWrite());
+        assertThat(service().previewSubmit(complete, null).toComplete()).isNull();
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
+    void aProviderNamedByTheVendorsOwnIdNeedsNoNpiAndTheRequestNamesItsPractitionerByThatId() {
+        PasSubmitRequest request = submission("P32H-PAS-APPROVED")
+                .provider(ProviderDetail.builder().lastName("Provider").vendorPractitionerId("P124").build()).build();
+        JsonNode bundle = sentBundle(service().runSubmit(request, RunOrigin.manual(), null));
+        assertThat(bundle.at("/entry/3/resource/resourceType").asString()).isEqualTo("Practitioner");
+        assertThat(bundle.at("/entry/3/resource/id").asString()).isEqualTo("P124");
+        assertThat(service().previewInquire(inquiry("P32H-PAS-INQUIRE").claimId(CLAIM)
+                .provider(ProviderDetail.builder().vendorPractitionerId("P124").build()).build(), null).body()).contains("\"P124\"");
+        // Neither an NPI nor a vendor id: refused at the NPI, with the sentence that names both.
+        assertThatThrownBy(() -> service().previewSubmit(submission("P32H-PAS-APPROVED").provider(ProviderDetail.builder().lastName("Provider")
+                .build()).build(), null)).isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors())
+                .contains(new FieldError("provider.npi", RunInputs.NPI_OR_VENDOR_ID)));
+        assertInvalidSubmit(service(), submission("P32H-PAS-APPROVED").provider(ProviderDetail.builder().vendorPractitionerId("P 124").build())
+                .build(), "provider.vendorPractitionerId");
     }
 }
