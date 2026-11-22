@@ -13,14 +13,15 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
-**Release 1 of the rebuilt screens**, handed over on 2026-11-22 at 15:00 UTC. The screens were
-rebuilt after the operator found the earlier ones unusable; the engine behind them (the requests,
-the reading of the answers, the guardrail, the ledger) is the one PAVE had. Release 1 is the
-integration branch's release candidate `7fc32c8` with the corrections the checks asked for. The
-top bar shows the build's day and time in UTC; the same time is `build.time` in `GET /api/mode`.
-<!-- R1-LAST: the release build (head, build stamp, jar) once it is built whole after the corrections -->
-The build handed over is the release branch at the head named in `PROGRESS.md`, built whole after
-the corrections; its stamp is the time that build was made.
+**Release 1 of the rebuilt screens.** The screens were rebuilt after the operator found the earlier
+ones unusable; the engine behind them (the requests, the reading of the answers, the guardrail, the
+ledger) is the one PAVE had. The top bar shows the build's day and time in UTC; the same time is
+`build.time` in `GET /api/mode`.
+<!-- R1-LAST: the release build (head, build stamp, jar, hand-over hour) once it is built whole after the corrections -->
+Release 1 is handed over on 2026-11-22 at 15:00 UTC: the integration branch's release candidate
+`7fc32c8` with the corrections the checks asked for. The build handed over is the release branch
+at the head named in `PROGRESS.md`, built whole after the corrections; its stamp is the time that
+build was made.
 <!-- /R1-LAST -->
 
 What release 1 holds:
@@ -37,8 +38,13 @@ What release 1 holds:
   a request that works.
 - Audit: the runs with filters, one run with "Run again", "Export CSV", "Replay the runs listed".
 - Submit follows Da Vinci PAS 2.2.1 (CRD and DTR stay at 2.0.1); the request shapes the vendor's
-  sandbox accepted; one retry after a refused token; a wait of up to 120 s for the vendor; the
-  fixes for every way an upload was found to fail.
+  sandbox accepted; one retry after a refused token; a wait of up to 120 s for the vendor.
+- The fixes for the ways an upload was found to fail, except one after a rebuild under a PAVE
+  started with `-Dpave.classes.load-at-start=false` (see [Limitations](#limitations)).
+  <!-- R1-LAST: I-21, I-23, I-24, AU-1, AU-2, AU-3, features-6 -->
+  A file that is not text is named as what it is; a CSV saved with semicolons or tabs is told how
+  to save it again; a Postman file of the wrong kind is told where it goes.
+  <!-- /R1-LAST -->
 
 **Not in release 1; release 2, at 22:00 UTC the same day, brings them:**
 
@@ -83,47 +89,22 @@ Read them this way:
 | Continue in PAS | Continue to Submit |
 | the environment strip | the top bar |
 
-The sentences of the production guardrail keep their words for good, "the Config tab" and "the
-environment strip" included: there the Config tab is Configuration and the strip is the top bar.
+The sentences of the production guardrail keep their words in release 1 (release 2 may change only
+their place names), "the Config tab" and "the environment strip" included: there the Config tab is
+Configuration and the strip is the top bar.
 
-**How release 1 was checked.** Agents that built none of it checked merged builds before the
-candidate: the Workbench on mock and its look and words, twice (`1a14611`, then `9dbf61a` with
-steps 2 to 4); the upload hunts and the Windows Java under Wine (`1a14611`); the real STS 5.4.0
-under a virtual display on Linux, with a Team > Pull under the running tool (`1a14611` pulled to
-`9dbf61a`); Audit, every broken upload, and every feature of release 1 on mock and on live against
-a stand-in (`9dbf61a`); the production guardrail, what is sent on live, configuration on live and
-secrets (`0b69049`). A second agent confirmed or refuted each finding: 86 were confirmed (31
-major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-34).
-<!-- R1-LAST: every finding of findings.jsonl and I-1 to I-34 -->
-Every confirmed finding is being corrected for release 1 and checked again before the hand-over by
-agents that wrote no correction, except two the integrator moved to release 2 (named in
-[Limitations](#limitations)) and five a decision answered with no change a tester meets.
-<!-- /R1-LAST -->
-What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
-
-**Before you rely on it.**
-
-- **Nothing here has been run against the vendor's service**, and nothing on the operator's
-  Windows workstation. Every result anyone has seen came from the mock profile or from a stand-in
-  server on a loopback port of a Linux machine.
-- **A pass on mock says nothing about the live service.** The scenario files were written from the
-  same reading of the guides as the code that reads the answers.
-- **On live the screens show member data**: the wire view, the lookups, the saved test lists. See
-  [The wire view carries member data](#the-wire-view-carries-member-data).
-- **PAVE has no sign-in** and listens on this machine only. See
-  [Who can reach this tool](#who-can-reach-this-tool).
-- **DTR here is not a SMART launch**, and the notification receiver very likely cannot be reached
-  by the vendor. See [What PAVE is not](#what-pave-is-not).
-- **The configuration store holds secrets and test data in plain text**, readable by your account
-  only. Never commit `config-store/`. See [Secrets](#secrets).
+**Before you rely on it**: nothing here has been run against the vendor's service or on the
+operator's Windows workstation; see [Before you rely on it](#before-you-rely-on-it). How release 1
+was checked: [How release 1 was checked](#how-release-1-was-checked).
 
 ## Start here
 
 Six steps from nothing to a working screen on mock. Nothing here reaches a real service.
 
 **1. Check the Java: 21 or newer.** `java -version`. Correct output names version 21 or newer, for
-example `openjdk version "21.0.13.0.3" 2026-10-24`. On Windows with STS installed, `run.cmd` finds
-the Java STS brings by itself (step 4), so an older `java` on the PATH does not matter there.
+example `openjdk version "21.0.13" 2026-10-24`. On Windows, `run.cmd` looks for the Java STS brings
+in STS's usual folders (`sts*` under your user folder, `C:\`, Program Files or Local AppData
+Programs); if STS is elsewhere it prints the `set PAVE_JAVA` line to use (step 4).
 
 **2. Get the code.** `git clone --branch epa-pave <repository address>`, the address copied from
 the repository's page on GitHub (Code, HTTPS; it ends in `/Interop.git`), then
@@ -149,8 +130,9 @@ Tomcat started on port 8057 (http) with context path '/'
 The version, the path and the time differ by machine. If no Java 21 or newer is found, the script
 says where it looked and how to name one: `PAVE_JAVA=/path/to/jdk-21/bin/java ./run.sh`, or on
 Windows the `set PAVE_JAVA=...` line `run.cmd` prints. If port 8057 is taken:
-`./run.sh mock --server.port=8091`, and use 8091 below. `run.cmd` was run by its builder under
-Wine on Linux, never on Windows itself.
+`./run.sh mock --server.port=8091`, and use 8091 below. A copy of `run.cmd` (its folder search
+without quotes, which Wine's cmd needs) was run by its builder under Wine on Linux; `run.cmd`
+itself has never run on Windows.
 
 **5. Ask it what it is**, from a second terminal: `curl -s localhost:8057/api/mode`. Correct output
 is one line of JSON that begins `{"name":"PAVE","version":"1.0.0","port":8057,"mode":"mock"` and
@@ -184,6 +166,22 @@ run.cmd live "--config-store.directory=config-store-live" "--tracking.directory=
 
 In release 1 nothing stops a second copy on the same folders, and the two then overwrite each
 other's store; from release 2 the second copy is refused.
+
+## Before you rely on it
+
+- **Nothing here has been run against the vendor's service**, and nothing on the operator's
+  Windows workstation. Every result anyone has seen came from the mock profile or from a stand-in
+  server on a loopback port of a Linux machine.
+- **A pass on mock says nothing about the live service.** The scenario files were written from the
+  same reading of the guides as the code that reads the answers.
+- **On live the screens show member data**: the wire view, the lookups, the saved test lists. See
+  [The wire view carries member data](#the-wire-view-carries-member-data).
+- **PAVE has no sign-in** and listens on this machine only. See
+  [Who can reach this tool](#who-can-reach-this-tool).
+- **DTR here is not a SMART launch**, and the notification receiver very likely cannot be reached
+  by the vendor. See [What PAVE is not](#what-pave-is-not).
+- **The configuration store holds secrets and test data in plain text**, readable by your account
+  only. Never commit `config-store/`. See [Secrets](#secrets).
 
 ## Your first case on mock
 
@@ -251,7 +249,9 @@ by the next call.
 1. **New environment.** Under "Start from Postman exports (optional)", choose the vendor's
    Postman environment export as "Environment export" and, if you have it, the collection export
    as "Collection export", and press "Fill the form from these files". The form is filled for
-   review; nothing is saved until "Save environment".
+   review; nothing is saved until "Save environment". **Name**: taken from the environment export
+   when one is chosen, otherwise typed; it cannot be changed once saved (see "Moving from the
+   sandbox to UAT" below).
 2. **Kind**: sandbox, uat or prod. It is never guessed:
    <!-- R1-LAST: I-15, look-14 -->
    the field reads "Choose a kind" until you choose.
@@ -286,8 +286,9 @@ by the next call.
      collection request, `application.yml`, typed here). A typed address replaces the collection
      request for that operation, its headers and saved body included.
 
-Walked on the release candidate's jar on live against the stand-in: an environment made from the
-sample exports, saved and made active, a coverage check refused with HTTP 400, draftOrders type
+Walked on the release candidate's jar on live against the stand-in: an environment made from a
+copy of the sample environment export with the stand-in's addresses, and the sample collection,
+saved and made active, a coverage check refused with HTTP 400, draftOrders type
 set to Left out and saved, and the same check answered "Documentation is required." with no
 restart.
 <!-- R1-LAST: I-32, I-34, live-config-1, live-config-4 -->
@@ -333,7 +334,7 @@ environment is no longer stored.
 
 | Refused before | Now |
 | --- | --- |
-| HTTP 400 on CRD for `context.draftOrders.type` | Request shapes, "Left out (this vendor refuses it)"; filled from the collection's sample when it leaves the type out; after that 400 the next step names the setting, and "Open Configuration" leads to it |
+| HTTP 400 on CRD for `context.draftOrders.type` | Request shapes, "Left out (this vendor refuses it)"; filled from the collection's sample when it leaves the type out. "Open Configuration" opens the list of environments: press Edit on the active one and open Request shapes. <!-- R1-LAST: look-3, look-5, wbm3-3 --> After that 400 the next step names the setting. <!-- /R1-LAST --> |
 | A member ID with spaces | Member ID rule packed, the default |
 | An inquiry with no declared profile | The inquiry Claim declares its profile; nothing to set |
 | A patient or practitioner id its FHIR server did not hold | "Vendor patient id" in the Member card, "Vendor practitioner id" in the Provider card and on saved entries |
@@ -347,8 +348,8 @@ which can be corrected and taken back. Pre-request scripts are never run: a requ
 flagged, and every run that uses it carries the finding `PRE_REQUEST_SCRIPT_NOT_RUN`.
 
 **A file that cannot be read is told so in a sentence**, on every upload: the environment form,
-"Upload collection" and the lists' "Import CSV". In the checks on `9dbf61a`, 453 broken or wrong
-files in those three places never ended in the internal error box.
+"Upload collection" and the lists' "Import CSV". In the checks on `9dbf61a`, none of 453 uploads
+of broken or wrong files in those three places ended in the internal error box.
 <!-- R1-LAST: I-21, I-23, I-24, AU-1, AU-2, AU-3, features-6 -->
 A zip, a compressed file, a picture or a PDF is named as what it is; a CSV saved with semicolons
 or tabs, or a JSON file chosen as CSV, is told how to save it again; an environment export chosen
@@ -391,6 +392,10 @@ element and the result names it and the variable.
   variable is secret when Postman typed it `secret` or its name reads as a credential. Masking
   goes by name: a key written inside a url, or held by a variable with an ordinary name, is shown
   as written. Keep every key in a variable of its own whose name says what it is.
+  <!-- R1-LAST: I-35 -->
+  A name that says where, not what (`authBase`, `authServer`: its last word is `base`, `server`,
+  `domain`, `address`, `origin`, `hostname` or `port`), is not read as a secret.
+  <!-- /R1-LAST -->
 - **A credential typed into a collection** is named at upload and masked wherever the collection is
   shown. The file on disk keeps it.
 - **Keep the secret out of the file**: give the variable the value `{{env:PAVE_NAME}}` in Postman
@@ -482,10 +487,6 @@ What the guardrail does not see (D-145): another DNS name for a production host,
 `onyx.<protocol>.url` fallback settings of `application.yml` as an address of a production
 environment. Agents that did not write it looked at the guardrail twice before the rebuild and
 once on the rebuilt tool (`0b69049`).
-<!-- R1-LAST: I-28, I-29, look-guardrail-1, look-guardrail-2, look-guardrail-3, look-guardrail-4 -->
-What the look on the rebuilt tool found was corrected before release 1 was handed over, and seen
-again by agents that wrote no correction.
-<!-- /R1-LAST -->
 Its sentences are those of `79a7c25`, word for word.
 
 ## Submit
@@ -1021,7 +1022,9 @@ the real IDE (Eclipse 4.41.0 with Buildship 3.1.11) on Linux under a virtual dis
 before the rebuild (last on `8463174`) and on the rebuilt tool: the tree of `1a14611` imported
 with 0 errors and started from the Boot Dashboard on mock; a Team > Pull to the tree of `9dbf61a`
 under the running tool brought the files-changed line to the open page in about 1.2 s; uploads
-still answered 200; a restart from the Boot Dashboard moved the build stamp and removed the line.
+sent over the API still answered 200 (one from a page reloaded before the restart was refused,
+STS-2); a restart from the Boot Dashboard moved the build stamp and removed the line (and showed a
+notice of a change in another window, STS-1).
 <!-- R1-LAST: I-11 -->
 The release build itself was imported and started in the same IDE before the hand-over.
 <!-- /R1-LAST -->
@@ -1082,8 +1085,7 @@ Package Explorer shows `epa-pave [boot]`.
 - **Red markers before Gradle has fetched the dependencies are normal.** If they stay, right click
   the project and choose Gradle, Refresh Gradle Project: that is the first thing to try.
 
-**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`. None needs
-action. **Never apply the quick fix of
+**4. The Problems view** read "0 errors, 18 warnings" on the tree of `1a14611`. **Never apply the quick fix of
 "Unnecessary path variable definition"**: without the names the controllers give their request
 parameters, calls such as the Audit list would answer HTTP 500, and `HandlerArgumentNamesTest`
 fails the build.
@@ -1193,6 +1195,24 @@ open item, the worst first, with the entry that gives the reason.
   folder.
 <!-- /R1-LAST -->
 
+## How release 1 was checked
+
+Agents that built none of it checked merged builds before the
+candidate: the Workbench on mock and its look and words, twice (`1a14611`, then `9dbf61a` with
+steps 2 to 4); the upload hunts and the Windows Java under Wine (`1a14611`); the real STS 5.4.0
+under a virtual display on Linux, with a Team > Pull under the running tool (`1a14611` pulled to
+`9dbf61a`); Audit, every broken upload, and every feature of release 1 on mock and on live against
+a stand-in (`9dbf61a`); the production guardrail, what is sent on live, configuration on live and
+secrets (`0b69049`). A second agent confirmed or refuted each finding: 86 were confirmed (31
+major, 55 minor), and the integrator decided what the plan had left open (I-1 to I-35, and three more of the
+integrator's own).
+<!-- R1-LAST: every finding of findings.jsonl, I-1 to I-35, integrator-1, integrator-2, and what INTEGRATOR_R1.md holds at the last pass -->
+Every confirmed finding is being corrected for release 1 and checked again before the hand-over by
+agents that wrote no correction, except two the integrator moved to release 2 (named in
+[Limitations](#limitations)) and five a decision answered with no change a tester meets.
+<!-- /R1-LAST -->
+What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
+
 ## What this README was checked against
 
 Brought up to the release candidate on 2026-11-22: commit `7fc32c8` of the integration branch, cut
@@ -1203,11 +1223,12 @@ on a loopback port, "Setting up a service" from New environment to a coverage ch
 a setting changed, and Access token. Every example of [Endpoints](#endpoints) was run on it in
 order. Every endpoint listed is one the controllers at that head map. Every sentence quoted from a
 screen was searched in `src/main/resources/static` at that head, or, where the server writes it, in
-the server's code; the sentences inside the marks for the last pass describe corrections not made
-at that head. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
+the server's code; the sentences inside the marks wait for the last pass: corrections not made at
+that head, the IDE rerun and the release's builds. Steps 3 and 4 of "Start here" (the Gradle build and `run.sh`) were not run for this
 README; the lines step 4 shows are those `run.sh` prints at that head.
 <!-- R1-LAST: SWEEP.md, the whole builds of the release -->
-The last whole build of the integration branch is that of `037efb6`, the commit before the last
-slice (H2) was merged: 3,519 tests, 0 failures, 0 errors, 2 skipped. The release handed over is
+The candidate `7fc32c8` has not been built whole yet (a try at 11:30 UTC was stopped by the
+runner's time limit). The last whole build that holds no slice of release 2 is that of `037efb6`,
+the commit before the last slice (H2) was merged: 3,519 tests, 0 failures, 0 errors, 2 skipped. The release handed over is
 built whole twice after the corrections; `PROGRESS.md` gives its counts.
 <!-- /R1-LAST -->
