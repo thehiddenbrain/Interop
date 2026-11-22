@@ -47,6 +47,10 @@ export function mount(root, route) {
         const empty = trail.count > 0 ? button('Empty the trail', () => confirmEmpty(trail.count)) : null;
         fill(body, el('p', null, el('strong', null, counted(trail.count, 'run kept', 'runs kept')),
             Number.isFinite(trail.bytes) ? ', ' + sizeText(trail.bytes) : null),
+            // A file of the trail that could not be read is skipped by the server; it is said, never dropped silently.
+            Number.isInteger(trail.damaged) && trail.damaged > 0 ? el('p', {class: 'small'}, trail.damaged === 1
+                ? '1 file of the trail could not be read since PAVE started, and was skipped.'
+                : trail.damaged + ' files of the trail could not be read since PAVE started, and were skipped.') : null,
             empty ? el('div', {class: 'form-foot'}, empty) : null);
     }
 

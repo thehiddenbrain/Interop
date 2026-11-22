@@ -337,11 +337,17 @@ class ConfigPagesFrontendTest {
             await settle();
             say(['off', text(off), off.querySelectorAll('button').length]);
             // Another number kept is said as the server's; a count it does not give is not said as 0.
-            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, maxEntries: 40, folder: 'D:/pave/trail'}};
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, maxEntries: 40, folder: 'D:/pave/trail', damaged: 2}};
             const other = document.createElement('div');
             mount(other, ['advanced', 'trail']);
             await settle();
             say(['other', text(other).includes('The last 40 runs\\''), text(other).includes('runs kept'), other.querySelectorAll('button').length]);
+            // Files the server skipped are said.
+            fake.answers['GET /api/trail'] = {status: 200, body: {enabled: true, count: 2, maxEntries: 500, bytes: 10, folder: './run-history/trail', damaged: 2}};
+            const damaged = document.createElement('div');
+            mount(damaged, ['advanced', 'trail']);
+            await settle();
+            say(['damaged', text(damaged).includes('2 files of the trail could not be read since PAVE started, and were skipped.')]);
             // A failure is the error panel, with its reference and cause.
             fake.answers['GET /api/trail'] = {status: 500, body: {kind: 'INTERNAL', title: 'A failure of this tool.', reference: 'R-0001', cause: 'IOException'}};
             const failed = document.createElement('div');
@@ -357,6 +363,7 @@ class ConfigPagesFrontendTest {
                 "[\"emptied\",1,true,true,0,true]",
                 "[\"off\",\"TrailThe trail is switched off on this installation (trail.enabled).\",0]",
                 "[\"other\",true,false,0]",
+                "[\"damaged\",true]",
                 "[\"failed\",true,true,false]");
     }
 
