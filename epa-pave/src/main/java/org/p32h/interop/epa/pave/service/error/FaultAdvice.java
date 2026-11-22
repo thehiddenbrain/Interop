@@ -33,8 +33,9 @@ public final class FaultAdvice {
             return MORE_MEMORY;
         }
         // A class that cannot be linked is a rebuild only when the files did change: otherwise it is
-        // a defect of the build, and the reference is what finds it.
-        if (holds(error, LinkageError.class) && ClassesOnDisk.changedSinceStart()) {
+        // a defect of the build, and the reference is what finds it. Looked at now, not through the
+        // throttle, because a rebuild just before the failure is exactly the case to name.
+        if (holds(error, LinkageError.class) && ClassesOnDisk.changedSinceStartNow()) {
             return CLASSES_CHANGED;
         }
         return null;
