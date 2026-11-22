@@ -285,7 +285,7 @@ export function runsView(ctx) {
             return el('tr', null,
                 el('td', {class: 'audit-when'}, run.answeredBy === 'SCENARIO' ? el('span', {class: 'hatch-mark', title: 'Mock: a scenario answered'}) : null,
                     runLink(run.runId, when ? (day === utcToday() ? when.slice(11, 19) : when.slice(5, 19)) : run.runId)),
-                el('td', null, step ? step.name : null, operation ? el('span', {class: 'table__sub'}, (step ? ' · ' : '') + operation.label) : null,
+                el('td', null, step ? step.name : null, operation ? el('span', {class: 'table__sub'}, (step ? ' \u00b7 ' : '') + operation.label) : null,
                     run.replayOfRunId ? [' ', chip('replay', {title: 'Made by a replay of ' + run.replayOfRunId})] : null),
                 el('td', null, outcomeChip(words, run)),
                 el('td', null, testChip(words, run.result)),
