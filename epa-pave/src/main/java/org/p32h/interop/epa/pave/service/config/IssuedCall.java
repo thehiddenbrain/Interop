@@ -2,6 +2,8 @@ package org.p32h.interop.epa.pave.service.config;
 
 import org.p32h.interop.epa.pave.model.EnvironmentRef;
 import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
+import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.model.ResolvedHeader;
 import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.ResolvedUrl;
@@ -26,6 +28,10 @@ final class IssuedCall implements PreparedCall {
     private final java.util.function.Supplier<SentSecrets> held;
     private volatile SentSecrets heldOnce;
     private final Timeouts timeouts;
+    private final SignInSettings signIn;
+    private final MemberIdRule memberIdRule;
+    private final RequestShapes shapes;
+    private final String callbackUrl;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -64,6 +70,33 @@ final class IssuedCall implements PreparedCall {
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody,
                java.util.function.Supplier<SentSecrets> held, Timeouts timeouts) {
+        this(operation, method, url, headers, environment, requestName, scripted, epoch, resolver, savedBody, held, timeouts, Settings.NONE);
+    }
+
+    /**
+     * What the environment's settings give one call (plan 5.2), read from the snapshot the call was
+     * prepared against.
+     *
+     * @param signIn       the environment's sign-in, its values resolved where they resolve; null when it states none
+     * @param memberIdRule the rule it states, or null for packed
+     * @param shapes       each request shape with its source, or null for the defaults
+     * @param callbackUrl  the callback url it types (R-42), as a template, or null when it types none
+     */
+    record Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl) {
+
+        static final Settings NONE = new Settings(null, null, null, null);
+
+        /** Names what is set and never a value: the sign-in holds secrets, the callback url can hold a credential. */
+        @Override
+        public String toString() {
+            return "Settings[" + signIn + ", " + memberIdRule + ", " + shapes + ", callbackUrl " + (callbackUrl == null ? "not set" : "set") + "]";
+        }
+    }
+
+    /** @param settings what the environment's settings give this call */
+    IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
+               String requestName, boolean scripted, LongSupplier epoch, Function<String, ResolvedText> resolver, String savedBody,
+               java.util.function.Supplier<SentSecrets> held, Timeouts timeouts, Settings settings) {
         this.operation = operation;
         this.method = method;
         this.url = url;
@@ -78,6 +111,31 @@ final class IssuedCall implements PreparedCall {
         // A value left out here would fail in the client that builds its connection from it, far
         // from where the call was prepared, so each missing one is filled where it is known.
         this.timeouts = timeouts == null ? Timeouts.APPLICATION : timeouts.over(Timeouts.APPLICATION);
+        Settings given = settings == null ? Settings.NONE : settings;
+        this.signIn = given.signIn();
+        this.memberIdRule = given.memberIdRule() == null ? MemberIdRule.PACKED : given.memberIdRule();
+        this.shapes = given.shapes() == null ? RequestShapes.DEFAULTS : given.shapes();
+        this.callbackUrl = given.callbackUrl();
+    }
+
+    @Override
+    public SignInSettings signIn() {
+        return signIn;
+    }
+
+    @Override
+    public MemberIdRule memberIdRule() {
+        return memberIdRule;
+    }
+
+    @Override
+    public RequestShapes shapes() {
+        return shapes;
+    }
+
+    @Override
+    public String callbackUrl() {
+        return callbackUrl;
     }
 
     @Override

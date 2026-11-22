@@ -1,0 +1,10 @@
+{
+	"info": {
+		"_postman_id": "00000000-0000-4000-8000-000000000004",
+		"name": "Vendor \ude00 broken emoji",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{"name": "order-sign Happy Path", "request": {"method": "POST", "url": "{{baseUrl}}/cds-services/order-sign-crd"}}
+	]
+}
