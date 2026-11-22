@@ -15,7 +15,7 @@ import {call} from './api.js';
 import {el, fill, clear, chip, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {readText} from './files.js';
-import {pageHead, section, part, during, counted, sentences, none, fileRefusal} from './cfg-parts.js';
+import {pageHead, section, part, during, counted, sentences, none, fileRefusal, fileChooser, shownFile} from './cfg-parts.js';
 
 const OFF_LINE = 'Saved test lists are switched off on this installation (test-lists.enabled).';
 
@@ -288,7 +288,7 @@ export function mount(root, route) {
             title: 'Import test ' + list.many,
             body: [
                 el('div', {class: 'importer'},
-                    el('div', {class: 'inline-controls'}, file, read),
+                    el('div', {class: 'inline-controls'}, fileChooser(file, 'CSV file'), read),
                     el('p', {class: 'field__hint'}, 'From Excel, save the sheet as CSV first. Nothing is saved until you import the rows shown.')),
                 shown],
             footer: dialog => [el('span', {class: 'push'}), line, button('Close without importing', () => dialog.close()), foot],
@@ -302,6 +302,7 @@ export function mount(root, route) {
             clear(foot);
             text = null;
             const got = await readText(file, {maxBytes: 5 * 1024 * 1024, source: 'csv'});
+            shownFile(file);
             if (!got.ok) {
                 fill(shown, el('p', {class: 'field__error', role: 'alert'}, got.line));
                 return;
@@ -309,6 +310,7 @@ export function mount(root, route) {
             const answer = await call('POST', list.path + '/import', {body: {csv: got.text, dryRun: true}});
             // The file is let go: what is imported is the text read now, shown below.
             file.value = '';
+            shownFile(file);
             if (!answer.ok) {
                 fill(shown, fileRefusal(got.fileName, answer));
                 return;

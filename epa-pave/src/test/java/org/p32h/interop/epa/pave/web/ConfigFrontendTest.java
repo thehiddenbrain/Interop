@@ -142,6 +142,52 @@ class ConfigFrontendTest {
     }
 
     @Test
+    void operationsThatShareTheirShortWordsAreOneChipWithItsCount(@TempDir Path folder) throws Exception {
+        // I-22: four subscription operations were four chips that read "Subscription".
+        NodeRun run = StaticSources.runModule(folder, "the grouped chips", PRELUDE + """
+                const {groupedChips} = await import('./js/config-environments.js');
+                const chips = groupedChips([{words: 'PAS submit', title: 'submit Happy Path'},
+                    {words: 'Subscription', title: 'subscription-get Happy Path'}, {words: 'Subscription', title: 'subscription-create Happy Path'},
+                    {words: 'Subscription', title: 'subscription-update Happy Path'}, {words: 'Subscription', title: 'subscription-delete Happy Path'},
+                    {words: 'notification', title: null}, {words: 'order-sign', dashed: true}, {words: 'order-sign', dashed: false}]);
+                say(chips.map(each => [each.textContent, each.getAttribute('title') || each.title || null]));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[[\"PAS submit\",\"submit Happy Path\"],"
+                + "[\"Subscription x4\",\"subscription-get Happy Path, subscription-create Happy Path, subscription-update Happy Path, subscription-delete Happy Path\"],"
+                + "[\"notification\",null],[\"order-sign\",null],[\"order-sign\",null]]");
+    }
+
+    @Test
+    void aFileIsChosenWithTheChooserAndAnEmptyStoreIsOneLineAcrossTheGrid(@TempDir Path folder) throws Exception {
+        // look-11: a "Choose file" button and the chosen name, never the browser's own control.
+        // look-18: the line in place of the cards spans the grid, not one narrow column.
+        NodeRun run = StaticSources.runModule(folder, "the file chooser and the empty store", PRELUDE + """
+                const {createEditor, mount} = await import('./js/config-environments.js');
+                const editor = createEditor({});
+                const boxes = () => editor.dialog.querySelectorAll('.file').map(box => [box.querySelector('button').textContent,
+                    box.querySelector('.file__name').textContent, box.querySelector('input').className.includes('visually-hidden')]);
+                say(boxes());
+                const input = editor.dialog.querySelectorAll('input').find(each => each.type === 'file');
+                input.files = [new File(['{}'], 'env.json')];
+                input.value = 'C:/fakepath/env.json';
+                await input.dispatchEvent({type: 'change'});
+                say(boxes()[0]);
+                answers['GET /api/config/environments'] = {status: 200, body: {environments: [], epoch: 1}};
+                const root = document.createElement('div');
+                document.body.append(root);
+                mount(root, ['environments']);
+                await settle();
+                say(root.querySelectorAll('.config-grid-line').map(each => each.textContent));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"Choose file\",\"No file chosen\",true],[\"Choose file\",\"No file chosen\",true]]",
+                "[\"Choose file\",\"env.json\",true]",
+                "[\"No environment is stored yet. Start with New environment.\"]");
+    }
+
+    @Test
     void aSecretInputIsAPasswordFieldNeverGivenAValueFromTheServer(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the secret inputs", PRELUDE + """
                 const {createEditor} = await import('./js/config-environments.js');

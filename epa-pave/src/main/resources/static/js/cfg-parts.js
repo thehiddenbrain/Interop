@@ -2,7 +2,7 @@
 // the busy line of a button, and a list said once. Each exists once, so two pages can never word
 // the same fact two ways.
 
-import {el, clear} from './dom.js';
+import {el, clear, button} from './dom.js';
 import {app} from './app.js';
 import {errorPanel} from './fault.js';
 
@@ -134,4 +134,43 @@ export function none(words) {
 /** One part of a page, set apart from the one before by a rule and space, with an optional small title. */
 export function part(title, ...children) {
     return el('div', {class: 'panel__section form-section'}, title ? el('h3', {class: 'section-label'}, title) : null, children);
+}
+
+/**
+ * A file input drawn as the prototype's chooser (07b): a "Choose file" button and the chosen file's
+ * name, never the browser's own control, whose words and width differ by browser. The input stays
+ * the source of what is read; it is kept in the box, out of sight and out of the tab order.
+ * label: what the file is, for the button's accessible name. Returns the box; call shownFile(input)
+ * after the page reads or lets go of the input, since setting its value fires no event.
+ */
+export function fileChooser(input, label) {
+    const name = el('span', {class: 'file__name'});
+    const pick = button('Choose file', () => input.click(), {small: true});
+    pick.setAttribute('aria-label', 'Choose file: ' + label);
+    input.className = (input.className ? input.className + ' ' : '') + 'visually-hidden';
+    input.tabIndex = -1;
+    input.showName = () => {
+        const chosen = input.value && input.files && input.files.length > 0 ? input.files[0].name : '';
+        name.textContent = chosen || 'No file chosen';
+        name.className = chosen ? 'file__name' : 'file__name muted';
+    };
+    input.addEventListener('change', input.showName);
+    input.showName();
+    return el('div', {class: 'file config-chooser'}, pick, name, input);
+}
+
+/** Shows the file an input made by fileChooser holds now, after the page read or let go of it. */
+export function shownFile(input) {
+    if (input && typeof input.showName === 'function') {
+        input.showName();
+    }
+}
+
+/** Puts a chooser in place of the file input of a field() wrapper, keeping its label, hint and error. */
+export function chooserInField(wrapper, input, label) {
+    // The children are listed before the box takes the input out of the wrapper.
+    const children = Array.from(wrapper.childNodes);
+    const box = fileChooser(input, label);
+    wrapper.replaceChildren(...children.map(child => (child === input ? box : child)));
+    return wrapper;
 }

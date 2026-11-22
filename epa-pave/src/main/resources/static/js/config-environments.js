@@ -17,7 +17,7 @@ import {call} from './api.js';
 import {el, clear, fill, chip, badge, fold, button, field, setFieldError, modal, named} from './dom.js';
 import {errorPanel, faultReport} from './fault.js';
 import {readText} from './files.js';
-import {filesChangedNote} from './cfg-parts.js';
+import {filesChangedNote, chooserInField, shownFile} from './cfg-parts.js';
 
 const LIST = '/api/config/environments';
 const DRAFT = '/api/config/environments/draft';
@@ -119,7 +119,7 @@ function createPage(root) {
         }
         const environments = Array.isArray(state.list.environments) ? state.list.environments : [];
         if (environments.length === 0) {
-            fill(grid, el('p', {class: 'muted'}, 'No environment is stored yet. Start with New environment.'));
+            fill(grid, el('p', {class: 'muted config-grid-line'}, 'No environment is stored yet. Start with New environment.'));
             return;
         }
         fill(grid, environments.map(each => card(each, state.settings.get(each.id))));
@@ -161,7 +161,7 @@ function createPage(root) {
                 badge(environment.kind, environment.kind)),
             el('p', {class: 'env-card__facts'}, facts),
             lines,
-            addresses.length > 0 ? el('div', {class: 'env-card__ops'}, addresses.map(address => operationChip(address))) : null,
+            addresses.length > 0 ? el('div', {class: 'env-card__ops'}, groupedChips(addresses.map(operationChip))) : null,
             el('div', {class: 'env-card__foot'},
                 button('Edit', () => openEditor(environment, null), {small: true, title: 'Edit ' + environment.name}),
                 button('Remove', () => confirmRemoval(environment), {small: true, title: 'Remove ' + environment.name})));
@@ -411,8 +411,8 @@ export function createEditor(options) {
         sections.push(el('div', {class: 'importer'},
             el('p', {class: 'form-section__title'}, 'Start from Postman exports (optional)'),
             el('div', {class: 'importer__row'},
-                field({label: 'Environment export', input: files.environmentExport}),
-                field({label: 'Collection export', input: files.collectionExport}),
+                chooserInField(field({label: 'Environment export', input: files.environmentExport}), files.environmentExport, 'Environment export'),
+                chooserInField(field({label: 'Collection export', input: files.collectionExport}), files.collectionExport, 'Collection export'),
                 fillButton),
             el('p', {class: 'field__hint'}, 'The fields below are filled for review. Nothing is saved until Save environment.'),
             fileLines));
@@ -682,6 +682,8 @@ export function createEditor(options) {
             return {ok: true, value: exportsRead[slot]};
         }
         const read = await readText(input);
+        // files.js lets a refused input go; the chooser then says no file is chosen.
+        shownFile(input);
         if (!read.ok) {
             fixName();
             return {ok: false, line: read.line};
@@ -734,19 +736,12 @@ export function createEditor(options) {
         for (const warning of Array.isArray(draft.warnings) ? draft.warnings : []) {
             lines.push(el('p', {class: 'config-file-line'}, warning));
         }
-        // One chip per short label: the subscription operations share one, and the line stays short.
-        const chips = new Map();
-        for (const operation of Array.isArray(draft.operations) ? draft.operations : []) {
-            const words = operation.short || operation.shortLabel || operation.label || operation.operation;
-            const titles = chips.get(words) || [];
-            if (operation.requestName && !titles.includes(operation.requestName)) {
-                titles.push(operation.requestName);
-            }
-            chips.set(words, titles);
-        }
-        if (chips.size > 0) {
-            lines.push(el('div', {class: 'env-card__ops'}, Array.from(chips, ([words, titles]) =>
-                chip(words, {title: titles.length > 0 ? titles.join(', ') : null}))));
+        const operations = Array.isArray(draft.operations) ? draft.operations : [];
+        if (operations.length > 0) {
+            lines.push(el('div', {class: 'env-card__ops'}, groupedChips(operations.map(operation => ({
+                words: operation.short || operation.shortLabel || operation.label || operation.operation,
+                title: operation.requestName || null
+            })))));
         }
         if (draft.signIn && draft.signIn.from) {
             lines.push(el('p', {class: 'config-file-line'}, 'Sign-in filled from ' + draft.signIn.from + '.'));
@@ -961,6 +956,8 @@ export function createEditor(options) {
             secretReferences = {};
             files.environmentExport.value = '';
             files.collectionExport.value = '';
+            shownFile(files.environmentExport);
+            shownFile(files.collectionExport);
             clear(fileLines);
             resetParts();
             drawAll();
@@ -992,6 +989,7 @@ export function createEditor(options) {
             }
             if (each.field === 'environmentExport' || each.field === 'collectionExport') {
                 files[each.field].value = '';
+                shownFile(files[each.field]);
                 delete exportsRead[each.field];
                 fixName();
             }
@@ -1125,11 +1123,33 @@ function shapeLine(shape) {
     return (shape.label || shape.key) + ': ' + short + (shape.from && shape.from !== 'this environment' ? ', from ' + shape.from : '');
 }
 
+/** What the chip of one address says: its short words, whether nothing is in force, and where its value comes from. */
 function operationChip(address) {
     const inForce = address.inForce || {};
     // Nothing in force for this operation: the server says NONE or NOT_SET.
     const none = !inForce.source || inForce.source === 'NONE' || inForce.source === 'NOT_SET';
     // The plan names the short label "short"; the server's record may name it "shortLabel". Either is the server's word.
     const words = address.short || address.shortLabel || address.label || address.operation;
-    return chip(words, {dashed: none, title: inForce.sourceLabel || null});
+    const label = address.label || address.operation || words;
+    return {words, dashed: none, title: inForce.sourceLabel ? label + ': ' + inForce.sourceLabel : null};
+}
+
+/**
+ * One chip per short words (and per dashed or not), with its count when several operations share
+ * them ("Subscription x4", I-22) and each one's title in the chip's title, so four subscription
+ * operations never draw four chips that read the same.
+ */
+export function groupedChips(items) {
+    const groups = new Map();
+    for (const item of items) {
+        const key = item.words + (item.dashed ? ' dashed' : '');
+        const group = groups.get(key) || {words: item.words, dashed: item.dashed === true, count: 0, titles: []};
+        group.count += 1;
+        if (item.title && !group.titles.includes(item.title)) {
+            group.titles.push(item.title);
+        }
+        groups.set(key, group);
+    }
+    return Array.from(groups.values(), group => chip(group.count > 1 ? group.words + ' x' + group.count : group.words,
+        {dashed: group.dashed, title: group.titles.length > 0 ? group.titles.join(', ') : null}));
 }

@@ -194,7 +194,7 @@ class ListsFrontendTest {
                 "[\"asked\",\"Remove the member \\\"Pended\\\"?\",0]",
                 "[\"removed\",[\"DELETE /api/lists/members/m-2\"],true]",
                 "[\"dry run\",[{\"csv\":\"label,memberId,favouriteColour\\nKnee,S123456789,blue\\nNew,S123456787,red\\nBad,,green\\n\",\"dryRun\":true}],\"\"]",
-                "[\"shown\",[\"Columns used: label, memberId.\",\"Columns left out: favouriteColour.\"],[\"4RefusedBadEnter the member ID as it is on the card.\",\"2ReplaceKnee\",\"3AddNew\"],[\"Read the file\",\"Close without importing\",\"Import 2 rows (1 refused)\"]]",
+                "[\"shown\",[\"Columns used: label, memberId.\",\"Columns left out: favouriteColour.\"],[\"4RefusedBadEnter the member ID as it is on the card.\",\"2ReplaceKnee\",\"3AddNew\"],[\"Choose file\",\"Read the file\",\"Close without importing\",\"Import 2 rows (1 refused)\"]]",
                 "[\"imported\",2,false,true,true]",
                 "[\"refused file\",true,\"\",false,0,[\"nocolumn.csv: The file has no memberId column, so no row can be matched to a saved member. Start from the CSV template and keep its first row.\"]]",
                 "[\"unread\",true,true,\"\"]",

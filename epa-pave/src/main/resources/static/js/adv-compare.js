@@ -16,7 +16,7 @@ import {errorPanel} from './fault.js';
 import {readText} from './files.js';
 import {lineMap} from './adv-json-lines.js';
 import {bodyBox, sampleButton} from './adv-raw.js';
-import {pageHead, section, part, during, none} from './cfg-parts.js';
+import {pageHead, section, part, during, none, fileChooser, shownFile} from './cfg-parts.js';
 
 // The server compares at most 2 MB (CrdRequestComparer), so a larger file is refused in the page.
 const LARGEST = 2 * 1024 * 1024;
@@ -91,7 +91,7 @@ export function mount(root, route) {
         part('The case PAVE builds its request for', el('p', {class: 'small muted'},
             'Left empty, a value is read out of your request where it can be, and the comparison says from where.'), caseFields),
         part('Your request',
-            el('div', {class: 'inline-controls'}, file, readButton, fileBusy), fileSaid,
+            el('div', {class: 'inline-controls'}, fileChooser(file, 'Your request'), readButton, fileBusy), fileSaid,
             body.wrapper, el('div', {class: 'inline-controls'}, sample), sampleSaid, body.tools),
         el('div', {class: 'form-foot'}, compareButton, busy),
         problem, stale, answer);
@@ -125,6 +125,7 @@ export function mount(root, route) {
         }
         if (!got.ok) {
             file.value = '';
+            shownFile(file);
             fill(fileSaid, got.line);
             return;
         }
