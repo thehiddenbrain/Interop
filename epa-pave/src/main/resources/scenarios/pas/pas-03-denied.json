@@ -2,6 +2,7 @@
   "id": "pas-03-denied",
   "number": 3,
   "label": "Denied",
+  "short": "denied",
   "description": "The payer does not certify the request, and gives a coded reason in the X12 886 code system PAS 2.0.1 binds; the reason code itself is a placeholder. This is a real denial, which PAS can carry and CRD cannot. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-DENIED",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

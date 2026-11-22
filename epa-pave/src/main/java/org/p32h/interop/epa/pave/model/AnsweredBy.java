@@ -14,22 +14,34 @@ public enum AnsweredBy {
      * The request went to the service, on the live profile. What came back is the service's, and
      * so is the absence of an answer: a timeout or a refused connection is drawn by its own tone.
      * A notification that arrived on the live profile is in this group too: it came from outside
-     * this tool.
+     * this tool. It has no chip: an answer of the service is the plain case, and a chip on every
+     * live result would say nothing.
      */
-    SERVICE,
+    SERVICE(null),
     /**
      * A scenario file answered in place of the service, on the mock profile. It may have played a
      * fault. A sample notification delivered on the mock profile is in this group: a scenario file
      * played it, and no service sent it.
      */
-    SCENARIO,
+    SCENARIO("MOCK"),
     /**
      * Nobody answered: the step was done inside this tool, as a questionnaire response is
      * completed, and nothing was sent, on either profile.
      */
-    NOBODY,
+    NOBODY("Nothing sent"),
     /** Nobody answered: the request was refused before it was sent, so nothing left this machine. */
-    NOT_SENT;
+    NOT_SENT("Not sent");
+
+    private final String chip;
+
+    AnsweredBy(String chip) {
+        this.chip = chip;
+    }
+
+    /** The words of the chip a result carries for who answered it, or null when it carries none. */
+    public String chip() {
+        return chip;
+    }
 
     /**
      * The one rule, for a result and for a ledger line alike, from what both hold.

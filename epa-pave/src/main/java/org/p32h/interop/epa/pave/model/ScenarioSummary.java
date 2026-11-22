@@ -1,6 +1,7 @@
 package org.p32h.interop.epa.pave.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
@@ -26,12 +27,15 @@ import java.util.List;
  * @param sampleCase       the NPI and procedure codes the file names for its own case, filled in
  *                         with the member ID by one click on the mock scenario table. Null when the
  *                         file names none
+ * @param shortLabel       the scenario in a few words for the picker, served as {@code short}. Null
+ *                         when the file states none
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId,
                               String sentinelNpi, ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome,
                               List<String> sentinelMemberIds, List<String> sentinelNpis, List<String> crdSentinelMemberIds,
-                              List<String> notes, String defaultNote, SampleCase sampleCase) {
+                              List<String> notes, String defaultNote, SampleCase sampleCase,
+                              @JsonProperty("short") String shortLabel) {
 
     public ScenarioSummary {
         sentinelMemberIds = sentinelMemberIds == null || sentinelMemberIds.isEmpty()
@@ -42,23 +46,31 @@ public record ScenarioSummary(String id, int number, String label, String descri
         notes = notes == null ? List.of() : List.copyOf(notes);
     }
 
-    // The shorter forms stay, so the callers written before a summary carried a sample keep compiling.
+    // The shorter forms stay, so the callers written before a summary carried a sample or short words keep compiling.
+    public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
+                           ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
+                           List<String> sentinelNpis, List<String> crdSentinelMemberIds, List<String> notes, String defaultNote,
+                           SampleCase sampleCase) {
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
+                sentinelNpis, crdSentinelMemberIds, notes, defaultNote, sampleCase, null);
+    }
+
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
                            List<String> sentinelNpis, List<String> crdSentinelMemberIds, List<String> notes) {
         this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
-                sentinelNpis, crdSentinelMemberIds, notes, null, null);
+                sentinelNpis, crdSentinelMemberIds, notes, null, null, null);
     }
 
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome, List<String> sentinelMemberIds,
                            List<String> sentinelNpis, List<String> crdSentinelMemberIds) {
         this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, sentinelMemberIds,
-                sentinelNpis, crdSentinelMemberIds, null, null, null);
+                sentinelNpis, crdSentinelMemberIds, null, null, null, null);
     }
 
     public ScenarioSummary(String id, int number, String label, String description, String sentinelMemberId, String sentinelNpi,
                            ScenarioBehavior behavior, Integer httpStatus, String expectedOutcome) {
-        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null, null, null, null);
+        this(id, number, label, description, sentinelMemberId, sentinelNpi, behavior, httpStatus, expectedOutcome, null, null, null, null, null, null, null);
     }
 }

@@ -32,33 +32,40 @@ import org.p32h.interop.epa.pave.model.Tone;
  */
 public enum DtrOutcome implements OutcomeCode {
 
-    PACKAGE_LOADED("The questionnaire package was loaded", Tone.NEUTRAL, false),
-    PACKAGE_INCOMPLETE("The package does not hold every questionnaire that was asked for", Tone.NO_ANSWER, false),
-    NO_QUESTIONNAIRE("The service returned no questionnaire", Tone.NO_ANSWER, false),
-    MALFORMED_QUESTIONNAIRE("The service answered, but what it sent cannot be used as a questionnaire", Tone.FAULT, true),
-    NEXT_QUESTION("The service returned the next question", Tone.NEUTRAL, false),
-    NO_QUESTION_RETURNED("The service returned no question and did not report the response as complete", Tone.NO_ANSWER, false),
-    UNRECOGNISED_STATUS("The service returned a response status this tool does not recognise", Tone.NO_ANSWER, false),
-    RESPONSE_COMPLETED("The questionnaire response is complete", Tone.NEUTRAL, false),
-    NOTHING_REQUIRED("The response is complete and no question was asked", Tone.NEUTRAL, false),
-    RESPONSE_NOT_COMPLETE("The questionnaire response is not complete", Tone.ACTION, false),
-    REQUIRED_UNANSWERED("A required question has no answer", Tone.ACTION, false),
-    MEMBER_NOT_FOUND("The service does not recognise this member", Tone.DATA, false),
-    PROVIDER_NOT_FOUND("The service does not recognise this provider", Tone.DATA, false),
-    REJECTED("The service did not accept the request as sent", Tone.FAULT, true),
-    SERVICE_ERROR("The service failed", Tone.FAULT, true),
-    TIMEOUT("The service did not answer in time", Tone.FAULT, true),
-    UNREACHABLE("The service could not be reached", Tone.FAULT, true),
-    MALFORMED_RESPONSE("The service answered with no body, or with a body that could not be read", Tone.FAULT, true);
+    PACKAGE_LOADED("Package loaded", "The questionnaire package was loaded", Tone.NEUTRAL, false),
+    PACKAGE_INCOMPLETE("Package incomplete", "The package does not hold every questionnaire that was asked for", Tone.NO_ANSWER, false),
+    NO_QUESTIONNAIRE("No questionnaire", "The service returned no questionnaire", Tone.NO_ANSWER, false),
+    MALFORMED_QUESTIONNAIRE("Unusable questionnaire", "The service answered, but what it sent cannot be used as a questionnaire", Tone.FAULT, true),
+    NEXT_QUESTION("Next question", "The service returned the next question", Tone.NEUTRAL, false),
+    NO_QUESTION_RETURNED("No question returned", "The service returned no question and did not report the response as complete", Tone.NO_ANSWER, false),
+    UNRECOGNISED_STATUS("Unknown status", "The service returned a response status this tool does not recognise", Tone.NO_ANSWER, false),
+    RESPONSE_COMPLETED("Response complete", "The questionnaire response is complete", Tone.NEUTRAL, false),
+    NOTHING_REQUIRED("Nothing asked", "The response is complete and no question was asked", Tone.NEUTRAL, false),
+    RESPONSE_NOT_COMPLETE("Not complete", "The questionnaire response is not complete", Tone.ACTION, false),
+    REQUIRED_UNANSWERED("Required unanswered", "A required question has no answer", Tone.ACTION, false),
+    MEMBER_NOT_FOUND("Member not found", "The service does not recognise this member", Tone.DATA, false),
+    PROVIDER_NOT_FOUND("Provider not found", "The service does not recognise this provider", Tone.DATA, false),
+    REJECTED("Rejected", "The service did not accept the request as sent", Tone.FAULT, true),
+    SERVICE_ERROR("Service error", "The service failed", Tone.FAULT, true),
+    TIMEOUT("Timed out", "The service did not answer in time", Tone.FAULT, true),
+    UNREACHABLE("Unreachable", "The service could not be reached", Tone.FAULT, true),
+    MALFORMED_RESPONSE("Unreadable answer", "The service answered with no body, or with a body that could not be read", Tone.FAULT, true);
 
+    private final String shortLabel;
     private final String label;
     private final Tone tone;
     private final boolean fault;
 
-    DtrOutcome(String label, Tone tone, boolean fault) {
+    DtrOutcome(String shortLabel, String label, Tone tone, boolean fault) {
+        this.shortLabel = shortLabel;
         this.label = label;
         this.tone = tone;
         this.fault = fault;
+    }
+
+    @Override
+    public String shortLabel() {
+        return shortLabel;
     }
 
     @Override

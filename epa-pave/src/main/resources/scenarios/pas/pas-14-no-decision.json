@@ -2,6 +2,7 @@
   "id": "pas-14-no-decision",
   "number": 14,
   "label": "A ClaimResponse that carries no decision",
+  "short": "no decision",
   "description": "The service answers HTTP 200 with a ClaimResponse that carries no review action on any item. Its disposition wording says approved. The tool reads codes and never wording, so this is no decision: not approved, not pended and not denied. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-NO-DECISION",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

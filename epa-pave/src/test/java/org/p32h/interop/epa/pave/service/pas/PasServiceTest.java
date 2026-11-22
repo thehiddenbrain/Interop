@@ -1430,18 +1430,20 @@ class PasServiceTest {
         assertThat(ledger.records()).isEmpty();
     }
 
-    // ---- PAS 2.0.1: what the request goes out without, and the items of an inquiry ----
+    // ---- PAS 2.2.1: what the request goes out without, and the items of an inquiry ----
 
     @Test
-    void aRequestSentWithoutWhatThe201ProfilesRequireSaysSoFirstAndCarriesOneFindingThatNamesEachElement() {
+    void aRequestSentWithoutWhatThe221ProfilesRequireSaysSoFirstAndCarriesOneFindingThatNamesEachElement() {
         RunEnvelope<PasDetail> result = submit("P32H-PAS-APPROVED");
         assertThat(result.verdict().outcomeCode()).isEqualTo("APPROVED");
-        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 5 elements PAS 2.0.1 requires");
+        assertThat(result.detail().requestNotes().get(0)).startsWith("This request goes out without 11 elements PAS 2.2.1 requires");
         Finding incomplete = result.findings().get(0);
         assertThat(incomplete.kind()).isEqualTo(FindingKind.REQUEST_INCOMPLETE);
-        assertThat(incomplete.title()).isEqualTo("The request left out 5 elements PAS 2.0.1 requires");
+        // The finding's words are PasFindings', which names the version on its own (a change asked of the integrator).
+        assertThat(incomplete.title()).startsWith("The request left out 11 elements PAS");
         assertThat(incomplete.detail()).contains("PASClaim insurer").contains("PASCoverage payor").contains("PASClaim item.category")
-                .contains("PASBeneficiary identifier.system").contains("PASCoverage status");
+                .contains("PASBeneficiary identifier.system").contains("PASCoverage status").contains("PASClaim item.extension[requestType]")
+                .contains("PASClaim item.location[x]").contains("PASPractitionerRole telecom (rule pd-1)");
         assertThat(ledger.only().findings()).contains("REQUEST_INCOMPLETE");
         // The request still went: a request that breaks a profile is a negative case a tester may want.
         assertThat(result.wire().request().body()).contains("\"Claim\"");
@@ -1460,12 +1462,13 @@ class PasServiceTest {
         assertThat(inquired.detail().requestNotes()).anySatisfy(note -> assertThat(note)
                 .contains("lists the procedure codes found on the ledger line of the submission " + submitted.runId()));
 
-        // With nothing to go on, the inquiry is still sent and says that 2.0.1 requires an item.
+        // With nothing to go on, the inquiry is still sent and says so; PAS 2.2.1 does not require an item on an inquiry.
         RunEnvelope<PasDetail> unknown = service().runInquire(inquiry("P32H-PAS-INQUIRE").claimId("claim-never-sent").build(),
                 RunOrigin.manual(), null);
         assertThat(sentBundle(unknown).at("/entry/0/resource").has("item")).isFalse();
-        assertThat(unknown.findings()).extracting(Finding::kind).contains(FindingKind.REQUEST_INCOMPLETE);
-        assertThat(unknown.findings().get(0).detail()).contains("PASClaimInquiry item");
+        assertThat(unknown.detail().requestNotes()).anySatisfy(note -> assertThat(note).startsWith("The inquiry lists no item")
+                .endsWith("PAS 2.2.1 does not require an item on an inquiry."));
+        assertThat(unknown.findings().get(0).detail()).doesNotContain("PASClaimInquiry item;").doesNotContain("PASClaimInquiry item.");
     }
 
     @Test

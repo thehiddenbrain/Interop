@@ -2,6 +2,7 @@
   "id": "crd-01-pa-required",
   "number": 1,
   "label": "Prior authorization required",
+  "short": "prior authorization required",
   "description": "The payer answers that prior authorization is needed for the service. It says nothing about documentation, which in CRD 2.0.1 is how an answer says none is needed. Models CRD 2.0.1. The bundled placeholder code list routes 95810 to eviCore for Medicare and Medicaid, so a run with 95810 for such a member also shows the code list naming a vendor where this answer names none.",
   "sentinelMemberId": "P32H-PA-REQ",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

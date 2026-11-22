@@ -2,6 +2,7 @@
   "id": "pas-06-submit-then-notified",
   "number": 6,
   "label": "Submitted, then notified by subscription",
+  "short": "pended, then notified",
   "description": "The submission is pended, and an inquiry still finds it pended. The final decision arrives as a notification that carries the ClaimResponse: certified in total. Deliver the notification with the sample notification action. It is in the shape PAS 2.0.1 gives. The topic is the one PAS 2.0.1 defines.",
   "sentinelMemberId": "P32H-PAS-NOTIFY",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
