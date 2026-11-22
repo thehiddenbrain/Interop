@@ -687,7 +687,7 @@ class ConfigControllerTest {
                 // An operation with no mapped request and no fallback url says so in words, on its own row.
                 .andExpect(jsonPath("$.operations[1].operation").value("CRD_ORDER_SELECT"))
                 .andExpect(jsonPath("$.operations[1].target").doesNotExist())
-                .andExpect(jsonPath("$.operations[1].note", startsWith("No collection request is mapped to CRD order-select, and onyx.crd.url is not set.")))
+                .andExpect(jsonPath("$.operations[1].note", startsWith("No address for order-select. Type one under Addresses of the environment in Configuration.")))
                 // An operation that is not outbound has no target and says why.
                 .andExpect(jsonPath("$.operations[5].operation").value("DTR_RESPONSE"))
                 .andExpect(jsonPath("$.operations[5].outbound").value(false))
