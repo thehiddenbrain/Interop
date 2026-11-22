@@ -28,6 +28,7 @@ import org.p32h.interop.epa.pave.model.RunRecord;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
+import org.p32h.interop.epa.pave.service.run.MemberInText;
 import org.p32h.interop.epa.pave.model.TrackedJson;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
@@ -560,9 +561,14 @@ public class DtrService {
         }
         for (int i = 0; i < request.questionnaires().size(); i++) {
             String canonical = request.questionnaires().get(i);
-            inputs.require(Texts.blank(canonical) || CANONICAL.matcher(canonical.strip()).matches(), "questionnaires[" + i + "]",
+            boolean wellFormed = Texts.blank(canonical) || CANONICAL.matcher(canonical.strip()).matches();
+            inputs.require(wellFormed, "questionnaires[" + i + "]",
                     "Name a questionnaire by its canonical url, with its version after a bar if it has one, for example "
                             + "https://example.org/Questionnaire/name|1.0. It must be one unbroken url.");
+            // The ledger keeps a typed address as written, so it is held to the member-name check like a note.
+            String holdsMember = wellFormed ? MemberInText.problemInQuestionnaireAddress(canonical, request.member(),
+                    BundledQuestionnaires.isBundled(canonical), "Nothing was sent.") : null;
+            inputs.require(holdsMember == null, "questionnaires[" + i + "]", holdsMember);
         }
         carriedRun(inputs, request);
         inputs.date("dateOfService", request.dateOfService())
