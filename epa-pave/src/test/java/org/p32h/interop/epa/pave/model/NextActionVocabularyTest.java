@@ -22,7 +22,12 @@ class NextActionVocabularyTest {
             NextAction action = NextAction.values()[i];
             assertThat(actions.get(i).get("code").asString()).isEqualTo(action.name());
             assertThat(actions.get(i).get("label").asString()).as(action.name()).isEqualTo(action.label()).isNotBlank();
-            assertThat(actions.get(i).propertyNames()).containsExactly("code", "label");
+            if (action.button() == null) {
+                assertThat(actions.get(i).propertyNames()).as(action.name()).containsExactly("code", "label");
+            } else {
+                assertThat(actions.get(i).propertyNames()).as(action.name()).containsExactly("code", "label", "button");
+                assertThat(actions.get(i).get("button").asString()).as(action.name()).isEqualTo(action.button());
+            }
         }
     }
 
