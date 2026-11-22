@@ -22,7 +22,10 @@ export function createServiceCard(env) {
         draw();
         caseChanged('codes');
     }});
-    const date = caseField({name: 'dateOfService', label: 'Date of service', kind: 'date', mono: true});
+    // A text field in mono, ISO as the server reads it and as every other date on screen is shown (prototype 01):
+    // a native date field shows the browser's locale order and is cut at 1024.
+    const date = caseField({name: 'dateOfService', label: 'Date of service', mono: true});
+    date.input.placeholder = 'YYYY-MM-DD';
     const diagnosis = caseField({name: 'diagnosisCodes', label: 'Diagnosis codes', mono: true});
     const placesId = 'places-' + lists;
     const typesId = 'service-types-' + lists;

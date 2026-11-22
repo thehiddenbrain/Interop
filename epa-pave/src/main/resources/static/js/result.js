@@ -10,7 +10,7 @@
 
 import {el, append, chip, fold, kv, button, copyButton, firstSentence, toneName, fill, clear} from './dom.js';
 import {responseDetail} from './detail.js';
-import {errorPanel} from './fault.js';
+import {errorPanel, faultReport} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
@@ -63,6 +63,10 @@ export function resultCard(envelope, options) {
     if (ledger) {
         card.append(ledger);
     }
+    const inCard = faultInCard(envelope);
+    if (inCard) {
+        append(card, faultFacts(envelope));
+    }
     const nextSlot = el('div', {class: 'verdict__foot'});
     card.append(nextSlot);
 
@@ -90,7 +94,7 @@ export function resultCard(envelope, options) {
         }, () => null);
     }
 
-    if (envelope.error) {
+    if (envelope.error && !inCard) {
         const panel = errorPanel(envelope.error, {fieldsPlaced: settings.fieldsPlaced});
         if (panel) {
             root.append(panel);
@@ -186,7 +190,12 @@ export function maskedReading(line) {
     return typeof line === 'string' && line !== '' ? el('p', {class: 'masked-reading'}, line) : null;
 }
 
-/** A service's own refusal in one line, as it said it: an OperationOutcome's first issue, or a CDS answer's card. */
+/**
+ * A service's own refusal in one line, as it said it: an OperationOutcome's first issue, or the
+ * summary and detail a CDS service answers a refusal with, which the server leaves among the fields
+ * returned but not interpreted. Never from a body the wire says was masked: a secret the service
+ * repeated must not reach the screen here.
+ */
 function serviceLine(envelope) {
     const error = envelope.error;
     if (!error || (error.kind !== 'VENDOR_REJECTED' && error.kind !== 'VENDOR_ERROR')) {
@@ -195,11 +204,72 @@ function serviceLine(envelope) {
     const issue = Array.isArray(error.issues) && error.issues.length > 0 ? error.issues[0] : null;
     const said = issue && issue.diagnostics && issue.diagnostics.presence === 'VALUE' ? String(issue.diagnostics.value) : null;
     if (!said) {
-        return null;
+        const cds = cdsRefusal(envelope);
+        return cds ? el('p', {class: 'small service-said'}, el('strong', null, 'Service said: '), cds) : null;
     }
     const where = issue.expression && issue.expression.length > 0 && issue.expression[0].presence === 'VALUE'
         ? String(issue.expression[0].value) : null;
     return el('p', {class: 'small'}, el('strong', null, 'Service said: '), said, where ? [' (', el('span', {class: 'mono'}, where), ')'] : null);
+}
+
+/** "summary: detail" of a CDS refusal, from the fields returned but not interpreted, or null. */
+function cdsRefusal(envelope) {
+    const masked = envelope.wire && envelope.wire.response && envelope.wire.response.maskedPlaces > 0;
+    const fields = Array.isArray(envelope.additionalFields) ? envelope.additionalFields : [];
+    if (masked) {
+        return null;
+    }
+    const value = path => {
+        const found = fields.find(field => field && field.path === path && field.presence === 'VALUE' && field.kind !== 'NOTE');
+        return found && found.value !== undefined && found.value !== null && String(found.value) !== '' ? String(found.value) : null;
+    };
+    const summary = value('summary');
+    const detail = value('detail');
+    return summary || detail ? [summary, summary && detail ? ': ' : null, detail].filter(Boolean).join('') : null;
+}
+
+// The kinds of failure that are the service's or its environment's, drawn inside the result card
+// itself (prototype 05a): one card, never a second framed box repeating its headline.
+const SERVICE_FAULTS = new Set(['VENDOR_ERROR', 'VENDOR_REJECTED', 'TIMEOUT', 'UNREACHABLE', 'MALFORMED_RESPONSE']);
+
+/** True when a run's failure is drawn inside its card: a service fault on a run that has a headline of its own. */
+export function faultInCard(envelope) {
+    const verdict = envelope && envelope.verdict;
+    return Boolean(envelope && envelope.error && SERVICE_FAULTS.has(envelope.error.kind) && verdict
+        && typeof verdict.headline === 'string' && verdict.headline !== '');
+}
+
+/**
+ * The rest of a service fault, inside the card: who played it (the heading), each issue on one line
+ * (severity, code, what it says, where), and the action's first sentence when the card has no next
+ * step of its own. The title is the card's headline in other words and is not said again.
+ */
+function faultFacts(envelope) {
+    const error = envelope.error;
+    const issues = Array.isArray(error.issues) ? error.issues : [];
+    const text = value => (value && value.presence === 'VALUE' && value.value !== undefined && value.value !== null ? String(value.value) : null);
+    // The first issue's diagnostics are already the card's "Service said" line; its own line keeps the rest.
+    const saidAbove = serviceLine(envelope) ? text(issues.length > 0 ? issues[0].diagnostics : null) : null;
+    const lines = issues.map((issue, index) => {
+        const said = index === 0 && saidAbove ? null : text(issue.diagnostics);
+        const details = text(issue.detailsText);
+        const where = Array.isArray(issue.expression) ? issue.expression.map(text).filter(Boolean) : [];
+        return el('li', {class: 'issue-line'},
+            text(issue.severity) ? chip(text(issue.severity), {mono: true}) : chip('severity not returned', {dashed: true}), ' ',
+            text(issue.code) ? chip(text(issue.code), {mono: true}) : null, ' ',
+            said || (details || (index === 0 && saidAbove) ? null : chip('diagnostics not returned', {dashed: true})),
+            details && details !== said && details !== saidAbove ? [said ? ' ' : null, el('span', {class: 'muted'}, details)] : null,
+            where.length > 0 ? [' ', el('span', {class: 'mono small'}, where.join(', '))] : null);
+    });
+    const hasNext = envelope.nextStep && envelope.nextStep.action;
+    const [first, rest] = firstSentence(error.action || '');
+    return [
+        error.heading ? el('p', {class: 'verdict__label'}, error.heading) : null,
+        lines.length > 0 ? el('ul', {class: 'issue-lines'}, lines) : null,
+        !hasNext && first ? el('p', {class: 'verdict__next'}, first) : null,
+        !hasNext && rest ? fold({summary: 'Why', inline: true, body: el('p', null, rest)}) : null,
+        faultReport(error.reference, error.cause)
+    ];
 }
 
 /**

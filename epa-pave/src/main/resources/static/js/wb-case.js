@@ -120,7 +120,7 @@ export function caseField(spec) {
     };
     function showMark(mark) {
         control.current = mark;
-        fill(markSlot, mark && mark !== MARKS.SCENARIO ? chip(mark, {dashed: mark === MARKS.CLEARED || mark === MARKS.MASKED}) : null);
+        fill(markSlot, mark && mark !== MARKS.SCENARIO ? chip(mark, {dashed: mark === MARKS.CLEARED || mark === MARKS.MASKED, title: mark}) : null);
     }
     const typed = () => {
         control.setError(null);

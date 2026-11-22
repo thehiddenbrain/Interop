@@ -2088,17 +2088,19 @@ a:hover {
         font-size: var(--text);
     }
 
+    /* A step's chip stays on one line, as wide as its step allows, its words whole in its title. */
     .stepper .chip {
-        height: auto;
-        min-height: 22px;
-        padding: 2px 8px;
-        border-radius: var(--r-box);
-        white-space: normal;
-        line-height: 1.25;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .stepper .chip__text {
-        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .call {
