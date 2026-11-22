@@ -63,6 +63,8 @@ class SubmitStepFrontendTest {
                 step.show();
                 await settle();
                 say(posted.map(each => each.path));
+                // Off kind prod the framed box on writes is hidden, not left as an empty bar.
+                say(root.querySelector('.submit-writes').hidden);
                 const lines = root.querySelectorAll('.goes .goes__line');
                 const words = lines.map(line => line.textContent).join(' ').split(' ').filter(Boolean).length;
                 say([lines.length, words <= 45, lines[0].textContent, lines[1].textContent, lines[2].textContent]);
@@ -86,6 +88,7 @@ class SubmitStepFrontendTest {
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
                 "[\"/api/pas/submit/preview\"]",
+                "true",
                 "[3,true,\"member S123456789 rule: packed NPI 1234567893 phone\",\"81162 x2 FL 2026-11-23 place 11\","
                         + "\"questionnaire response, 2 answers  Include it no files dx Z80.3\"]",
                 "[[\"Provider phone or fax\",true],[\"Insurer\",true]]",

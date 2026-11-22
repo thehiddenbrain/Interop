@@ -133,7 +133,7 @@ export function mount(root, ctx) {
     const sendButton = el('button', {type: 'button', class: 'btn btn--primary', on: {click: () => send()}}, 'Send PAS request');
     const toggle = typeof ctx.optionsToggle === 'function' ? ctx.optionsToggle() : null;
     const optionsRow = typeof ctx.optionsRow === 'function' ? ctx.optionsRow() : null;
-    const writes = el('div', {class: 'submit-writes'});
+    const writes = el('div', {class: 'submit-writes', hidden: true});
     const readiness = el('div', {class: 'readiness'});
     const goes = el('div', {class: 'panel__section goes'});
     const gaps = el('div', {class: 'gaps'});
@@ -181,12 +181,15 @@ export function mount(root, ctx) {
     /** On kind prod: the server's sentence on writes and the way to Production writes. The button stays. */
     function drawWrites() {
         const access = mode ? mode.writeAccess : null;
+        // The box is framed by the stylesheet, so it is hidden, not only emptied, off kind prod.
         if (!access || access.production !== true) {
             clear(writes);
+            writes.hidden = true;
             return;
         }
+        writes.hidden = false;
         fill(writes, el('p', {class: 'line line--prod small'}, access.reason || '', ' ',
-            el('a', {href: '#configuration/production-writes'}, 'Production writes')));
+            el('a', {class: 'line__link', href: '#configuration/production-writes'}, 'Production writes')));
     }
 
     /** "What goes": at most three lines of chips, each a short label and its value (M22). */
