@@ -335,7 +335,7 @@ when the sandbox's token url is, or lies beneath, an address remembered from it.
 then that the environment "is no longer stored, so this tool no longer knows the token url it
 signed in with", and gives the two ways out: store it again, or, if it was stored as prod by
 mistake, stop PAVE, delete its entries from `productionDestinations` in `store.json` (the refusal
-names the file) and start PAVE again.
+names the file) and start PAVE again. The recheck of the final build saw this on `22478b8`.
 From release 2 a button on Configuration > Production writes does it, for an address whose
 environment is no longer stored.
 
@@ -1226,7 +1226,10 @@ corrections on the running tool, among them a folder named like a file now told 
 environment's whole name at 1024 pixels, and a refused environment save that names each field in
 its panel and keeps that panel in view. The Eclipse compiler STS 5.4.0 brings, run by the
 integrator over every source set of `22478b8`, found 0 errors. The recheck of the final build had
-not reported when this was written. What stays open on
+reported only on the guardrail when this was written: on `22478b8` a sandbox that shared its token
+url with a production copy saved, made active and removed again stayed not signed in, and the
+refusal ended with the note and the way out quoted in
+[A production address remembered by mistake](#a-production-address-remembered-by-mistake). What stays open on
 purpose is in [This release](#this-release) and [Limitations](#limitations).
 What was seen and decided is in `PROGRESS.md` and `DECISIONS.md`.
 
