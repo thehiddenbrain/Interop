@@ -32,7 +32,7 @@ import {vocabulary} from './words.js';
 import {withoutMasks, maskedLine, notHandedOnWords} from './masks.js';
 import {panelHead, busyLine, sendRun, failurePanel} from './wb-run.js';
 import {showPreview} from './wb-preview.js';
-import {wireFold} from './result.js';
+import {wireFold, resultCard} from './result.js';
 import {responseDetail, detailHint} from './detail.js';
 import {flatItems, heldByLinkId, questionField, itemLine, formChips, linkIdOf, isDateQuestion} from './wb-dtr-items.js';
 
@@ -868,6 +868,32 @@ export function mount(root, ctx) {
                     }
                 }, CASE_QUIET);
             }
+        },
+        /**
+         * The step's latest result read back after a reload. A package that holds questionnaires is
+         * drawn again as forms, as when it arrived, so the tester can go on answering. A turn or a
+         * completed response cannot be drawn as a form without the package before it, so it is drawn
+         * as its card; a next step inside this same step then has no form to act on and is said in
+         * words, while one that leads on (Submit) keeps its button.
+         */
+        restored(envelope) {
+            if (!envelope || typeof envelope !== 'object') {
+                return;
+            }
+            clear(refusal);
+            const rebuilt = envelope.operation === 'DTR_QUESTIONNAIRE_PACKAGE' ? createSession(envelope) : null;
+            if (rebuilt) {
+                session = rebuilt;
+                handedOn = false;
+                drawPackage(envelope);
+                drawSession();
+                return;
+            }
+            session = null;
+            clear(work);
+            const action = envelope.nextStep ? envelope.nextStep.action : null;
+            fill(packageSlot, action === LOOP_ACTION || action === RESPOND_ACTION
+                ? resultCard(envelope, {context: 'workbench'}) : ctx.card(envelope));
         },
         /** Start a new case: the package, the questionnaires, the answers and every result are forgotten. */
         reset() {

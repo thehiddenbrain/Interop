@@ -96,4 +96,39 @@ class SubmitStepFrontendTest {
                 "[\"/api/pas/submit\",[\"questionnaireResponse\",\"runId\"],[{\"code\":\"Z80.3\"}],false,[[\"resulted\",\"run-9\"]]]",
                 "[\"runId\"]");
     }
+
+    @Test
+    void aResultReadBackAfterAReloadIsDrawnAsTheStepsResultAndSendsNothing(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "a step 3 result read back", """
+                import './browser.js';
+                const posted = [];
+                globalThis.fetch = async (address, init) => {
+                    const path = String(address);
+                    if (init && init.body) {
+                        posted.push(path);
+                    }
+                    const data = path === '/api/vocabulary' ? {outcomes: {PAS: []}} : path === '/api/mode' ? {mode: 'live', writeAccess: {production: false}} : {};
+                    return {ok: true, status: 200, text: async () => JSON.stringify(data)};
+                };
+                const carded = [];
+                const ctx = {
+                    request: () => ({member: {memberId: 'S123456789'}, memberOverrides: [], provider: {npi: '1234567893'},
+                        providerOverrides: [], procedureCodes: [{code: '81162'}], chainId: 'chain-1', configEpoch: 4}),
+                    carry: () => null, handOn: () => null, option: () => '', optionsRow: () => null, optionsToggle: () => null,
+                    resulted: () => null, showField: () => true, placeErrors: () => [], go: () => null, isMock: () => false,
+                    visible: () => false, typedCode: () => '', blocked: () => null, readinessLine: () => null, latest: () => null,
+                    refused: () => null, handedLine: () => null,
+                    card: envelope => { carded.push(envelope.runId); const node = globalThis.document.createElement('div');
+                        node.className = 'result'; return node; }
+                };
+                const {mount} = await import('./js/wb-submit.js');
+                const root = globalThis.document.createElement('div');
+                const step = mount(root, ctx);
+                await new Promise(go => setTimeout(go, 30));
+                step.restored({runId: 'run-9', protocol: 'PAS', operation: 'PAS_SUBMIT', verdict: {headline: 'Pended.'}}, {at: '2026-11-22T10:00:00Z'});
+                console.log(JSON.stringify([carded, root.querySelectorAll('.step-result .result').length, posted]));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[[\"run-9\"],1,[]]");
+    }
 }

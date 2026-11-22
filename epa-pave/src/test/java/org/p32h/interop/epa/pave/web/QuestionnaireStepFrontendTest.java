@@ -348,4 +348,80 @@ class QuestionnaireStepFrontendTest {
                 "[\"q-lob=commercial\",\"q-npi=1000000004\",\"q-when=2026-01-10\"]",
                 "[\"from the case\",\"default, change if needed\",\"payer prefilled\",\"\",2]");
     }
+
+    @Test
+    void aResultReadBackAfterAReloadIsDrawnAgainAsFormsOrAsItsCard(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "a step 2 result read back", """
+                import './browser.js';
+                const v = value => ({presence: 'VALUE', value});
+                const absent = {presence: 'ABSENT'};
+                const item = (linkId, text, code) => ({path: 'item', linkId: v(linkId), text: v(text),
+                    prefix: absent, type: {presence: 'VALUE', code, recognised: true}, question: true, required: absent,
+                    repeats: absent, readOnly: absent, answerValueSet: absent, answerOptions: [], initial: [], prepopulated: [],
+                    enableBehavior: absent, enableWhen: [], enabled: 'ENABLED', extensions: [], items: [], lists: {}});
+                const pkg = {runId: 'run-1', protocol: 'DTR', operation: 'DTR_QUESTIONNAIRE_PACKAGE', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'Loaded.', outcomeCode: 'PACKAGE_LOADED'}, ledger: {recorded: true},
+                    nextStep: {action: 'SUBMIT_RESPONSE', headline: 'Answer the questions.', carry: {runId: ['run-1']}},
+                    detail: {questionnaires: [{position: 1, subject: 'Placeholder criteria', kind: 'STATIC', kindShort: 'static form',
+                        questionCount: 1, requiredCount: 0, title: v('Placeholder criteria'),
+                        json: '{"resourceType":"Questionnaire","id":"placeholder"}', problems: [], notApplied: [],
+                        items: [item('q-spec', 'Specialty', 'string')]}], questionnaireResponses: []}};
+                const turn = {runId: 'run-2', protocol: 'DTR', operation: 'DTR_NEXT_QUESTION', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'One more question.'}, ledger: {recorded: true},
+                    nextStep: {action: 'ANSWER_NEXT_QUESTION', headline: 'Answer the next question.', carry: {}}};
+                const done = {runId: 'run-3', protocol: 'DTR', operation: 'DTR_RESPONSE', answeredBy: 'SCENARIO',
+                    verdict: {headline: 'Completed.'}, ledger: {recorded: true},
+                    nextStep: {action: 'START_PAS', headline: 'Next.', carry: {questionnaireResponse: ['{}']}}};
+                const posted = [];
+                globalThis.fetch = async (address, init) => {
+                    const path = String(address);
+                    if (init && init.body) {
+                        posted.push(path);
+                    }
+                    const data = path === '/api/vocabulary' ? {outcomes: {DTR: []}, answeredBy: [],
+                        nextActions: [{code: 'SUBMIT_RESPONSE', button: 'Complete the response'},
+                            {code: 'ANSWER_NEXT_QUESTION', button: 'Send the answers'}]}
+                        : path === '/api/dtr/case-answers' ? {answers: []} : {};
+                    return {ok: true, status: 200, text: async () => JSON.stringify(data)};
+                };
+                const carded = [];
+                const handed = [];
+                const ctx = {
+                    request: () => ({member: {memberId: 'S123456789'}, memberOverrides: [], provider: {npi: '1234567893'},
+                        providerOverrides: [], procedureCodes: [{code: '81162'}], chainId: 'chain-1', configEpoch: 3}),
+                    carry: () => null, handOn: (step, carry) => handed.push(step), option: () => '', optionsRow: () => null,
+                    optionsToggle: () => null, resulted: () => null, showField: () => true, placeErrors: () => [], go: () => null,
+                    isMock: () => false, visible: () => true, typedCode: () => '', blocked: () => null, readinessLine: () => null,
+                    latest: () => null, refused: () => null, handedLine: () => null,
+                    card: envelope => { carded.push(envelope.runId); const node = globalThis.document.createElement('div');
+                        node.className = 'frame-card'; return node; }
+                };
+                const {mount} = await import('./js/wb-dtr.js');
+                const root = globalThis.document.createElement('div');
+                const step = mount(root, ctx);
+                const settle = () => new Promise(go => setTimeout(go, 30));
+                const say = value => console.log(JSON.stringify(value));
+                await settle();
+                // A package read back is drawn again as its form, with the form's one button; nothing is sent for it but the case's answers.
+                step.restored(pkg, {at: '2026-11-22T10:00:00Z'});
+                await settle();
+                say([Boolean(root.querySelector('[data-link-id=q-spec] input')),
+                    root.querySelectorAll('button').filter(each => each.textContent === 'Complete the response').length,
+                    carded, posted, handed]);
+                // A turn read back has no form to answer on: its card says its next step in words, with no button.
+                step.restored(turn, {});
+                await settle();
+                say([Boolean(root.querySelector('[data-link-id=q-spec] input')), carded,
+                    root.querySelectorAll('.dtr-package button').filter(each => each.textContent === 'Send the answers').length,
+                    root.querySelector('.dtr-package').textContent.includes('One more question.')]);
+                // A completed response read back is the frame's card, whose Continue leads on to Submit.
+                step.restored(done, {});
+                say([carded, root.querySelectorAll('.dtr-package .frame-card').length]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[true,1,[],[\"/api/dtr/case-answers\"],[]]",
+                "[false,[],0,true]",
+                "[[\"run-3\"],1]");
+    }
 }
