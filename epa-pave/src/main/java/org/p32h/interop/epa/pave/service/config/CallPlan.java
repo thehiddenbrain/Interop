@@ -58,6 +58,11 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
         REQUEST,
         /** A url built from application.yml. */
         FALLBACK,
+        /**
+         * The address the active environment's settings type for the operation (R-02). It is one
+         * of that environment's own addresses: no collection request's url, headers or body go with it.
+         */
+        TYPED,
         /** The CDS Hooks discovery url, cut out of the url of a mapped hook request. */
         DERIVED,
         /** Nothing. The operation has nowhere to go. */
