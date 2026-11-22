@@ -371,6 +371,8 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
         lookups.member = switch (result.status()) {
             case NOT_FOUND -> "The member lookup does not know this member ID.";
+            case SEVERAL -> "The member lookup matched several members.";
+            case NOT_ANSWERING -> "The member lookup did not answer.";
             case DISABLED -> "The member lookup is not configured.";
             case FAULT -> "The member lookup failed.";
             case FOUND -> "The member lookup answered with no member.";
@@ -388,6 +390,8 @@ public class ProtocolCaseRunner implements CaseRunner {
         }
         lookups.provider = switch (result.status()) {
             case NOT_FOUND -> "The provider lookup does not know this NPI.";
+            case SEVERAL -> "The provider lookup matched several providers.";
+            case NOT_ANSWERING -> "The provider lookup did not answer.";
             case DISABLED -> "The provider lookup is not configured.";
             case FAULT -> "The provider lookup failed.";
             case FOUND -> "The provider lookup answered with no provider.";

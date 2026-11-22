@@ -8,6 +8,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * did not return is not "in network".
  *
  * <p>Construct with {@link #builder()}.
+ *
+ * @param fax                  the fax number, which PAS sends beside the phone: US Core rule pd-1
+ *                             needs a phone, a fax or an endpoint on the requesting role
+ * @param vendorPractitionerId the vendor's own id for this practitioner, used as the Practitioner's
+ *                             resource id when given. A vendor's sandbox can know its practitioners
+ *                             by ids that are not NPIs, so with it the NPI becomes optional
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ProviderDetail(
@@ -19,7 +25,9 @@ public record ProviderDetail(
         String taxonomyCode,
         String networkStatus,
         String phone,
-        PostalAddress address) {
+        PostalAddress address,
+        String fax,
+        String vendorPractitionerId) {
 
     public static Builder builder() {
         return new Builder();
@@ -27,7 +35,8 @@ public record ProviderDetail(
 
     public Builder toBuilder() {
         return new Builder().npi(npi).firstName(firstName).lastName(lastName).organizationName(organizationName)
-                .specialty(specialty).taxonomyCode(taxonomyCode).networkStatus(networkStatus).phone(phone).address(address);
+                .specialty(specialty).taxonomyCode(taxonomyCode).networkStatus(networkStatus).phone(phone).address(address)
+                .fax(fax).vendorPractitionerId(vendorPractitionerId);
     }
 
     /** The name to show for this provider: the person when there is one, otherwise the organization. Null when neither is known. */
@@ -48,6 +57,8 @@ public record ProviderDetail(
         private String networkStatus;
         private String phone;
         private PostalAddress address;
+        private String fax;
+        private String vendorPractitionerId;
 
         private Builder() {
         }
@@ -97,8 +108,19 @@ public record ProviderDetail(
             return this;
         }
 
+        public Builder fax(String value) {
+            this.fax = value;
+            return this;
+        }
+
+        public Builder vendorPractitionerId(String value) {
+            this.vendorPractitionerId = value;
+            return this;
+        }
+
         public ProviderDetail build() {
-            return new ProviderDetail(npi, firstName, lastName, organizationName, specialty, taxonomyCode, networkStatus, phone, address);
+            return new ProviderDetail(npi, firstName, lastName, organizationName, specialty, taxonomyCode, networkStatus, phone, address,
+                    fax, vendorPractitionerId);
         }
     }
 
