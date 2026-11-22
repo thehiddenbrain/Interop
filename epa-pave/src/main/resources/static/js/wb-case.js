@@ -18,8 +18,39 @@ export const MARKS = {
     CLEARED: 'cleared, not sent',
     MASKED: 'masked, not taken',
     // Filled by the mock member picker, which itself names what was chosen; no mark is drawn for it.
-    SCENARIO: 'mock member'
+    SCENARIO: 'mock member',
+    // Drawn back after a reload, from what was posted (the trail) or what the ledger line kept.
+    TRAIL: 'from the trail',
+    LEDGER: 'from the ledger'
 };
+
+/**
+ * Sets a card's fields from a case read back after a reload: each value that was posted, marked
+ * where it came from; a field the tester had typed or changed (named among the posted overrides)
+ * is the tester's own again, so the next run names it as before. Fields with no value are emptied.
+ * Returns what was posted that the card has no field for.
+ */
+export function restoreFields(controls, values, overrides, mark) {
+    const given = values && typeof values === 'object' ? values : {};
+    const theirs = new Set(Array.isArray(overrides) ? overrides : []);
+    const used = new Set();
+    for (const control of controls) {
+        const value = given[control.name];
+        used.add(control.name);
+        if (value === undefined || value === null || value === '' || typeof value === 'object') {
+            control.clear();
+        } else {
+            control.set(value, theirs.has(control.name) ? null : mark);
+        }
+    }
+    const rest = {};
+    for (const [key, value] of Object.entries(given)) {
+        if (!used.has(key) && value !== undefined && value !== null && value !== '') {
+            rest[key] = value;
+        }
+    }
+    return rest;
+}
 
 /** The hint under every field whose text the ledger keeps as typed. */
 export const LEDGER_TEXT_HINT = 'Kept in the ledger as typed. Never type member data here.';
