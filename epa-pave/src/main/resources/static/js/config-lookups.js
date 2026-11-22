@@ -244,12 +244,25 @@ export function createLookupForm(words, view, reload) {
     const inForce = settings.inForce && settings.inForce.words
         ? el('span', {class: 'muted small'}, settings.inForce.words + (settings.inForce.from ? ' (' + settings.inForce.from + ')' : ''))
         : null;
+    // The settings are set once and read rarely: they wait in a closed fold, so the test and the
+    // saved list below stay in view. A refusal opens it at the field.
+    const settingsFold = fold({summary: 'Lookup settings', open: false, body: null});
     const node = el('section', {class: 'section', 'aria-label': words.title},
         el('div', {class: 'section__head'}, el('h2', {class: 'section__title'}, words.title), inForce),
         app.isMock() ? el('p', {class: 'muted'}, MOCK_LINE) : null,
         settings.problem ? el('p', {class: 'config-warning'}, settings.problem) : null,
         status,
-        el('div', {class: 'config-form'},
+        settingsFold,
+        el('div', {class: 'config-try'},
+            el('div', {class: 'config-try__row'}, field({label: words.tryLabel, input: tryInput}), tryDateField,
+                el('div', {class: 'config-actions'}, tryButton, el('span', {class: 'field__hint'}, 'Uses the saved settings.'))),
+            tryLine));
+    settingsFold.querySelector('.fold__body').append(formBody());
+    drawMethod();
+    drawSignIn();
+
+    function formBody() {
+        return el('div', {class: 'config-form'},
             el('label', {class: 'config-check'}, inputs.enabled, el('span', null, 'Lookup on')),
             el('div', {class: 'form-grid'},
                 register('method', field({label: 'Method', input: inputs.method})),
@@ -263,7 +276,7 @@ export function createLookupForm(words, view, reload) {
             el('div', {class: 'form-section'},
                 el('h3', {class: 'form-section__title'}, 'Headers'),
                 headerRows,
-                button('Add a header', () => headerRows.append(headerRow(null)), {small: true})),
+                el('div', null, button('Add a header', () => headerRows.append(headerRow(null)), {small: true}))),
             fold({summary: "Where the answer's fields are", open: Boolean(settings.listPath) || hasPaths(settings),
                 body: [
                     el('p', {class: 'field__hint'}, 'Names joined by dots, [n] for a position, for example data.members[0].dob. Blank: PAVE looks in the usual places.'),
@@ -276,14 +289,8 @@ export function createLookupForm(words, view, reload) {
                 register('readMs', field({label: 'Wait for a response up to (ms)', input: inputs.readMs}))),
             el('div', {class: 'config-actions'},
                 saveButton,
-                settings.stated === true ? button('Remove the saved lookup', () => remove(), {remove: true}) : null)),
-        el('div', {class: 'form-section config-try'},
-            el('h3', {class: 'form-section__title'}, 'Test the lookup'),
-            el('div', {class: 'form-grid'}, field({label: words.tryLabel, input: tryInput}), tryDateField),
-            el('div', {class: 'config-actions'}, tryButton, el('span', {class: 'field__hint'}, 'Uses the saved settings.')),
-            tryLine));
-    drawMethod();
-    drawSignIn();
+                settings.stated === true ? button('Remove the saved lookup', () => remove(), {remove: true}) : null));
+    }
 
     /** The body of PUT /api/config/lookups/<kind> (plan 5.5): secrets as typed, blank keeps. */
     function input() {
@@ -354,8 +361,8 @@ export function createLookupForm(words, view, reload) {
                 if (wrapper) {
                     setFieldError(wrapper, each.message);
                     placed.push(each.field);
-                    if (wrapper.closest('details')) {
-                        wrapper.closest('details').open = true;
+                    for (let at = wrapper.closest('details'); at; at = at.parentNode ? at.parentNode.closest('details') : null) {
+                        at.open = true;
                     }
                 }
             }

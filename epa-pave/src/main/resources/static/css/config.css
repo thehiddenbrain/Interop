@@ -156,8 +156,23 @@
 }
 
 .config-try {
-    border-top: 1px solid var(--line);
-    padding-top: var(--s-4);
+    display: grid;
+    gap: var(--s-2);
+}
+
+.config-try__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--s-3);
+    align-items: end;
+}
+
+.config-lookup .config-value-row {
+    align-items: start;
+}
+
+.config-lookup .config-value-row > .btn {
+    margin-top: 28px;
 }
 
 /* The Advanced pages draw their text boxes as textarea.json: as wide as their section, grown by hand. */
