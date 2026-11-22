@@ -16,7 +16,7 @@ const MOST_INDENT = 32;
 /**
  * A JSON text as a block, two spaces a level, with Copy above it. A text that is not JSON is shown
  * as it is, and copied as it is. An object is shown as JSON. options.label names the block for a
- * screen reader ("Request body").
+ * screen reader ("Request body"); options.copyLabel names the copy button ("Copy request").
  */
 export function jsonView(text, options) {
     const source = text === undefined || text === null ? '' : typeof text === 'string' ? text : JSON.stringify(text, null, 2);
@@ -31,7 +31,7 @@ export function jsonView(text, options) {
         }
     }
     return el('div', {class: 'json-view'},
-        el('div', {class: 'json-view__bar'}, copyButton('Copy', () => whole, {small: true})), block);
+        el('div', {class: 'json-view__bar'}, copyButton((options && options.copyLabel) || 'Copy', () => whole, {small: true})), block);
 }
 
 /**

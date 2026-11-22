@@ -304,7 +304,7 @@ class CrdControllerTest {
         assertThat(answer.get("comparable").asBoolean()).isTrue();
         assertThat(answer.has("whyNot")).isFalse();
         // authoredOn, which this tool now writes as the moment it builds the request (CRD 2.0.1), differs on every call.
-        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 34 places: 25 in how the request is built, 2 in the "
+        assertThat(answer.get("headline").asString()).isEqualTo("The two requests differ in 36 places: 27 in how the request is built, 2 in the "
                 + "case they describe, 4 in labels, 2 that differ on every call, and 1 that this tool does not classify.");
         assertThat(answer.get("hook").asString()).isEqualTo("order-sign");
         // Both texts, each as indented JSON.

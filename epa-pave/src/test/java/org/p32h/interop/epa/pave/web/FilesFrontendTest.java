@@ -16,7 +16,8 @@ import org.p32h.interop.epa.pave.web.StaticSources.Source;
  * A chosen file is read in the page when the button that uses it is pressed, through files.js
  * alone (plan R-33), and every way the read fails is one plain line: the file changed, moved or
  * deleted after it was chosen; a file cut inside its last character; a file saved in another
- * encoding; a file too large or empty. A byte order mark of UTF-16 is decoded, and the file input
+ * encoding; a file too large or empty. UTF-16 is decoded, told by its byte order mark or, without
+ * one, by the zero bytes among its first 64 bytes, and the file input
  * is cleared after every refusal, so the next press reads what is chosen again. files.js is run
  * with Node where it is installed; the rule that no other script reads a file holds without it.
  */
@@ -68,6 +69,7 @@ class FilesFrontendTest {
                     }
                     return out;
                 };
+                const unmarked = (text, bigEnd) => utf16(text, bigEnd).slice(2);
                 const file = (content, name, type) => new File([content], name, {type: type || ''});
                 const input = chosen => ({files: chosen ? [chosen] : [], value: 'C:/fakepath/chosen'});
                 const json = '{"name": "Caf' + String.fromCharCode(0xE9) + ' sandbox", "values": []}';
@@ -80,6 +82,12 @@ class FilesFrontendTest {
                 say(await read(file(join(bytes([0xEF, 0xBB, 0xBF]), utf8(json)), 'with-mark.json')));
                 say(await read(file(utf16(json, false), 'powershell.json')));
                 say(await read(file(utf16(json, true), 'big-end.json')));
+                say(await read(file(unmarked(json, false), 'no-mark-little.json')));
+                say(await read(file(unmarked(json, true), 'no-mark-big.json')));
+                // Zero bytes, but a lone surrogate either way round: neither UTF-16 nor UTF-8.
+                const broken = bytes([0x7B, 0x00, 0xDC, 0xDC, 0x7D, 0x00]);
+                const brokenBox = input(file(broken, 'broken.json'));
+                say([await read(brokenBox), brokenBox.value]);
                 const whole = utf8(json);
                 const cut = whole.slice(0, whole.indexOf(0xC3) + 1);
                 const cutBox = input(file(cut, 'cut.json'));
@@ -133,6 +141,11 @@ class FilesFrontendTest {
                 "[true,true,\"with-mark.json\",42]",
                 "[true,true,\"powershell.json\",78]",
                 "[true,true,\"big-end.json\",78]",
+                // UTF-16 without its mark, told by its zero bytes, either way round.
+                "[true,true,\"no-mark-little.json\",76]",
+                "[true,true,\"no-mark-big.json\",76]",
+                "[{\"ok\":false,\"line\":\"broken.json is saved in another encoding (for example by PowerShell or Notepad). Save it as UTF-8, "
+                        + "or export it again from Postman.\"},\"\"]",
                 // Cut inside its last character, in UTF-8 and in UTF-16; the input is let go.
                 "[{\"ok\":false,\"line\":\"This file is not complete. Export it again from Postman.\"},\"\"]",
                 "{\"ok\":false,\"line\":\"This file is not complete. Export it again from Postman.\"}",
