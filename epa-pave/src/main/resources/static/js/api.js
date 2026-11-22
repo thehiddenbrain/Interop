@@ -130,3 +130,10 @@ function address(path, query) {
     const text = params.toString();
     return text.length === 0 ? path : path + (path.includes('?') ? '&' : '?') + text;
 }
+
+/** True when both answers name the instant PAVE started and they differ: PAVE was stopped and started. */
+export function restarted(before, after) {
+    const was = before ? before.startedAt : null;
+    const now = after ? after.startedAt : null;
+    return typeof was === 'string' && was !== '' && typeof now === 'string' && now !== '' && was !== now;
+}

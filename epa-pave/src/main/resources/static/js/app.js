@@ -6,9 +6,9 @@
 // an environment of kind prod the whole bar turns purple and the line under it says whether writes
 // go, with the guardrail's own sentence, never folded and never cut.
 
-import {call, watch} from './api.js';
+import {call, watch, restarted} from './api.js';
 import {el, clear, fill, button, chip} from './dom.js';
-import {UNREACHABLE_LINE, PAGE_FAULT_LINE, notJsonLine} from './fault.js';
+import {UNREACHABLE_LINE, PAGE_FAULT_LINE, notJsonLine, setFilesChanged} from './fault.js';
 import {useEpoch} from './words.js';
 
 // The one thing this tool keeps in browser storage: which tab was open. It holds no member data,
@@ -30,6 +30,7 @@ const TABS = [
 ];
 
 const CONFIG_CHANGED = 'The configuration changed in another window. This page now shows it.';
+const STARTED_AGAIN = 'PAVE was started again.';
 const WRITES_RELOCKED = 'Production writes were locked again from another window.';
 
 const state = {
@@ -93,12 +94,12 @@ export const app = {
      * tone 'fault' frames it heavily, for a fault to report; any other tone is plain. With no
      * text, the line is taken away.
      */
-    notice(text, tone) {
+    notice(text, tone, link) {
         if (text === undefined || text === null || String(text) === '') {
             unsay(null);
             return;
         }
-        say(String(text), tone, 'view');
+        say(String(text), tone, 'view', link);
     }
 };
 
@@ -244,11 +245,15 @@ function received(next) {
         return;
     }
     state.mode = next;
+    setFilesChanged(Boolean(next.build && next.build.changedOnDisk === true));
     const epochMoved = Boolean(before) && before.epoch !== next.epoch;
     const writesChanged = Boolean(before) && JSON.stringify(before.writeAccess) !== JSON.stringify(next.writeAccess);
     drawFrame();
     if (epochMoved) {
-        if (!state.madeHere.includes(next.epoch)) {
+        if (restarted(before, next)) {
+            // The epoch moves at every start: a restart is not a change made in another window.
+            say(STARTED_AGAIN, 'plain', 'config');
+        } else if (!state.madeHere.includes(next.epoch)) {
             say(CONFIG_CHANGED, 'plain', 'config');
         }
         poll('/api/config/environments');
@@ -543,13 +548,14 @@ function drawLedger() {
 }
 
 /** One line under the top bar at a time: a newer one replaces the older, and the same line is not drawn twice. */
-function say(text, tone, id) {
+function say(text, tone, id, link) {
     if (state.notice && state.notice.text === text) {
         return;
     }
     const host = document.getElementById('line-notice');
     const row = el('div', {class: tone === 'fault' ? 'line line--notice line--fault' : 'line line--notice'},
-        el('p', {class: 'line__text'}, text));
+        el('p', {class: 'line__text'}, text,
+            link && link.href ? [' ', el('a', {href: link.href}, link.words)] : null));
     row.append(button('Dismiss this notice', () => {
         row.remove();
         if (state.notice && state.notice.row === row) {

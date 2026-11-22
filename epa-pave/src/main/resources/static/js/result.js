@@ -10,7 +10,7 @@
 
 import {el, append, chip, fold, kv, button, copyButton, firstSentence, toneName, fill, clear} from './dom.js';
 import {responseDetail} from './detail.js';
-import {errorPanel} from './fault.js';
+import {errorPanel, failureInCard, serviceFailure} from './fault.js';
 import {jsonView} from './json-view.js';
 import {vocabulary} from './words.js';
 import {presenceWords} from './shown.js';
@@ -54,6 +54,7 @@ export function resultCard(envelope, options) {
     if (serviceSaid) {
         card.append(serviceSaid);
     }
+    card.append(...failureInCard(envelope.error));
     const facts = factRows(envelope);
     const shownFacts = facts.present.slice(0, MOST_FACTS);
     const moreFacts = facts.present.slice(MOST_FACTS);
@@ -90,7 +91,7 @@ export function resultCard(envelope, options) {
         }, () => null);
     }
 
-    if (envelope.error) {
+    if (envelope.error && !serviceFailure(envelope.error)) {
         const panel = errorPanel(envelope.error, {fieldsPlaced: settings.fieldsPlaced});
         if (panel) {
             root.append(panel);

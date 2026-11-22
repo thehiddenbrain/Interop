@@ -257,9 +257,27 @@
 }
 
 /* A child of a fold never takes its min-content width, so a wide table or a long line scrolls in
-   its fold instead of widening the page (NEEDS from H0). */
-.fold__body > * {
+   its fold instead of widening the page (NEEDS from H0). A grid track sized auto still grows to
+   its widest child, so every grid inside a result gets one column that may shrink to the fold,
+   and only a table's own wrapper scrolls. */
+.fold__body > *,
+.detail > *,
+.detail__part > *,
+.verdict > * {
     min-width: 0;
+}
+
+.fold__body,
+.detail,
+.detail__part,
+.verdict,
+.result {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.detail p,
+.detail li {
+    overflow-wrap: anywhere;
 }
 
 /* The response detail's parts (detail.js, batch H). */
@@ -380,4 +398,18 @@ td .notes {
 .note-open {
     display: grid;
     gap: var(--s-2);
+}
+
+/* A refusal or a fault of a step sits under the panel's head as a result does: a rule, then a gap. */
+.step-refusal:not(:empty) {
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1px solid var(--line);
+}
+
+/* The banner and the stepper never widen the page, whatever font the browser falls back to. */
+.banner,
+.stepper,
+.stepper__step {
+    min-width: 0;
 }

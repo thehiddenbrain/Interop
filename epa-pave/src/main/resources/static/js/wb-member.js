@@ -235,7 +235,8 @@ export function createMemberCard(env) {
             values.dateOfBirth || values.lineOfBusiness || found ? el('div', {class: 'summary__line'},
                 el('span', null, 'DOB ', values.dateOfBirth ? el('span', {class: 'mono'}, values.dateOfBirth) : notReturned('dateOfBirth')),
                 values.lineOfBusiness ? el('span', null, values.lineOfBusiness) : notReturned('lineOfBusiness')) : null);
-        fill(sent, ...(answer && answer.memberId ? [sentAs(answer.memberId),
+        // A lookup not set up sent nothing, so there is no "Sent as" to say (B7).
+        fill(sent, ...(answer && answer.memberId && answer.status !== 'DISABLED' ? [sentAs(answer.memberId),
             answer.memberId.note ? el('span', null, ' ' + answer.memberId.note) : null] : []));
         fill(line, lookupLine(answer) || '');
         fill(returned, returnedFold(answer) || '');
