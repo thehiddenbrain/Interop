@@ -39,6 +39,12 @@ public class TrailController {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonPropertyOrder({"enabled", "count", "maxEntries", "bytes", "folder", "damaged"})
     public record TrailSummary(boolean enabled, int count, int maxEntries, long bytes, String folder, Integer damaged) {
+
+        /** Counts only: the folder can name the tester's own profile. */
+        @Override
+        public String toString() {
+            return "TrailSummary[enabled=" + enabled + ", count=" + count + ", bytes=" + bytes + "]";
+        }
     }
 
     /**

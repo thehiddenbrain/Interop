@@ -71,6 +71,12 @@ public class RunTrail {
 
     /** What the trail holds, as Configuration > Advanced > Trail shows it. */
     public record Summary(boolean enabled, int count, int maxEntries, long bytes, String folder, int damaged) {
+
+        /** Counts only: the folder can name the tester's own profile. */
+        @Override
+        public String toString() {
+            return "Summary[enabled=" + enabled + ", count=" + count + ", bytes=" + bytes + ", damaged=" + damaged + "]";
+        }
     }
 
     /**
