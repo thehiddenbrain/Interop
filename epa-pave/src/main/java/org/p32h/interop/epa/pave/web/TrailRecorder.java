@@ -34,8 +34,9 @@ import tools.jackson.databind.node.ObjectNode;
  * of the tester's own, what an earlier step handed on, the collection request named, the values
  * typed into an address, and the content of every attachment.
  *
- * <p>A run is kept when its result carries a wire request, sent or played; a write the production
- * guardrail refused sent nothing and is not kept. Suite and replay runs answer with their own
+ * <p>Every run result is kept but a write the production guardrail refused, which sent nothing. A
+ * run that sends nothing of its own, such as a completed questionnaire response, is kept too: a
+ * reload redraws its result and what it hands on to Submit from here alone (plan M17). Suite and replay runs answer with their own
  * reports, never with one run result, so they never reach here. Whatever goes wrong in keeping a
  * run never touches the answer: the body is handed on unchanged and the failure is logged by its
  * type only.
@@ -123,9 +124,9 @@ public class TrailRecorder implements RequestBodyAdvice, ResponseBodyAdvice<Obje
         }
     }
 
-    /** A run that sent or played a request. A refused write sent nothing. */
+    /** Every run but a refused write, which sent nothing and has nothing for a reload to redraw. */
     static boolean keeps(RunEnvelope<?> envelope) {
-        return envelope.wire() != null && envelope.wire().request() != null && !RunSupport.isBlocked(envelope);
+        return envelope != null && !RunSupport.isBlocked(envelope);
     }
 
     ObjectNode entry(RunEnvelope<?> envelope, Object posted) {

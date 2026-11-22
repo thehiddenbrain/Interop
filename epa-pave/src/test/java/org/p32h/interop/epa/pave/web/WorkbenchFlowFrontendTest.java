@@ -190,7 +190,7 @@ class WorkbenchFlowFrontendTest {
                   entry: {runId, chainId: 'chain-1', operation, case: posted, envelope: {runId, chainId: 'chain-1', operation, verdict: {headline: 'H ' + runId}}}});
                 const trail = {
                   'run-1': kept('run-1', 'CRD_ORDER_SIGN'),
-                  'run-2': {runId: 'run-2', kept: false, line: 'Not kept: the trail holds the last 500 runs.'},
+                  'run-2': {runId: 'run-2', kept: false, line: 'Not kept: the trail holds the last 500 runs, and never a write that was refused.'},
                   'run-5': kept('run-5', 'PAS_INQUIRE'),
                   'run-7': {...kept('run-7', 'SUBSCRIPTION_GET'), entry: {...kept('run-7', 'SUBSCRIPTION_GET').entry, case: {chainId: 'chain-1'}}}
                 };
@@ -204,7 +204,7 @@ class WorkbenchFlowFrontendTest {
                     return id === 'chain-1' ? {ok: true, status: 200, data: chain} : {ok: false, status: 404, error: {kind: 'NOT_FOUND', title: 'No journey chain-x.'}};
                   }
                   if (path.startsWith('/api/trail/')) {
-                    return trail[id] ? {ok: true, status: 200, data: trail[id]} : {ok: true, status: 200, data: {runId: id, kept: false, line: 'Not kept: the trail holds the last 500 runs.'}};
+                    return trail[id] ? {ok: true, status: 200, data: trail[id]} : {ok: true, status: 200, data: {runId: id, kept: false, line: 'Not kept: the trail holds the last 500 runs, and never a write that was refused.'}};
                   }
                   if (path.startsWith('/api/runs/')) {
                     return ledger[id] ? {ok: true, status: 200, data: ledger[id]} : {ok: false, status: 404, error: {kind: 'NOT_FOUND', title: 'No run ' + id + '.'}};
@@ -262,7 +262,7 @@ class WorkbenchFlowFrontendTest {
                 "{\"1\":{\"runId\":\"run-1\",\"at\":\"2026-11-22T10:01:00Z\"},\"2\":{\"runId\":\"run-2\",\"at\":\"2026-11-22T10:02:00Z\"},\"inquiry\":{\"runId\":\"run-5\",\"at\":\"2026-11-22T10:05:00Z\"},\"subscription\":{\"runId\":\"run-7\",\"at\":\"2026-11-22T10:07:00Z\"}}",
                 "[\"GET /api/chains/chain-1\",\"GET /api/trail/run-1\",\"GET /api/trail/run-2\",\"GET /api/runs/run-2\",\"GET /api/trail/run-5\",\"GET /api/trail/run-7\"]",
                 "[true,\"chain-1\",true,\"trail\",\"run-5\"]",
-                "[[\"1\",1,\"run-1\",\"trail\",null,\"2026-11-22T10:01:00Z\"],[\"2\",2,\"run-2\",\"ledger\",\"Not kept: the trail holds the last 500 runs.\",\"2026-11-22T10:02:00Z\"],[\"inquiry\",4,\"run-5\",\"trail\",null,\"2026-11-22T10:05:00Z\"],[\"subscription\",4,\"run-7\",\"trail\",null,\"2026-11-22T10:07:00Z\"]]",
+                "[[\"1\",1,\"run-1\",\"trail\",null,\"2026-11-22T10:01:00Z\"],[\"2\",2,\"run-2\",\"ledger\",\"Not kept: the trail holds the last 500 runs, and never a write that was refused.\",\"2026-11-22T10:02:00Z\"],[\"inquiry\",4,\"run-5\",\"trail\",null,\"2026-11-22T10:05:00Z\"],[\"subscription\",4,\"run-7\",\"trail\",null,\"2026-11-22T10:07:00Z\"]]",
                 "[true,\"chain-1\",\"GET /api/trail/run-5\",\"GET /api/chains/chain-1\",1]",
                 "[\"chain-1\",[\"GET /api/trail/run-2\",\"GET /api/runs/run-2\",\"GET /api/chains/chain-1\"]]",
                 "{\"ok\":false,\"error\":{\"kind\":\"NOT_FOUND\",\"title\":\"This run belongs to no journey, so there is no case to load.\"}}",
@@ -276,7 +276,7 @@ class WorkbenchFlowFrontendTest {
                 "[\"from the trail\",\"from the trail\",\"by hand\"]",
                 "\"HTTP 200Open in AuditThe questionnaire package arrived.OutcomePackage receivedCodeE0470ExpectedNot set\"",
                 "\"Open in AuditNo outcome recordedOutcomenot recordedCodenot recordedExpectedNot set\"",
-                "[\"/api/trail/run-5/download\",\"run-run-5.json\",\"Download request and answer\"]",
+                "[\"/api/trail/run-5/download\",\"run-5.json\",\"Download request and answer\"]",
                 "0");
     }
 

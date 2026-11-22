@@ -88,7 +88,7 @@ class TrailControllerTest {
         assertThat(gone.getStatus()).isEqualTo(200);
         JsonNode notKept = json(gone);
         assertThat(notKept.get("kept").asBoolean()).isFalse();
-        assertThat(notKept.get("line").asString()).isEqualTo("Not kept: the trail holds the last 500 runs.");
+        assertThat(notKept.get("line").asString()).isEqualTo("Not kept: the trail holds the last 500 runs, and never a write that was refused.");
         assertThat(notKept.has("entry")).isFalse();
         assertThat(notKept.has("keptAt")).isFalse();
 
@@ -106,13 +106,14 @@ class TrailControllerTest {
         MockHttpServletResponse file = mvc.perform(get("/api/trail/" + KEPT + "/download")).andReturn().getResponse();
         assertThat(file.getStatus()).isEqualTo(200);
         assertThat(file.getContentType()).startsWith("application/json");
-        assertThat(file.getHeader("Content-Disposition")).isEqualTo("attachment; filename=\"run-" + KEPT + ".json\"");
+        // The run id already starts with run-, so the file is run-<uuid>.json, never run-run-.
+        assertThat(file.getHeader("Content-Disposition")).isEqualTo("attachment; filename=\"" + KEPT + ".json\"").doesNotContain("run-run-");
         assertThat(file.getHeader("Cache-Control")).isEqualTo("no-store");
         assertThat(json(file)).isEqualTo(entry(KEPT));
 
         MockHttpServletResponse missing = mvc.perform(get("/api/trail/" + GONE + "/download")).andReturn().getResponse();
         assertThat(missing.getStatus()).isEqualTo(404);
-        assertThat(json(missing).get("title").asString()).isEqualTo("Not kept: the trail holds the last 500 runs.");
+        assertThat(json(missing).get("title").asString()).isEqualTo("Not kept: the trail holds the last 500 runs, and never a write that was refused.");
     }
 
     @Test

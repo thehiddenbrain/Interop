@@ -190,13 +190,23 @@ class TrailRecorderTest {
     }
 
     @Test
-    void aGuardrailRefusalWithNothingSentIsNotKeptNorARunWithNoWireRequest() throws Exception {
+    void aGuardrailRefusalWithNothingSentIsNotKept() throws Exception {
         RunTrail trail = trail(Map.of(), directory);
         MockMvc mvc = mvc(new TrailRecorder(trail, TestMvc.mapper()));
         assertThat(post(mvc, "/t/refused", CASE).getResponse().getStatus()).isEqualTo(403);
-        assertThat(post(mvc, "/t/nowire", CASE).getResponse().getStatus()).isEqualTo(200);
         assertThat(trail.summary().count()).isZero();
         assertThat(Files.exists(directory.resolve("trail"))).isFalse();
+    }
+
+    @Test
+    void aRunThatSendsNothingOfItsOwnIsKeptSoAReloadRedrawsIt() throws Exception {
+        // A completed questionnaire response sends nothing, yet a reload at step 2 redraws its result
+        // and hands its response on to Submit from the trail alone (plan M17).
+        RunTrail trail = trail(Map.of(), directory);
+        assertThat(post(mvc(new TrailRecorder(trail, TestMvc.mapper())), "/t/nowire", CASE).getResponse().getStatus()).isEqualTo(200);
+        JsonNode entry = trail.find(RUN_ID).entry();
+        assertThat(entry.get("case").get("member")).isNotNull();
+        assertThat(entry.get("envelope").has("wire")).isFalse();
     }
 
     @Test
@@ -226,6 +236,8 @@ class TrailRecorderTest {
         assertThat(recorder.supports(null, PasSubmitRequest.class, JacksonJsonHttpMessageConverter.class)).isTrue();
         assertThat(recorder.supports(null, Map.class, JacksonJsonHttpMessageConverter.class)).isFalse();
         assertThat(TrailRecorder.keeps(envelope(null, wire(), null))).isTrue();
-        assertThat(TrailRecorder.keeps(envelope(null, new WireView(null, null, null), null))).isFalse();
+        assertThat(TrailRecorder.keeps(envelope(null, new WireView(null, null, null), null))).isTrue();
+        assertThat(TrailRecorder.keeps(envelope(null, null, ErrorView.of(ErrorKind.BLOCKED, "This environment is production.", "Unlock it first."))))
+                .isFalse();
     }
 }

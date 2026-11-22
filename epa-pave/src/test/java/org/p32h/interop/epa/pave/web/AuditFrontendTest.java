@@ -166,7 +166,7 @@ class AuditFrontendTest {
                          response: {status: 200, body: '{"cards":[]}', parsed: true}}};
                 const kept = {ok: true, status: 200, data: {runId: 'run-1', kept: true, keptAt: '2026-11-22T10:00:00.000Z',
                   entry: {runId: 'run-1', chainId: 'chain-1', protocol: 'CRD', envelope}}};
-                const gone = {ok: true, status: 200, data: {runId: 'run-1', kept: false, line: 'Not kept: the trail holds the last 500 runs.'}};
+                const gone = {ok: true, status: 200, data: {runId: 'run-1', kept: false, line: 'Not kept: the trail holds the last 500 runs, and never a write that was refused.'}};
                 const failed = {ok: false, status: 422, error: {kind: 'VALIDATION', title: 'This is not a run id.'}};
                 // 1 each side, kept, not kept and not read
                 for (const answer of [kept, gone, failed]) {
@@ -222,8 +222,8 @@ class AuditFrontendTest {
                 "[[\"Request JSON\",\"from the trail\",true,[\"/api/trail/run-1/download\"]],"
                         + "[\"Answer JSON\",\"from the trail\",true,[\"/api/trail/run-1/download\"]]]",
                 // Not kept: the server's line, and no body and no download.
-                "[[\"Request JSON\",\"Not kept: the trail holds the last 500 runs.\",false,[]],"
-                        + "[\"Answer JSON\",\"Not kept: the trail holds the last 500 runs.\",false,[]]]",
+                "[[\"Request JSON\",\"Not kept: the trail holds the last 500 runs, and never a write that was refused.\",false,[]],"
+                        + "[\"Answer JSON\",\"Not kept: the trail holds the last 500 runs, and never a write that was refused.\",false,[]]]",
                 // The trail not read: said, through the one error shape.
                 "[[\"Request JSON\",\"the trail could not be read\",false,[]],[\"Answer JSON\",\"the trail could not be read\",false,[]]]",
                 "[null,null,\"run-1\",\"/api/trail/run-1/download\",\"#workbench/load/run-1\"]",
@@ -232,7 +232,7 @@ class AuditFrontendTest {
                         + "[\"#workbench/load/run-1\"]]",
                 // Opened again once the trail no longer keeps it: asked again, the ledger's card and Why, the server's line, no body.
                 "[[\"/api/trail/run-1\"],\"Prior authorization is required\",[\"Why0 findings\","
-                        + "\"Request JSONNot kept: the trail holds the last 500 runs.\",\"Answer JSONNot kept: the trail holds the last 500 runs.\"]]",
+                        + "\"Request JSONNot kept: the trail holds the last 500 runs, and never a write that was refused.\",\"Answer JSONNot kept: the trail holds the last 500 runs, and never a write that was refused.\"]]",
                 // A run of no journey has no case to load.
                 "0");
     }
@@ -341,7 +341,7 @@ class AuditFrontendTest {
                   const path = String(address).split('?')[0];
                   // The trail of release 2 answers in place of I-26's line of release 1: here it no longer keeps either run.
                   if (path.startsWith('/api/trail/')) {
-                    return {ok: true, status: 200, text: async () => JSON.stringify({kept: false, line: 'Not kept: the trail holds the last 500 runs.'})};
+                    return {ok: true, status: 200, text: async () => JSON.stringify({kept: false, line: 'Not kept: the trail holds the last 500 runs, and never a write that was refused.'})};
                   }
                   const id = decodeURIComponent(path.slice('/api/runs/'.length));
                   const body = path === '/api/runs/health' ? {enabled: true, writable: true} : lines[id];
@@ -359,7 +359,7 @@ class AuditFrontendTest {
                 }
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
-        String unkept = "[\"Request JSONNot kept: the trail holds the last 500 runs.\"]";
+        String unkept = "[\"Request JSONNot kept: the trail holds the last 500 runs, and never a write that was refused.\"]";
         assertThat(run.lines()).containsExactly(
                 // No button that could only be told the line cannot be sent; no property name. The request and
                 // answer are the trail's, or its line saying they are not kept (I-26's own line is gone).

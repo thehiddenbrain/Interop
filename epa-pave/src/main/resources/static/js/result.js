@@ -498,9 +498,9 @@ export function downloadSlot(runId) {
     return slot;
 }
 
-/** The download of a run's kept request and answer, as the trail masked them, named run-<runId>.json. */
+/** The download of a run's kept request and answer, as the trail masked them, named by the run id, which already starts with run-. */
 export function downloadLink(runId) {
-    return el('a', {href: '/api/trail/' + encodeURIComponent(runId) + '/download', attrs: {download: 'run-' + runId + '.json'}},
+    return el('a', {href: '/api/trail/' + encodeURIComponent(runId) + '/download', attrs: {download: runId + '.json'}},
         'Download request and answer');
 }
 

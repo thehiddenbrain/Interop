@@ -65,7 +65,7 @@ class RunTrailTest {
         }
         assertThat(trail.summary().count()).isEqualTo(500);
         assertThat(trail.find(runId(1)).kept()).isFalse();
-        assertThat(trail.find(runId(1)).line()).isEqualTo("Not kept: the trail holds the last 500 runs.");
+        assertThat(trail.find(runId(1)).line()).isEqualTo("Not kept: the trail holds the last 500 runs, and never a write that was refused.");
         assertThat(trail.find(runId(2)).kept()).isTrue();
         assertThat(trail.find(runId(501)).kept()).isTrue();
         assertThat(trail.find(runId(501)).entry().get("runId").asString()).isEqualTo(runId(501));
@@ -82,7 +82,7 @@ class RunTrailTest {
             clock.advance(Duration.ofMillis(5));
         }
         assertThat(trail.summary().count()).isEqualTo(3);
-        assertThat(trail.find(runId(2)).line()).isEqualTo("Not kept: the trail holds the last 3 runs.");
+        assertThat(trail.find(runId(2)).line()).isEqualTo("Not kept: the trail holds the last 3 runs, and never a write that was refused.");
         assertThat(trail.find(runId(3)).kept()).isTrue();
     }
 

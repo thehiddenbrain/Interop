@@ -131,7 +131,7 @@ public class RunTrail {
 
     /** The line a run the trail does not hold is answered with. */
     public String notKeptLine() {
-        return enabled ? "Not kept: the trail holds the last " + maxEntries + " runs." : SWITCHED_OFF;
+        return enabled ? "Not kept: the trail holds the last " + maxEntries + " runs, and never a write that was refused." : SWITCHED_OFF;
     }
 
     /**

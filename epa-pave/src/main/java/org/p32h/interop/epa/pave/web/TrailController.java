@@ -88,7 +88,7 @@ public class TrailController {
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("run-" + runId + ".json").build().toString())
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename(runId + ".json").build().toString())
                 // The file holds member data and the wire, so no cache between here and the tester keeps a copy.
                 .cacheControl(CacheControl.noStore())
                 .body(bytes);
