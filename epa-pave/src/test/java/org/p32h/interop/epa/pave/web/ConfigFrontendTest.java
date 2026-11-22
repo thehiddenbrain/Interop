@@ -263,6 +263,66 @@ class ConfigFrontendTest {
                 "[\"{{clientSecret}}\",false]");
     }
 
+    /**
+     * D-305: a field several variables could fill is left empty with one button per variable under
+     * it; a press fills the reference, a secret as the reference the draft would have filled; the
+     * line says which fields were filled and from where, and every line of the draft is shown.
+     */
+    @Test
+    void theVariablesThatCouldFillAFieldAreButtonsAndAPressFillsTheReference(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the candidate buttons", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [{slot: 'environmentExport', fileName: 'uat.json',
+                    read: true, line: 'Read: 5 variables, 2 secrets.'}], name: 'Placeholder UAT',
+                    signIn: {method: 'CLIENT_CREDENTIALS', tokenUrl: '{{tokenEndpoint}}', from: "the environment's variable names",
+                        fields: ['Token url'], candidates: [{field: 'clientId', references: ['{{uat_client_id}}', '{{prod_client_id}}']},
+                        {field: 'clientSecret', references: ['{{uat_client_secret}}', '{{prod_client_secret}}']}]},
+                    variables: [], shapes: [], operations: [], epoch: 1,
+                    warnings: ['Several variables could be the client id: {{uat_client_id}}, {{prod_client_id}}. Choose one.',
+                        "{{tokenEndpoint}} is empty in this export. Postman exports a variable's initial value only: type the value here, or set the initial value in Postman and export again."]}};
+                answers['POST /api/config/environments/settings'] = {status: 200, body: {environment: {id: full.id, name: full.name}, settings: full,
+                    warnings: [], epoch: 2}};
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: full});
+                const dialog = editor.dialog;
+                const box = inputsOf(dialog).find(each => each.type === 'file');
+                box.files = [new File(['{"name": "Placeholder UAT", "values": []}'], 'uat.json', {type: 'application/json'})];
+                box.value = 'C:/fakepath/uat.json';
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Fill the form from these files').click();
+                await settle();
+                const lines = dialog.querySelectorAll('p').map(each => each.textContent)
+                    .filter(each => each.startsWith('Sign-in filled') || each.startsWith('Several') || each.includes('is empty in this export'));
+                say(lines);
+                const field = label => dialog.querySelectorAll('.field').find(each => (each.querySelector('.field__label') || {}).textContent === label);
+                const buttonsUnder = label => field(label).querySelectorAll('button').map(each => each.textContent);
+                say([buttonsUnder('Token url'), buttonsUnder('Client id'), buttonsUnder('Client secret'), buttonsUnder('Scope')]);
+                const textInputs = () => inputsOf(dialog).filter(each => each.type === 'text' && each.classList.contains('mono')).map(each => each.value);
+                say(textInputs().slice(0, 2));
+                await field('Client id').querySelectorAll('button').find(each => each.textContent === '{{prod_client_id}}').click();
+                await field('Client id').querySelectorAll('button').find(each => each.textContent === '{{uat_client_id}}').click();
+                await field('Client secret').querySelectorAll('button').find(each => each.textContent === '{{uat_client_secret}}').click();
+                await settle();
+                say([textInputs().slice(0, 2), dialog.textContent.includes('Filled from the export as {{uat_client_secret}}.'),
+                    inputsOf(dialog).filter(each => each.type === 'password').map(each => each.value)]);
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                const saved = JSON.parse(posted.find(each => each.path === '/api/config/environments/settings').body);
+                say([saved.signIn.tokenUrl, saved.signIn.clientId, saved.signIn.clientSecret]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"Several variables could be the client id: {{uat_client_id}}, {{prod_client_id}}. Choose one.\","
+                        + "\"{{tokenEndpoint}} is empty in this export. Postman exports a variable's initial value only: type the value here, or "
+                        + "set the initial value in Postman and export again.\","
+                        + "\"Sign-in filled from the environment's variable names: Token url.\"]",
+                // Buttons only under the fields the draft could not fill, one per variable, in the order of the export.
+                "[[],[\"{{uat_client_id}}\",\"{{prod_client_id}}\"],[\"{{uat_client_secret}}\",\"{{prod_client_secret}}\"],[]]",
+                // No candidate is filled until a button is pressed: the field keeps what the stored environment holds.
+                "[\"{{tokenEndpoint}}\",\"{{clientId}}\"]",
+                // The last press wins; a secret is held as the reference and its password field stays empty.
+                "[[\"{{tokenEndpoint}}\",\"{{uat_client_id}}\"],true,[\"\"]]",
+                "[\"{{tokenEndpoint}}\",\"{{uat_client_id}}\",\"{{uat_client_secret}}\"]");
+    }
+
     @Test
     void filesAreReadThroughFilesJsPostedAsJsonTextAndLetGoAfterARefusal(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the files of the environment form", PRELUDE + """
