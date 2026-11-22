@@ -10,7 +10,7 @@ G0399,"Home sleep study with a type III portable monitor, unattended",HCPCS,No,M
 G0400,"Home sleep study with a type IV portable monitor, unattended",HCPCS,Yes,Medicaid,eviCore,1/1/2026,,Placeholder row. Not from a P32H export.
 E0601,Continuous positive airway pressure device,HCPCS,No,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
 E0601,Continuous positive airway pressure device,HCPCS,No,Commercial,,1/1/2026,,Placeholder row. Not from a P32H export.
-E0470,"Bi-level airway pressure device without a backup rate, used with a mask",HCPCS,Yes,Medicare,,1/1/2026,,Placeholder row. Not from a P32H export.
+E0470,"Bi-level airway pressure device without a backup rate, used with a mask",HCPCS,Yes,Medicare/Medicaid/Commercial,,1/1/2026,,Placeholder row. Not from a P32H export. One row for three lines of business.
 E0562,Heated humidifier used with an airway pressure device,HCPCS,No,,,1/1/2026,,Placeholder row. Not from a P32H export. No line of business is stated.
 A7030,"Full face mask for an airway pressure device, each",HCPCS,,,,,,"Placeholder row. Not from a P32H export. No requirement, line of business, vendor or date is stated."
 70553,"MRI of the brain, first without contrast and then with it",CPT,Yes,Medicare,Evolent,1/1/2026,,Placeholder row. Not from a P32H export.

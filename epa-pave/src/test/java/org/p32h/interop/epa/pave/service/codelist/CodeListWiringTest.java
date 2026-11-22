@@ -98,7 +98,7 @@ class CodeListWiringTest {
         assertThat(check.get("rowCount").intValue()).isEqualTo(43);
         assertThat(check.get("unrecognisedColumns").isEmpty()).isTrue();
         // The application's mapper keeps the order the maps were built in: lines as first named, columns as looked for.
-        assertThat(JsonSafe.compact(check.get("linesOfBusiness"))).isEqualTo("{\"Medicare\":21,\"Medicaid\":7,\"Commercial\":10}");
+        assertThat(JsonSafe.compact(check.get("linesOfBusiness"))).isEqualTo("{\"Medicare\":21,\"Medicaid\":8,\"Commercial\":11}");
         assertThat(check.get("recognisedColumns").propertyNames()).containsExactly("code", "description", "codeType", "authRequired",
                 "lineOfBusiness", "delegatedVendor", "effectiveDate", "endDate", "notes");
         assertThat(check.get("warnings").size()).isEqualTo(1);
