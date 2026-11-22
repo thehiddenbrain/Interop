@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
 import org.p32h.interop.epa.pave.model.ErrorKind;
+import org.p32h.interop.epa.pave.service.error.FaultAdvice;
 import org.p32h.interop.epa.pave.service.error.Faults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,9 +88,8 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } catch (IOException | ServletException | RuntimeException | Error e) {
-            if (clientWentAway(e)) {
+            if (ApiExceptionHandler.clientGone(e, request)) {
                 // The client closed the connection. There is nobody to answer and nothing wrong with this tool.
-                ClientGone.log(request, e);
                 return;
             }
             String reference = UUID.randomUUID().toString();
@@ -98,7 +98,7 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
             log.error("Unhandled exception at the edge, reference {}: {}", reference, Faults.describe(e));
             try {
                 EdgeAnswers.write(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, ErrorKind.INTERNAL,
-                        "This tool hit an internal error and could not complete the request.", Faults.REPORT_ACTION, reference,
+                        "This tool hit an internal error and could not complete the request.", FaultAdvice.action(e), reference,
                         Faults.cause(e));
             } catch (IOException | RuntimeException | Error unanswered) {
                 // Nothing is thrown on from here: the server would log it with its message. The
@@ -108,7 +108,4 @@ public class ResponseHeadersFilter extends OncePerRequestFilter {
         }
     }
 
-    static boolean clientWentAway(Throwable error) {
-        return ClientGone.is(error);
-    }
 }

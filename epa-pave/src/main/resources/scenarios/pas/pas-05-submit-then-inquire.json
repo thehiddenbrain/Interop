@@ -2,6 +2,7 @@
   "id": "pas-05-submit-then-inquire",
   "number": 5,
   "label": "Submitted, then inquired",
+  "short": "pended, then inquired",
   "description": "The submission is pended. A later inquiry returns the final decision: certified in total. It is in the shape PAS 2.0.1 gives.",
   "sentinelMemberId": "P32H-PAS-INQUIRE",
   "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},

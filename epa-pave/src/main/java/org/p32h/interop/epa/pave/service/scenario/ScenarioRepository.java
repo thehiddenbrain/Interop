@@ -79,13 +79,13 @@ public class ScenarioRepository {
      * scenario's own sentinels so that the result can say which of the two selected it, and
      * {@code answersDtrSentinels} marks the CRD scenario that answers every DTR sentinel, and
      * {@code sampleCase} names the NPI and procedure codes the mock scenario table fills in with the
-     * member ID. A key outside this
+     * member ID, and {@code short} is the scenario in a few words for the scenario picker. A key outside this
      * list is refused, because a misspelt one would otherwise be dropped and its scenario would
      * quietly lose what the key held.
      */
     static final Set<String> KNOWN_KEYS = Set.of("id", "number", "label", "description", "basis", "assumption", "sentinelMemberId",
             "sentinelMemberIds", "sentinelNpi", "sentinelNpis", "crdSentinelMemberIds", "answersDtrSentinels", "behavior", "httpStatus", "delayMillis",
-            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses", "sampleCase");
+            "response", "responseText", "expect", "steps", "nextQuestion", "paths", "responses", "sampleCase", "short");
 
     /**
      * The scenarios found for a protocol, the files that could not be used, and what a tester
@@ -706,6 +706,11 @@ public class ScenarioRepository {
         String label = JsonSafe.presentText(root, "label");
         if (label == null) {
             throw new IllegalArgumentException("the file has no label.");
+        }
+        JsonNode shortWords = JsonSafe.child(root, "short");
+        if (!JsonSafe.nullOrMissing(shortWords) && (!shortWords.isString() || JsonSafe.presentText(root, "short") == null)) {
+            // A short label that is not text would draw nothing in the picker; refused so it is fixed, not silently lost.
+            throw new IllegalArgumentException("its short is not a piece of text.");
         }
         Integer number = JsonSafe.integer(root, "number");
         if (number == null) {

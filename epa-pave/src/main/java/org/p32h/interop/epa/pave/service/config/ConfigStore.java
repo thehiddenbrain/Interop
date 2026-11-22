@@ -89,7 +89,12 @@ public class ConfigStore {
     static final String STATE_FILE = "store.json";
     static final String ENVIRONMENTS = "environments";
     static final String COLLECTIONS = "collections";
-    private static final int STATE_VERSION = 1;
+    /** The version a store with no settings is written as, so an older build still opens it (R-05). */
+    static final int STATE_VERSION = 1;
+    /** The version a store is written as from the first save of a setting on (R-05). */
+    static final int SETTINGS_VERSION = 2;
+    /** The copy of store.json taken once, before it is first written as version 2: going back needs one file renamed. */
+    static final String BEFORE_V2 = "store.json.before-v2";
     private static final String TEMP_MARK = ".tmp-";
     /**
      * How long a replace that was refused is tried again. A virus scanner, an indexer or a sync
@@ -256,6 +261,8 @@ public class ConfigStore {
     /** Files that were in the two upload directories at startup and that the state file did not name. */
     private final List<Path> strays;
     private volatile ConfigSnapshot current;
+    /** The version store.json was last read or written as. Once version 2, it stays version 2. */
+    private volatile int version = STATE_VERSION;
 
     /**
      * Opens the store, creating its directory. Fails, naming the path, when the directory cannot be
@@ -351,6 +358,13 @@ public class ConfigStore {
         if (wanted != null && snapshot.byName(wanted) == null) {
             problems.add("config-store.active-environment names \"" + wanted + "\", which is not in the configuration store, so it "
                     + "was not activated at startup. Upload an environment with exactly that name and activate it, or clear the property.");
+        }
+        for (StoredEnvironment environment : snapshot.environments()) {
+            if (environment.settingsProblem() != null) {
+                problems.add("The settings of the environment \"" + quoted(environment.name()) + "\" in " + directory.resolve(STATE_FILE)
+                        + " cannot be read: " + environment.settingsProblem() + ". They are kept as stored and not used, and nothing is sent "
+                        + "under that environment until they are saved again in Configuration > Environments.");
+            }
         }
         if (!strays.isEmpty()) {
             Set<Path> used = used(snapshot);
@@ -450,8 +464,10 @@ public class ConfigStore {
 
         String id = Ids.named(parsed.name());
         String file = ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
+        // The settings typed on screen belong to the environment, not to the file: an export uploaded again keeps them.
         StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file, displayName(originalFileName),
-                clock.instant().toString(), kind != EnvironmentKind.PROD && (needsConfirmation || acknowledgedNotProd), signs);
+                clock.instant().toString(), kind != EnvironmentKind.PROD && (needsConfirmation || acknowledgedNotProd), signs)
+                .withSettingsOf(previous);
 
         List<StoredEnvironment> environments = new ArrayList<>(before.environments());
         if (previous == null) {
@@ -462,14 +478,7 @@ public class ConfigStore {
         // A production environment uploaded again, written plainly on the same host, replaces what
         // its earlier, unreadable address protected on that host. Uploaded on another host it adds
         // to what is remembered and takes nothing away: the old host may still be production.
-        List<UrlNormal.Destination> plain = kind != EnvironmentKind.PROD ? List.of()
-                : ProductionDestinations.production(parsed, before.context()).stream().map(ProductionDestinations.Found::destination)
-                .filter(UrlNormal.Destination::readable).toList();
-        List<ConfigSnapshot.KnownDestination> remembered = before.remembered().stream()
-                .filter(known -> !(known.environment().equals(parsed.name()) && !known.destination().readable()
-                        && plain.stream().anyMatch(each -> new UrlNormal.Destination(null, known.destination().host(), -1, "", false)
-                        .sameOrigin(each))))
-                .toList();
+        List<ConfigSnapshot.KnownDestination> remembered = rememberedAfter(before, parsed, kind);
         ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), before.collections(), remembered,
                 before.applicationYml());
 
@@ -489,6 +498,241 @@ public class ConfigStore {
         log.info("Environment \"{}\" uploaded as {}, variables {}{}", quoted(stored.name()), kind.wire(), parsed.variables().size(),
                 previous == null ? "" : ", replacing the one of the same name");
         return new Described<>(new EnvironmentUpload(stored, previous != null, warnings, current), view);
+    }
+
+    /**
+     * What is remembered as production once this environment is stored with this kind: an earlier,
+     * unreadable address of the same production environment on a host it now names plainly is
+     * replaced by the plain one; nothing else is taken away.
+     */
+    private static List<ConfigSnapshot.KnownDestination> rememberedAfter(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
+        List<UrlNormal.Destination> plain = kind != EnvironmentKind.PROD ? List.of()
+                : ProductionDestinations.production(parsed, before.context()).stream().map(ProductionDestinations.Found::destination)
+                .filter(UrlNormal.Destination::readable).toList();
+        return before.remembered().stream()
+                .filter(known -> !(known.environment().equals(parsed.name()) && !known.destination().readable()
+                        && plain.stream().anyMatch(each -> new UrlNormal.Destination(null, known.destination().host(), -1, "", false)
+                        .sameOrigin(each))))
+                .toList();
+    }
+
+    /**
+     * An export posted with a save of settings, already read inside its own guard (R-07).
+     *
+     * @param fileName the name it was chosen under, for display only
+     * @param content  the bytes stored: the text as the page decoded it (R-06)
+     * @param parsed   what it was read as: a {@link PostmanEnvironment} or a {@link PostmanCollection}
+     */
+    record Export<T>(String fileName, byte[] content, T parsed) {
+
+        /** Holds the file's kind only: an export can hold credentials and member data. */
+        @Override
+        public String toString() {
+            return "Export[" + (parsed == null ? "none" : parsed.getClass().getSimpleName()) + "]";
+        }
+    }
+
+    /**
+     * A save of one environment from the environment form (plan 5.3, 5.4).
+     *
+     * @param id                 the stored environment to update, or null to create one
+     * @param name               for a create, the name when no export gives one; for an update, when
+     *                           given, it must be the stored name (R-09: no rename)
+     * @param kind               for a create, required; for an update, null keeps the stored kind
+     * @param acknowledgeNotProd the confirmation that an environment that reads as production is not
+     * @param environmentExport  an environment export to store with it, or null
+     * @param collectionExport   a collection export to store in the same commit, or null
+     * @param settings           the settings to store, from the stored ones (or none, for a create
+     *                           or a stored entry that could not be read); throws for a field error
+     */
+    record SettingsSave(String id, String name, EnvironmentKind kind, boolean acknowledgeNotProd, Export<PostmanEnvironment> environmentExport,
+                        Export<PostmanCollection> collectionExport,
+                        java.util.function.UnaryOperator<EnvironmentSettings> settings) {
+
+        /** Names the parts given and never a value. */
+        @Override
+        public String toString() {
+            return "SettingsSave[" + (id == null ? "create" : "update") + ", kind=" + kind + ", environmentExport=" + environmentExport
+                    + ", collectionExport=" + collectionExport + "]";
+        }
+    }
+
+    /** What a save of settings did. */
+    record SettingsSaved(StoredEnvironment environment, boolean created, List<String> warnings, ConfigSnapshot after) {
+
+        long epoch() {
+            return after.epoch();
+        }
+    }
+
+    /**
+     * Stores an environment's settings, with the exports chosen beside them, in one commit (R-08).
+     * Every check an upload makes is made here as well, a change of kind included (R-09), and
+     * before anything is written; saving never changes which environment is active (G22). The
+     * answer is described from the configuration the save leaves, before the commit.
+     */
+    synchronized <V> Described<SettingsSaved, V> saveSettings(SettingsSave save, BiFunction<StoredEnvironment, ConfigSnapshot, V> describe) {
+        ConfigSnapshot before = current;
+        StoredEnvironment previous = null;
+        if (save.id() != null) {
+            previous = requireEnvironment(before, save.id());
+            if (Texts.present(save.name()) && !save.name().equals(previous.name())) {
+                throw ValidationException.of("name", "The name of a stored environment cannot be changed: production writes are unlocked "
+                        + "and production addresses remembered by it. Keep \"" + quoted(previous.name()) + "\", or make a new environment "
+                        + "from the other export.");
+            }
+        }
+        PostmanEnvironment parsed;
+        byte[] content = null;
+        if (save.environmentExport() != null) {
+            parsed = save.environmentExport().parsed();
+            content = save.environmentExport().content();
+            if (previous != null && !parsed.name().equals(previous.name())) {
+                throw ValidationException.of("environmentExport", "This export is the environment \"" + quoted(parsed.name()) + "\", and "
+                        + "this form edits \"" + quoted(previous.name()) + "\". A stored environment is never renamed: choose its own "
+                        + "export, or make a new environment from this one.");
+            }
+            if (previous == null && Texts.present(save.name()) && !save.name().strip().equals(parsed.name())) {
+                throw ValidationException.of("name", "The name comes from the export once one is chosen: \"" + quoted(parsed.name()) + "\".");
+            }
+        } else if (previous != null) {
+            parsed = previous.content();
+        } else {
+            if (!Texts.present(save.name())) {
+                throw ValidationException.of("name", "Type a name for the environment, or choose its Postman environment export.");
+            }
+            String typed = save.name().strip();
+            // An environment made on screen has no export: an empty one stands in, so every
+            // environment of the store keeps one file, as a start reads it.
+            ObjectNode empty = JsonSafe.mapper().createObjectNode();
+            empty.put("name", typed);
+            empty.putArray("values");
+            content = asciiOnly(JsonSafe.pretty(empty)).getBytes(StandardCharsets.UTF_8);
+            parsed = PostmanParser.environment(PostmanParser.decode(content));
+        }
+        if (previous == null && before.byName(parsed.name()) != null) {
+            throw ValidationException.of("name", "An environment named \"" + quoted(parsed.name()) + "\" is already stored. Open it with "
+                    + "Edit, or choose another name.");
+        }
+        EnvironmentKind kind = save.kind() != null ? save.kind() : previous == null ? null : previous.kind();
+        if (kind == null) {
+            throw ValidationException.of("kind", "State what kind of environment this is: sandbox, uat or prod. It is never guessed.");
+        }
+
+        // The checks of an upload with a kind, whenever the export or the kind is new.
+        boolean checked = previous == null || content != null || kind != previous.kind();
+        List<String> signs = ProductionSigns.in(parsed);
+        boolean acknowledged = previous != null && kind == previous.kind() && previous.acknowledgedNotProd();
+        if (checked) {
+            List<String> reasonsToAsk = new ArrayList<>(signs);
+            if (previous != null && previous.kind() == EnvironmentKind.PROD && kind != EnvironmentKind.PROD) {
+                reasonsToAsk.add("it is stored here as prod, and this save would make it " + kind.wire());
+            }
+            if (kind != EnvironmentKind.PROD) {
+                refuseProductionAddresses(before, parsed, kind);
+            } else {
+                refuseUnreadableProduction(parsed, before.context(), "upload");
+            }
+            boolean needsConfirmation = kind != EnvironmentKind.PROD && !reasonsToAsk.isEmpty();
+            if (needsConfirmation && !save.acknowledgeNotProd()) {
+                throw new ValidationException("This environment looks like production and was declared as " + kind.wire()
+                        + ". Nothing was saved.", List.of(new FieldError("acknowledgeNotProd", "It looks like production because "
+                        + String.join(", and ", reasonsToAsk) + ". If it really is " + kind.wire() + ", tick \"This environment is not "
+                        + "production\" and save again. If it is production, choose the kind prod.")));
+            }
+            acknowledged = kind != EnvironmentKind.PROD && (needsConfirmation || save.acknowledgeNotProd());
+        }
+
+        EnvironmentSettings settings = save.settings().apply(previous == null ? EnvironmentSettings.none() : previous.settings());
+        String id = Ids.named(parsed.name());
+        String file = content == null ? previous.file() : ENVIRONMENTS + "/" + id + "-" + Ids.hash(content, 8) + ".json";
+        StoredEnvironment stored = new StoredEnvironment(id, parsed.name(), kind, parsed, file,
+                content == null ? previous.originalFileName() : save.environmentExport() == null ? null
+                        : displayName(save.environmentExport().fileName()),
+                content == null ? previous.uploadedAt() : clock.instant().toString(), acknowledged, signs).withSettings(settings);
+        List<StoredEnvironment> environments = new ArrayList<>(before.environments());
+        if (previous == null) {
+            environments.add(stored);
+        } else {
+            environments.set(environments.indexOf(previous), stored);
+        }
+
+        List<String> warnings = new ArrayList<>();
+        List<String> listedLast = new ArrayList<>();
+        List<StoredCollection> collections = new ArrayList<>(before.collections());
+        StoredCollection previousCollection = null;
+        StoredCollection storedCollection = null;
+        String collectionFile = null;
+        if (save.collectionExport() != null) {
+            PostmanCollection collection = save.collectionExport().parsed();
+            String collectionId = Ids.named(collection.name());
+            previousCollection = before.collection(collectionId);
+            collectionFile = COLLECTIONS + "/" + collectionId + "-" + Ids.hash(save.collectionExport().content(), 8) + ".json";
+            Map<String, EpaOperation> corrections = new LinkedHashMap<>();
+            if (previousCollection != null) {
+                for (StoredCollection.Mapped old : previousCollection.requests()) {
+                    if (old.correction() != null && collection.request(old.request().id()) != null) {
+                        corrections.put(old.request().id(), old.correction());
+                    } else if (old.correction() != null) {
+                        warnings.add("A mapping correction on \"" + old.request().quotedName() + "\" was dropped, because the new file has "
+                                + "no request with that name in that folder.");
+                    }
+                }
+            }
+            storedCollection = new StoredCollection(collectionId, collection, collectionFile, displayName(save.collectionExport().fileName()),
+                    clock.instant().toString(), mapped(collection, corrections));
+            if (previousCollection == null) {
+                collections.add(storedCollection);
+            } else {
+                collections.set(collections.indexOf(previousCollection), storedCollection);
+            }
+            warnings.addAll(secretWarnings(collection.variables(), collectionFile));
+            warnings.addAll(literalCredentialWarnings(collection, collectionFile));
+            listedLast.addAll(collection.notes());
+            listedLast.addAll(memberDataWarnings("collection", collection.variables(), collection.requests(), collectionFile));
+        }
+        ConfigSnapshot next = new ConfigSnapshot(before.epoch() + 1, environments, before.activeName(), collections,
+                checked ? rememberedAfter(before, parsed, kind) : before.remembered(), before.applicationYml());
+
+        if (content != null && save.environmentExport() != null) {
+            warnings.addAll(secretWarnings(parsed.variables(), file));
+            listedLast.addAll(parsed.notes());
+            listedLast.addAll(memberDataWarnings("environment", parsed.variables(), List.of(), file));
+        }
+        warnings.addAll(AddressChecks.of(next.byName(stored.name()), next));
+        V view = describe.apply(stored, next);
+
+        List<String> newFiles = new ArrayList<>();
+        List<String> oldFiles = new ArrayList<>();
+        try {
+            if (content != null) {
+                writeAtomically(directory.resolve(file), content);
+                newFiles.add(file);
+                if (previous != null) {
+                    oldFiles.add(previous.file());
+                }
+            }
+            if (storedCollection != null) {
+                writeAtomically(directory.resolve(collectionFile), save.collectionExport().content());
+                newFiles.add(collectionFile);
+                if (previousCollection != null) {
+                    oldFiles.add(previousCollection.file());
+                }
+            }
+        } catch (RuntimeException e) {
+            for (String written : newFiles) {
+                if (!oldFiles.contains(written)) {
+                    deleteQuietly(directory.resolve(written));
+                }
+            }
+            throw e;
+        }
+        warnings.addAll(commitAll(next, newFiles, oldFiles));
+        warnings.addAll(listedLast);
+        // The name, the kind and the parts stated. Never a value: a setting can be a secret or an address with credentials.
+        log.info("Environment \"{}\" {} as {}, settings {}{}", quoted(stored.name()), previous == null ? "made" : "saved", kind.wire(),
+                settings, storedCollection == null ? "" : ", with a collection");
+        return new Described<>(new SettingsSaved(stored, previous == null, warnings, current), view);
     }
 
     /** Makes an uploaded environment the active one, with no restart. */
@@ -689,12 +933,13 @@ public class ConfigStore {
      * delete, is the mistake the write guardrail cannot recover from. Declaring it production is
      * the way through.
      *
-     * <p>When no environment that made the address production is stored any more, the refusal says
-     * that the address is remembered from a removed environment, and how to forget it. An
-     * environment uploaded as prod by a slip and then removed leaves its addresses refused for
-     * good, and the one way out the refusal used to give, pointing the variables at the sandbox,
-     * cannot work when they point there already (R-35). Nothing is forgotten here: the way out is
-     * the tester's own edit, made with PAVE stopped.
+     * <p>The refusal's sentence is the guardrail's and keeps its words whatever is stored (R-16).
+     * When no environment that made the address production is stored any more, its field note
+     * begins with that fact and a way out that works at that moment, then gives its old sentences
+     * unchanged (R-35). An environment uploaded as prod by a slip and then removed leaves its
+     * addresses refused for good, and the old note alone, pointing the variables at the sandbox,
+     * cannot help when they point there already. Nothing is forgotten here: the way out is the
+     * tester's own edit, made with PAVE stopped.
      */
     private void refuseProductionAddresses(ConfigSnapshot before, PostmanEnvironment parsed, EnvironmentKind kind) {
         Set<String> owners = new LinkedHashSet<>();
@@ -715,41 +960,35 @@ public class ConfigStore {
         // reading of it is not an address the file holds.
         boolean several = owners.size() > 1;
         String production = "production environment" + (several ? "s " : " ") + named;
-        // An owner that is no longer stored is known only as a name the store remembers the address by.
-        boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
-        String fromRemoved = "remembered as production from the removed environment" + (several ? "s " : " ") + named;
-        String anAddressOf = removed ? "an address " + fromRemoved : "an address of the " + production;
         ProductionDestinations.Found shown = quoted;
         String said;
         if (shown == null) {
-            said = "one of its addresses is " + anAddressOf + ", or lies above or beneath one.";
+            said = "one of its addresses is an address of the " + production + ", or lies above or beneath one.";
         } else if (!shown.destination().readable() && shown.written() != null) {
             said = "its address \"" + UrlNormal.asWritten(shown.written()) + "\", in the variable \"" + quoted(shown.variable())
-                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is " + anAddressOf
-                    + ", or lies above or beneath one.";
+                    + "\", cannot be read the way the HTTP client reads it. Read as closely as this tool can, it is an address of the "
+                    + production + ", or lies above or beneath one.";
         } else if (before.remembered().stream().anyMatch(known -> known.destination().everyPortAndPath()
                 && known.destination().covers(shown.destination()))) {
-            said = removed ? "its address " + oneLine(shown.destination().shown()) + " is on a host " + fromRemoved + ". "
-                    + (several ? "One of them" : "That environment") + " had an address this tool cannot read the way the HTTP client "
-                    + "reads it, so every port and every path of its host is taken as production."
-                    : "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
+            said = "its address " + oneLine(shown.destination().shown()) + " is on the host of the " + production + ". That "
                     + "production environment has an address this tool cannot read the way the HTTP client reads it, so every port and "
                     + "every path of its host is taken as production.";
         } else {
-            said = "its address " + oneLine(shown.destination().shown()) + " is " + anAddressOf + ", or lies above or beneath one.";
+            said = "its address " + oneLine(shown.destination().shown()) + " is an address of the " + production
+                    + ", or lies above or beneath one.";
         }
         String note = "An address that this installation knows as production stays production, even after its environment is deleted. "
                 + "If this environment is production, upload it with the kind prod. If it is not, point its variables at the " + kind.wire()
                 + " service and upload it again.";
+        // An owner that is no longer stored is known only as a name the store remembers the address by.
+        boolean removed = owners.stream().noneMatch(owner -> before.byName(owner) != null);
         if (removed) {
             // The store keeps no way to forget an address while it runs, so the way out is the
             // one that works: the remembered entries taken out of store.json while PAVE is stopped.
             String entries = owners.stream().map(owner -> "\"" + quoted(owner) + "\"").collect(java.util.stream.Collectors.joining(" or "));
-            note = "If " + named + (several ? " were" : " was") + " uploaded as prod by mistake: stop PAVE, delete the entries whose "
-                    + "environment is " + entries + " from productionDestinations in " + directory.resolve(STATE_FILE) + ", start PAVE "
-                    + "again and upload this environment again. Otherwise the address stays production: if this environment is "
-                    + "production, upload it with the kind prod, and if it is not, point its variables at the " + kind.wire()
-                    + " service and upload it again.";
+            note = named + (several ? " are" : " is") + " no longer stored. If " + (several ? "they were" : "it was") + " uploaded as "
+                    + "prod by mistake, stop PAVE, delete the entries whose environment is " + entries + " from productionDestinations in "
+                    + directory.resolve(STATE_FILE) + ", start PAVE again and upload this environment again. " + note;
         }
         throw new ValidationException("This environment was declared as " + kind.wire() + ", and " + said + " It was not stored.",
                 List.of(new FieldError("kind", note)));
@@ -960,23 +1199,67 @@ public class ConfigStore {
      * @return a warning when the redundant file could not be removed, since it may hold credentials
      */
     private List<String> commit(ConfigSnapshot next, String newFile, String oldFile) {
+        return commitAll(next, newFile == null ? List.of() : List.of(newFile), oldFile == null ? List.of() : List.of(oldFile));
+    }
+
+    /**
+     * As {@link #commit(ConfigSnapshot, String, String)} for a change that wrote several content
+     * files, such as a save of an environment's settings with its exports. The version written is 2
+     * from the first time any environment holds settings on; before store.json is first written as
+     * version 2, it is copied once to {@link #BEFORE_V2}, so an older build can be given its store back.
+     */
+    private List<String> commitAll(ConfigSnapshot next, List<String> newFiles, List<String> oldFiles) {
+        int writeAs = version >= SETTINGS_VERSION || holdsSettings(next) ? SETTINGS_VERSION : STATE_VERSION;
         try {
             refuseMissingFiles(next);
-            writeAtomically(directory.resolve(STATE_FILE), stateJson(next).getBytes(StandardCharsets.UTF_8));
+            if (writeAs >= SETTINGS_VERSION && version < SETTINGS_VERSION) {
+                keepVersionOne();
+            }
+            writeAtomically(directory.resolve(STATE_FILE), stateJson(next, writeAs).getBytes(StandardCharsets.UTF_8));
         } catch (ConfigStoreException e) {
-            if (newFile != null && !newFile.equals(oldFile)) {
-                deleteQuietly(directory.resolve(newFile));
+            for (String newFile : newFiles) {
+                if (!oldFiles.contains(newFile)) {
+                    deleteQuietly(directory.resolve(newFile));
+                }
             }
             throw e;
         }
         current = next;
+        version = writeAs;
         List<String> warnings = new ArrayList<>();
-        // Uploading the same bytes again gives the same file name. That file is the new one too, so it stays.
-        if (oldFile != null && !oldFile.equals(newFile) && !deleteQuietly(directory.resolve(oldFile))) {
-            warnings.add("The file " + directory.resolve(oldFile) + " is no longer used and could not be deleted. It may still hold "
-                    + "credentials. Delete it by hand.");
+        for (String oldFile : oldFiles) {
+            // Uploading the same bytes again gives the same file name. That file is the new one too, so it stays.
+            if (!newFiles.contains(oldFile) && !deleteQuietly(directory.resolve(oldFile))) {
+                warnings.add("The file " + directory.resolve(oldFile) + " is no longer used and could not be deleted. It may still hold "
+                        + "credentials. Delete it by hand.");
+            }
         }
         return warnings;
+    }
+
+    /**
+     * Copies store.json as it is to {@link #BEFORE_V2}, once: a copy already there is the version 1
+     * store from before, and is never overwritten by a later one. No store.json yet means there is
+     * no version 1 store to keep.
+     */
+    private void keepVersionOne() {
+        Path state = directory.resolve(STATE_FILE);
+        Path backup = directory.resolve(BEFORE_V2);
+        if (!Files.exists(state) || Files.exists(backup)) {
+            return;
+        }
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(state);
+        } catch (IOException | RuntimeException e) {
+            // The path and the type of the failure. Never content.
+            log.error("The configuration store could not read {} to keep a copy of it ({})", state, e.getClass().getSimpleName());
+            throw new ConfigStoreException("The configuration store could not read " + state + " to keep a copy of it before writing it in "
+                    + "the new format. Nothing was changed.", e);
+        }
+        writeAtomically(backup, bytes);
+        // The path only.
+        log.info("The configuration store kept its version 1 state as {} before writing version 2", backup);
     }
 
     /**
@@ -1145,10 +1428,24 @@ public class ConfigStore {
         }
     }
 
-    /** The text of store.json for a snapshot. Every character outside ASCII is written as its escape, see {@link #asciiOnly}. */
+    /**
+     * The text of store.json for a snapshot, as version 2 when any environment holds settings and as
+     * version 1 otherwise. Every character outside ASCII is written as its escape, see {@link #asciiOnly}.
+     */
     static String stateJson(ConfigSnapshot snapshot) {
+        return stateJson(snapshot, holdsSettings(snapshot) ? SETTINGS_VERSION : STATE_VERSION);
+    }
+
+    /** True when an environment of the snapshot states a setting, or holds a settings entry that could not be read. */
+    static boolean holdsSettings(ConfigSnapshot snapshot) {
+        return snapshot.environments().stream().anyMatch(environment -> !environment.settings().empty()
+                || environment.unreadSettings() != null);
+    }
+
+    /** The text of store.json for a snapshot, written as the version given. Version 1 holds no settings. */
+    static String stateJson(ConfigSnapshot snapshot, int version) {
         ObjectNode root = JsonSafe.mapper().createObjectNode();
-        root.put("version", STATE_VERSION);
+        root.put("version", version);
         root.put("epoch", snapshot.epoch());
         if (snapshot.activeName() != null) {
             root.put("activeEnvironment", snapshot.activeName());
@@ -1162,6 +1459,13 @@ public class ConfigStore {
             putIfPresent(entry, "originalFileName", environment.originalFileName());
             putIfPresent(entry, "uploadedAt", environment.uploadedAt());
             entry.put("acknowledgedNotProd", environment.acknowledgedNotProd());
+            if (version >= SETTINGS_VERSION) {
+                if (environment.unreadSettings() != null) {
+                    entry.set("settings", environment.unreadSettings().deepCopy());
+                } else if (!environment.settings().empty()) {
+                    entry.set("settings", StoredSettings.write(environment.settings()));
+                }
+            }
         }
         // Every production destination ever known here, so that a deletion does not make
         // production forgettable. Scheme, host, port and path only: never a query or user information.
@@ -1266,9 +1570,11 @@ public class ConfigStore {
         if (version == null || version < 1) {
             throw unusable(state, "it does not state its version");
         }
-        if (version > STATE_VERSION) {
-            throw unusable(state, "it was written by a later version of this tool");
+        if (version > SETTINGS_VERSION) {
+            throw unusable(state, "it was written by a later version of this tool (version " + version + "; this one reads versions "
+                    + STATE_VERSION + " and " + SETTINGS_VERSION + ")");
         }
+        this.version = version;
 
         List<StoredEnvironment> environments = new ArrayList<>();
         Set<String> names = new HashSet<>();
@@ -1297,9 +1603,18 @@ public class ConfigStore {
             if (!content.name().equals(name)) {
                 throw unusable(path, "it holds an environment named \"" + Names.shown(content.name()) + "\", and " + STATE_FILE + " lists it as \"" + Names.shown(name) + "\"");
             }
+            // A version 1 store has no settings: whatever such an entry holds under that name is not read as settings.
+            JsonNode settingsNode = version >= SETTINGS_VERSION ? JsonSafe.child(entry, "settings") : null;
+            StoredSettings.Read settings = StoredSettings.read(settingsNode);
+            if (settings.problem() != null) {
+                // The name and why, never a value: the entry can hold a client secret.
+                log.warn("The settings of the environment \"{}\" in {} cannot be read: {}. They are kept as they are and not used.",
+                        quoted(name), STATE_FILE, settings.problem());
+            }
             environments.add(new StoredEnvironment(Ids.named(name), name, kind, content, file, JsonSafe.presentText(entry, "originalFileName"),
                     JsonSafe.presentText(entry, "uploadedAt"), Boolean.TRUE.equals(JsonSafe.bool(entry, "acknowledgedNotProd")),
-                    ProductionSigns.in(content)));
+                    ProductionSigns.in(content), settings.settings(), settings.problem(),
+                    settings.problem() == null ? null : settingsNode.deepCopy()));
         }
 
         List<StoredCollection> collections = new ArrayList<>();

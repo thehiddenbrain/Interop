@@ -222,4 +222,22 @@ public interface OperationGateway {
     default org.p32h.interop.epa.pave.model.SentSecrets secretsGivenToServices() {
         return org.p32h.interop.epa.pave.model.SentSecrets.none();
     }
+
+    /**
+     * The longest connect and read timeouts any outbound call may be given under the configuration
+     * in force, both present. For budgeting a run of many calls, such as a suite's stop, so that a
+     * budget never ends before a call that is still allowed to wait. This default knows no
+     * configuration and answers the onyx properties' own defaults.
+     */
+    default Timeouts activeTimeouts() {
+        return Timeouts.APPLICATION;
+    }
+
+    /**
+     * The member ID rule of the active environment: its own when it states one, else packed. For
+     * what is shown before any call is prepared, such as the form a member ID will be sent in.
+     */
+    default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
+        return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
+    }
 }

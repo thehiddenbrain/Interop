@@ -14,13 +14,22 @@ import java.util.Map;
 /**
  * What the PAS tab posts to submit one prior authorization request.
  *
- * <p>The fields every protocol shares are described on {@link RunRequest}. A submission adds three.
+ * <p>The fields every protocol shares are described on {@link RunRequest}. A submission adds the
+ * claim id, diagnoses and documents, and the Service card's details Da Vinci PAS 2.2.1 asks for.
+ * Each of those details is optional and taken as typed: a value left out stays not stated, and the
+ * request takes it from the environment's values or says it is missing, never from a guess here.
  *
- * @param claimId        the identifier to put on the claim, or blank. When it is blank the one an
- *                       earlier step handed on is used, and failing that the tool mints one. It is
- *                       how an inquiry and a notification are matched to this submission
- * @param diagnosisCodes the diagnoses the request is for. Optional
- * @param attachments    the documents the tester adds. Optional
+ * @param claimId           the identifier to put on the claim, or blank. When it is blank the one an
+ *                          earlier step handed on is used, and failing that the tool mints one. It is
+ *                          how an inquiry and a notification are matched to this submission
+ * @param diagnosisCodes    the diagnoses the request is for. Optional
+ * @param attachments       the documents the tester adds. Optional
+ * @param placeOfService    the CMS place of service code, such as 11. Optional
+ * @param levelOfService    the X12 1338 level of service code, such as U. Optional
+ * @param certificationType the X12 1322 certification type code, such as I. Optional
+ * @param requestType       the X12 1525 request category code, such as HS. Optional
+ * @param serviceType       the X12 1365 service type code, such as 1. Optional
+ * @param servicingProvider who will perform the service, when another than the requesting provider. Optional
  */
 public record PasSubmitRequest(
         String claimId,
@@ -42,6 +51,12 @@ public record PasSubmitRequest(
         Map<String, String> variables,
         Map<String, List<String>> carry,
         Long configEpoch,
+        String placeOfService,
+        String levelOfService,
+        String certificationType,
+        String requestType,
+        String serviceType,
+        ProviderDetail servicingProvider,
         @JsonAnySetter Map<String, Object> unrecognised) implements RunRequest {
 
     public PasSubmitRequest {
@@ -85,6 +100,12 @@ public record PasSubmitRequest(
         private Map<String, String> variables = Map.of();
         private Map<String, List<String>> carry = Map.of();
         private Long configEpoch;
+        private String placeOfService;
+        private String levelOfService;
+        private String certificationType;
+        private String requestType;
+        private String serviceType;
+        private ProviderDetail servicingProvider;
 
         private Builder() {
         }
@@ -184,10 +205,40 @@ public record PasSubmitRequest(
             return this;
         }
 
+        public Builder placeOfService(String value) {
+            this.placeOfService = value;
+            return this;
+        }
+
+        public Builder levelOfService(String value) {
+            this.levelOfService = value;
+            return this;
+        }
+
+        public Builder certificationType(String value) {
+            this.certificationType = value;
+            return this;
+        }
+
+        public Builder requestType(String value) {
+            this.requestType = value;
+            return this;
+        }
+
+        public Builder serviceType(String value) {
+            this.serviceType = value;
+            return this;
+        }
+
+        public Builder servicingProvider(ProviderDetail value) {
+            this.servicingProvider = value;
+            return this;
+        }
+
         public PasSubmitRequest build() {
             return new PasSubmitRequest(claimId, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
                     attachments, dateOfService, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry,
-                    configEpoch, Map.of());
+                    configEpoch, placeOfService, levelOfService, certificationType, requestType, serviceType, servicingProvider, Map.of());
         }
     }
 }
