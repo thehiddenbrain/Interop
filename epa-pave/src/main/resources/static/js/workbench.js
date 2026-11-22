@@ -24,7 +24,7 @@ import {createMemberCard} from './wb-member.js';
 import {createProviderCard} from './wb-provider.js';
 import {createServiceCard} from './wb-service.js';
 import {createStepper} from './wb-stepper.js';
-import {createJourney, stepOfAction, stepOfOperation, STEPS} from './wb-journey.js';
+import {createJourney, stepOfAction, stepOfOperation, statusCarry, STEPS} from './wb-journey.js';
 import {optionsToggle} from './wb-run.js';
 import * as crdStep from './wb-crd.js';
 import * as statusStep from './wb-status.js';
@@ -148,20 +148,14 @@ function build() {
                 return handed ? handed.carry : null;
             },
             handOn(step, carry) {
-                journey.handOn(step, carry, caseKey(request()));
-                if (step === 4 && carry && carry.claimId) {
-                    const claim = options[4].claimId;
-                    if (fillFromAnswer(claim, Array.isArray(carry.claimId) ? carry.claimId[0] : carry.claimId)) {
-                        claim.set(claim.input.value, 'from step 3');
-                    }
-                }
+                handOn(step, carry);
             },
             option(name) {
                 if (name === 'scenarioId') {
                     return app.isMock() && scenarioFields[n] ? scenarioFields[n].value() : '';
                 }
                 const control = options[n] ? options[n][name] : null;
-                return control ? control.String(input.value || '').trim() : '';
+                return control ? control.value() : '';
             },
             optionsRow() {
                 return optionRows[n] || null;
@@ -175,11 +169,14 @@ function build() {
             showField(name) {
                 return showField(name, null);
             },
-            placeErrors,
+            placeErrors(fieldErrors) {
+                return placeErrors(fieldErrors, n);
+            },
             go(step, how) {
                 openStep(step, true, how);
             },
             isMock: () => app.isMock(),
+            mode: () => app.mode(),
             visible: () => open === n && Boolean(node.isConnected),
             typedCode: () => service.typedCode(),
             blocked,
@@ -199,6 +196,14 @@ function build() {
             },
             crdScenarios: () => (app.isMock() && loaded.mockLists ? loaded.mockLists.crd : null)
         };
+    }
+
+    /** A carry handed to a step; step 4's Claim id is filled from it only through the check for a mask. */
+    function handOn(step, carry) {
+        journey.handOn(step, carry, caseKey(request()));
+        if (step === 4) {
+            statusStep.fillClaimFrom(options[4].claimId, carry);
+        }
     }
 
     /** What every run sends (ctx.request of plan 9.1). */
@@ -227,6 +232,11 @@ function build() {
         member.sentAs(envelope.wire && envelope.wire.memberId);
         if (step === 1 && envelope.nextStep && envelope.nextStep.carry) {
             fillFromStep1(envelope.nextStep.carry);
+        }
+        // A submission hands the Status step its claim from the server's own carry, so step 4 never
+        // depends on how step 3 is drawn; one that offers no inquiry takes back an earlier hand-over.
+        if (step === 3) {
+            handOn(4, statusCarry(envelope));
         }
         const chainId = journey.knownChain();
         if (chainId && window.location.hash.startsWith('#workbench')) {
@@ -318,7 +328,8 @@ function build() {
         }
         const step = stepOfAction(action);
         if (step !== null) {
-            openStep(step, true, {start: action === 'START_DTR' || action === 'CHECK_STATUS'});
+            // "Deliver a sample" (mock only) asks step 4 to deliver it: a sample sends nothing to a service.
+            openStep(step, true, {start: action === 'START_DTR' || action === 'CHECK_STATUS', sample: action === 'DELIVER_SAMPLE_NOTIFICATION'});
         }
     }
 
@@ -330,15 +341,36 @@ function build() {
         return line.masked.length > 0 ? el('div', null, line.masked.map(words => maskedLine(words))) : null;
     }
 
-    /** Each field error at its field, its fold opened; returns the names placed. */
-    function placeErrors(fieldErrors) {
+    /**
+     * Each field error at its field, its fold opened; returns the names placed. A field of step n's
+     * own options (its Claim id, for one) is shown there, the options row opened.
+     */
+    function placeErrors(fieldErrors, n) {
         const placed = [];
         for (const each of Array.isArray(fieldErrors) ? fieldErrors : []) {
-            if (each && typeof each.field === 'string' && showField(each.field, each.message)) {
+            if (each && typeof each.field === 'string' && (showOption(n, each.field, each.message) || showField(each.field, each.message))) {
                 placed.push(each.field);
             }
         }
         return placed;
+    }
+
+    function showOption(n, name, message) {
+        const control = n && options[n] ? options[n][name] : null;
+        if (!control) {
+            return false;
+        }
+        const row = optionRows[n];
+        if (row && row.hidden) {
+            row.hidden = false;
+            const toggle = panels[n].querySelector('[aria-expanded]');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', 'true');
+            }
+        }
+        control.setError(message || null);
+        control.input.focus();
+        return true;
     }
 
     /** Opens the card fold that holds a case field and focuses it; a message is shown at it. */
