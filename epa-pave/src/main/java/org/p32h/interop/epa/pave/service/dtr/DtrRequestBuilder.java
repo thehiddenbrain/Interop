@@ -5,6 +5,7 @@ import org.p32h.interop.epa.pave.client.dtr.OnyxDtrConventions;
 import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.MemberDetail;
+import org.p32h.interop.epa.pave.model.MemberIdRule;
 import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.NextStepView;
 import org.p32h.interop.epa.pave.model.ResolvedText;
@@ -199,6 +200,16 @@ public final class DtrRequestBuilder {
      * @param variables resolves a placeholder name to its value, or to an unresolved result
      */
     public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables) {
+        return buildPackage(request, variables, MemberIdRule.PACKED);
+    }
+
+    /**
+     * As {@link #buildPackage(DtrPackageRequest, Function)}, with the member ID in the form the
+     * call's member ID rule gives (R-10).
+     *
+     * @param rule the call's member ID rule; null reads as packed
+     */
+    public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables, MemberIdRule rule) {
         List<String> notes = new ArrayList<>();
         Map<String, List<String>> carry = request.carry();
         MemberDetail member = request.member();
@@ -212,7 +223,7 @@ public final class DtrRequestBuilder {
         // builder's own sentences about those requirements would say it a second time and are left out.
         List<String> coverageNotes = new ArrayList<>();
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_COVERAGE).set("resource",
-                resources.crdCoverage(member, variables, coverageNotes, new ArrayList<>()));
+                resources.crdCoverage(member, rule, variables, coverageNotes, new ArrayList<>()));
         notes.addAll(withoutRequirements(coverageNotes));
 
         List<CodeInput> codes = codes(request);
@@ -291,7 +302,7 @@ public final class DtrRequestBuilder {
         List<String> patientNotes = new ArrayList<>();
         List<CaseResources.Required> notSupplied = new ArrayList<>();
         parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource",
-                resources.crdPatient(member, variables, patientNotes, notSupplied));
+                resources.crdPatient(member, rule, variables, patientNotes, notSupplied));
         notes.add(patientNote(notSupplied));
         String gender = member.gender();
         if (Texts.present(gender) && notSupplied.stream().anyMatch(required -> required.element().equals("Patient.gender"))) {
