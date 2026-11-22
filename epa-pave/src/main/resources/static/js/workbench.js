@@ -28,6 +28,10 @@ import {createJourney, stepOfAction, stepOfOperation, STEPS} from './wb-journey.
 import {optionsToggle} from './wb-run.js';
 import * as crdStep from './wb-crd.js';
 import * as statusStep from './wb-status.js';
+// Not used by the Workbench itself. The step modules that read a chosen file (attachments in
+// Submit, batch H) and the Configuration pages (batch I) import it; until one of them does, this
+// import keeps it loaded with the page and held by StaticJoinTest.
+import {readBase64} from './files.js';
 
 // What the Workbench has read from the server. Mock lists exist on mock only: on live they are
 // never asked for, and nothing is built from them.
