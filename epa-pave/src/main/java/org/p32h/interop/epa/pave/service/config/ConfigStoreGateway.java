@@ -237,7 +237,8 @@ public class ConfigStoreGateway implements OperationGateway {
         SignInSettings signIn = lookup != null && !lookup.environmentSignIn() ? SignInSettings.none()
                 : resolvedSignIn(snapshot, settings.signIn(), plan.target().collection());
         return new IssuedCall.Settings(signIn, settings.memberIdRule(),
-                shapes(settings, plan.target()), Texts.trimToNull(settings.values().get(KnownValues.CALLBACK_URL)));
+                shapes(settings, plan.target()), Texts.trimToNull(settings.values().get(KnownValues.CALLBACK_URL)),
+                plan.target().sampleName(), plan.target().sampleBody());
     }
 
     /**
@@ -269,7 +270,7 @@ public class ConfigStoreGateway implements OperationGateway {
      */
     static org.p32h.interop.epa.pave.model.RequestShapes shapes(EnvironmentSettings settings, Target target) {
         org.p32h.interop.epa.pave.model.RequestShapes shapes = org.p32h.interop.epa.pave.model.RequestShapes.DEFAULTS;
-        String savedBody = target == null ? null : target.savedBody();
+        String savedBody = target == null ? null : target.sampleBody();
         for (org.p32h.interop.epa.pave.model.RequestShape shape : org.p32h.interop.epa.pave.model.RequestShape.values()) {
             String stated = settings.shapes().get(shape);
             if (stated != null) {
@@ -280,12 +281,12 @@ public class ConfigStoreGateway implements OperationGateway {
             // Asked without a call (the shapes of the active environment, for the Submit options) there is no
             // request to look at: every page that asked this way got an internal error for the missing check.
             if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH && target != null
-                    && org.p32h.interop.epa.pave.service.crd.PrefetchLayout.errorSample(target.requestName())) {
+                    && org.p32h.interop.epa.pave.service.crd.PrefetchLayout.errorSample(target.sampleName())) {
                 // A sample of an error may arrange its prefetch as the service refuses it, to show the refusal (D-309).
                 sampled = null;
             }
             if (sampled != null) {
-                shapes = shapes.with(shape, org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofSample(sampled, target.requestName()));
+                shapes = shapes.with(shape, org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofSample(sampled, target.sampleName()));
             }
         }
         return shapes;
@@ -1370,7 +1371,10 @@ public class ConfigStoreGateway implements OperationGateway {
         }
         Target typed = typedTarget(intent, environment);
         if (typed != null) {
-            return typed;
+            // The address is the tester's. The arrangement of the request is still read from the
+            // collection's own request for the operation, where one is mapped (D-311).
+            Located sampled = operation == EpaOperation.UNMAPPED ? null : firstMapped(snapshot, operation, false);
+            return sampled == null ? typed : typed.following(sampled.request());
         }
         if (operation != EpaOperation.UNMAPPED) {
             Located mapped = firstMapped(snapshot, operation, false);

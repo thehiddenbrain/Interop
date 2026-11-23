@@ -32,6 +32,8 @@ final class IssuedCall implements PreparedCall {
     private final MemberIdRule memberIdRule;
     private final RequestShapes shapes;
     private final String callbackUrl;
+    private final String sampleName;
+    private final String sampleBody;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -82,14 +84,21 @@ final class IssuedCall implements PreparedCall {
      * @param shapes       each request shape with its source, or null for the defaults
      * @param callbackUrl  the callback url it types (R-42), as a template, or null when it types none
      */
-    record Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl) {
+    record Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl, String sampleName,
+                    String sampleBody) {
 
         static final Settings NONE = new Settings(null, null, null, null);
+
+        /** Without a sample of its own: the call then follows the request it comes from, if any. */
+        Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl) {
+            this(signIn, memberIdRule, shapes, callbackUrl, null, null);
+        }
 
         /** Names what is set and never a value: the sign-in holds secrets, the callback url can hold a credential. */
         @Override
         public String toString() {
-            return "Settings[" + signIn + ", " + memberIdRule + ", " + shapes + ", callbackUrl " + (callbackUrl == null ? "not set" : "set") + "]";
+            return "Settings[" + signIn + ", " + memberIdRule + ", " + shapes + ", callbackUrl " + (callbackUrl == null ? "not set" : "set")
+                    + ", sample " + (sampleName == null ? "none" : "given") + "]";
         }
     }
 
@@ -116,6 +125,8 @@ final class IssuedCall implements PreparedCall {
         this.memberIdRule = given.memberIdRule() == null ? MemberIdRule.PACKED : given.memberIdRule();
         this.shapes = given.shapes() == null ? RequestShapes.DEFAULTS : given.shapes();
         this.callbackUrl = given.callbackUrl();
+        this.sampleName = given.sampleName();
+        this.sampleBody = given.sampleBody();
     }
 
     @Override
@@ -186,6 +197,16 @@ final class IssuedCall implements PreparedCall {
     @Override
     public String savedBody() {
         return savedBody;
+    }
+
+    @Override
+    public String sampleName() {
+        return sampleName != null ? sampleName : requestName;
+    }
+
+    @Override
+    public String sampleBody() {
+        return sampleName != null ? sampleBody : savedBody;
     }
 
     @Override

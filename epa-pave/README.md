@@ -13,6 +13,16 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Two corrections made the same evening (D-311).** The build of `a580682` answered every page that
+asks for the Submit options with an internal error: the Workbench asks when it opens, with no call in
+hand, and a check for that case was missing. And a coverage check sent to a typed address still went in
+PAVE's own named Bundles, though the collection's sample was stored: the operator had typed the address
+to correct it, and the vendor's service answered "No patient data provided" again. Now the Submit
+options answer with no call in hand, and a call to a typed address follows the sample of the
+collection's request for its operation in its request shapes; it still carries no header and no body of
+that request. Held by tests and by a check that opens every page of the started tool; not seen against
+the vendor's service.
+
 **Tonight's head is release 2 with four additions made after it**, each with its decision: the switch
 between mock and live in the top bar (D-304); the sign-in read from the files, and a refused sign-in
 that says why (D-305); the saved lists filled from a collection, with a third list for procedure codes
@@ -431,7 +441,8 @@ by the next call.
      uses. Choosing one maps it to that operation when "Save environment" stores the collection (it is
      the mapping of Configuration > Collections, which can be taken back there); a row with a request
      offers the others behind "Choose another request". "Type an address instead" stays the last choice:
-     a typed address replaces the request wholly, its headers and saved body included. A request is
+     a typed address replaces the request wholly, its headers and saved body included; the request
+     shapes of the call still follow that request's sample (D-311). A request is
      told by its name, its url, its folders and, when those say nothing, its body: a CDS Hooks body that
      states `"hook": "order-sign"`, a Bundle that carries a Claim (sent to `$submit` or `$inquire`), a
      Parameters body that names a coverage (`$questionnaire-package`).
@@ -523,7 +534,9 @@ by the next call.
      the form from these files" and save. A name that reads as a secret is refused there.
    - **Addresses**: one row per operation, with the address in force and where it comes from ("from
      the collection's request ...", "from application.yml", "typed here", "not set"). A typed address
-     replaces the collection request for that operation, its headers and saved body included; "Use the
+     replaces the collection request for that operation, its headers and saved body included. The
+     request shapes (draftOrders type, Prefetch) still follow the sample of that request, so an address
+     typed to correct it does not change how the request is arranged (D-311); "Use the
      collection's request again" closes the box before anything is typed, and "Use the file's again"
      takes a typed address away at the next save.
    - **Sign-in**: a stored client secret or bearer token is said as stored ("Stored:

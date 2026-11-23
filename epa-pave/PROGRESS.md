@@ -4,6 +4,15 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Two corrections made the evening the fifth correction was handed over** (D-311). The build of
+`a580682` answered the Submit options with an internal error on every page (a missing check where the
+shapes are read with no call in hand), and a coverage check to a typed address still went in PAVE's named
+Bundles. `4d9d85a` corrects the first; the commit that carries these records corrects the second (a typed
+address follows the sample of the collection's request for its operation in its request shapes) and
+records both. Built and tested by the integrator, on the operator's report from the workstation; the
+integrator's gates now also open every page of the started tool. Not seen against the vendor's service.
+The gates are run on the commit that carries these records; their result is reported with the hand-over.
+
 **Four additions made after release 2 are joined here**: the sign-in read from the files (D-305), the
 saved lists filled from a collection (D-306), the switch between mock and live (D-304) and the form that
 takes and shows everything the files give (D-307). The first two were handed over one after the other;

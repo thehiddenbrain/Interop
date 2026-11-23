@@ -237,8 +237,8 @@ public class CrdService {
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
         NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call),
-                CrdVerdicts.statesFhirServer(call == null ? null : call.savedBody()),
-                call != null && CrdVerdicts.writesPrefetch(call.requestName(), call.savedBody())), runId), exchange);
+                CrdVerdicts.statesFhirServer(call == null ? null : call.sampleBody()),
+                call != null && CrdVerdicts.writesPrefetch(call.sampleName(), call.sampleBody())), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
@@ -297,7 +297,7 @@ public class CrdService {
      * or null for a call with no saved body, such as one to a typed address or on mock.
      */
     static PrefetchLayout sampleLayout(PreparedCall call) {
-        return call == null ? null : PrefetchLayout.ofCall(call.requestName(), call.savedBody());
+        return call == null ? null : PrefetchLayout.ofCall(call.sampleName(), call.sampleBody());
     }
 
     /** What the request would be, without sending it. Nothing is recorded. */

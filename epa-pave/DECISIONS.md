@@ -72,6 +72,7 @@ entry.
 | D-307 | A third correction after release 2: right after Fill the form shows every address and value the files give with where it comes from, and a request can be chosen for an operation none was found for; on Edit nothing in force is an empty box; a request is also told by its body; a v2.0 collection is read (`25b200a`, `6664bd1`, `fc80b7d`, `050f977`) | On the operator's first run against the vendor's UAT every address and value was typed by hand, and a typed address replaced the collection's request. A chosen request is the collection's mapping, recorded in a second call after the save. Seen on live against the stand-in, not against the vendor's service |
 | D-308 | A fourth correction after release 2: the values of the Edit form a vendor's sample requests state (the FHIR server from the coverage-check sample; the payer, its identifier and system, the member ID system and the PAS types from the Submit sample) are shown with the request they come from and stored by the save for a value nothing else gives; what the coverage-check sample sends and PAVE does not is named; a refusal that names fhirServer says where to set it (`d7a3246`, `f390ba0`, `8354f76`) | The coverage check was refused for a missing fhirServer the vendor's own sample stated. A value is read only where PAVE's own builder writes it, from the sample a call for that operation is sent from; a value typed or given by the export is never replaced; the callback url is never taken from a sample. Seen on live against a changed copy of the stand-in, not against the vendor's service |
 | D-309 | A fifth correction after release 2: the coverage check's prefetch goes under the keys of the collection's coverage-check sample, holding what the sample holds there, built from the case (request shape "Prefetch"); the member ID's and NPI's systems and the identifier type follow the sample; what cannot be filled is said by key and type; the card after "No patient data" names the setting; the comparison names the arrangement (`fc9d2a5`, `338e757`, `f3b8f55`, `ced7239`) | The vendor's UAT answered "No patient data provided" to PAVE's named Bundles and answered the vendor's own sample. CDS Hooks fixes no prefetch names; following the sample stands in for reading the service's discovery answer, which is not built. Nothing of a sample's resources is sent. Seen on live against a changed copy of the stand-in, not against the vendor's service |
+| D-311 | A call to a typed address follows the sample of the collection's request for its operation in its request shapes (it still carries no header and no body of that request); the Submit options answer with no call in hand (`4d9d85a`) | The operator typed the address of the coverage check to correct it, the request fell back to PAVE's named Bundles and the vendor's service answered "No patient data provided" again. The build of `a580682` read the shapes of the active environment through a request that was not there, and every page that asks for the Submit options got an internal error. Held by tests; not seen against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8876,3 +8877,37 @@ round of corrections; the code handed over.**
 - **Left.** The keys are not read from the service's discovery answer. A key of a type PAVE does not build
   is not sent. "Compare with a request that works" builds PAVE's side with the named Bundles whatever the
   environment states. The Coverage id is PAVE's own until the vendor supplies one.
+
+**D-311. A typed address keeps the sample of the collection's request, and the Submit options answer with no call in hand.**
+- **What happened.** The correction of D-309 was handed over as `a580682`. On the operator's workstation
+  the Workbench then showed an internal error (a `NullPointerException` in the reading of the request
+  shapes, reached from the Submit options), and a coverage check was answered "No patient data provided"
+  as before.
+- **The first cause.** `ConfigStoreGateway.shapes` is also asked with no call in hand: the Submit step
+  reads the PAS guide of the active environment when the Workbench opens. D-309 added a look at the name
+  of the call's request there, without a check for a call that is not there. Every such page failed, on
+  mock and on live, with or without an environment. No test asked the shapes that way (the test of the
+  Submit options used a stand-in for the gateway), and neither proof opens the Workbench. Corrected in
+  `4d9d85a`, with a test of the shapes with no call and a test of the Submit options on the started
+  application.
+- **The second cause.** A call to a typed address had no sample: R-02 says a typed address replaces the
+  mapped request wholly, and D-291 took the shapes of such a call from the defaults. The operator had
+  typed the address of the coverage check to correct it. The request therefore went in PAVE's named
+  Bundles, the arrangement the vendor's service refuses, although the collection with the working sample
+  was stored.
+- **Decided.** A typed address still replaces where the call goes and still carries no header and no body
+  of a request (R-02 stands for what is sent). The request shapes of the call, draftOrders type and
+  Prefetch, are read from the collection's own request for the operation, the one the call would use if
+  nothing were typed (the first mapped, a sample of an error passed over). A shape the environment states
+  wins, as before. With no request mapped for the operation, the defaults, as before. The advice after a
+  refusal that reads the sample (D-308, D-309) reads the same one.
+- **Why.** How a service wants a request arranged does not change because its address was corrected. The
+  collection is the only evidence of that arrangement this tool has.
+- **What holds it.** `ShapeEvidenceTest` (a typed address follows the sample and takes nothing else of the
+  request; the case of the first run, with the patient under "patient"; a typed address with no request
+  mapped takes the defaults), `ShapesWithoutACallTest`, `ApplicationJourneyTest` (the Submit options).
+  The integrator's gates now open every page of the started tool in a browser and fail on any answer of
+  the 5xx kind; that check fails on `a580682` and holds on this commit.
+- **Left.** Not seen against the vendor's service. Whether the operator's address was typed is the
+  integrator's reading of the report, not something seen. Later: D-291 (a call with no sample takes the
+  default) holds only where no request of the collection is mapped for the operation.

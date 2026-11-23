@@ -15,8 +15,9 @@ import org.p32h.interop.epa.pave.postman.PostmanFiles;
 /**
  * The shape of a request at run time (R-37): an environment that states no value takes the
  * evidence of the vendor's own sample, the saved body of the collection request its call comes
- * from; a stated value wins; a call with no sample, such as one to a typed address, takes the
- * default FHIR requires. The settings view names the same evidence.
+ * from, and for a call to a typed address the collection's own request for the operation; a stated
+ * value wins; a call with no sample takes the default FHIR requires. The settings view names the same
+ * evidence.
  */
 class ShapeEvidenceTest {
 
@@ -75,16 +76,73 @@ class ShapeEvidenceTest {
         assertThat(choice.from()).isEqualTo(RequestShapes.FROM_ENVIRONMENT);
     }
 
+    /**
+     * A typed address replaces where the call goes, and carries no header and no body of a request.
+     * How the service wants the request arranged is still read from the collection's own request
+     * for the operation: a tester who typed an address to correct it was otherwise sent back to
+     * this tool's own arrangement, which the service refused (D-311).
+     */
     @Test
-    void aTypedAddressHasNoSampleAndTakesTheDefault() {
+    void aTypedAddressStillFollowsTheSampleOfTheCollectionsRequest() {
         ConfigFixture fixture = withSample(directory, WITHOUT_TYPE);
         StoredEnvironment sandbox = fixture.store.snapshot().byName("Onyx Sandbox");
         fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
                 stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
                         "https://typed.vendor.example.invalid/cds-services/order-sign"), null, null, null)), (stored, after) -> null);
-        RequestShapes.Choice choice = shapeOf(fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN)));
-        assertThat(choice.value()).isEqualTo(RequestShape.SENT);
-        assertThat(choice.from()).isEqualTo(RequestShapes.FROM_DEFAULT);
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+        RequestShapes.Choice choice = shapeOf(call);
+        assertThat(choice.value()).isEqualTo(RequestShape.LEFT_OUT);
+        assertThat(choice.from()).isEqualTo(RequestShapes.FROM_SAMPLE);
+        assertThat(choice.requestName()).isEqualTo("order-sign Happy Path");
+        assertThat(call.sampleName()).isEqualTo("order-sign Happy Path");
+        assertThat(call.sampleBody()).isEqualTo(WITHOUT_TYPE);
+        // The call itself is the typed one: it goes to the typed address and takes nothing else of the request.
+        assertThat(call.url().toString()).contains("typed.vendor.example.invalid");
+        assertThat(call.requestName()).isNull();
+        assertThat(call.savedBody()).isNull();
+        assertThat(call.headers()).isEmpty();
+    }
+
+    /**
+     * The case met on the first run against the vendor's service: the address of the coverage
+     * check was typed, the collection's sample carries the patient under "patient", and the
+     * request still went in this tool's own named Bundles, where the service found no patient.
+     */
+    @Test
+    void aCoverageCheckToATypedAddressTakesThePrefetchOfTheCollectionsSample() {
+        String sample = "{\"hook\": \"order-sign\", \"context\": {\"draftOrders\": {\"resourceType\": \"Bundle\", \"type\": \"collection\", "
+                + "\"entry\": []}}, \"prefetch\": {\"patient\": {\"resourceType\": \"Patient\", \"id\": \"pat-001\"}, \"coverage\": "
+                + "{\"resourceType\": \"Bundle\", \"type\": \"searchset\", \"entry\": [{\"resource\": {\"resourceType\": \"Coverage\", "
+                + "\"id\": \"cov-001\"}}]}}}";
+        ConfigFixture fixture = withSample(directory, sample);
+        StoredEnvironment sandbox = fixture.store.snapshot().byName("Onyx Sandbox");
+        fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
+                stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
+                        "https://typed.vendor.example.invalid/cds-services/order-sign"), null, null, null)), (stored, after) -> null);
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+
+        RequestShapes.Choice prefetch = call.shapes().choice(RequestShape.CRD_PREFETCH);
+        assertThat(prefetch.value()).isEqualTo(RequestShape.AS_SAMPLE);
+        assertThat(prefetch.from()).isEqualTo(RequestShapes.FROM_SAMPLE);
+        assertThat(prefetch.requestName()).isEqualTo("order-sign Happy Path");
+        // What the coverage check reads its arrangement from is the sample, though the call has no body of its own.
+        assertThat(org.p32h.interop.epa.pave.service.crd.PrefetchLayout.ofCall(call.sampleName(), call.sampleBody())).isNotNull();
+        assertThat(call.savedBody()).isNull();
+    }
+
+    @Test
+    void aTypedAddressWithNoRequestOfTheCollectionTakesTheDefault() {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.activate(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        StoredEnvironment sandbox = fixture.store.snapshot().byName("Onyx Sandbox");
+        fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
+                stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
+                        "https://typed.vendor.example.invalid/cds-services/order-sign"), null, null, null)), (stored, after) -> null);
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+        assertThat(shapeOf(call).value()).isEqualTo(RequestShape.SENT);
+        assertThat(shapeOf(call).from()).isEqualTo(RequestShapes.FROM_DEFAULT);
+        assertThat(call.sampleName()).isNull();
+        assertThat(call.sampleBody()).isNull();
     }
 
     @Test

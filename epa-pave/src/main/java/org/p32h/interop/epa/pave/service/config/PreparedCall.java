@@ -77,6 +77,20 @@ public sealed interface PreparedCall permits IssuedCall {
     String savedBody();
 
     /**
+     * The name of the collection request whose sample the request shapes of this call follow: the
+     * request the call comes from, or, for a call to a typed address, the collection's own request
+     * for the operation (D-311). Null when there is none.
+     */
+    default String sampleName() {
+        return requestName();
+    }
+
+    /** The raw body of that request, as {@link #savedBody} gives a request's own. Nothing of it is ever sent. */
+    default String sampleBody() {
+        return savedBody();
+    }
+
+    /**
      * Every secret this tool holds for the configuration this call was prepared in, whether or not
      * the call carries it: the secret variables of the environment, of the collection the request
      * came from and of application.yml with the values given for this run, the client secret, the

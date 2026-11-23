@@ -88,10 +88,40 @@ record CallPlan(ConfigSnapshot snapshot, CallIntent intent, Target target, Strin
      * @param absent     why there is no url, in words. Null when there is one
      */
     record Target(Source source, StoredCollection collection, StoredCollection.Mapped request, String template, String resolved,
-                  List<PostmanHeader> headers, String described, String absent) {
+                  List<PostmanHeader> headers, String described, String absent, StoredCollection.Mapped sample) {
 
         Target {
             headers = headers == null ? List.of() : List.copyOf(headers);
+        }
+
+        /** A call that comes from a collection request follows that request's own sample; any other has none until one is given. */
+        Target(Source source, StoredCollection collection, StoredCollection.Mapped request, String template, String resolved,
+               List<PostmanHeader> headers, String described, String absent) {
+            this(source, collection, request, template, resolved, headers, described, absent, source == Source.REQUEST ? request : null);
+        }
+
+        /**
+         * This target with the collection request whose sample its request shapes follow. A typed
+         * address replaces where the call goes and carries no header and no body of a request
+         * (R-02), but how the service wants a request arranged is still what the collection's own
+         * request for the operation shows: a tester who typed an address to correct it was sent
+         * back to this tool's own arrangement, which the service refused (D-311).
+         */
+        Target following(StoredCollection.Mapped sampled) {
+            return new Target(source, collection, request, template, resolved, headers, described, absent, sampled);
+        }
+
+        /** The name of the collection request whose sample the shapes of this call follow, or null when there is none. */
+        String sampleName() {
+            return sample == null ? null : sample.request().name();
+        }
+
+        /** The raw body of that request, each credential typed into it standing as a placeholder, or null when there is none. */
+        String sampleBody() {
+            if (sample == null || org.p32h.interop.epa.pave.model.Texts.blank(sample.request().body())) {
+                return null;
+            }
+            return org.p32h.interop.epa.pave.postman.LiteralCredentials.inBody(sample.request().body()).template();
         }
 
         static Target none(String absent) {
