@@ -67,6 +67,26 @@ class CompareFrontendTest {
                 + "service reads the keys it names.\"]]", "true");
     }
 
+    /** D-310: what your request's resources carry that PAVE's do not is drawn as one part, line by line as the server words it. */
+    @Test
+    void whatYourResourcesCarryIsDrawnAsOnePartAfterTheArrangement(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "what your resources carry", PRELUDE + """
+            const {drawComparison} = await import('./js/adv-compare.js');
+            const lines = ["Your request's Patient carries address and telecom, which the tool's Patient does not."];
+            const node = drawComparison({comparable: true, headline: 'The two requests differ in 2 places.', notes: ['A note.'],
+                arrangement: ['An arrangement line.'], elements: lines, counts: [], differences: [], caseSource: [], notFound: []}, () => {});
+            const part = node.querySelector('.compare-elements');
+            say([part.querySelector('.notes__title').textContent, part.querySelectorAll('li').map(text)]);
+            const parts = node.querySelectorAll('div').map(each => each.getAttribute('class')).filter(name => name === 'compare-arrangement' || name === 'compare-elements');
+            say(parts);
+            const none = drawComparison({comparable: true, headline: 'Alike.', notes: [], counts: [], differences: []}, () => {});
+            say(none.querySelector('.compare-elements') === null);
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[\"What your request's resources carry that PAVE's do not\",[\"Your request's Patient carries "
+                + "address and telecom, which the tool's Patient does not.\"]]", "[\"compare-arrangement\",\"compare-elements\"]", "true");
+    }
+
     /** A file refused, a file read, the comparison sent once and drawn, a difference chosen, then a refusal. */
     @Test
     void theRequestIsReadOrTypedComparedOnceAndEveryDifferenceDrawnAsTheServerWordsIt(@TempDir Path folder) throws Exception {

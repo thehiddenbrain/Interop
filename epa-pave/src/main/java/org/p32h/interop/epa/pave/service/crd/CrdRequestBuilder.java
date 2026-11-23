@@ -110,6 +110,10 @@ public final class CrdRequestBuilder {
         MemberDetail member = request.member();
         ProviderDetail provider = request.provider();
         RequestShapes shaped = shapes == null ? RequestShapes.DEFAULTS : shapes;
+        RequestShapes.Choice prefetchChoice = shaped.choice(RequestShape.CRD_PREFETCH);
+        boolean asSample = RequestShape.AS_SAMPLE.equals(prefetchChoice.value());
+        // The diagnosis follows the sample only where the request is arranged as the sample is (D-310).
+        PrefetchLayout.Reason reason = asSample && sample != null ? sample.reason() : null;
 
         ObjectNode root = JSON.objectNode();
         root.put("hook", hook);
@@ -150,6 +154,9 @@ public final class CrdRequestBuilder {
         for (CodeInput code : request.procedureCodes()) {
             String id = CaseResources.serviceRequestId(position);
             ObjectNode order = resources.serviceRequest(id, code, member, provider, request.dateOfService(), authoredOn, hcpcs, notes);
+            if (reason != null) {
+                diagnosis(order, request.diagnosisCodes(), reason);
+            }
             hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
             CaseResources.entry(entries, order, fhirServer);
             sentOrders.add(order);
@@ -159,6 +166,9 @@ public final class CrdRequestBuilder {
         }
         if (!orders.isEmpty()) {
             notes.add(CaseResources.authoredOnNote(authoredOn));
+        }
+        if (reason != null) {
+            notes.add(diagnosisNote(request.diagnosisCodes(), reason));
         }
         if (hcpcsSent) {
             notes.add(CaseResources.hcpcsNote(hcpcs));
@@ -173,8 +183,6 @@ public final class CrdRequestBuilder {
         context.set("draftOrders", bundle);
         notes.add(draftOrdersNote(shaped.choice(RequestShape.CRD_DRAFT_ORDERS_TYPE)));
 
-        RequestShapes.Choice prefetchChoice = shaped.choice(RequestShape.CRD_PREFETCH);
-        boolean asSample = RequestShape.AS_SAMPLE.equals(prefetchChoice.value());
         if (prefetchSent && asSample && sample != null) {
             Pieces pieces = new Pieces(member, provider, rule, variables, notes, missing, sentOrders, sample);
             samplePrefetch(root.putObject("prefetch"), sample, pieces, fhirServer, prefetchChoice, notes);
@@ -220,6 +228,11 @@ public final class CrdRequestBuilder {
                     + CaseResources.VAR_FHIR_SERVER + " is not set. This request gives the service no way to read the Patient, the "
                     + "Coverage or the provider.");
         }
+        if (asSample && sample != null) {
+            // The diagnosis note already speaks for a reasonCode the case gave no code for, so it is not named twice.
+            notes.addAll(sample.elementLines(root, reason != null && request.diagnosisCodes().isEmpty() ? java.util.Set.of("reasonCode")
+                    : java.util.Set.of(), heldByCase(member, provider)));
+        }
         notes.add(CaseResources.fullUrlNote(fhirServer));
         if (!missing.isEmpty()) {
             // First, so a refusal by the service is read beside it and not taken for a fault of the service.
@@ -228,6 +241,72 @@ public final class CrdRequestBuilder {
                     + ". It goes all the same. The notes below say which, and what would supply each.");
         }
         return new Built(JsonSafe.pretty(root), notes, orders, missing);
+    }
+
+    /**
+     * Each diagnosis code of the case as a reasonCode of the order, with one coding: the system the
+     * tester stated, else the one the sample's reasonCode uses, and the code as typed. Placed before
+     * insurance, where FHIR's order of elements puts it, so the order reads as the sample's does.
+     */
+    private static void diagnosis(ObjectNode order, List<CodeInput> codes, PrefetchLayout.Reason reason) {
+        if (codes.isEmpty()) {
+            return;
+        }
+        JsonNode insurance = order.remove("insurance");
+        ArrayNode reasonCode = order.putArray("reasonCode");
+        for (CodeInput code : codes) {
+            ObjectNode coding = reasonCode.addObject().putArray("coding").addObject();
+            String system = Texts.present(code.system()) ? code.system().strip() : reason.system();
+            if (system != null) {
+                coding.put("system", system);
+            }
+            coding.put("code", code.code().strip());
+        }
+        if (insurance != null) {
+            order.set("insurance", insurance);
+        }
+    }
+
+    /**
+     * The members a case holds a value for that the coverage check does not build: the member's
+     * address, and the provider's address and phone or fax. A note must not call them absent.
+     */
+    static java.util.Map<String, java.util.Set<String>> heldByCase(MemberDetail member, ProviderDetail provider) {
+        java.util.Map<String, java.util.Set<String>> held = new java.util.HashMap<>();
+        if (member != null && present(member.address())) {
+            held.put("Patient", java.util.Set.of("address"));
+        }
+        java.util.Set<String> providerHeld = new java.util.HashSet<>();
+        if (provider != null && present(provider.address())) {
+            providerHeld.add("address");
+        }
+        if (provider != null && (Texts.present(provider.phone()) || Texts.present(provider.fax()))) {
+            providerHeld.add("telecom");
+        }
+        if (!providerHeld.isEmpty()) {
+            held.put("Practitioner", providerHeld);
+            held.put("Organization", providerHeld);
+        }
+        return held;
+    }
+
+    private static boolean present(org.p32h.interop.epa.pave.model.PostalAddress address) {
+        return address != null && (Texts.present(address.line1()) || Texts.present(address.line2()) || Texts.present(address.city())
+                || Texts.present(address.state()) || Texts.present(address.postalCode()));
+    }
+
+    /** What the request says of the diagnosis when the sample's order carries one: where it went, or that the case states none. */
+    static String diagnosisNote(List<CodeInput> codes, PrefetchLayout.Reason reason) {
+        if (codes.isEmpty()) {
+            return "The sample's order carries a diagnosis (reasonCode). This case states none: add Diagnosis codes on the Service card.";
+        }
+        // A count and a system, never the codes: a diagnosis beside a member is the member's own data.
+        String count = codes.size() == 1 ? "the case's diagnosis code" : "the case's " + codes.size() + " diagnosis codes";
+        boolean ownSystem = codes.stream().allMatch(code -> Texts.present(code.system()));
+        return "Each order carries " + count + " as reasonCode, as the sample's order carries a diagnosis there"
+                + (ownSystem ? ", with the system typed for each." : reason.system() == null
+                ? ". The sample's reasonCode states no coding system, so none was sent with the code."
+                : ", with the system " + reason.system() + " that the sample's reasonCode uses.");
     }
 
     /** Where a shape's value came from, as a note says it after the value. */

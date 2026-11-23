@@ -65,6 +65,12 @@ The Coverage id the vendor supplies is not read from the sample. Seen on live ag
 stand-in changed to answer "No patient data provided" unless the patient comes under the sample's key, at
 1440 by 900; never against the vendor's service (D-309).
 
+Since then (D-310), where the sample's order carries a diagnosis as `reasonCode`, the Diagnosis codes of
+the Service card go on every order the same way, with the sample's coding system, and a case with none is
+told to add them. What the sample's Patient, Coverage or order carries and PAVE's does not (an address, a
+`performer`, a class of type group) is named, never filled in, in the request's notes, under Prefetch in
+the form and, for a pasted request, in "Compare with a request that works".
+
 **A fourth correction after release 2: the values a sample request states are taken from it.** On the
 evening of the first real run against the vendor's UAT, the coverage check was refused: `"fhirServer"
 is required`. The vendor's collection stated the value all along, in the body of its sample coverage
@@ -520,7 +526,11 @@ by the next call.
      "Prefetch", "PAVE's named Bundles (patientBundle, coverageBundle, ...)" or "As the collection's
      sample (<its keys>)": the keys the coverage check's prefetch goes under (D-309). Filled from the
      collection's coverage-check sample when the environment states none and that sample writes a
-     prefetch; the lines under it say what following the sample leaves out, by key and type.
+     prefetch; the lines under it say what following the sample leaves out, by key and type, what
+     the sample's resources carry that PAVE never writes ("The sample's Patient also carries
+     address, telecom and meta. PAVE has no field for them, so they are not sent."), and, when the
+     sample's order carries a diagnosis, that the Diagnosis codes of the Service card go there
+     (D-310). These elements are standard FHIR; CRD does not require them.
      "PAS guide", "2.0.1" or "2.2.1": the version of Da Vinci PAS that Submit and the inquiry
      follow, 2.0.1 when the environment states none ("Submit follows Da Vinci PAS 2.0.1 unless the
      service asks for 2.2.1."). See [Submit](#submit).
@@ -1573,6 +1583,10 @@ open item, the worst first, with the entry that gives the reason.
   instead, and a key of a type PAVE does not build (an Encounter, say) is left out and said. "Compare
   with a request that works" builds PAVE's request with the named Bundles whatever the environment
   states. Not seen against the vendor's service.
+- **What a sample's resource carries beyond PAVE's is named, not sent** (D-310): a `performer`, a
+  Patient's address, telecom or extensions, a Coverage's relationship or class of type group. PAVE has
+  no field for them, and a member's address the case holds is not written on the coverage check's
+  Patient. Only the diagnosis is sent, and only where the sample's order carries one.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.

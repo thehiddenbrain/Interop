@@ -24,6 +24,10 @@ export function crdBody(request, own) {
     if (request.dateOfService) {
         body.dateOfService = request.dateOfService;
     }
+    // The server puts them on the order only where the collection's sample does (D-310); absent, nothing changes.
+    if (Array.isArray(request.diagnosisCodes) && request.diagnosisCodes.length > 0) {
+        body.diagnosisCodes = request.diagnosisCodes.map(each => (typeof each === 'string' ? {code: each} : each));
+    }
     if (own.expected) {
         body.expected = own.expected;
     }

@@ -37,13 +37,17 @@ import java.util.List;
  * @param arrangement how the two prefetches are arranged differently, one line per key only in one
  *                    request or holding another kind of thing there, by key and kind and never by
  *                    value (D-309). Null when the two arrange their prefetch alike
+ * @param elements    for each resource type both requests carry, the members your request's resource
+ *                    has and the tool's does not, one line per type, by name and never by value
+ *                    (D-310). Null when the tool's carries every member yours does
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({"comparable", "whyNot", "headline", "caveat", "maskedNote", "hook", "counts", "arrangement", "notes", "caseSource", "notFound", "differences",
+@JsonPropertyOrder({"comparable", "whyNot", "headline", "caveat", "maskedNote", "hook", "counts", "arrangement", "elements", "notes", "caseSource", "notFound", "differences",
         "toolBody", "yourBody"})
 public record RequestComparison(boolean comparable, String whyNot, String headline, String hook, String toolBody, String yourBody,
                                 List<CaseValue> caseSource, List<NotFound> notFound, List<Difference> differences,
-                                List<GroupCount> counts, List<String> notes, String caveat, String maskedNote, List<String> arrangement) {
+                                List<GroupCount> counts, List<String> notes, String caveat, String maskedNote, List<String> arrangement,
+                                List<String> elements) {
 
     public RequestComparison {
         if (headline == null || headline.isBlank()) {
@@ -58,6 +62,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
         counts = counts == null ? List.of() : List.copyOf(counts);
         notes = notes == null ? List.of() : List.copyOf(notes);
         arrangement = arrangement == null || arrangement.isEmpty() ? null : List.copyOf(arrangement);
+        elements = elements == null || elements.isEmpty() ? null : List.copyOf(elements);
     }
 
     public static Builder builder() {
@@ -85,6 +90,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
         private String caveat;
         private String maskedNote;
         private List<String> arrangement;
+        private List<String> elements;
 
         private Builder() {
         }
@@ -144,6 +150,11 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
             return this;
         }
 
+        public Builder elements(List<String> value) {
+            this.elements = value;
+            return this;
+        }
+
         public Builder notes(List<String> value) {
             this.notes = value;
             return this;
@@ -161,7 +172,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
 
         public RequestComparison build() {
             return new RequestComparison(comparable, whyNot, headline, hook, toolBody, yourBody, caseSource, notFound, differences,
-                    counts, notes, caveat, maskedNote, arrangement);
+                    counts, notes, caveat, maskedNote, arrangement, elements);
         }
     }
 }
