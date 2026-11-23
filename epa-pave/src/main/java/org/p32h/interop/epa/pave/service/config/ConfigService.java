@@ -379,7 +379,7 @@ public class ConfigService {
                     keys != null && org.p32h.interop.epa.pave.model.RequestShape.AS_SAMPLE.equals(option.value()) ? keys.optionWords()
                             : option.words())).toList();
             shapes.add(new SettingsViews.ShapeView(shape.name(), shape.label(), value, from, requestName, options, shape.why(),
-                    keys == null ? List.of() : keys.leftOutLines()));
+                    keys == null ? List.of() : keys.formLines()));
         }
 
         List<SettingsViews.ValueView> values = new ArrayList<>();

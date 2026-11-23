@@ -25,9 +25,34 @@ import tools.jackson.databind.JsonNode;
  * <p>The body is read once as a tree and the prefetch by fixed paths, two levels down, so nothing
  * here grows with the depth of the file.
  *
- * @param keys each key of the sample's prefetch, in its order; never empty
+ * @param keys      each key of the sample's prefetch, in its order; never empty
+ * @param patient   what the sample's first Patient states of the member ID's place, system and type
+ * @param coverage  the same of the sample's first Coverage
+ * @param practitionerSystem the system of the sample's first Practitioner's only identifier, or null
+ * @param contextExtras the members of the sample's context that PAVE's request has no value for, by name
  */
-public record PrefetchLayout(List<Key> keys) {
+public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage, String practitionerSystem, List<String> contextExtras) {
+
+    /** The members of context PAVE's request sends (CrdRequestBuilder). */
+    public static final Set<String> CONTEXT_SENT = Set.of("userId", "patientId", "draftOrders", "selections");
+
+    /**
+     * Where and how one resource of the sample carries the member ID, its value never kept: the
+     * identifier typed MB, else the resource's only identifier.
+     *
+     * @param hasIdentifier whether the resource has any identifier at all
+     * @param system        the system of the member ID's identifier, or null when it states none
+     * @param typeSystem    the system of that identifier's first type coding, or null
+     * @param typeCode      the code of that coding, or null
+     * @param subscriberId  whether the resource carries a subscriberId (a Coverage)
+     */
+    public record Identity(boolean hasIdentifier, String system, String typeSystem, String typeCode, boolean subscriberId) {
+
+        /** True when the sample states a type with both a system and a code. */
+        public boolean statesType() {
+            return typeSystem != null && typeCode != null;
+        }
+    }
 
     /** The resource types PAVE builds from the case, which are all a prefetch it sends can hold. */
     public static final Set<String> BUILT = Set.of("Patient", "Coverage", "Practitioner", "PractitionerRole", "Organization",
@@ -119,6 +144,12 @@ public record PrefetchLayout(List<Key> keys) {
 
     public PrefetchLayout {
         keys = keys == null ? List.of() : List.copyOf(keys);
+        contextExtras = contextExtras == null ? List.of() : List.copyOf(contextExtras);
+    }
+
+    /** The keys only, as a layout read before the sample's systems and context were followed. */
+    public PrefetchLayout(List<Key> keys) {
+        this(keys, null, null, null, List.of());
     }
 
     /** Counts only. */
@@ -147,10 +178,85 @@ public record PrefetchLayout(List<Key> keys) {
             return null;
         }
         List<Key> keys = new ArrayList<>();
+        // The first resource of each type the prefetch holds, whether alone under a key or in a Bundle: two levels, by fixed paths.
+        Map<String, JsonNode> first = new java.util.HashMap<>();
         for (Map.Entry<String, JsonNode> member : JsonSafe.properties(prefetch)) {
             keys.add(key(member.getKey(), member.getValue()));
+            JsonNode value = member.getValue();
+            String type = JsonSafe.presentText(value, "resourceType");
+            if ("Bundle".equals(type)) {
+                for (JsonNode entry : JsonSafe.elements(value, "entry")) {
+                    JsonNode resource = JsonSafe.child(entry, "resource");
+                    String entryType = JsonSafe.presentText(resource, "resourceType");
+                    if (entryType != null) {
+                        first.putIfAbsent(entryType, resource);
+                    }
+                }
+            } else if (type != null) {
+                first.putIfAbsent(type, value);
+            }
         }
-        return keys.isEmpty() ? null : new PrefetchLayout(keys);
+        if (keys.isEmpty()) {
+            return null;
+        }
+        List<String> extras = new ArrayList<>();
+        for (Map.Entry<String, JsonNode> member : JsonSafe.properties(JsonSafe.child(parsed.node(), "context"))) {
+            if (!CONTEXT_SENT.contains(member.getKey())) {
+                extras.add(Names.shown(member.getKey()));
+            }
+        }
+        return new PrefetchLayout(keys, identity(first.get("Patient")), identity(first.get("Coverage")),
+                onlySystem(first.get("Practitioner")), extras);
+    }
+
+    /** What a resource of the sample states of the member ID, or null when the sample holds no such resource. */
+    private static Identity identity(JsonNode resource) {
+        if (resource == null) {
+            return null;
+        }
+        List<JsonNode> identifiers = JsonSafe.elements(resource, "identifier");
+        JsonNode member = null;
+        for (JsonNode identifier : identifiers) {
+            for (JsonNode coding : JsonSafe.elements(JsonSafe.child(identifier, "type"), "coding")) {
+                if ("MB".equals(JsonSafe.presentText(coding, "code")) && member == null) {
+                    member = identifier;
+                }
+            }
+        }
+        if (member == null && identifiers.size() == 1) {
+            member = identifiers.get(0);
+        }
+        String system = member == null ? null : stated(JsonSafe.presentText(member, "system"));
+        JsonNode coding = member == null ? null : JsonSafe.elements(JsonSafe.child(member, "type"), "coding").stream().findFirst().orElse(null);
+        return new Identity(!identifiers.isEmpty(), system, coding == null ? null : stated(JsonSafe.presentText(coding, "system")),
+                coding == null ? null : stated(JsonSafe.presentText(coding, "code")), JsonSafe.presentText(resource, "subscriberId") != null);
+    }
+
+    /** The system of a resource's only identifier, or null. */
+    private static String onlySystem(JsonNode resource) {
+        List<JsonNode> identifiers = JsonSafe.elements(resource, "identifier");
+        return identifiers.size() == 1 ? stated(JsonSafe.presentText(identifiers.get(0), "system")) : null;
+    }
+
+    /** A text the sample states itself: a placeholder is the vendor's variable, whose value PAVE never takes from here. */
+    private static String stated(String text) {
+        return text == null || placeholder(text) ? null : text.strip();
+    }
+
+    /** What the form says of following this sample: what the prefetch leaves out, then the members of context PAVE has no value for. */
+    public List<String> formLines() {
+        List<String> lines = new ArrayList<>(leftOutLines());
+        lines.addAll(contextLines());
+        return lines;
+    }
+
+    /** The lines that say which members of the sample's context PAVE has no value for, by name, so none is sent. */
+    public List<String> contextLines() {
+        List<String> lines = new ArrayList<>();
+        for (String name : contextExtras) {
+            lines.add("The sample's context also carries " + name + ". PAVE has no value for it, so it is not sent.");
+        }
+        return lines;
     }
 
     /**

@@ -46,7 +46,8 @@ class PrefetchShapeTest {
              "context": {"userId": "Practitioner/sample-prac", "patientId": "sample-pat-1", "draftOrders": {"resourceType": "Bundle",
                          "type": "collection", "entry": []}},
              "prefetch": {
-               "patient": {"resourceType": "Patient", "id": "sample-pat-1", "name": [{"family": "SampleFamily"}]},
+               "patient": {"resourceType": "Patient", "id": "sample-pat-1", "name": [{"family": "SampleFamily"}],
+                           "identifier": [{"system": "https://payer.example.invalid/member-id", "value": "sample-member"}]},
                "coverage": {"resourceType": "Bundle", "type": "searchset", "total": 1,
                             "entry": [{"fullUrl": "urn:uuid:sample-cov", "resource": {"resourceType": "Coverage", "id": "sample-cov-1"},
                                        "search": {"mode": "match"}}]}}}
@@ -108,7 +109,8 @@ class PrefetchShapeTest {
         assertThat(coverage.at("/entry/0/resource/id").asString()).isEqualTo("coverage-1");
         assertThat(coverage.at("/entry/0/fullUrl").asString()).isEqualTo(FHIR + "/Coverage/coverage-1");
         assertThat(coverage.at("/entry/0/search/mode").asString()).isEqualTo("match");
-        assertThat(built.json()).doesNotContain("sample-pat-1").doesNotContain("SampleFamily").doesNotContain("sample-cov");
+        assertThat(built.json()).doesNotContain("sample-pat-1").doesNotContain("SampleFamily").doesNotContain("sample-cov")
+                .doesNotContain("sample-member");
 
         assertThat(built.notes()).contains("Prefetch: As the collection's sample, from the collection's sample (the request \""
                 + SAMPLE_NAME + "\"). The prefetch was sent under the sample's keys, each built from the case: \"patient\" (a Patient) "
@@ -263,6 +265,90 @@ class PrefetchShapeTest {
         assertThat(RequestShape.CRD_PREFETCH.words("NAMED_BUNDLES")).isEqualTo("PAVE's named Bundles (patientBundle, coverageBundle, ...)");
         assertThat(RequestShape.CRD_PREFETCH.words("AS_SAMPLE")).isEqualTo("As the collection's sample");
         assertThat(RequestShape.parse("CRD_PREFETCH")).isEqualTo(RequestShape.CRD_PREFETCH);
+    }
+
+    private static final Function<String, ResolvedText> NO_SYSTEM = template -> new FakeGateway().resolve(template, Map.of("fhirServer", FHIR));
+
+    private static CrdRequestBuilder.Built built(Function<String, ResolvedText> variables, String sampleBody) {
+        return new CrdRequestBuilder(null, CLOCK).build(request(), "hook-instance-1", variables, FROM_SAMPLE, MemberIdRule.PACKED,
+                PrefetchLayout.read(sampleBody));
+    }
+
+    /** A Patient, a Coverage and a Practitioner whose identifiers state another member ID system, another type and another NPI system. */
+    private static final String OTHER_SYSTEMS = sample("""
+            {"patient": {"resourceType": "Patient", "identifier": [{"type": {"coding": [{"system": "https://types.example.invalid", "code": "SB"}]},
+                          "system": "https://other-payer.example.invalid/members", "value": "sample-member"}]},
+             "coverage": {"resourceType": "Bundle", "type": "searchset", "entry": [{"resource": {"resourceType": "Coverage",
+                          "identifier": [{"system": "{{memberSystem}}", "value": "sample-member"}]}}]},
+             "practitioner": {"resourceType": "Practitioner", "identifier": [{"system": "https://npi.example.invalid", "value": "0000000000"}]}}
+            """);
+
+    @Test
+    void theMemberIdSystemAndTypeAndTheNpiSystemFollowTheSampleWhereNothingIsSetAndTheValuesAreTheCases() {
+        CrdRequestBuilder.Built built = built(NO_SYSTEM, OTHER_SYSTEMS);
+        JsonNode prefetch = prefetch(built);
+
+        JsonNode patientId = prefetch.at("/patient/identifier/0");
+        assertThat(patientId.get("system").asString()).isEqualTo("https://other-payer.example.invalid/members");
+        assertThat(patientId.at("/type/coding/0/code").asString()).isEqualTo("SB");
+        assertThat(patientId.at("/type/coding/0/system").asString()).isEqualTo("https://types.example.invalid");
+        assertThat(patientId.get("value").asString()).isEqualTo("S123456789");
+        // The Coverage's own system is a placeholder, never taken: the Patient's stands for the same member ID.
+        JsonNode coverageId = prefetch.at("/coverage/entry/0/resource/identifier/0");
+        assertThat(coverageId.get("system").asString()).isEqualTo("https://other-payer.example.invalid/members");
+        assertThat(coverageId.at("/type/coding/0/code").asString()).as("the sample's Coverage states no type").isEqualTo("MB");
+        JsonNode npi = prefetch.at("/practitioner/identifier/0");
+        assertThat(npi.get("system").asString()).isEqualTo("https://npi.example.invalid");
+        assertThat(npi.get("value").asString()).isEqualTo("1234567893");
+        assertThat(built.json()).doesNotContain("sample-member").doesNotContain("0000000000");
+        assertThat(built.notes()).contains(
+                "The member ID on the Patient went with the system https://other-payer.example.invalid/members, which the sample states: "
+                        + "the value Member ID system (memberIdSystem) is not set, and a value set there wins.",
+                "The member ID on the Patient was typed SB (https://types.example.invalid), as the sample types it, in place of MB.",
+                "The practitioner's NPI went with the system https://npi.example.invalid, which the sample's Practitioner states, in "
+                        + "place of http://hl7.org/fhir/sid/us-npi.");
+        assertThat(built.incomplete()).noneMatch(required -> required.element().startsWith("Patient.identifier.system"));
+    }
+
+    @Test
+    void theEnvironmentsMemberIdSystemWinsOverTheSample() {
+        CrdRequestBuilder.Built built = built(VARIABLES, OTHER_SYSTEMS);
+
+        assertThat(prefetch(built).at("/patient/identifier/0/system").asString()).isEqualTo("https://payer.example.invalid/member-id");
+        assertThat(built.notes()).noneMatch(note -> note.startsWith("The member ID on the Patient went with the system"));
+    }
+
+    @Test
+    void theMemberIdGoesWhereTheSamplesPatientAndCoverageCarryIt() {
+        String body = sample("""
+                {"patient": {"resourceType": "Patient", "name": [{"family": "SampleFamily"}]},
+                 "coverage": {"resourceType": "Coverage", "subscriberId": "sample-subscriber"}}
+                """);
+        CrdRequestBuilder.Built built = built(VARIABLES, body);
+        JsonNode prefetch = prefetch(built);
+
+        assertThat(prefetch.get("patient").has("identifier")).isFalse();
+        assertThat(prefetch.get("coverage").has("identifier")).isFalse();
+        assertThat(prefetch.at("/coverage/subscriberId").asString()).isEqualTo("S123456789");
+        assertThat(built.notes()).contains(
+                "The Patient was sent without the member ID, as the sample's Patient carries no identifier. The member ID still goes on "
+                        + "the Coverage.",
+                "The Coverage carries the member ID as subscriberId too, as the sample's Coverage has one and no subscriber ID was given.",
+                "The Coverage was sent without an identifier, as the sample's Coverage carries the member ID in subscriberId only.");
+    }
+
+    @Test
+    void aMemberOfTheSamplesContextPaveHasNoValueForIsNotSentAndIsSaidByName() {
+        String body = "{\"hook\": \"order-sign\", \"context\": {\"userId\": \"Practitioner/x\", \"patientId\": \"sample-pat\", "
+                + "\"encounterId\": \"sample-enc-1\"}, \"prefetch\": {\"patient\": {\"resourceType\": \"Patient\"}}}";
+        CrdRequestBuilder.Built built = built(VARIABLES, body);
+        JsonNode context = JsonSafe.parse(built.json()).node().get("context");
+
+        assertThat(keys(context)).containsExactly("userId", "patientId", "draftOrders");
+        assertThat(built.notes()).contains("The sample's context also carries encounterId. PAVE has no value for it, so it is not sent.");
+        assertThat(PrefetchLayout.read(body).formLines())
+                .containsExactly("The sample's context also carries encounterId. PAVE has no value for it, so it is not sent.");
+        assertThat(built.json()).doesNotContain("sample-enc-1");
     }
 
     static String collection(String schema, String hookBody) {

@@ -17,6 +17,7 @@ import java.util.List;
 import java.time.Clock;
 import java.util.Locale;
 import java.util.function.Function;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -175,7 +176,7 @@ public final class CrdRequestBuilder {
         RequestShapes.Choice prefetchChoice = shaped.choice(RequestShape.CRD_PREFETCH);
         boolean asSample = RequestShape.AS_SAMPLE.equals(prefetchChoice.value());
         if (prefetchSent && asSample && sample != null) {
-            Pieces pieces = new Pieces(member, provider, rule, variables, notes, missing, sentOrders);
+            Pieces pieces = new Pieces(member, provider, rule, variables, notes, missing, sentOrders, sample);
             samplePrefetch(root.putObject("prefetch"), sample, pieces, fhirServer, prefetchChoice, notes);
         } else if (prefetchSent) {
             if (asSample) {
@@ -252,12 +253,14 @@ public final class CrdRequestBuilder {
         private final List<String> notes;
         private final List<CaseResources.Required> missing;
         private final List<ObjectNode> orders;
+        private final PrefetchLayout sample;
         private ObjectNode patient;
         private ObjectNode coverage;
         private CaseResources.Provider named;
 
         Pieces(MemberDetail member, ProviderDetail provider, MemberIdRule rule, Function<String, ResolvedText> variables,
-               List<String> notes, List<CaseResources.Required> missing, List<ObjectNode> orders) {
+               List<String> notes, List<CaseResources.Required> missing, List<ObjectNode> orders, PrefetchLayout sample) {
+            this.sample = sample;
             this.member = member;
             this.provider = provider;
             this.rule = rule;
@@ -270,8 +273,97 @@ public final class CrdRequestBuilder {
         private CaseResources.Provider named() {
             if (named == null) {
                 named = CaseResources.crdProvider(provider, notes, missing);
+                followPractitionerSystem(named.practitioner());
             }
             return named;
+        }
+
+        /**
+         * The variables with the member ID's system the sample states where none is set: the
+         * environment's value wins, and the value itself is always the case's (D-309).
+         */
+        private Function<String, ResolvedText> withSampleSystem(PrefetchLayout.Identity own, PrefetchLayout.Identity other, String what) {
+            String set = CaseResources.value(variables, CaseResources.VAR_MEMBER_ID_SYSTEM);
+            String stated = own != null && own.system() != null ? own.system() : other == null ? null : other.system();
+            if (set != null || stated == null) {
+                return variables;
+            }
+            notes.add("The member ID on the " + what + " went with the system " + stated + ", which the sample states: the value "
+                    + "Member ID system (" + CaseResources.VAR_MEMBER_ID_SYSTEM + ") is not set, and a value set there wins.");
+            String template = "{{" + CaseResources.VAR_MEMBER_ID_SYSTEM + "}}";
+            return text -> template.equals(text) ? ResolvedText.plain(stated) : variables.apply(text);
+        }
+
+        /** The member ID's identifier typed as the sample types it, where the sample states a type other than PAVE's MB. */
+        private void followType(ObjectNode resource, PrefetchLayout.Identity own, String what) {
+            if (own == null || !own.statesType()) {
+                return;
+            }
+            JsonNode identifier = memberIdentifier(resource);
+            if (identifier == null) {
+                return;
+            }
+            ObjectNode coding = (ObjectNode) identifier.at("/type/coding/0");
+            if (own.typeSystem().equals(JsonSafe.text(coding, "system")) && own.typeCode().equals(JsonSafe.text(coding, "code"))) {
+                return;
+            }
+            coding.put("system", own.typeSystem());
+            coding.put("code", own.typeCode());
+            notes.add("The member ID on the " + what + " was typed " + own.typeCode() + " (" + own.typeSystem() + "), as the sample types "
+                    + "it, in place of MB.");
+        }
+
+        /** The identifier PAVE's builder writes the member ID in: the first, typed MB. */
+        private static JsonNode memberIdentifier(ObjectNode resource) {
+            JsonNode first = resource.at("/identifier/0");
+            return first.isObject() && first.at("/type/coding/0").isObject() ? first : null;
+        }
+
+        private void followPractitionerSystem(ObjectNode practitioner) {
+            String stated = sample == null ? null : sample.practitionerSystem();
+            JsonNode identifier = practitioner == null ? null : practitioner.at("/identifier/0");
+            if (stated == null || identifier == null || !identifier.isObject() || stated.equals(JsonSafe.text(identifier, "system"))) {
+                return;
+            }
+            ((ObjectNode) identifier).put("system", stated);
+            notes.add("The practitioner's NPI went with the system " + stated + ", which the sample's Practitioner states, in place of "
+                    + CaseResources.NPI_SYSTEM + ".");
+        }
+
+        /** The Patient with the member ID where the sample's Patient carries it: a Patient with no identifier in the sample carries none. */
+        private ObjectNode patient() {
+            PrefetchLayout.Identity own = sample == null ? null : sample.patient();
+            PrefetchLayout.Identity other = sample == null ? null : sample.coverage();
+            ObjectNode built = resources.crdPatient(member, rule, withSampleSystem(own, other, "Patient"), notes, missing);
+            followType(built, own, "Patient");
+            if (own != null && !own.hasIdentifier() && memberIdentifier(built) != null) {
+                ((ArrayNode) built.get("identifier")).remove(0);
+                if (built.get("identifier").isEmpty()) {
+                    built.remove("identifier");
+                }
+                notes.add("The Patient was sent without the member ID, as the sample's Patient carries no identifier. The member ID "
+                        + "still goes on the Coverage.");
+            }
+            return built;
+        }
+
+        /** The Coverage with the member ID where the sample's Coverage carries it: in subscriberId when that is its only place there. */
+        private ObjectNode coverage() {
+            PrefetchLayout.Identity own = sample == null ? null : sample.coverage();
+            PrefetchLayout.Identity other = sample == null ? null : sample.patient();
+            ObjectNode built = resources.crdCoverage(member, rule, withSampleSystem(own, other, "Coverage"), notes, missing);
+            followType(built, own, "Coverage");
+            if (own != null && own.subscriberId() && !built.has("subscriberId")) {
+                built.put("subscriberId", org.p32h.interop.epa.pave.model.MemberIds.sent(member.memberId(), rule));
+                notes.add("The Coverage carries the member ID as subscriberId too, as the sample's Coverage has one and no subscriber "
+                        + "ID was given.");
+            }
+            if (own != null && !own.hasIdentifier() && own.subscriberId() && built.has("identifier")) {
+                built.remove("identifier");
+                notes.add("The Coverage was sent without an identifier, as the sample's Coverage carries the member ID in subscriberId "
+                        + "only.");
+            }
+            return built;
         }
 
         /**
@@ -283,13 +375,13 @@ public final class CrdRequestBuilder {
             switch (type) {
                 case "Patient" -> {
                     if (patient == null) {
-                        patient = resources.crdPatient(member, rule, variables, notes, missing);
+                        patient = patient();
                     }
                     out.add(patient.deepCopy());
                 }
                 case "Coverage" -> {
                     if (coverage == null) {
-                        coverage = resources.crdCoverage(member, rule, variables, notes, missing);
+                        coverage = coverage();
                     }
                     out.add(coverage.deepCopy());
                 }
@@ -401,6 +493,7 @@ public final class CrdRequestBuilder {
         notes.add("Prefetch: As the collection's sample, " + from(choice) + ". The prefetch was sent under the sample's keys, each built "
                 + "from the case: " + (sent.isEmpty() ? "none could be filled" : PrefetchLayout.words(sent)) + ".");
         notes.addAll(said);
+        notes.addAll(sample.contextLines());
         List<String> notHeld = new ArrayList<>();
         for (String type : List.of("Patient", "Coverage", "Practitioner", "PractitionerRole")) {
             if (!held.contains(type)) {

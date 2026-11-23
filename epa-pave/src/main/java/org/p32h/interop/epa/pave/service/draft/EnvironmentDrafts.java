@@ -253,7 +253,7 @@ public class EnvironmentDrafts {
         List<String> lines = null;
         if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH && evidence.layout() != null) {
             words = evidence.layout().optionWords();
-            lines = evidence.layout().leftOutLines();
+            lines = evidence.layout().formLines();
         }
         return new ShapeRow(shape.name(), evidence.value(), FROM_SAMPLE, evidence.requestName(), shape.label(), words, lines);
     }
