@@ -130,18 +130,28 @@ class DiagnosisAndServicingStepsTest {
         return JsonSafe.parse(body).node();
     }
 
-    /** Every ServiceRequest of a body: in context.draftOrders, among the parameters, or among the entries. */
+    /**
+     * Every ServiceRequest of a body: in context.draftOrders, among the parameters, or among the entries. Each without
+     * its authoredOn: that is the second the body was built in, which a run and its preview do not share, and a
+     * comparison that kept it failed whenever a second began between the two.
+     */
     private static List<JsonNode> orders(JsonNode root) {
         List<JsonNode> out = new ArrayList<>();
-        root.at("/context/draftOrders/entry").forEach(entry -> out.add(entry.get("resource")));
+        root.at("/context/draftOrders/entry").forEach(entry -> out.add(unstamped(entry.get("resource"))));
         for (String list : List.of("parameter", "entry")) {
             for (JsonNode item : JsonSafe.elements(root, list)) {
                 if ("ServiceRequest".equals(JsonSafe.presentText(item.get("resource"), "resourceType"))) {
-                    out.add(item.get("resource"));
+                    out.add(unstamped(item.get("resource")));
                 }
             }
         }
         return out;
+    }
+
+    private static JsonNode unstamped(JsonNode order) {
+        ObjectNode copy = ((ObjectNode) order).deepCopy();
+        copy.remove("authoredOn");
+        return copy;
     }
 
     /** What the run says in words, everything but the wire view, which shows what was sent. */
