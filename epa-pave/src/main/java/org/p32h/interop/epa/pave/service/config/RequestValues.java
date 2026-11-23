@@ -288,7 +288,74 @@ public final class RequestValues {
         return out;
     }
 
-    private record Carried(String fullUrl, JsonNode resource) {
+    /** A resource a request's body carries, with the fullUrl of its Bundle entry where it has one. */
+    public record Carried(String fullUrl, JsonNode resource) {
+
+        /** Never the resource: it is a vendor's sample and may hold member data. */
+        @Override
+        public String toString() {
+            return "Carried[" + JsonSafe.presentText(resource, "resourceType") + "]";
+        }
+    }
+
+    /**
+     * Every resource a request's body carries where a reference can find it, by the shape of the
+     * body, by fixed paths: a CDS Hooks body its draft orders and its prefetch; a Parameters body
+     * its parameters, and the entries of a Bundle among them; a Bundle its entries; any other
+     * resource itself. The saved lists read the performer an order names through this (D-322), as
+     * the payer of a Coverage is read (D-320).
+     */
+    public static List<Carried> carried(JsonNode root) {
+        if (!JsonSafe.isObject(root)) {
+            return List.of();
+        }
+        if (JsonSafe.presentText(root, "hook") != null) {
+            return prefetchCarried(root);
+        }
+        String type = JsonSafe.presentText(root, "resourceType");
+        List<Carried> out = new ArrayList<>();
+        if ("Parameters".equals(type)) {
+            out.addAll(parametersCarried(root));
+            for (JsonNode parameter : JsonSafe.elements(root, "parameter")) {
+                JsonNode resource = JsonSafe.child(parameter, "resource");
+                if ("Bundle".equals(JsonSafe.presentText(resource, "resourceType"))) {
+                    for (JsonNode entry : JsonSafe.elements(resource, "entry")) {
+                        carried(out, JsonSafe.presentText(entry, "fullUrl"), JsonSafe.child(entry, "resource"));
+                    }
+                }
+            }
+        } else if ("Bundle".equals(type)) {
+            for (JsonNode entry : JsonSafe.elements(root, "entry")) {
+                carried(out, JsonSafe.presentText(entry, "fullUrl"), JsonSafe.child(entry, "resource"));
+            }
+        } else {
+            carried(out, null, root);
+        }
+        return out;
+    }
+
+    /**
+     * The resource a reference names within the request, by the rule the payer is read by: a
+     * contained resource of the holder by "#id", or a resource the body carries by type and id or
+     * by its fullUrl.
+     *
+     * @param count how many the reference names: 0 for none, more than 1 when it cannot be told which
+     * @param resource the one it names when count is 1
+     */
+    public record Named(int count, JsonNode resource) {
+
+        @Override
+        public String toString() {
+            return "Named[" + count + "]";
+        }
+    }
+
+    public static Named named(JsonNode holder, List<Carried> carried, String reference) {
+        if (!Texts.present(reference)) {
+            return new Named(0, null);
+        }
+        Found found = find(holder, carried, reference.strip());
+        return new Named(found.count(), found.count() == 1 ? found.resource() : null);
     }
 
     private static void carried(List<Carried> out, String fullUrl, JsonNode resource) {

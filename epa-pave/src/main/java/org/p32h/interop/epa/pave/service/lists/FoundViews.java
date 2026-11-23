@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import java.util.List;
 
 /**
- * What the requests of a collection state about members, providers and procedure codes, and what
+ * What the requests of a collection state about members, providers, procedure codes and diagnosis codes, and what
  * adding them to the saved lists did. Each record prints counts only: what was found is sample
  * member data.
  */
@@ -32,10 +32,25 @@ public final class FoundViews {
         }
     }
 
-    /** A provider a collection's requests state. */
+    /**
+     * A provider a collection's requests state: a person, or a facility an order or a claim names as
+     * who performs the service.
+     *
+     * @param organization the name of the Organization, for a facility, or the organization a role names for a person
+     * @param from         the name of the first request it was found in
+     * @param requesterIn  the first request that names it as the requester of an order or a claim, or absent
+     * @param performerIn  the first request that names it as an order's performer or on a claim's care team, or absent
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"npi", "vendorPractitionerId", "firstName", "lastName", "from"})
-    public record FoundProvider(String npi, String vendorPractitionerId, String firstName, String lastName, String from) {
+    @JsonPropertyOrder({"npi", "vendorPractitionerId", "firstName", "lastName", "organization", "phone", "fax", "from", "requesterIn",
+            "performerIn"})
+    public record FoundProvider(String npi, String vendorPractitionerId, String firstName, String lastName, String organization, String phone,
+            String fax, String from, String requesterIn, String performerIn) {
+
+        /** A provider found with no role, as D-306 found every provider. */
+        public FoundProvider(String npi, String vendorPractitionerId, String firstName, String lastName, String from) {
+            this(npi, vendorPractitionerId, firstName, lastName, null, null, null, from, null, null);
+        }
 
         @Override
         public String toString() {
@@ -44,7 +59,7 @@ public final class FoundViews {
     }
 
     /**
-     * A procedure code a collection's requests state.
+     * A procedure code, or a diagnosis code, a collection's requests state.
      *
      * @param system      the code system as written, or absent
      * @param systemShort the code system as a tester names it (CPT, HCPCS), or the system as written
@@ -65,24 +80,26 @@ public final class FoundViews {
      *
      * @param notUsed what was seen and cannot be used, one sentence each, saying what it is and why
      */
-    @JsonPropertyOrder({"members", "providers", "codes", "notUsed"})
-    public record Finds(List<FoundMember> members, List<FoundProvider> providers, List<FoundCode> codes, List<String> notUsed) {
+    @JsonPropertyOrder({"members", "providers", "codes", "diagnoses", "notUsed"})
+    public record Finds(List<FoundMember> members, List<FoundProvider> providers, List<FoundCode> codes, List<FoundCode> diagnoses,
+            List<String> notUsed) {
 
         public Finds {
             members = members == null ? List.of() : List.copyOf(members);
             providers = providers == null ? List.of() : List.copyOf(providers);
             codes = codes == null ? List.of() : List.copyOf(codes);
+            diagnoses = diagnoses == null ? List.of() : List.copyOf(diagnoses);
             notUsed = notUsed == null ? List.of() : List.copyOf(notUsed);
         }
 
         public boolean empty() {
-            return members.isEmpty() && providers.isEmpty() && codes.isEmpty();
+            return members.isEmpty() && providers.isEmpty() && codes.isEmpty() && diagnoses.isEmpty();
         }
 
         @Override
         public String toString() {
-            return "Finds[members=" + members.size() + ", providers=" + providers.size() + ", codes=" + codes.size() + ", notUsed="
-                    + notUsed.size() + "]";
+            return "Finds[members=" + members.size() + ", providers=" + providers.size() + ", codes=" + codes.size() + ", diagnoses="
+                    + diagnoses.size() + ", notUsed=" + notUsed.size() + "]";
         }
     }
 
@@ -96,21 +113,22 @@ public final class FoundViews {
      * @param cause     for such a failure, the chain of exception types; absent otherwise
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"enabled", "line", "reference", "cause", "members", "providers", "codes", "notUsed"})
+    @JsonPropertyOrder({"enabled", "line", "reference", "cause", "members", "providers", "codes", "diagnoses", "notUsed"})
     public record Found(boolean enabled, String line, String reference, String cause, List<FoundMember> members,
-            List<FoundProvider> providers, List<FoundCode> codes, List<String> notUsed) {
+            List<FoundProvider> providers, List<FoundCode> codes, List<FoundCode> diagnoses, List<String> notUsed) {
 
         public Found {
             members = members == null ? List.of() : List.copyOf(members);
             providers = providers == null ? List.of() : List.copyOf(providers);
             codes = codes == null ? List.of() : List.copyOf(codes);
+            diagnoses = diagnoses == null ? List.of() : List.copyOf(diagnoses);
             notUsed = notUsed == null ? List.of() : List.copyOf(notUsed);
         }
 
         @Override
         public String toString() {
             return "Found[enabled=" + enabled + ", members=" + members.size() + ", providers=" + providers.size() + ", codes="
-                    + codes.size() + "]";
+                    + codes.size() + ", diagnoses=" + diagnoses.size() + "]";
         }
     }
 

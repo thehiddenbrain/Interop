@@ -103,7 +103,9 @@ class CollectionFindsTest {
 
         assertThat(finds.members()).containsExactly(new FoundMember(null, "pat-001", null, null, null, null, null, null, null, null, null,
                 "Order sign"));
-        assertThat(finds.providers()).containsExactly(new FoundProvider(null, "prac-001", null, null, "Order sign"));
+        // The user of a CDS Hooks request orders, so its entry says it is the requester (D-322).
+        assertThat(finds.providers()).containsExactly(new FoundProvider(null, "prac-001", null, null, null, null, null, "Order sign",
+                "Order sign", null));
         assertThat(finds.codes()).containsExactly(
                 new FoundCode("97110", "http://www.ama-assn.org/go/cpt", "CPT", "Therapeutic exercise", "Order sign"),
                 new FoundCode("E0601", "https://bluebutton.cms.gov/resources/codesystem/hcpcs", "HCPCS", "Continuous airway pressure device",
@@ -119,8 +121,9 @@ class CollectionFindsTest {
         // The official name, both given names; the gender in the case the lists keep.
         assertThat(finds.members()).containsExactly(new FoundMember("S123456789", "pat-001", "Sample A", "Placeholder-One", "1980-01-31",
                 "female", null, null, null, null, null, "Order sign with prefetch"));
-        assertThat(finds.providers()).containsExactly(new FoundProvider("1234567893", "prac-001", "Sample", "Placeholder-Provider",
-                "Order sign with prefetch"));
+        // The context's user is the requester (D-322).
+        assertThat(finds.providers()).containsExactly(new FoundProvider("1234567893", "prac-001", "Sample", "Placeholder-Provider", null,
+                null, null, "Order sign with prefetch", "Order sign with prefetch", null));
         assertThat(finds.codes()).hasSize(2);
         assertThat(finds.notUsed()).isEmpty();
     }

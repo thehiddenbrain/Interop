@@ -20,6 +20,8 @@ import org.p32h.interop.epa.pave.postman.PostmanRequest;
 import org.p32h.interop.epa.pave.postman.Resolution;
 import org.p32h.interop.epa.pave.postman.VariableLayer;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
+import org.p32h.interop.epa.pave.service.config.RequestValues;
+import org.p32h.interop.epa.pave.service.crd.PrefetchLayout;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.Finds;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundCode;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundMember;
@@ -27,14 +29,20 @@ import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundProvider;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The members, providers and procedure codes the requests of a collection state, read from what
- * the collection sends: the body and the url of each request as written, its placeholders filled
+ * The members, providers, procedure codes and diagnosis codes the requests of a collection state,
+ * read from what the collection sends: the body and the url of each request as written, its placeholders filled
  * from the layers given. Saved example responses are not read, and scripts are neither read nor run.
  *
  * <p>A vendor's sample requests carry exactly what a tester cannot guess: the ids of the vendor's
  * own patients and practitioners, the member ID of a test member, an NPI the sandbox knows, the
  * codes it answers for. Nothing is guessed here either: a value is taken only where a request
  * states it, and what is seen but cannot be used is said in one sentence, never dropped in silence.
+ *
+ * <p>A provider an order names as its performer, or a claim's care team as its provider, is read
+ * where the request carries it, found by the rule the payer of a Coverage is found by
+ * ({@link RequestValues#named}), and labelled so: a tester picking a servicing provider can tell it
+ * from the requester (D-322). A diagnosis code is read from an order's reasonCode and a claim's
+ * diagnosis; a sentence here never quotes one, since beside a member it is the member's own data.
  *
  * <p>A body is walked with a stack of its own, never by recursion, so a body as deep as the parser
  * reads ends in a result and not in a StackOverflowError. Nothing here logs.
@@ -48,19 +56,25 @@ public final class CollectionFinds {
 
     private static final List<String> MEMBER_FIELDS = List.of("memberId", "vendorPatientId", "firstName", "lastName", "dateOfBirth",
             "gender", "subscriberId", "coverageStatus", "coverageStart", "coverageEnd", "plan");
-    private static final List<String> PROVIDER_FIELDS = List.of("npi", "vendorPractitionerId", "firstName", "lastName");
+    private static final List<String> PROVIDER_FIELDS = List.of("npi", "vendorPractitionerId", "firstName", "lastName", "organization", "phone",
+            "fax");
     private static final List<String> CODE_FIELDS = List.of("code", "system", "description");
     private static final Map<String, String> WORDS = Map.ofEntries(Map.entry("memberId", "member ID"),
             Map.entry("vendorPatientId", "vendor patient id"), Map.entry("firstName", "first name"), Map.entry("lastName", "last name"),
             Map.entry("dateOfBirth", "date of birth"), Map.entry("gender", "gender"), Map.entry("subscriberId", "subscriber ID"),
             Map.entry("coverageStatus", "coverage status"), Map.entry("coverageStart", "coverage start"),
             Map.entry("coverageEnd", "coverage end"), Map.entry("plan", "plan"), Map.entry("npi", "NPI"),
-            Map.entry("vendorPractitionerId", "vendor practitioner id"), Map.entry("description", "description"));
+            Map.entry("vendorPractitionerId", "vendor practitioner id"), Map.entry("description", "description"),
+            Map.entry("organization", "organization"), Map.entry("phone", "phone"), Map.entry("fax", "fax"));
 
     /** One entry while the collection is read: its values by field, and the request it was first found in. */
     private static final class Entry {
         final Map<String, String> values = new LinkedHashMap<>();
         final String from;
+        /** The first request that names this provider as the requester of an order or a claim, or null. */
+        String requesterIn;
+        /** The first request that names this provider as an order's performer or on a claim's care team, or null. */
+        String performerIn;
 
         Entry(String from) {
             this.from = from;
@@ -87,8 +101,9 @@ public final class CollectionFinds {
         final List<Entry> members = new ArrayList<>();
         final List<Entry> providers = new ArrayList<>();
         final List<Entry> codes = new ArrayList<>();
+        final List<Entry> diagnoses = new ArrayList<>();
         final List<String> notUsed = new ArrayList<>();
-        final int[] overflow = new int[3];
+        final int[] overflow = new int[4];
     }
 
     private CollectionFinds() {
@@ -106,7 +121,7 @@ public final class CollectionFinds {
         for (PostmanRequest request : collection.requests()) {
             readRequest(request, layers, resolver, memberIdSystem, reading);
         }
-        String[] lists = {"members", "providers", "procedure codes"};
+        String[] lists = {"members", "providers", "procedure codes", "diagnosis codes"};
         for (int i = 0; i < lists.length; i++) {
             if (reading.overflow[i] > 0) {
                 reading.notUsed.add("The collection states more than " + TestListRules.MAX_ENTRIES + " " + lists[i] + ", the most a list "
@@ -122,14 +137,20 @@ public final class CollectionFinds {
         List<FoundProvider> providers = new ArrayList<>();
         for (Entry entry : reading.providers) {
             providers.add(new FoundProvider(entry.get("npi"), entry.get("vendorPractitionerId"), entry.get("firstName"),
-                    entry.get("lastName"), entry.from));
+                    entry.get("lastName"), entry.get("organization"), entry.get("phone"), entry.get("fax"), entry.from, entry.requesterIn,
+                    entry.performerIn));
         }
         List<FoundCode> codes = new ArrayList<>();
         for (Entry entry : reading.codes) {
             codes.add(new FoundCode(entry.get("code"), entry.get("system"), CodeSystems.shortName(entry.get("system")),
                     entry.get("description"), entry.from));
         }
-        return new Finds(members, providers, codes, reading.notUsed);
+        List<FoundCode> diagnoses = new ArrayList<>();
+        for (Entry entry : reading.diagnoses) {
+            diagnoses.add(new FoundCode(entry.get("code"), entry.get("system"), CodeSystems.shortName(entry.get("system")),
+                    entry.get("description"), entry.from));
+        }
+        return new Finds(members, providers, codes, diagnoses, reading.notUsed);
     }
 
     /** The environment's member ID system, when a layer states one that is not a secret. */
@@ -156,6 +177,7 @@ public final class CollectionFinds {
         List<Entry> members = new ArrayList<>();
         List<Entry> providers = new ArrayList<>();
         List<Entry> codes = new ArrayList<>();
+        List<Entry> diagnoses = new ArrayList<>();
         readUrl(request.url(), layers, resolver, from, members, providers);
         String body = request.body();
         if (Texts.present(body)) {
@@ -170,7 +192,8 @@ public final class CollectionFinds {
                     reading.notUsed.add(where + ": its body is not JSON" + (parsed.tooDeep() ? " this tool reads (it nests too deep)" : "")
                             + ", so nothing was read from it.");
                 } else {
-                    readBody(parsed.node(), where, from, memberIdSystem, members, providers, codes, reading.notUsed);
+                    Found found = new Found(where, from, members, providers, codes, diagnoses, reading.notUsed);
+                    readBody(parsed.node(), memberIdSystem, PrefetchLayout.errorSample(request.name()), found);
                 }
             }
         }
@@ -182,6 +205,9 @@ public final class CollectionFinds {
         }
         for (Entry entry : codes) {
             merge(reading.codes, entry, CODE_FIELDS, CollectionFinds::sameCode, where, "code", reading, 2);
+        }
+        for (Entry entry : diagnoses) {
+            merge(reading.diagnoses, entry, CODE_FIELDS, CollectionFinds::sameCode, where, "diagnosis code", reading, 3);
         }
     }
 
@@ -238,8 +264,18 @@ public final class CollectionFinds {
     // One body
     // ------------------------------------------------------------------------------------------
 
-    private static void readBody(JsonNode root, String where, String from, String memberIdSystem, List<Entry> members,
-            List<Entry> providers, List<Entry> codes, List<String> notUsed) {
+    /** What one request's body gives, and where it is said. */
+    private record Found(String where, String from, List<Entry> members, List<Entry> providers, List<Entry> codes, List<Entry> diagnoses,
+            List<String> notUsed) {
+    }
+
+    private static void readBody(JsonNode root, String memberIdSystem, boolean errorSample, Found found) {
+        String where = found.where();
+        String from = found.from();
+        List<Entry> members = found.members();
+        List<Entry> providers = found.providers();
+        List<Entry> codes = found.codes();
+        List<String> notUsed = found.notUsed();
         hookContext(root, where, from, members, providers, notUsed);
         // Every resource in the body, in document order, wherever it sits: a prefetch value, a
         // Bundle entry, a contained resource, a Parameters part. fullUrls keeps the fullUrl of a
@@ -288,6 +324,286 @@ public final class CollectionFinds {
                 coverage(resource, where, patients, notUsed);
             }
         }
+        Roles roles = new Roles(root, found);
+        boolean stated = false;
+        for (JsonNode resource : resources) {
+            String type = JsonSafe.presentText(resource, "resourceType");
+            switch (type) {
+                case "ServiceRequest", "DeviceRequest", "Procedure" -> {
+                    // Read even in a sample of an error: who requests is not what a refusal is shown by.
+                    roles.requester(resource, JsonSafe.child(resource, "requester"));
+                    List<JsonNode> reasons = JsonSafe.elements(resource, "reasonCode");
+                    List<JsonNode> performers = "ServiceRequest".equals(type) ? JsonSafe.elements(resource, "performer") : List.of();
+                    stated = stated || !reasons.isEmpty() || !performers.isEmpty();
+                    if (!errorSample) {
+                        for (JsonNode reason : reasons) {
+                            diagnosis(reason, found);
+                        }
+                        for (JsonNode performer : performers) {
+                            roles.performer(resource, performer, "the performer of an order");
+                        }
+                    }
+                }
+                case "Claim" -> {
+                    roles.requester(resource, JsonSafe.child(resource, "provider"));
+                    List<JsonNode> diagnoses = JsonSafe.elements(resource, "diagnosis");
+                    List<JsonNode> team = JsonSafe.elements(resource, "careTeam");
+                    stated = stated || !diagnoses.isEmpty() || !team.isEmpty();
+                    if (!errorSample) {
+                        for (JsonNode each : diagnoses) {
+                            diagnosis(JsonSafe.child(each, "diagnosisCodeableConcept"), found);
+                        }
+                        for (JsonNode member : team) {
+                            roles.performer(resource, JsonSafe.child(member, "provider"), "a provider of a claim's care team");
+                        }
+                    }
+                }
+                default -> {
+                    // No other resource names a diagnosis or who performs the service.
+                }
+            }
+        }
+        if (errorSample && stated) {
+            // A sample of an error may state what the service refuses, to show the refusal (D-309).
+            notUsed.add(where + " is a sample of an error, so no diagnosis code and no performer was taken from it.");
+        }
+    }
+
+    /**
+     * Each coding of a diagnosis with a code: the code, its system as written, its display or else
+     * the concept's text. A concept stated as text alone gives nothing, and a line says so without
+     * the text.
+     */
+    private static void diagnosis(JsonNode concept, Found found) {
+        if (!JsonSafe.isObject(concept)) {
+            return;
+        }
+        String text = JsonSafe.presentText(concept, "text");
+        boolean coded = false;
+        for (JsonNode coding : JsonSafe.elements(concept, "coding")) {
+            String code = JsonSafe.presentText(coding, "code");
+            if (code == null) {
+                continue;
+            }
+            coded = true;
+            if (!TestListRules.fitsCode(code.strip())) {
+                found.notUsed().add(found.where() + ": a diagnosis code longer than " + TestListRules.MAX_CODE + " characters, or with a "
+                        + "space in it, was left out.");
+                continue;
+            }
+            Entry entry = new Entry(found.from());
+            entry.put("code", code);
+            entry.put("system", JsonSafe.presentText(coding, "system"));
+            entry.put("description", Texts.firstPresent(JsonSafe.presentText(coding, "display"), text));
+            found.diagnoses().add(entry);
+        }
+        if (!coded) {
+            found.notUsed().add(found.where() + ": a diagnosis is stated with no code, so it was left out.");
+        }
+    }
+
+    /**
+     * The providers an order or a claim names by reference: the requester, whose entry is only
+     * labelled, and the performer, whose entry is added. Each resource is read once a request, so a
+     * facility named by an order and by a claim gives one entry and its lines once.
+     */
+    private static final class Roles {
+        private final List<RequestValues.Carried> carried;
+        private final Found found;
+        private final Map<JsonNode, Entry> read = new IdentityHashMap<>();
+        private final List<String> said = new ArrayList<>();
+
+        Roles(JsonNode root, Found found) {
+            this.carried = RequestValues.carried(root);
+            this.found = found;
+        }
+
+        private void say(String line) {
+            String full = found.where() + ": " + line;
+            if (!said.contains(full)) {
+                said.add(full);
+                found.notUsed().add(full);
+            }
+        }
+
+        /** Labels the Practitioner an order's requester or a claim's provider names, when the request carries it; adds nothing. */
+        void requester(JsonNode holder, JsonNode reference) {
+            String written = JsonSafe.presentText(reference, "reference");
+            RequestValues.Named named = RequestValues.named(holder, carried, written);
+            if (named.count() != 1) {
+                return;
+            }
+            JsonNode resource = named.resource();
+            String type = JsonSafe.presentText(resource, "resourceType");
+            if ("PractitionerRole".equals(type)) {
+                RequestValues.Named person = RequestValues.named(resource, carried, JsonSafe.presentText(JsonSafe.child(resource, "practitioner"),
+                        "reference"));
+                person = person.count() == 0 ? RequestValues.named(holder, carried, JsonSafe.presentText(JsonSafe.child(resource,
+                        "practitioner"), "reference")) : person;
+                resource = person.count() == 1 ? person.resource() : null;
+                type = JsonSafe.presentText(resource, "resourceType");
+            }
+            if ("Practitioner".equals(type)) {
+                Entry entry = practitionerOf(resource);
+                if (entry != null && entry.requesterIn == null) {
+                    entry.requesterIn = found.from();
+                }
+            }
+        }
+
+        /**
+         * The provider an order's performer or a claim's care team names. A Practitioner as any
+         * Practitioner is read; a PractitionerRole as the Practitioner and the Organization it
+         * names; an Organization by its name, NPI, phone and fax; a reference to nothing the request
+         * carries only when it reads Practitioner/id, as a vendor practitioner id alone.
+         */
+        void performer(JsonNode holder, JsonNode reference, String what) {
+            if (!JsonSafe.isObject(reference)) {
+                return;
+            }
+            String written = JsonSafe.presentText(reference, "reference");
+            if (written == null) {
+                say(what + " names no resource by reference, so it was not read.");
+                return;
+            }
+            RequestValues.Named named = RequestValues.named(holder, carried, written);
+            if (named.count() > 1) {
+                say(what + " names more than one resource the request carries, so none of them was read.");
+                return;
+            }
+            if (named.count() == 0) {
+                notCarried(written.strip(), what);
+                return;
+            }
+            JsonNode resource = named.resource();
+            String type = JsonSafe.presentText(resource, "resourceType");
+            switch (Texts.orElse(type, "")) {
+                case "Practitioner" -> performing(practitionerOf(resource));
+                case "Organization" -> performing(organizationOf(resource));
+                case "PractitionerRole" -> role(holder, resource, what);
+                default -> say(what + " names " + (type == null ? "a resource with no type" : "a " + Names.shown(type)) + ", which a saved "
+                        + "provider does not hold, so it was not read.");
+            }
+        }
+
+        private void role(JsonNode holder, JsonNode role, String what) {
+            String person = JsonSafe.presentText(JsonSafe.child(role, "practitioner"), "reference");
+            String organization = JsonSafe.presentText(JsonSafe.child(role, "organization"), "reference");
+            if (person == null && organization == null) {
+                say(what + " is a PractitionerRole that names no Practitioner and no Organization, so it was not read.");
+                return;
+            }
+            Entry practitioner = null;
+            if (person != null) {
+                RequestValues.Named named = within(role, holder, person);
+                if (named.count() == 1 && "Practitioner".equals(JsonSafe.presentText(named.resource(), "resourceType"))) {
+                    practitioner = practitionerOf(named.resource());
+                    performing(practitioner);
+                } else if (named.count() == 0) {
+                    notCarried(person.strip(), "the Practitioner of a PractitionerRole that is " + what + ",");
+                } else {
+                    say("the Practitioner of a PractitionerRole that is " + what + " cannot be told, so it was not read.");
+                }
+            }
+            if (organization != null) {
+                RequestValues.Named named = within(role, holder, organization);
+                if (named.count() == 1 && "Organization".equals(JsonSafe.presentText(named.resource(), "resourceType"))) {
+                    Entry facility = organizationOf(named.resource());
+                    performing(facility);
+                    // The role states where the practitioner works: its organization's name goes with the practitioner.
+                    if (practitioner != null && facility != null && practitioner.get("organization") == null) {
+                        practitioner.put("organization", facility.get("organization"));
+                    }
+                } else if (named.count() == 0) {
+                    say("the Organization of a PractitionerRole that is " + what + " is not in the request, and a saved provider has no "
+                            + "place for an organization's id, so it was not read.");
+                } else {
+                    say("the Organization of a PractitionerRole that is " + what + " cannot be told, so it was not read.");
+                }
+            }
+        }
+
+        /** A reference of a role: within the role's own contained resources first, then where the order's are found. */
+        private RequestValues.Named within(JsonNode role, JsonNode holder, String reference) {
+            RequestValues.Named named = RequestValues.named(role, carried, reference);
+            return named.count() == 0 && reference.strip().startsWith("#") ? RequestValues.named(holder, carried, reference) : named;
+        }
+
+        private void notCarried(String reference, String what) {
+            String id = reference.startsWith("Practitioner/") ? reference.substring("Practitioner/".length()) : null;
+            if (id != null && TestListRules.fitsResourceId(id)) {
+                Entry entry = new Entry(found.from());
+                entry.put("vendorPractitionerId", id);
+                performing(entry);
+                found.providers().add(entry);
+            } else if (id != null) {
+                say(what + " names a Practitioner by an id a FHIR server does not give (letters, digits, - and . only), so it was left out.");
+            } else if (reference.startsWith("Organization/")) {
+                say(what + " names an Organization the request does not carry, and a saved provider has no place for an organization's id, "
+                        + "so it was not read.");
+            } else {
+                say(what + " names a resource the request does not carry, so it was not read.");
+            }
+        }
+
+        private void performing(Entry entry) {
+            if (entry != null && entry.performerIn == null) {
+                entry.performerIn = found.from();
+            }
+        }
+
+        /** The entry of a Practitioner the request carries; its lines are said by the walk that reads every Practitioner. */
+        private Entry practitionerOf(JsonNode resource) {
+            if (read.containsKey(resource)) {
+                return read.get(resource);
+            }
+            List<Entry> one = new ArrayList<>();
+            practitioner(resource, found.where(), found.from(), one, new ArrayList<>());
+            Entry entry = one.isEmpty() ? null : one.get(0);
+            if (entry != null) {
+                found.providers().add(entry);
+            }
+            read.put(resource, entry);
+            return entry;
+        }
+
+        /** An Organization: its name, its NPI when the check digit holds, its phone and fax. One with neither NPI nor name gives nothing. */
+        private Entry organizationOf(JsonNode resource) {
+            if (read.containsKey(resource)) {
+                return read.get(resource);
+            }
+            Entry entry = new Entry(found.from());
+            entry.put("organization", JsonSafe.presentText(resource, "name"));
+            for (JsonNode identifier : JsonSafe.elements(resource, "identifier")) {
+                String value = JsonSafe.presentText(identifier, "value");
+                if (value == null || !NPI_SYSTEM.equals(JsonSafe.presentText(identifier, "system"))) {
+                    continue;
+                }
+                if (Npi.isValid(value.strip())) {
+                    if (entry.get("npi") == null) {
+                        entry.put("npi", value);
+                    }
+                } else if (value.strip().length() == 10 && value.strip().chars().allMatch(c -> c >= '0' && c <= '9')) {
+                    say("the NPI of an Organization was left out, because its last digit does not match the other nine.");
+                } else {
+                    say("the NPI of an Organization was left out, because it is not 10 digits.");
+                }
+            }
+            for (JsonNode telecom : JsonSafe.elements(resource, "telecom")) {
+                String system = JsonSafe.presentText(telecom, "system");
+                if (("phone".equals(system) || "fax".equals(system)) && entry.get(system) == null) {
+                    entry.put(system, JsonSafe.presentText(telecom, "value"));
+                }
+            }
+            if (entry.get("npi") == null && entry.get("organization") == null) {
+                say("an Organization states neither an NPI nor a name, so it cannot be saved.");
+                entry = null;
+            } else {
+                found.providers().add(entry);
+            }
+            read.put(resource, entry);
+            return entry;
+        }
     }
 
     /** A CDS Hooks request names its patient and its user by id in its context. */
@@ -315,6 +631,8 @@ public final class CollectionFinds {
             if (id != null && TestListRules.fitsResourceId(id)) {
                 Entry entry = new Entry(from);
                 entry.put("vendorPractitionerId", id);
+                // The user of a CDS Hooks request is the clinician who orders.
+                entry.requesterIn = from;
                 providers.add(entry);
             } else if (id == null) {
                 notUsed.add(where + ": its context.userId names no Practitioner (it does not read Practitioner/<id>), so it was left out.");
@@ -578,9 +896,20 @@ public final class CollectionFinds {
         return one.get("vendorPatientId") != null && one.get("vendorPatientId").equals(other.get("vendorPatientId"));
     }
 
+    /**
+     * The same provider: the same NPI or vendor practitioner id; a facility known by its name alone
+     * is the same as another known by that name alone, since nothing else tells it.
+     */
     private static boolean sameProvider(Entry one, Entry other) {
-        return (one.get("npi") != null && one.get("npi").equals(other.get("npi")))
-                || (one.get("vendorPractitionerId") != null && one.get("vendorPractitionerId").equals(other.get("vendorPractitionerId")));
+        if ((one.get("npi") != null && one.get("npi").equals(other.get("npi")))
+                || (one.get("vendorPractitionerId") != null && one.get("vendorPractitionerId").equals(other.get("vendorPractitionerId")))) {
+            return true;
+        }
+        return nameAlone(one) && nameAlone(other) && one.get("organization").equals(other.get("organization"));
+    }
+
+    private static boolean nameAlone(Entry entry) {
+        return entry.get("npi") == null && entry.get("vendorPractitionerId") == null && entry.get("organization") != null;
     }
 
     private static boolean sameCode(Entry one, Entry other) {
@@ -629,6 +958,10 @@ public final class CollectionFinds {
                             + "\" states too; the one from \"" + kept.from + "\" is kept.");
                 }
             }
+        }
+        for (Entry other : into) {
+            kept.requesterIn = kept.requesterIn != null ? kept.requesterIn : other.requesterIn;
+            kept.performerIn = kept.performerIn != null ? kept.performerIn : other.performerIn;
         }
         for (int k = matches.size() - 1; k >= 1; k--) {
             list.remove((int) matches.get(k));

@@ -68,19 +68,20 @@ public class CollectionIngest {
     /** What the collection states. */
     public Found found(FoundRequest request) {
         if (!lists.enabled()) {
-            return new Found(false, TestListService.OFF, null, null, null, null, null, null);
+            return new Found(false, TestListService.OFF, null, null, null, null, null, null, null);
         }
         Read read = read(request);
         if (read.finds() == null) {
-            return new Found(true, read.line(), read.reference(), read.cause(), null, null, null, read.notes());
+            return new Found(true, read.line(), read.reference(), read.cause(), null, null, null, null, read.notes());
         }
         Finds finds = read.finds();
         List<String> notUsed = new ArrayList<>(read.notes());
         notUsed.addAll(finds.notUsed());
         // Counts only. Never a value found.
-        log.info("Read a collection for the saved lists: {} members, {} providers, {} codes, {} lines not used", finds.members().size(),
-                finds.providers().size(), finds.codes().size(), notUsed.size());
-        return new Found(true, finds.empty() ? NOTHING : null, null, null, finds.members(), finds.providers(), finds.codes(), notUsed);
+        log.info("Read a collection for the saved lists: {} members, {} providers, {} codes, {} diagnosis codes, {} lines not used",
+                finds.members().size(), finds.providers().size(), finds.codes().size(), finds.diagnoses().size(), notUsed.size());
+        return new Found(true, finds.empty() ? NOTHING : null, null, null, finds.members(), finds.providers(), finds.codes(),
+                finds.diagnoses(), notUsed);
     }
 
     /**
