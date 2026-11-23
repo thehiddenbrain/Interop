@@ -6,7 +6,8 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 **A call takes the payer from the collection request it is sent from** (D-320). The vendor's service
 refused the operator's coverage check with one card, "Vendor Request Rejected", for a Coverage that named
-no payer, while the vendor's own request in the collection states one. The coverage check, the
+no payer. The operator's files were not seen, so whether their coverage-check request states one is not
+known; a vendor's sample usually does. The coverage check, the
 questionnaire request and Submit now take the FHIR server and the payer from the collection request each
 is sent from, at the time of the call, when nothing else sets them; a new value, Payer reference; the
 request's notes say where each came from; a refusal that names payor says where to set it; Edit > Values

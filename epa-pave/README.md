@@ -16,8 +16,8 @@ nothing leaves the machine, and no credential or configuration is needed.
 **A call takes the payer from the collection request it is sent from (D-320).** On the vendor's UAT a
 coverage check came back with one card, "Vendor Request Rejected", whose detail said the payor of the
 first resource of the coverage Bundle must be present. The Coverage PAVE built named no payer: PAVE took
-the payer only from Payer name and Payer identifier, and the operator's environment set neither, though
-the vendor's own coverage-check request in the collection states one. Now, when nothing else sets them,
+the payer only from Payer name and Payer identifier, and never from the coverage-check request of the
+collection, where a vendor's sample states one. Now, when nothing else sets them,
 the coverage check, the questionnaire request and Submit take the FHIR server and the payer from the
 collection request each is sent from, at the time of the call, with no save and no form opened. A value
 typed for the run, stored on the environment, given by the export, the collection's variables or
