@@ -173,7 +173,8 @@ public final class CrdRequestComparer {
         }
         List<Difference> differences = result.differences().stream().map(masks::difference).toList();
         return answer.comparable(true).headline(headline(result.differences().size(), counted)).differences(differences)
-                .counts(counts).notes(all).maskedNote(masks.note()).arrangement(arrangement(toolBody, yourText)).build();
+                .counts(counts).notes(all).maskedNote(masks.note()).arrangement(arrangement(toolBody, yourText))
+                .elements(elements(tool, yours)).build();
     }
 
     /**
@@ -211,6 +212,47 @@ public final class CrdRequestComparer {
             lines.add("These are differences of arrangement: CDS Hooks fixes no names for the prefetch, and a service reads the keys it "
                     + "names. Prefetch As the collection's sample, in Configuration > Environments > Edit > Request shapes, sends the keys "
                     + "of the collection's coverage-check sample, each built from the case.");
+        }
+        return lines;
+    }
+
+    /**
+     * For each resource type both requests carry, what your request's resource has that the
+     * tool's does not, by name (D-310): the first resource of the type in yours, against every one
+     * of the type in the tool's, in context.draftOrders and the prefetch. One level of each
+     * resource's own members, so nothing here grows with the depth of the pasted text.
+     */
+    static List<String> elements(JsonNode tool, JsonNode yours) {
+        Map<String, List<String>> yourNames = new LinkedHashMap<>();
+        Map<String, JsonNode> yourFirst = new LinkedHashMap<>();
+        for (JsonNode resource : PrefetchLayout.resources(yours)) {
+            String type = JsonSafe.presentText(resource, "resourceType");
+            yourNames.putIfAbsent(type, PrefetchLayout.names(resource));
+            yourFirst.putIfAbsent(type, resource);
+        }
+        Map<String, Set<String>> toolNames = new LinkedHashMap<>();
+        Set<String> toolClasses = new LinkedHashSet<>();
+        for (JsonNode resource : PrefetchLayout.resources(tool)) {
+            String type = JsonSafe.presentText(resource, "resourceType");
+            toolNames.computeIfAbsent(type, any -> new LinkedHashSet<>()).addAll(PrefetchLayout.names(resource));
+            if ("Coverage".equals(type)) {
+                toolClasses.addAll(PrefetchLayout.classTypes(resource));
+            }
+        }
+        List<String> lines = new ArrayList<>();
+        for (Map.Entry<String, List<String>> type : yourNames.entrySet()) {
+            Set<String> has = toolNames.get(type.getKey());
+            if (has == null) {
+                // A type only one request carries is a difference of its own in the list below.
+                continue;
+            }
+            List<String> missing = new ArrayList<>(type.getValue().stream().filter(name -> !has.contains(name)).toList());
+            missing = PrefetchLayout.withClasses(type.getKey(), missing, PrefetchLayout.classTypes(yourFirst.get(type.getKey())), toolClasses);
+            if (!missing.isEmpty()) {
+                String shown = org.p32h.interop.epa.pave.postman.Names.shown(type.getKey());
+                lines.add("Your request's " + shown + " carries " + PrefetchLayout.words(missing) + ", which the tool's " + shown
+                        + " does not.");
+            }
         }
         return lines;
     }

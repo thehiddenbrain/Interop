@@ -1146,8 +1146,9 @@ class CrdRequestComparerTest {
     @Test
     void theAnswerLeavesOutWhatIsNotThereAndNamesItsPartsAsDocumented() {
         JsonNode comparable = TestMvc.mapper().valueToTree(compare(CrdRunRequest.builder().rawBody(fixture("vendor-shaped-order-sign.json")).build()));
-        // The vendor-shaped sample arranges its prefetch under keys of its own, so the answer names that arrangement (D-309).
-        assertThat(comparable.propertyNames()).containsExactly("comparable", "headline", "caveat", "maskedNote", "hook", "counts", "arrangement", "notes",
+        // The vendor-shaped sample arranges its prefetch under keys of its own, so the answer names that arrangement (D-309), and
+        // its resources carry members the tool's do not, which the answer names by resource type (D-310).
+        assertThat(comparable.propertyNames()).containsExactly("comparable", "headline", "caveat", "maskedNote", "hook", "counts", "arrangement", "elements", "notes",
                 "caseSource", "notFound", "differences", "toolBody", "yourBody");
         assertThat(comparable.get("comparable").asBoolean()).isTrue();
         JsonNode label = comparable.at("/differences/14");

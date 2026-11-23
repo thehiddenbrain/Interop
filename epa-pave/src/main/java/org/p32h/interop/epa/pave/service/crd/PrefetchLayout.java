@@ -386,6 +386,11 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
 
     /** A Coverage's missing names with each class type the sample has and PAVE did not send named as "class of type group". */
     private List<String> withClasses(String type, List<String> missing, Set<String> sentClasses) {
+        return withClasses(type, missing, coverageClasses, sentClasses);
+    }
+
+    /** As above, for the class types of any Coverage: the compare tool's pasted request has its own. */
+    static List<String> withClasses(String type, List<String> missing, List<String> coverageClasses, Set<String> sentClasses) {
         if (!"Coverage".equals(type) || coverageClasses.isEmpty()) {
             return missing;
         }

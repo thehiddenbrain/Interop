@@ -223,6 +223,7 @@ export function drawComparison(answer, useMemberId) {
                 mono(answer.hook), '. These are requests for two different hooks.')
             : answer.hook ? el('p', {class: 'small'}, 'PAVE built its request for the hook ', mono(answer.hook), '.') : null,
         arrangementPart(answer),
+        elementsPart(answer),
         notes.length > 0 ? el('ul', {class: 'notes'}, notes.map(note => el('li', null, note))) : null,
         casePart(answer, useMemberId),
         docs.node,
@@ -240,6 +241,21 @@ function arrangementPart(answer) {
     }
     return el('div', {class: 'compare-arrangement'},
         el('p', {class: 'notes__title'}, 'The prefetch is arranged differently'),
+        el('ul', {class: 'notes'}, lines.map(line => el('li', null, line))));
+}
+
+/**
+ * What your request's resources carry that PAVE's do not, one line per resource type (D-310): the
+ * element by element list below gives each by its path, which a reader would otherwise have to
+ * gather by hand across both documents.
+ */
+function elementsPart(answer) {
+    const lines = Array.isArray(answer.elements) ? answer.elements : [];
+    if (lines.length === 0) {
+        return null;
+    }
+    return el('div', {class: 'compare-elements'},
+        el('p', {class: 'notes__title'}, "What your request's resources carry that PAVE's do not"),
         el('ul', {class: 'notes'}, lines.map(line => el('li', null, line))));
 }
 
