@@ -13,6 +13,14 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Submit stays open when the questionnaire step fails (D-317).** The steps at the top of the Workbench
+are buttons: any step opens at any time, and Submit sends without a questionnaire response when step 2
+completed none. A tester whose questionnaire request had failed did not see that, and asked to be able
+to submit all the same. A questionnaire result that offers no way on now says "Submit does not wait for
+the questionnaire. Sent now, it carries no completed response." and offers "Continue to Submit without
+it", plainly, never as the filled button. Seen in a browser on mock with the scenario that is refused
+with HTTP 400; not seen against the vendor's service.
+
 **A sign-in that cannot reach its service says what failed (D-315).** After a pull the operator's
 sign-in answered "the token endpoint could not be reached (unavailable)" while the same sign-in worked
 from Postman, and nothing on the card or in the console said whether the host was not found, the

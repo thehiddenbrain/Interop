@@ -281,6 +281,45 @@ class WorkbenchFlowFrontendTest {
     }
 
     /** Two lookups racing, and a failed lookup after a found one. */
+    /**
+     * A tester whose questionnaire request failed saw no way to Submit, though the stepper opens any
+     * step. A questionnaire result that offers no way on says that Submit is open and offers it, never
+     * as the filled button; a result with a way on, or of another step, does not (D-317).
+     */
+    @Test
+    void aQuestionnaireResultWithNoWayOnStillOffersSubmitPlainly(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the way on to Submit", """
+                import './browser.js';
+                import {submitWithoutQuestionnaire} from './js/result.js';
+                const say = value => console.log(JSON.stringify(value));
+                let opened = 0;
+                const go = () => { opened++; };
+                // Step 2 with no way on: the line, and a plain button that opens Submit.
+                const aside = submitWithoutQuestionnaire(2, null, null, go);
+                const button = aside.querySelectorAll('button')[0];
+                say([aside.querySelector('p').textContent, button.textContent, button.className.includes('btn--primary'), button.disabled === true]);
+                button.click();
+                say(opened);
+                // Submit cannot be sent now: the button is there, off, with the server's sentence as its title.
+                const off = submitWithoutQuestionnaire(2, null, 'No address for Submit.', go).querySelectorAll('button')[0];
+                say([off.disabled === true, off.title]);
+                // A result that leads on, one that stays in its own step, and results of other steps offer nothing here.
+                say([submitWithoutQuestionnaire(2, 3, null, go), submitWithoutQuestionnaire(2, 2, null, go),
+                    submitWithoutQuestionnaire(1, null, null, go), submitWithoutQuestionnaire(3, null, null, go)]);
+                """);
+
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"Submit does not wait for the questionnaire. Sent now, it carries no completed response.\","
+                        + "\"Continue to Submit without it\",false,false]",
+                "1",
+                "[true,\"No address for Submit.\"]",
+                "[null,null,null,null]");
+        // The Workbench puts it under the verdict of the card it draws for a step.
+        assertThat(StaticSources.script("workbench.js"))
+                .contains("submitWithoutQuestionnaire(own, leadsTo, blocked(OPERATION_OF_STEP[3]), () => openStep(3, true))");
+    }
+
     @Test
     void theLatestLookupWinsAndAFailedLookupClearsWhatTheOneBeforeFilled(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the lookup rules", """

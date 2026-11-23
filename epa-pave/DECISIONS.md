@@ -78,6 +78,7 @@ entry.
 | D-313 | Each Workbench step that sends a request names the collection request in force and where it comes from, lists every request that fits, sends the one chosen (its address, headers and sample, over a typed address) and can make it the one for every run through the mapping; "As the collection writes it" sends that request's stored body with the environment's values put in and Postman's five common dynamic values made afresh (`c7adbfa`, `51c1a3e`, `ed9d05e`) | The first request in the file is no safe default in a collection of 124 mapped requests, several for each step; the operator spent an evening finding, one difference at a time, what PAVE builds and the vendor's request sends. A body as written gives up the Case column and what was handed on; scripts are never run, a value a script sets is asked for, and no body reaches the page or the ledger. Seen on live against the stand-in and on mock, not against the vendor's service |
 | D-314 | After a coverage check, a questionnaire or a partly completed response that the answer names leads to the questionnaire step, whatever the answer says about doc-needed; the reason says doc-needed was not stated | The vendor's service names its questionnaires with a doc-purpose and no doc-needed. PAVE offered "Continue to Submit" and the operator never saw a question. |
 | D-315 | A sign-in whose service could not be reached says what failed (the host's name, a refused connection, a timeout, a certificate, a proxy), and the console names the types of the failure | After a pull the operator's sign-in failed as "could not be reached (unavailable)" while Postman signed in, and nothing told the cases apart. The code that signs in had not changed |
+| D-317 | A questionnaire result that offers no way on says that Submit is open and offers "Continue to Submit without it", plainly | The operator's questionnaire request failed at the vendor's service and nothing on the card led to Submit, though the stepper opens any step. D-316 is kept for the test of a connection, begun and stopped at the operator's word |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9130,3 +9131,25 @@ round of corrections; the code handed over.**
   be placed).
 - **Left.** The cause of the operator's failure. Whether a restart in place (D-304) plays a part on
   Windows is not known; it was seen to sign in after a switch on Linux only.
+
+**D-317. Submit stays open when the questionnaire step fails, and the card says so.**
+- **What happened.** With D-314 the operator's coverage check led to the questionnaire step, and the
+  questionnaire request failed at the vendor's service. The operator: "Even the dtr fails, I should be
+  able to submit pas".
+- **What was already so.** The four steps at the top of the Workbench are buttons; each opens at any
+  time. Submit attaches a questionnaire response only when step 2 completed one and "Include it" is
+  ticked. So Submit was open; nothing on the failed card said it.
+- **Decided.** The card of a questionnaire result whose next step leads nowhere (a refusal, a failure,
+  an answer this tool cannot act on) carries, under its verdict, the line "Submit does not wait for the
+  questionnaire. Sent now, it carries no completed response." and a plain button "Continue to Submit
+  without it", which opens step 3. It is never the filled button (I-6): the tester chooses to go on
+  without the payer's questions answered, the tool does not suggest it. Where Submit cannot be sent now
+  the button is off and its title is the server's sentence. A result that leads on, or that keeps the
+  tester in step 2 with questions to answer, carries nothing new.
+- **Why not go to Submit by itself.** The coverage answer said the documentation goes with the prior
+  authorization request. Sending without it is a decision about the test, and it is the tester's.
+- **What holds it.** `WorkbenchFlowFrontendTest.aQuestionnaireResultWithNoWayOnStillOffersSubmitPlainly`.
+  Seen in Chromium on mock with the scenario refused with HTTP 400: the line and the button under the
+  card, the press opening step 3, the browser's storage holding only `pave.tab`.
+- **Left.** Why the questionnaire request fails at the vendor's service is not known: its card has not
+  been seen. Submit has not met the vendor's service.

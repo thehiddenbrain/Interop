@@ -727,3 +727,10 @@ td .notes {
     gap: var(--s-1);
     margin-right: var(--s-3);
 }
+
+/* The way on to Submit from a questionnaire result that offers none: under the verdict, apart from it. */
+.verdict__aside {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line, #d7d9de);
+}

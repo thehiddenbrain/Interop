@@ -349,6 +349,24 @@ function nextStep(envelope, settings, words) {
     return line ? [line] : [];
 }
 
+/**
+ * The way on to Submit from a questionnaire result that offers none: a refusal, a failure, an answer
+ * this tool cannot act on. The stepper opens any step, which a tester whose questionnaire request
+ * had failed did not see, so the way is said and offered here, plainly and never as the filled
+ * button (I-6): what is sent then carries no completed response (D-317).
+ *
+ * own: the step the result belongs to. leadsTo: the step its next action leads to, or null.
+ * why: the server's sentence when Submit cannot be sent now, or null. go: opens the Submit step.
+ */
+export function submitWithoutQuestionnaire(own, leadsTo, why, go) {
+    if (own !== 2 || leadsTo !== null) {
+        return null;
+    }
+    return el('div', {class: 'verdict__aside'},
+        el('p', {class: 'small'}, 'Submit does not wait for the questionnaire. Sent now, it carries no completed response.'),
+        button('Continue to Submit without it', go, {disabled: Boolean(why), title: why || null}));
+}
+
 /** One visible line when the code list and the service disagree, above the folds that explain it. */
 function codeListLine(envelope) {
     const findings = Array.isArray(envelope.findings) ? envelope.findings : [];

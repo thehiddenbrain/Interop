@@ -17,7 +17,7 @@ import {call} from './api.js';
 import {el, button, fill, clear} from './dom.js';
 import {vocabulary} from './words.js';
 import {remember} from './session-runs.js';
-import {resultCard, ledgerCard} from './result.js';
+import {resultCard, ledgerCard, submitWithoutQuestionnaire} from './result.js';
 import {errorPanel} from './fault.js';
 import {fillFromAnswer, maskedLine} from './masks.js';
 import {caseField, caseKey, onCaseChange, optionValue, MARKS} from './wb-case.js';
@@ -356,7 +356,7 @@ function build() {
         const sameStep = action => stepOfAction(action) === own;
         const leadsTo = stepOfAction(envelope.nextStep && envelope.nextStep.action);
         plainWhenWayOn(own, leadsTo !== null && leadsTo !== own);
-        return resultCard(envelope, {
+        const node = resultCard(envelope, {
             // A step already offers its own send (step 2's form, step 4's inquiry row): its card says
             // that next step in words and does not repeat the button (I-6 widened, look-10).
             wordsOnly: action => stepOfAction(action) === own,
@@ -368,6 +368,12 @@ function build() {
                 return step === null ? null : blocked(OPERATION_OF_STEP[step]) || (journey.offered(step) ? null : withdrawnWords(step));
             }
         });
+        const aside = submitWithoutQuestionnaire(own, leadsTo, blocked(OPERATION_OF_STEP[3]), () => openStep(3, true));
+        const verdict = aside ? node.querySelector('.verdict') : null;
+        if (verdict) {
+            verdict.append(aside);
+        }
+        return node;
     }
 
     /**

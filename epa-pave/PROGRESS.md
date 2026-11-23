@@ -4,6 +4,14 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Submit stays open when the questionnaire step fails, and the card says so** (D-317). The operator's
+questionnaire request failed at the vendor's service and nothing led on to Submit. A questionnaire result
+with no way on now offers "Continue to Submit without it". Built and tested by the integrator and seen
+in a browser on mock. Open: why the questionnaire request fails there, and Submit against the vendor.
+D-316, the test of a connection, was begun and stopped at the operator's word; nothing of it is in this
+commit. The gates are run on the commit that carries these records; their result is reported with the
+hand-over.
+
 **A sign-in that cannot reach its service says what failed** (D-315). After pulling `8bed900` the
 operator's sign-in could not reach the token endpoint, with Postman signing in at the same time. The code
 that signs in had not changed; the cause is not known. The sentence and the console now name the kind of
