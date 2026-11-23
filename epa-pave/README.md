@@ -13,6 +13,15 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**The right sample among several (D-312).** The operator's collection holds 124 mapped requests,
+several of them coverage checks, each for a service of its own. With the address of the coverage check
+typed, PAVE followed the first of them in the file, which carries the patient in a Bundle under
+`patientBundle`; the request the operator runs in Postman carries it under `patient`, and the vendor's
+service answered "No patient data provided" a third time. A call to a typed address now follows the
+request of the collection that goes to that address, and the first in the file only when none does. The
+request's notes name the request that was followed. Held by a test of that case; not seen against the
+vendor's service. The form still shows the Prefetch shape of the first sample in the file.
+
 **Two corrections made the same evening (D-311).** The build of `a580682` answered every page that
 asks for the Submit options with an internal error: the Workbench asks when it opens, with no call in
 hand, and a check for that case was missing. And a coverage check sent to a typed address still went in
@@ -546,7 +555,9 @@ by the next call.
      the collection's request ...", "from application.yml", "typed here", "not set"). A typed address
      replaces the collection request for that operation, its headers and saved body included. The
      request shapes (draftOrders type, Prefetch) still follow the sample of that request, so an address
-     typed to correct it does not change how the request is arranged (D-311); "Use the
+     typed to correct it does not change how the request is arranged (D-311). When the collection holds
+     several requests for the operation, the one that goes to the typed address is the one followed, and
+     the first in the file only when none goes there (D-312); "Use the
      collection's request again" closes the box before anything is typed, and "Use the file's again"
      takes a typed address away at the next save.
    - **Sign-in**: a stored client secret or bearer token is said as stored ("Stored:

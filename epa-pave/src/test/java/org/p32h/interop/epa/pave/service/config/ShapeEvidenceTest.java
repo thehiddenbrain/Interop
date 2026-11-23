@@ -130,6 +130,45 @@ class ShapeEvidenceTest {
         assertThat(call.savedBody()).isNull();
     }
 
+    /**
+     * A vendor's collection holds several coverage checks, each for a service of its own. The first
+     * in the file carried the patient in a Bundle of its own name; the tester's address belonged to
+     * the second, which carries it under "patient". The first was followed and the service found no
+     * patient (D-312).
+     */
+    @Test
+    void aTypedAddressFollowsTheRequestThatGoesToThatAddressNotTheFirstInTheFile() {
+        String named = "{\"hook\": \"order-sign\", \"context\": {\"draftOrders\": {\"resourceType\": \"Bundle\", \"entry\": []}}, "
+                + "\"prefetch\": {\"patientBundle\": {\"resourceType\": \"Bundle\", \"type\": \"collection\", \"entry\": "
+                + "[{\"resource\": {\"resourceType\": \"Patient\", \"id\": \"pat-001\"}}]}}}";
+        String bare = "{\"hook\": \"order-sign\", \"context\": {\"draftOrders\": {\"resourceType\": \"Bundle\", \"type\": \"collection\", "
+                + "\"entry\": []}}, \"prefetch\": {\"patient\": {\"resourceType\": \"Patient\", \"id\": \"pat-001\"}}}";
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.activate(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        fixture.collectionOf("Vendor sample", ConfigFixture.items(
+                ConfigFixture.item("order-sign First service", "POST", "{{crdUrl}}/first/cds-services/order-sign").body(named),
+                ConfigFixture.item("order-sign Second service", "POST", "{{crdUrl}}/second/cds-services/order-sign").body(bare)));
+        StoredEnvironment sandbox = fixture.store.snapshot().byName("Onyx Sandbox");
+
+        // The address of the second, typed with its placeholder and a trailing slash: the same address all the same.
+        fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
+                stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
+                        "{{crdUrl}}/second/cds-services/order-sign/"), null, null, null)), (stored, after) -> null);
+        PreparedCall second = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+        assertThat(second.sampleName()).isEqualTo("order-sign Second service");
+        assertThat(second.sampleBody()).isEqualTo(bare);
+        assertThat(second.shapes().choice(RequestShape.CRD_DRAFT_ORDERS_TYPE).value()).isEqualTo(RequestShape.SENT);
+        assertThat(second.shapes().choice(RequestShape.CRD_PREFETCH).requestName()).isEqualTo("order-sign Second service");
+
+        // An address no request of the collection goes to: the first mapped, as before.
+        fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
+                stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
+                        "https://typed.vendor.example.invalid/cds-services/order-sign"), null, null, null)), (stored, after) -> null);
+        PreparedCall other = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+        assertThat(other.sampleName()).isEqualTo("order-sign First service");
+        assertThat(other.shapes().choice(RequestShape.CRD_DRAFT_ORDERS_TYPE).value()).isEqualTo(RequestShape.LEFT_OUT);
+    }
+
     @Test
     void aTypedAddressWithNoRequestOfTheCollectionTakesTheDefault() {
         ConfigFixture fixture = ConfigFixture.mock(directory);

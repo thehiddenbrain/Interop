@@ -1372,8 +1372,9 @@ public class ConfigStoreGateway implements OperationGateway {
         Target typed = typedTarget(intent, environment);
         if (typed != null) {
             // The address is the tester's. The arrangement of the request is still read from the
-            // collection's own request for the operation, where one is mapped (D-311).
-            Located sampled = operation == EpaOperation.UNMAPPED ? null : firstMapped(snapshot, operation, false);
+            // collection's own request for the operation, where one is mapped (D-311): the one that
+            // goes to the address that was typed, when the collection has one (D-312).
+            Located sampled = operation == EpaOperation.UNMAPPED ? null : sampleFor(snapshot, operation, environment, typed.template());
             return sampled == null ? typed : typed.following(sampled.request());
         }
         if (operation != EpaOperation.UNMAPPED) {
@@ -1419,6 +1420,63 @@ public class ConfigStoreGateway implements OperationGateway {
             }
         }
         return null;
+    }
+
+    /**
+     * The collection request whose sample a call to a typed address follows: the request mapped to
+     * the operation that goes to the address that was typed, when the collection has one, else the
+     * first mapped. A vendor's collection can hold several requests for one operation, each for a
+     * service of its own and each arranged its own way; the first in the file was followed for a
+     * tester whose address belonged to another, and the service found no patient (D-312). A sample
+     * of an error is passed over, as for a call.
+     */
+    private Located sampleFor(ConfigSnapshot snapshot, EpaOperation operation, StoredEnvironment environment, String typed) {
+        String wanted = comparable(resolvedOrNull(typed, environment, null));
+        Located first = null;
+        for (StoredCollection collection : snapshot.collections()) {
+            for (StoredCollection.Mapped request : collection.requests()) {
+                if (request.effective() != operation || request.request().name().toLowerCase(Locale.ROOT).contains("error")) {
+                    continue;
+                }
+                Located located = new Located(collection, request);
+                if (first == null) {
+                    first = located;
+                }
+                if (wanted != null && wanted.equals(comparable(resolvedOrNull(request.request().url(), environment, collection)))) {
+                    return located;
+                }
+            }
+        }
+        return first;
+    }
+
+    /** An address with its placeholders filled as a call under the environment would fill them, or null when one has no value. */
+    private String resolvedOrNull(String template, StoredEnvironment environment, StoredCollection collection) {
+        if (Texts.blank(template)) {
+            return null;
+        }
+        Resolution resolution = resolver.resolve(template.strip(), layersUnder(environment, collection));
+        return resolution.complete() ? resolution.send() : null;
+    }
+
+    /** An address as two are compared: without its query or fragment, without a trailing slash, in one case. Null stays null. */
+    static String comparable(String address) {
+        if (address == null) {
+            return null;
+        }
+        String text = address.strip();
+        int cut = text.indexOf('?');
+        int fragment = text.indexOf('#');
+        if (fragment >= 0 && (cut < 0 || fragment < cut)) {
+            cut = fragment;
+        }
+        if (cut >= 0) {
+            text = text.substring(0, cut);
+        }
+        while (text.endsWith("/")) {
+            text = text.substring(0, text.length() - 1);
+        }
+        return text.isEmpty() ? null : text.toLowerCase(Locale.ROOT);
     }
 
     private static Target requestTarget(Located located) {

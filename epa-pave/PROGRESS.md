@@ -4,6 +4,13 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**The right sample among several** (D-312). The operator's collection holds several coverage checks; a
+call to a typed address followed the first in the file and the service found no patient again. Such a call
+now follows the request that goes to the typed address. Built and tested by the integrator from the
+operator's recording of In force now; not seen against the vendor's service. Open: the form shows the
+Prefetch shape of the first sample in the file, and the Workbench offers no choice of request for a step.
+The gates are run on the commit that carries these records; their result is reported with the hand-over.
+
 **Two corrections made the evening the fifth correction was handed over** (D-311). The build of
 `a580682` answered the Submit options with an internal error on every page (a missing check where the
 shapes are read with no call in hand), and a coverage check to a typed address still went in PAVE's named

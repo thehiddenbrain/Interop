@@ -74,6 +74,7 @@ entry.
 | D-309 | A fifth correction after release 2: the coverage check's prefetch goes under the keys of the collection's coverage-check sample, holding what the sample holds there, built from the case (request shape "Prefetch"); the member ID's and NPI's systems and the identifier type follow the sample; what cannot be filled is said by key and type; the card after "No patient data" names the setting; the comparison names the arrangement (`fc9d2a5`, `338e757`, `f3b8f55`, `ced7239`) | The vendor's UAT answered "No patient data provided" to PAVE's named Bundles and answered the vendor's own sample. CDS Hooks fixes no prefetch names; following the sample stands in for reading the service's discovery answer, which is not built. Nothing of a sample's resources is sent. Seen on live against a changed copy of the stand-in, not against the vendor's service |
 | D-310 | A sixth correction after release 2: where the coverage-check sample's order carries a diagnosis (`reasonCode`), the Diagnosis codes of the Service card go on every order with the sample's coding system; what the sample's resources carry and PAVE's do not is named, by resource type, in the request's notes, under Prefetch in the form and in "Compare with a request that works" (`51b3505`, `7f951cd`, `6256f1f`) | The operator asked that anything missing be added and anything not standard be said. The diagnosis is the case's own and the only element added; every other element is standard FHIR that CRD does not require and that the case holds no value for (or, for a member's address, that the coverage check does not write), so it is named and never filled in. Names only, never a value. Seen on live against the stand-in, not against the vendor's service |
 | D-311 | A call to a typed address follows the sample of the collection's request for its operation in its request shapes (it still carries no header and no body of that request); the Submit options answer with no call in hand (`4d9d85a`) | The operator typed the address of the coverage check to correct it, the request fell back to PAVE's named Bundles and the vendor's service answered "No patient data provided" again. The build of `a580682` read the shapes of the active environment through a request that was not there, and every page that asks for the Submit options got an internal error. Held by tests; not seen against the vendor's service |
+| D-312 | A call to a typed address follows the collection request that goes to that address; the first mapped only when none does | The operator's collection holds several coverage checks, each for a service of its own. The first in the file was followed, its sample carries the patient under `patientBundle`, and the vendor's service answered "No patient data provided" a third time. Read from the operator's recording of In force now: one collection, 124 requests mapped, the address of the coverage check typed. Held by a test; not seen against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8990,3 +8991,29 @@ round of corrections; the code handed over.**
 - **Left.** Not seen against the vendor's service. Whether the operator's address was typed is the
   integrator's reading of the report, not something seen. Later: D-291 (a call with no sample takes the
   default) holds only where no request of the collection is mapped for the operation.
+
+**D-312. Among several requests for one operation, a typed address follows the one that goes to that address.**
+- **What happened.** With D-311 pulled, the operator's coverage check still went with the patient under
+  `patientBundle` and was answered "No patient data provided". The operator's recording of
+  Configuration > Advanced > In force now showed why: one collection uploaded, 124 requests mapped, and
+  the address of the coverage check typed in the environment's settings. Several of those requests are
+  coverage checks, each for a service of its own.
+- **The cause.** D-311 gave a call to a typed address the sample of the first request mapped to its
+  operation. In a collection with one coverage check that is the right one. In this collection the first
+  in the file belongs to another service, and its sample is arranged in Bundles of PAVE's own names, so
+  "As the collection's sample" produced the arrangement the operator's service refuses.
+- **Decided.** For a call to a typed address, the sample is the request mapped to the operation whose own
+  address, with its placeholders filled as a call under the environment fills them, is the address that
+  was typed (compared without query, fragment or trailing slash, in one case). The first mapped only when
+  no request goes there. A sample of an error is passed over. Nothing else of the request is taken: the
+  call still carries no header and no body of it (R-02).
+- **Why.** The address is the one thing the tester stated about which service is meant. It is evidence,
+  not a guess: a request that goes to the same address is a request to the same service.
+- **Not decided here.** Which request stands for an operation when none is typed is still the first in
+  the file, or the one chosen in "What these files give" or mapped in Configuration > Collections. In a
+  collection of this size the first is easily the wrong one, which is how the operator came to type the
+  address.
+- **What holds it.** `ShapeEvidenceTest.aTypedAddressFollowsTheRequestThatGoesToThatAddressNotTheFirstInTheFile`.
+- **Left.** Not seen against the vendor's service. The form's Request shapes and "What these files give"
+  still show the Prefetch shape of the first sample in the file; the request's notes name the request
+  really followed. The Workbench offers no choice of request for a step.
