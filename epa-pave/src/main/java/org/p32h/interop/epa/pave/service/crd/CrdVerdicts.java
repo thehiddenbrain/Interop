@@ -332,14 +332,23 @@ public final class CrdVerdicts {
      */
     public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId, String environmentName,
                                         boolean sampleStatesFhirServer) {
+        return nextStep(reading, exchange, runId, environmentName, sampleStatesFhirServer, false);
+    }
+
+    /**
+     * As above, knowing also whether the vendor's sample request the call was sent from writes a
+     * prefetch, which the advice after "No patient data" then points at (D-309).
+     */
+    public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId, String environmentName,
+                                        boolean sampleStatesFhirServer, boolean sampleWritesPrefetch) {
         // A fault a scenario played is a rehearsal on every branch, the readable answer of the wrong kind included.
-        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId, environmentName, sampleStatesFhirServer),
-                PlayedFaults.aboutTheEnvironment("the member or the code"));
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId, environmentName, sampleStatesFhirServer,
+                sampleWritesPrefetch), PlayedFaults.aboutTheEnvironment("the member or the code"));
     }
 
     /** The next step as it would be after a real service gave this answer. */
     private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId, String environmentName,
-                                         boolean sampleStatesFhirServer) {
+                                         boolean sampleStatesFhirServer, boolean sampleWritesPrefetch) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
@@ -420,6 +429,10 @@ public final class CrdVerdicts {
                 return new NextStepView(NextAction.SUPPLY_INFORMATION, "Next: supply what the payer asked for and send CRD again.",
                         "The payer cannot give a firm answer from what it was sent. " + asked, carry);
             }
+        }
+
+        if (noPatientInNamedBundles(exchange)) {
+            return new NextStepView(NextAction.OPEN_CONFIG, noPatientData(sampleWritesPrefetch), NO_PATIENT_REASON, carry);
         }
 
         // A readable answer of the wrong kind came from a service that was reached and answered, so it
@@ -588,6 +601,52 @@ public final class CrdVerdicts {
         }
         JsonSafe.Parsed parsed = JsonSafe.parse(VendorSamples.placeholdersAsNull(body));
         return parsed.ok() && JsonSafe.presentText(parsed.node(), "fhirServer") != null;
+    }
+
+    /** Why the next step after "No patient data" points at the prefetch's arrangement (D-309). */
+    static final String NO_PATIENT_REASON = "The service's answer says no patient data was given, and this request carried the patient "
+            + "in patientBundle, a name PAVE gives it. CDS Hooks fixes no names for the prefetch: each service names the keys it reads.";
+
+    /** The next step's headline after "No patient data", in the words of D-309. */
+    static String noPatientData(boolean sampleWritesPrefetch) {
+        String start = "The service found no patient in the request. PAVE sent the prefetch under its own names; ";
+        return sampleWritesPrefetch
+                ? start + "set Prefetch to As the collection's sample in Configuration > Environments > Edit > Request shapes."
+                : start + "the service names the prefetch keys it reads in its discovery answer, in Configuration > Advanced > CDS "
+                        + "discovery.";
+    }
+
+    /**
+     * True when the service's answer says no patient (or member) data was given and the request as
+     * sent carried its prefetch in PAVE's named Bundles. Read as the draftOrders refusal is read, by
+     * a few fixed words of the answer, in a card or an issue alike; a request already sent in the
+     * sample's arrangement is not pointed back at it.
+     */
+    static boolean noPatientInNamedBundles(VendorExchange exchange) {
+        String answer = exchange == null ? null : exchange.responseBody();
+        if (answer == null) {
+            return false;
+        }
+        String said = answer.toLowerCase(java.util.Locale.ROOT);
+        if (!said.contains("no patient data") && !said.contains("no member data") && !said.contains("patient data not provided")
+                && !said.contains("member data not provided")) {
+            return false;
+        }
+        String sent = exchange.request() == null ? null : exchange.request().body();
+        if (sent == null) {
+            return false;
+        }
+        JsonSafe.Parsed parsed = JsonSafe.parse(sent);
+        return parsed.ok() && JsonSafe.isObject(JsonSafe.at(parsed.node(), "prefetch", "patientBundle"));
+    }
+
+    /**
+     * Whether the saved body of the collection's request a call was sent from writes a prefetch
+     * that a call could follow, so the advice after "No patient data" can name the setting (D-309).
+     * It reads a sample the tester stored, never an answer.
+     */
+    static boolean writesPrefetch(String requestName, String body) {
+        return PrefetchLayout.ofCall(requestName, body) != null;
     }
 
     /** Why the next step after a 400 that names draftOrders.type points at the environment's setting (R-37). */

@@ -141,6 +141,29 @@ class WorkbenchRecheckFrontendTest {
                 "[\"Continue to the questionnaire\"]");
     }
 
+    /** D-309: an answer that came back whole and sends the tester to Configuration says the whole of what to set above the button. */
+    @Test
+    void anAnswerThatPointsAtASettingSaysItWholeAboveItsButton(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the next step after no patient data", PRELUDE + """
+                const vocabulary = {nextActions: [{code: 'OPEN_CONFIG', button: 'Open Configuration'}]};
+                globalThis.fetch = async () => ({ok: true, status: 200, text: async () => JSON.stringify(vocabulary)});
+                const {resultCard} = await import('./js/result.js');
+                const headline = 'The service found no patient in the request. PAVE sent the prefetch under its own names; set Prefetch to '
+                  + 'As the collection\\'s sample in Configuration > Environments > Edit > Request shapes.';
+                const answered = {runId: 'run-8', protocol: 'CRD', operation: 'CRD_ORDER_SIGN', answeredBy: 'VENDOR',
+                  verdict: {headline: 'The service answered but returned no determination.', tone: 'NONE'}, expectation: {result: 'unverified'},
+                  nextStep: {action: 'OPEN_CONFIG', headline}, ledger: {recorded: true}, timing: {elapsedMillis: 5}};
+                const card = resultCard(answered, {context: 'workbench', onNext() {}});
+                await new Promise(done => setTimeout(done, 30));
+                say(Array.from(card.querySelectorAll('.verdict__next, button')).map(each => each.textContent)
+                  .filter(text => text === headline || text === 'Open Configuration'));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[\"The service found no patient in the request. PAVE sent the prefetch under its own "
+                + "names; set Prefetch to As the collection's sample in Configuration > Environments > Edit > Request shapes.\","
+                + "\"Open Configuration\"]");
+    }
+
     @Test
     void theSignInChipGivesWayBeforeTheEnvironmentChooser() throws Exception {
         // At 1100 px and under the chooser keeps the room to name the environment in force (live-config-7).

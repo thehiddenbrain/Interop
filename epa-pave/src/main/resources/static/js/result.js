@@ -321,7 +321,8 @@ function ledgerLine(envelope) {
  * The next step: a primary button named by the vocabulary when its action has one and the caller
  * can act on it; otherwise the server's headline, whole when short, else its first sentence. After
  * a service's failure the headline is also the line above the button (look-3): it says what to
- * change there, which the button's name alone does not. Any other error has its own panel, whose
+ * change there, which the button's name alone does not; so is the whole headline of an answer that
+ * sends the tester to Configuration. Any other error has its own panel, whose
  * action says it already.
  */
 function nextStep(envelope, settings, words) {
@@ -338,7 +339,12 @@ function nextStep(envelope, settings, words) {
         const blocked = typeof settings.nextBlocked === 'function' ? settings.nextBlocked(step.action) : null;
         const go = button(action.button, () => settings.onNext(step.action, envelope),
             {primary: true, disabled: Boolean(blocked), title: blocked || null});
-        return serviceFailure(envelope.error) && line ? [line, go] : [go];
+        if (serviceFailure(envelope.error)) {
+            return line ? [line, go] : [go];
+        }
+        // An answer that came back whole and points at a setting (D-309: "No patient data" after
+        // the named Bundles): the button only opens Configuration, so the whole line says what to set there.
+        return step.action === 'OPEN_CONFIG' && headline !== '' ? [el('p', {class: 'verdict__next'}, headline), go] : [go];
     }
     return line ? [line] : [];
 }
