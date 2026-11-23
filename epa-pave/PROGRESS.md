@@ -54,6 +54,23 @@ file, `DECISIONS.md` and `README.md` only. **Open**: the prefetch keys are read 
 from the service's discovery answer; "Compare with a request that works" still builds PAVE's side with
 the named Bundles.
 
+**A sixth correction after release 2: what the sample's request carries that PAVE's does not is sent
+where the case has it and said where it does not** (D-310). The operator's comparison of the vendor's
+working coverage-check body with PAVE's still showed a diagnosis and a `performer` on the sample's order
+and more on its Patient and Coverage. **The code** is three commits on top of `a580682` on the branch
+`prefetch-shape`: `51b3505` (the Diagnosis codes of the Service card go on every order as `reasonCode`
+with the sample's coding system where the sample's order carries one, and a case with none is told to add
+them), `7f951cd` (what the sample's resources carry and PAVE's do not, named by resource type in the
+request's notes and under Prefetch in the form) and `6256f1f` ("Compare with a request that works" names
+the same for a pasted request). These records were committed after them. One builder built it and saw
+the form and the preview with and without diagnosis codes on live against the stand-in, at 1440 by 900;
+no check was run with the diagnosis, no second agent checked it, and nothing ran on Windows or against
+the vendor's service. The gates of section 0 are run by the integrator on the commit that carries these
+records; their result is reported with the hand-over. **The new entry**: D-310. The commit that records it
+changes this file, `DECISIONS.md` and `README.md` only. **Open**: a `performer` and the other elements
+named are never sent; a member's address the lookup gives is not written on the coverage check's
+Patient.
+
 **A second correction after release 2: the saved lists filled from a collection** (D-306). On the same
 first run against the vendor's UAT the operator typed every member, provider and procedure code by hand,
 though the vendor's collection states them, and asked that they go into the saved lists. **The code** is

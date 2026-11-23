@@ -72,6 +72,7 @@ entry.
 | D-307 | A third correction after release 2: right after Fill the form shows every address and value the files give with where it comes from, and a request can be chosen for an operation none was found for; on Edit nothing in force is an empty box; a request is also told by its body; a v2.0 collection is read (`25b200a`, `6664bd1`, `fc80b7d`, `050f977`) | On the operator's first run against the vendor's UAT every address and value was typed by hand, and a typed address replaced the collection's request. A chosen request is the collection's mapping, recorded in a second call after the save. Seen on live against the stand-in, not against the vendor's service |
 | D-308 | A fourth correction after release 2: the values of the Edit form a vendor's sample requests state (the FHIR server from the coverage-check sample; the payer, its identifier and system, the member ID system and the PAS types from the Submit sample) are shown with the request they come from and stored by the save for a value nothing else gives; what the coverage-check sample sends and PAVE does not is named; a refusal that names fhirServer says where to set it (`d7a3246`, `f390ba0`, `8354f76`) | The coverage check was refused for a missing fhirServer the vendor's own sample stated. A value is read only where PAVE's own builder writes it, from the sample a call for that operation is sent from; a value typed or given by the export is never replaced; the callback url is never taken from a sample. Seen on live against a changed copy of the stand-in, not against the vendor's service |
 | D-309 | A fifth correction after release 2: the coverage check's prefetch goes under the keys of the collection's coverage-check sample, holding what the sample holds there, built from the case (request shape "Prefetch"); the member ID's and NPI's systems and the identifier type follow the sample; what cannot be filled is said by key and type; the card after "No patient data" names the setting; the comparison names the arrangement (`fc9d2a5`, `338e757`, `f3b8f55`, `ced7239`) | The vendor's UAT answered "No patient data provided" to PAVE's named Bundles and answered the vendor's own sample. CDS Hooks fixes no prefetch names; following the sample stands in for reading the service's discovery answer, which is not built. Nothing of a sample's resources is sent. Seen on live against a changed copy of the stand-in, not against the vendor's service |
+| D-310 | A sixth correction after release 2: where the coverage-check sample's order carries a diagnosis (`reasonCode`), the Diagnosis codes of the Service card go on every order with the sample's coding system; what the sample's resources carry and PAVE's do not is named, by resource type, in the request's notes, under Prefetch in the form and in "Compare with a request that works" (`51b3505`, `7f951cd`, `6256f1f`) | The operator asked that anything missing be added and anything not standard be said. The diagnosis is the case's own and the only element added; every other element is standard FHIR that CRD does not require and that the case holds no value for (or, for a member's address, that the coverage check does not write), so it is named and never filled in. Names only, never a value. Seen on live against the stand-in, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8876,3 +8877,81 @@ round of corrections; the code handed over.**
 - **Left.** The keys are not read from the service's discovery answer. A key of a type PAVE does not build
   is not sent. "Compare with a request that works" builds PAVE's side with the named Bundles whatever the
   environment states. The Coverage id is PAVE's own until the vendor supplies one.
+
+**D-310. A sixth correction after release 2: what the sample's request carries that PAVE's does not is sent where the case has it and said where it does not.**
+- **What happened.** After D-309 the operator's comparison of the vendor's working coverage-check body
+  with PAVE's still showed differences, and the operator asked: "anything else missing, make sure that
+  that's added ... If it's not standard, let me know." Read from the recording by kind only (the files
+  were not asked for and no value of theirs is written anywhere): the sample's order (ServiceRequest)
+  carries the diagnosis as `reasonCode`, an ICD-10-CM coding, and a `performer`; PAVE's order carried
+  neither, though the Service card has "Diagnosis codes", which Submit already sends. The sample's Patient
+  carries an address, telecom, communication, extensions, `active` and `meta`, and its Coverage a
+  `relationship` and a class of type group beside the plan; a case holds none of these but the member's
+  address, which a member lookup may give and the coverage check does not write. The tester could
+  see such differences only by pasting both bodies into a diff tool. Decided by the integrator
+  (`TASK_SAMPLE_ELEMENTS.md`).
+- **What the standard says.** Every one of these elements is a FHIR R4 element of its resource, and none
+  is required by CRD 2.0.1: its profiles give each a minimum of zero. So none of them is missing from
+  PAVE's request in the sense of the standard; each is something the vendor's sample sends and its
+  service may read.
+- **What is sent: the diagnosis** (`51b3505`). The coverage check's request now takes `diagnosisCodes`, as
+  Submit's does, and the Workbench posts the Diagnosis codes of the Service card with it whenever some are
+  typed (a blank one is refused at `diagnosisCodes[i].code`, "This diagnosis code is blank."). Only under
+  the sample's arrangement (D-309), and only when the sample's order carries a `reasonCode`, each code goes
+  on every order as a `reasonCode` with one coding: the system typed with the code, else the system of the
+  sample's first `reasonCode` coding, and the code as typed; it sits before `insurance`, where FHIR puts
+  it, in `context.draftOrders` and in every copy of the order the prefetch carries. The sample's order is
+  the first ServiceRequest of its `context.draftOrders`, else the first of its prefetch. The note says
+  "Each order carries the case's 2 diagnosis codes as reasonCode, as the sample's order carries a diagnosis
+  there, with the system <system> that the sample's reasonCode uses.", a count and never the codes, since a
+  diagnosis beside a member is the member's own; a sample whose `reasonCode` states no system (or a
+  placeholder) sends the code without one and says so. With no diagnosis on the case: "The sample's order
+  carries a diagnosis (reasonCode). This case states none: add Diagnosis codes on the Service card." With
+  PAVE's named Bundles, with no sample, or with a sample whose order has no `reasonCode` (or an empty one),
+  nothing changes: a service that refuses an element it does not expect has been met before (D-291).
+- **What is only said: the names** (`7f951cd`). Under the sample's arrangement, for each resource type the
+  request sends (the order in `context.draftOrders` and each resource of the prefetch), one note names the
+  members of the sample's first resource of that type that PAVE's built ones lack: "The sample's Patient
+  also carries meta, extension, active, telecom, address and communication. PAVE has no value for them in
+  this case, so they are not sent." A Coverage class type the sample has and PAVE did not send is named
+  "class of type group". A member the case does hold a value for that the coverage check does not build
+  (the member's address, the provider's address, phone or fax) is not called absent: "... the case holds
+  address but PAVE's coverage check does not build it. None of them is sent." A `reasonCode` the case gave
+  no diagnosis for is left to the diagnosis note, so nothing is said twice. Under Prefetch, in "What these
+  files give" and on Edit, the form names what PAVE's builders never write whatever the case ("... PAVE has
+  no field for them, so they are not sent."), from a fixed list of what each builder can write, and adds
+  "The sample's order carries a diagnosis (reasonCode): the Diagnosis codes of the Service card go there,
+  with the coding system the sample uses." Nothing named is filled in: `performer` is not the requester, no
+  class is made up, a member's address is not added.
+- **The comparison** (`6256f1f`). The answer of "Compare with a request that works" gains `elements`: for
+  each resource type both requests carry, "Your request's Patient carries address and telecom, which the
+  tool's Patient does not.", drawn as "What your request's resources carry that PAVE's do not" after the
+  arrangement. The element by element list already gave each of these by its path; this gathers them by
+  resource.
+- **Rules kept.** Names and code system addresses only are read from a sample; a placeholder is no name and
+  no system; a class type is named only when it reads as a code. Bodies are read by fixed paths, at most
+  three levels to a resource and one level of its own members, never with the depth of the input.
+- **What holds it.** `DiagnosisInOrderTest` (the sample's system and the code as typed on every order and
+  every prefetch copy, before `insurance`; a typed system winning; a sample with no system; the note with
+  no diagnosis; nothing changed under the named Bundles, with no sample and with no `reasonCode`; where the
+  sample's order is read), `SampleElementsTest` (one note per type for a Patient, a Coverage and an order
+  from a sample written for the test, with no value of it in any note or in what is sent; a class PAVE
+  sends not named; a member the case lacks named; an address the case holds not called absent; the form's
+  lines; nothing under the named Bundles; the fixed list of what PAVE writes held against a request built
+  from a case with every value), `SampleElementsCompareTest`, a case in `CrdServiceTest` (the blank code),
+  `CrdBodyDiagnosisFrontendTest` and a case in `CompareFrontendTest`. One expectation of an existing test
+  changed: `CrdRequestComparerTest` lists the answer's parts, now with `elements` for its vendor-shaped
+  sample. Every other existing CRD test passes unchanged. Not shown to fail without the change.
+- **What was seen.** On a copy of the jar of `6256f1f`, on live, in Chromium at 1440 by 900, with an
+  environment export and a collection written for the check (placeholders only) whose coverage-check
+  sample's order carries `reasonCode` and `performer`, whose Patient carries an address and whose Coverage
+  carries a class of type group, against the stand-in on loopback. After Fill, under Prefetch, the form
+  showed the three lines of names and the diagnosis line. The preview of a coverage check with "G47.33,
+  E66.01" in Diagnosis codes showed both as `reasonCode` with the ICD-10-CM system and the note; without
+  them, the note asking for them; both showed the lines for the ServiceRequest, the Patient and the
+  Coverage, and no `performer` and no value of the sample in the body. Not seen: a check run and answered
+  with the diagnosis, the comparison's new part on a screen, the vendor's files or service, Windows, the
+  IDE.
+- **Left.** A Patient's address the member lookup gives is still not written on the coverage check's
+  Patient; whether the vendor's service reads it is not known. `performer` is not sent: nothing says who
+  performs the service.
