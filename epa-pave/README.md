@@ -13,6 +13,13 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**A sign-in that cannot reach its service says what failed (D-315).** After a pull the operator's
+sign-in answered "the token endpoint could not be reached (unavailable)" while the same sign-in worked
+from Postman, and nothing on the card or in the console said whether the host was not found, the
+connection was refused, the certificate was not accepted or a proxy refused. The sentence now ends with
+"What failed: ..." naming which of these it was, and the console names the types of the failure, never
+its message. Nothing in how PAVE signs in was changed by this or by the three pushes before it.
+
 **Each step of the Workbench says which request it sends, and can send it as the collection writes it
 (D-313).** The operator's collection holds 124 mapped requests, several for each step, each for a service
 of its own, and PAVE used the first in the file that fits without saying so. Every step that sends a

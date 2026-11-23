@@ -4,6 +4,12 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**A sign-in that cannot reach its service says what failed** (D-315). After pulling `8bed900` the
+operator's sign-in could not reach the token endpoint, with Postman signing in at the same time. The code
+that signs in had not changed; the cause is not known. The sentence and the console now name the kind of
+failure. Built and tested by the integrator. The gates are run on the commit that carries these records;
+their result is reported with the hand-over.
+
 **Each step says which request it sends, and can send it as the collection writes it** (D-313). The
 Workbench's coverage check, questionnaire package and next question, Submit and inquiry each name the
 request of the collection in force under "Request" in their Options, list every request that fits, send

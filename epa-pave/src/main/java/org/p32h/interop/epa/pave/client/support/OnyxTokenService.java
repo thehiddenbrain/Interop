@@ -651,8 +651,11 @@ public class OnyxTokenService implements org.p32h.interop.epa.pave.service.confi
                 return new TokenGrant(null, null, "No access token: the token endpoint closed the connection without answering.",
                         TokenFailure.ENDPOINT_FAULT);
             }
+            // The kind of failure goes to the console by its types alone, for the case the sentence cannot place.
+            log.warn("Access token request could not be sent: {}", org.p32h.interop.epa.pave.service.error.Faults.cause(e));
             return new TokenGrant(null, null, "No access token: the token endpoint could not be reached ("
-                    + type.name().toLowerCase(java.util.Locale.ROOT) + ").", TokenFailure.ENDPOINT_FAULT);
+                    + type.name().toLowerCase(java.util.Locale.ROOT) + "). What failed: " + ExchangeExecutor.whatFailed(e) + ".",
+                    TokenFailure.ENDPOINT_FAULT);
         }
     }
 }

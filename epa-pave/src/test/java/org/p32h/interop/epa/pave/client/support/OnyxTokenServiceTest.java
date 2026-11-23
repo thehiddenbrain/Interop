@@ -186,7 +186,8 @@ class OnyxTokenServiceTest {
     void anUnreachableOrUnreadableTokenEndpointIsAFailureNotAnException() {
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new ConnectException("Connection refused to auth.example.invalid")));
         assertThat(service(enabled()).token().failure())
-                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). What failed: the connection was refused or "
+                        + "could not be opened. The request was not sent.");
         server.reset();
         // An endpoint that took the connection and then dropped it was reached, and is not said to be unreachable.
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.net.SocketException("Connection reset by auth.example.invalid")));
@@ -234,17 +235,21 @@ class OnyxTokenServiceTest {
         }
         gateway.variable("tokenUrl", "http://127.0.0.1:" + free + "/oauth2/token");
         assertThat(new OnyxTokenService(OnyxProperties.of(prefixed(enabled())), gateway, real, clock).token().failure())
-                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). What failed: the connection was refused or "
+                        + "could not be opened. The request was not sent.");
 
         gateway.variable("tokenUrl", TOKEN_URL);
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.net.UnknownHostException("auth.example.invalid")));
         assertThat(service(enabled()).token().failure())
-                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). What failed: the name of its host could not "
+                        + "be found. The request was not sent.");
         // A failure of a type this tool does not place: the fallback claims no closed connection.
         server.reset();
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.io.IOException("placeholder")));
         assertThat(service(enabled()).token().failure())
-                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). The request was not sent.");
+                .isEqualTo("No access token: the token endpoint could not be reached (unavailable). What failed: the connection failed in a "
+                        + "way this tool cannot place; a proxy between this machine and it is a common cause, and the console of this tool "
+                        + "names the kind of failure. The request was not sent.");
         server.reset();
         server.expect(requestTo(TOKEN_URL)).andRespond(withException(new java.io.EOFException()));
         assertThat(service(enabled()).token().failure()).contains("closed the connection without answering");

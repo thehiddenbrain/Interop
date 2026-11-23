@@ -202,6 +202,49 @@ public class ExchangeExecutor {
      * request that did arrive "not reached" invites a second prior authorization request, and
      * calling one that did not arrive "may have been reached" costs one status check.
      */
+    /**
+     * What went wrong on the way to a sign-in service, as the end of a sentence about it. The same
+     * ladder as {@link #classify}, in fewer words: a sign-in that fails says only "could not be
+     * reached" otherwise, and a tester on a workstation cannot tell a host that was not found from
+     * a certificate that was not accepted or a proxy that refused, which have different remedies.
+     * Types only, never a message: the message of such an exception quotes the address.
+     */
+    static String whatFailed(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof InterruptedException || t instanceof java.nio.channels.ClosedByInterruptException) {
+                return "this tool stopped waiting";
+            }
+            if (t instanceof HttpConnectTimeoutException) {
+                return "the connection attempt timed out";
+            }
+            if (t instanceof HttpTimeoutException || t instanceof SocketTimeoutException) {
+                return "no answer arrived in time";
+            }
+            if (t instanceof ConnectException) {
+                return "the connection was refused or could not be opened";
+            }
+            if (t instanceof UnknownHostException || t instanceof UnresolvedAddressException) {
+                return "the name of its host could not be found";
+            }
+            if (t instanceof NoRouteToHostException) {
+                return "there is no network route to its host";
+            }
+            if (t instanceof SSLHandshakeException || t instanceof SSLPeerUnverifiedException) {
+                return "its certificate was not accepted, or the secure connection could not be set up; on a network with an "
+                        + "inspection proxy, check the trust store of the Java that runs this tool";
+            }
+            if (refusedTunnel(t) != null) {
+                return "a proxy between this machine and it refused the connection";
+            }
+            if (t instanceof SSLException) {
+                return "the secure connection failed; on a network with an inspection proxy, check the trust store of the Java "
+                        + "that runs this tool";
+            }
+        }
+        return "the connection failed in a way this tool cannot place; a proxy between this machine and it is a common cause, and "
+                + "the console of this tool names the kind of failure";
+    }
+
     private static Failure classify(Throwable error) {
         for (Throwable t = error; t != null; t = t.getCause() == t ? null : t.getCause()) {
             // Only the tool's stop interrupts a thread that waits for a service: the web server's

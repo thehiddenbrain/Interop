@@ -77,6 +77,7 @@ entry.
 | D-312 | A call to a typed address follows the collection request that goes to that address; the first mapped only when none does | The operator's collection holds several coverage checks, each for a service of its own. The first in the file was followed, its sample carries the patient under `patientBundle`, and the vendor's service answered "No patient data provided" a third time. Read from the operator's recording of In force now: one collection, 124 requests mapped, the address of the coverage check typed. Held by a test; not seen against the vendor's service |
 | D-313 | Each Workbench step that sends a request names the collection request in force and where it comes from, lists every request that fits, sends the one chosen (its address, headers and sample, over a typed address) and can make it the one for every run through the mapping; "As the collection writes it" sends that request's stored body with the environment's values put in and Postman's five common dynamic values made afresh (`c7adbfa`, `51c1a3e`, `ed9d05e`) | The first request in the file is no safe default in a collection of 124 mapped requests, several for each step; the operator spent an evening finding, one difference at a time, what PAVE builds and the vendor's request sends. A body as written gives up the Case column and what was handed on; scripts are never run, a value a script sets is asked for, and no body reaches the page or the ledger. Seen on live against the stand-in and on mock, not against the vendor's service |
 | D-314 | After a coverage check, a questionnaire or a partly completed response that the answer names leads to the questionnaire step, whatever the answer says about doc-needed; the reason says doc-needed was not stated | The vendor's service names its questionnaires with a doc-purpose and no doc-needed. PAVE offered "Continue to Submit" and the operator never saw a question. |
+| D-315 | A sign-in whose service could not be reached says what failed (the host's name, a refused connection, a timeout, a certificate, a proxy), and the console names the types of the failure | After a pull the operator's sign-in failed as "could not be reached (unavailable)" while Postman signed in, and nothing told the cases apart. The code that signs in had not changed |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9109,3 +9110,23 @@ round of corrections; the code handed over.**
 - **Left.** The questionnaire step has never met the vendor's service: the address of its request is
   typed in the operator's settings, the body is PAVE's own, and the answer named some dozens of
   questionnaires at once. Not seen on a screen for this change.
+
+**D-315. A sign-in that cannot reach its service says what failed.**
+- **What happened.** The operator pulled `8bed900`, started PAVE and got "No access token: the token
+  endpoint could not be reached (unavailable)". It had signed in before the pull, and Postman signed in at
+  the same time. Neither the card nor the console said more: the sentence kept only the class of the
+  failure, and the log line said "Access token request failed".
+- **What was checked.** Nothing between the build that signed in and `8bed900` touches the request for a
+  token, the HTTP client, the launch file or `application.yml` (read from the differences). So the cause
+  is not known, and could not be found from here.
+- **Decided.** The sentence ends with "What failed: ...", from the types of the exception alone: the
+  connection attempt timed out; no answer arrived in time; the connection was refused or could not be
+  opened; the name of its host could not be found; there is no network route to its host; its certificate
+  was not accepted or the secure connection could not be set up (with the trust store named); a proxy
+  refused the connection; or a failure this tool cannot place, for which the console names the types.
+  The console line names the types through `Faults.cause`, never a message: the message of such an
+  exception quotes the address.
+- **What holds it.** `OnyxTokenServiceTest` (a refused connection, a host not found, a failure that cannot
+  be placed).
+- **Left.** The cause of the operator's failure. Whether a restart in place (D-304) plays a part on
+  Windows is not known; it was seen to sign in after a switch on Linux only.
