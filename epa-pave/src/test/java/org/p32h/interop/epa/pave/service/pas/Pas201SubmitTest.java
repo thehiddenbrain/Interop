@@ -193,6 +193,65 @@ class Pas201SubmitTest {
         assertThat(built.notes()).anySatisfy(note -> assertThat(note).contains("PAS 2.0.1 allows a url"));
     }
 
+    /**
+     * Each resource this tool builds for a Submit says which PAS profile it is, right after its id, as the guide's own
+     * examples do (D-319): the vendor's service refused a Bundle that named none, and may look for one on each resource.
+     * The ids are those of the 2.0.1 sources (Claim.fsh, Patient.fsh, Coverage.fsh, Organization.fsh, Practitioner.fsh,
+     * ServiceRequest.fsh). A document says none: 2.0.1 has no profile for it.
+     */
+    @Test
+    void eachResourceOfASubmitDeclaresThePasProfileItIsBuiltAs() {
+        Map<String, String> expected = Map.of("Claim", "profile-claim", "Patient", "profile-beneficiary", "Coverage", "profile-coverage",
+                "Organization", "profile-insurer", "Practitioner", "profile-practitioner", "PractitionerRole", "profile-practitionerrole",
+                "ServiceRequest", "profile-servicerequest");
+        Map<String, Integer> seen = new HashMap<>();
+        for (JsonNode entry : JsonSafe.parse(full().json()).node().get("entry")) {
+            JsonNode resource = entry.get("resource");
+            String type = resource.get("resourceType").asString();
+            if (type.equals("DocumentReference")) {
+                assertThat(resource.has("meta")).as("a document declares no PAS profile").isFalse();
+                continue;
+            }
+            if (!expected.containsKey(type)) {
+                // A questionnaire response travels as DTR completed it.
+                continue;
+            }
+            String what = type + "/" + resource.get("id").asString();
+            assertThat(resource.at("/meta/profile")).as(what).hasSize(1);
+            assertThat(resource.at("/meta/profile/0").asString()).as(what)
+                    .isEqualTo("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/" + expected.get(type));
+            assertThat(resource.propertyNames().stream().limit(3).toList()).as(what).containsExactly("resourceType", "id", "meta");
+            seen.merge(type, 1, Integer::sum);
+        }
+        // The full request carries each of them, and the requesting and the servicing provider as two people in two roles.
+        assertThat(seen.keySet()).containsExactlyInAnyOrderElementsOf(expected.keySet());
+        assertThat(seen).containsEntry("Practitioner", 2).containsEntry("PractitionerRole", 2);
+    }
+
+    /** An organization says which part it plays: the requestor is PASRequestor, a care team member the plain PASOrganization. */
+    @Test
+    void anOrganizationDeclaresTheProfileOfThePartItPlays() {
+        PasSubmitRequest request = bare().provider(ProviderDetail.builder().npi("1234567893").organizationName("Placeholder Clinic").build())
+                .servicingProvider(ProviderDetail.builder().organizationName("Placeholder Sleep Laboratory").build()).build();
+        PasRequestBuilder.Built built = builder().submit(request, CLAIM, true, BUNDLE,
+                variables(Map.of("payerName", "Placeholder Payer", "payerIdentifier", "P32H-PAYER-1")));
+        String pas = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/";
+        assertThat(resource(built, "Organization", "organization-requestor-1").at("/meta/profile/0").asString())
+                .isEqualTo(pas + "profile-requestor");
+        assertThat(resource(built, "Organization", "organization-servicing-1").at("/meta/profile/0").asString())
+                .isEqualTo(pas + "profile-organization");
+        JsonNode insurer = null;
+        for (JsonNode entry : JsonSafe.parse(built.json()).node().get("entry")) {
+            JsonNode resource = entry.get("resource");
+            if ("Organization".equals(resource.get("resourceType").asString())
+                    && (pas + "profile-insurer").equals(resource.at("/meta/profile/0").asString())) {
+                insurer = resource;
+            }
+        }
+        assertThat(insurer).as("the insurer organization declares PASInsurer").isNotNull();
+        assertThat(insurer.get("name").asString()).isEqualTo("Placeholder Payer");
+    }
+
     @Test
     void anInquiryUnder201NeedsAnItemAndDeclaresItsProfile() {
         PasInquireRequest request = PasInquireRequest.builder().member(MemberDetail.builder().memberId("S123456789").build())

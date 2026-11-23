@@ -78,6 +78,21 @@ final class PasResources {
 
     private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
+    /** How the canonical url of every PAS profile begins. */
+    static final String PAS_PROFILE = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-";
+
+    /**
+     * Says which PAS profile a resource is built as, right after its id, the way the guide's own examples do.
+     *
+     * <p>The vendor's service refused a Submit whose Bundle named no profile (D-318). A service that looks for the profile
+     * there may look for one on each resource, so each resource this tool builds for PAS says its own (D-319). A
+     * DocumentReference says none, because the guide has no profile for it, and a QuestionnaireResponse travels as DTR
+     * completed it.
+     */
+    static void declare(ObjectNode resource, String profile) {
+        resource.putObject("meta").putArray("profile").add(PAS_PROFILE + profile);
+    }
+
     private final ProcedureCodeDirectory codeList;
 
     PasResources(ProcedureCodeDirectory codeList) {
@@ -93,6 +108,7 @@ final class PasResources {
         ObjectNode patient = JSON.objectNode();
         patient.put("resourceType", "Patient");
         patient.put("id", patientId(member));
+        declare(patient, "beneficiary");
         patient.putArray("identifier").add(memberIdentifier(member, rule, variables, notes, true));
         if (Texts.present(member.vendorPatientId())) {
             notes.add("The Patient was sent with the id " + patientId(member) + ", the vendor patient id given, so every reference to the "
@@ -171,6 +187,7 @@ final class PasResources {
         ObjectNode coverage = JSON.objectNode();
         coverage.put("resourceType", "Coverage");
         coverage.put("id", CaseResources.COVERAGE_ID);
+        declare(coverage, "coverage");
         String status = CaseResources.coverageStatus(member.coverageStatus());
         if (status == null) {
             notes.missing("PASCoverage status", (Texts.present(member.coverageStatus())
@@ -262,6 +279,7 @@ final class PasResources {
         ObjectNode organization = JSON.objectNode();
         organization.put("resourceType", "Organization");
         organization.put("id", INSURER_ID);
+        declare(organization, "insurer");
         organization.put("active", true);
         if (payerId != null) {
             ObjectNode identifier = organization.putArray("identifier").addObject();
@@ -312,6 +330,7 @@ final class PasResources {
             ObjectNode organization = JSON.objectNode();
             organization.put("resourceType", "Organization");
             organization.put("id", REQUESTOR_ID);
+            declare(organization, "requestor");
             // The organization is the one making this request now, so it is in active use.
             organization.put("active", true);
             npiIdentifier(organization, provider);
@@ -346,6 +365,7 @@ final class PasResources {
         ObjectNode role = JSON.objectNode();
         role.put("resourceType", "PractitionerRole");
         role.put("id", CaseResources.PRACTITIONER_ROLE_ID);
+        declare(role, "practitionerrole");
         role.putObject("practitioner").put("reference", "Practitioner/" + practitionerId(provider));
         if (!telecom(role, provider) && notes.guide().is221()) {
             // PAS 2.0.1 PASPractitionerRole is built on FHIR PractitionerRole, not US Core, so rule pd-1 is not its rule.
@@ -386,6 +406,8 @@ final class PasResources {
             ObjectNode organization = JSON.objectNode();
             organization.put("resourceType", "Organization");
             organization.put("id", OnyxPasConventions.SERVICING_ORGANIZATION_ID);
+            // A care team member that is an organization is the guide's plain PAS organization, neither insurer nor requestor.
+            declare(organization, "organization");
             // The organization will perform the service, so it is in active use.
             organization.put("active", true);
             npiIdentifier(organization, provider);
@@ -420,6 +442,7 @@ final class PasResources {
         ObjectNode role = JSON.objectNode();
         role.put("resourceType", "PractitionerRole");
         role.put("id", OnyxPasConventions.SERVICING_ROLE_ID);
+        declare(role, "practitionerrole");
         role.putObject("practitioner").put("reference", "Practitioner/" + practitionerId);
         if (!telecom(role, provider) && notes.guide().is221()) {
             notes.toComplete("servicingProvider.phone", "Servicing provider phone or fax: none. PAS rule pd-1 needs one: add it to the "
@@ -441,6 +464,7 @@ final class PasResources {
         ObjectNode practitioner = JSON.objectNode();
         practitioner.put("resourceType", "Practitioner");
         practitioner.put("id", id);
+        declare(practitioner, "practitioner");
         npiIdentifier(practitioner, provider);
         if (Texts.present(provider.lastName()) || Texts.present(provider.firstName())) {
             ObjectNode name = practitioner.putArray("name").addObject();
@@ -496,6 +520,7 @@ final class PasResources {
         ObjectNode resource = JSON.objectNode();
         resource.put("resourceType", "ServiceRequest");
         resource.put("id", CaseResources.serviceRequestId(position));
+        declare(resource, "servicerequest");
         resource.put("status", "draft");
         resource.put("intent", "order");
         // The notes about the code system were made for the item, which carries the same concept.

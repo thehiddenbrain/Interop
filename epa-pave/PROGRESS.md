@@ -4,11 +4,18 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Each resource of a Submit declares its PAS profile** (D-319). Done ahead of the vendor's next
+refusal, so that the operator is not sent back once for each resource: the Claim, the Patient, the
+Coverage, the organizations, the practitioner, its role and the order each say the profile they are
+built as, with ids read from the sources of PAS 2.0.1. Built and tested by the integrator. Open: Submit
+built from the case has not been accepted by the vendor's service yet, and what else its validator
+asks is not known. The gates are run on the commit that carries these records; their result is
+reported with the hand-over.
+
 **The Submit bundle declares its PAS bundle profile** (D-318). The vendor's service refused the
 operator's first Submit built from the case because its Bundle named no profile. The Submit and inquiry
-bundles now declare theirs. Built and tested by the integrator. Open: whether the vendor's service asks
-for a profile on the resources inside the Bundle, and why the questionnaire request fails there. The
-gates are run on the commit that carries these records; their result is reported with the hand-over.
+bundles now declare theirs. Built and tested by the integrator. Open: why the questionnaire request
+fails there.
 
 **Submit stays open when the questionnaire step fails, and the card says so** (D-317). The operator's
 questionnaire request failed at the vendor's service and nothing led on to Submit. A questionnaire result

@@ -80,6 +80,7 @@ entry.
 | D-315 | A sign-in whose service could not be reached says what failed (the host's name, a refused connection, a timeout, a certificate, a proxy), and the console names the types of the failure | After a pull the operator's sign-in failed as "could not be reached (unavailable)" while Postman signed in, and nothing told the cases apart. The code that signs in had not changed |
 | D-317 | A questionnaire result that offers no way on says that Submit is open and offers "Continue to Submit without it", plainly | The operator's questionnaire request failed at the vendor's service and nothing on the card led to Submit, though the stepper opens any step. D-316 is kept for the test of a connection, begun and stopped at the operator's word |
 | D-318 | The Submit bundle declares the PAS request bundle profile, and the inquiry's bundle the PAS inquiry request bundle profile | The vendor's service refused a Submit whose Bundle did not say which PAS bundle it is. The guide's own examples declare it under both versions |
+| D-319 | Each resource this tool builds for a Submit or an inquiry declares the PAS profile it is built as | A service that refuses a Bundle for naming no profile may look for one on each resource. The guide's examples declare them, and waiting for one refusal after another costs the tester a pull and a run each time |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9168,9 +9169,44 @@ round of corrections; the code handed over.**
   is so under 2.0.1 and under 2.2.1: the canonical is the same and the guide's examples declare it in
   both. It is not a request shape: nothing is known that refuses a declared profile.
 - **Not decided here.** The resources inside the Bundle (the Claim of a Submit, the Patient, the
-  Coverage, the organizations, the practitioner, the order) declare no profile. The guide's examples
-  declare one on each. Whether the vendor's service asks for them is not known, and the next refusal,
-  if there is one, will say. The collection's own Submit can be sent meanwhile from step 3 with "As the
-  collection writes it" (D-313).
+  Coverage, the organizations, the practitioner, the order) declared no profile when this was written.
+  D-319 decides it.
 - **What holds it.** `PasInquiryProfileTest.eachBundleDeclaresThePasBundleProfileItIs`.
 - **Left.** Submit built from the case has not been accepted by the vendor's service yet.
+
+**D-319. Each resource of a Submit and of an inquiry declares its PAS profile.**
+- **Why now.** D-318 answered the one refusal the vendor's service had given. A validator that looks
+  for `meta.profile` on the Bundle may look for it on the Claim and on the rest, and each further
+  refusal would cost the operator a pull and a run. Declaring the profile is what the guide's own
+  examples do, so nothing is lost by saying it before it is asked.
+- **Decided.** Right after its id, each resource says the profile it is built as:
+
+  - the Claim of a Submit: `profile-claim`
+  - the Claim of an inquiry: `profile-claim-inquiry`, as before
+  - the Patient: `profile-beneficiary`
+  - the Coverage: `profile-coverage`
+  - the Organization that is the insurer: `profile-insurer`
+  - the Organization that is the requestor: `profile-requestor`
+  - an Organization that is a care team member: `profile-organization`
+  - a Practitioner: `profile-practitioner`
+  - a PractitionerRole: `profile-practitionerrole`
+  - a ServiceRequest: `profile-servicerequest`
+
+  Each under `http://hl7.org/fhir/us/davinci-pas/StructureDefinition/`. The ids were read from the
+  sources of PAS 2.0.1 (the `Id:` lines of its profiles), and they are the same in the 2.2 package.
+- **What declares none.** A DocumentReference: 2.0.1 has no profile for it. A QuestionnaireResponse:
+  it travels as DTR completed it, with whatever it declares.
+- **A claim update.** This tool builds none (it says so when asked for one), so the Claim of a Submit is
+  always declared as the PAS claim, never as the guide's claim update.
+- **Not a request shape.** No service is known that refuses a declared profile, so there is nothing to
+  switch. Should one turn up, the place is one method, `PasResources.declare`.
+- **What it may bring out.** A service that validates each resource against the profile it declares
+  will say what the resource lacks for that profile. The notes of a Submit already name what went out
+  without an element PAS requires, so such an answer should hold no surprise, and it is a true finding.
+- **What holds it.** `Pas201SubmitTest.eachResourceOfASubmitDeclaresThePasProfileItIsBuiltAs` and
+  `anOrganizationDeclaresTheProfileOfThePartItPlays`;
+  `PasInquiryProfileTest.theSubmittedClaimDeclaresThePasClaimAndNotTheInquiryProfile` and
+  `theResourcesOfAnInquiryDeclareTheirProfilesToo`.
+- **Left.** Not seen against the vendor's service. What else its validator asks of a Submit built from
+  the case is not known: the collection's own Submit, sent from step 3 as the collection writes it, is
+  the request known to pass.

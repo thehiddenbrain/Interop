@@ -394,7 +394,10 @@ public final class PasRequestBuilder {
         ObjectNode claim = JSON.objectNode();
         claim.put("resourceType", "Claim");
         claim.put("id", OnyxPasConventions.CLAIM_ID);
-        if (!submission) {
+        if (submission) {
+            // This tool builds no claim update, so the Claim of a Submit is always the guide's PAS claim.
+            PasResources.declare(claim, "claim");
+        } else {
             // The vendor's sandbox refused an inquiry whose Claim did not declare this profile.
             claim.putObject("meta").putArray("profile").add(OnyxPasConventions.CLAIM_INQUIRY_PROFILE);
         }
@@ -735,8 +738,7 @@ public final class PasRequestBuilder {
      */
     /** The canonical url of the PAS bundle profile a bundle of this kind is: the request bundle, or the inquiry request bundle. */
     static String bundleCanonical(String bundleProfile) {
-        return "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/"
-                + ("PASInquiryRequestBundle".equals(bundleProfile) ? "profile-pas-inquiry-request-bundle" : "profile-pas-request-bundle");
+        return PasResources.PAS_PROFILE + ("PASInquiryRequestBundle".equals(bundleProfile) ? "pas-inquiry-request-bundle" : "pas-request-bundle");
     }
 
     private String bundle(String bundleId, String bundleProfile, List<ObjectNode> bundled, Function<String, ResolvedText> variables,

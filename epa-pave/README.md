@@ -13,14 +13,22 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Each resource of a Submit says which PAS profile it is (D-319).** A service that refuses a Bundle
+for naming no profile may look for one on each resource too, so this tool no longer waits for the next
+refusal. The Claim of a Submit declares the PAS claim, the Patient the PAS beneficiary, the Coverage,
+the insurer and the requestor organization, the practitioner, its role and the order each their own, as
+the guide's examples do. The ids were read from the sources of PAS 2.0.1. The inquiry's Claim keeps the
+inquiry profile it had. A document declares none, because 2.0.1 has no profile for it, and a
+questionnaire response travels as DTR completed it. Not seen against the vendor's service. If Submit is
+refused again, step 3 can send the collection's own Submit meanwhile: choose its request and "As the
+collection writes it" (D-313).
+
 **The Submit bundle says which PAS bundle it is (D-318).** The vendor's service refused a Submit built
 from the case: "Bundle.meta.profile must include:
 http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle". The Bundle this tool
 built declared no profile. It now declares the PAS request bundle profile, and the inquiry's Bundle the
 PAS inquiry request bundle profile, as the guide's own examples do under 2.0.1 and under 2.2.1. The
-resources inside a Submit still declare no profile of their own: whether the vendor's service asks for
-that is not known. Until it is, step 3 can send the collection's own Submit: choose its request and
-"As the collection writes it" (D-313).
+resources inside the Bundle declare theirs as well (D-319, above).
 
 **Submit stays open when the questionnaire step fails (D-317).** The steps at the top of the Workbench
 are buttons: any step opens at any time, and Submit sends without a questionnaire response when step 2

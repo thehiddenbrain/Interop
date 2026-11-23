@@ -6,6 +6,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.p32h.interop.epa.pave.config.StartupChecks;
@@ -56,9 +58,27 @@ class PasInquiryProfileTest {
                 .isEqualTo("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claim-inquiry");
     }
 
+    /** The Claim of a Submit is the guide's PAS claim and says so; the inquiry's profile stays the inquiry's (D-319). */
     @Test
-    void theSubmittedClaimDeclaresNoInquiryProfile() {
-        assertThat(submission().at("/entry/0/resource").has("meta")).isFalse();
+    void theSubmittedClaimDeclaresThePasClaimAndNotTheInquiryProfile() {
+        JsonNode claim = submission().at("/entry/0/resource");
+        assertThat(claim.at("/meta/profile")).hasSize(1);
+        assertThat(claim.at("/meta/profile/0").asString()).isEqualTo("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claim");
+    }
+
+    /** What the inquiry shares with a Submit, the member and the provider, says its profile in the inquiry too. */
+    @Test
+    void theResourcesOfAnInquiryDeclareTheirProfilesToo() {
+        Map<String, String> declared = new TreeMap<>();
+        for (JsonNode entry : inquiry().get("entry")) {
+            JsonNode resource = entry.get("resource");
+            assertThat(resource.at("/meta/profile")).as(resource.get("resourceType").asString()).hasSize(1);
+            declared.put(resource.get("resourceType").asString(), resource.at("/meta/profile/0").asString()
+                    .replace("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/", ""));
+        }
+        assertThat(declared).containsEntry("Claim", "profile-claim-inquiry").containsEntry("Patient", "profile-beneficiary")
+                .containsEntry("Coverage", "profile-coverage").containsEntry("Practitioner", "profile-practitioner")
+                .containsEntry("PractitionerRole", "profile-practitionerrole");
     }
 
     /**
