@@ -222,10 +222,25 @@ export function drawComparison(answer, useMemberId) {
             ? el('p', null, 'Your request is for the hook ', requestValue(hookDifference.yourValue), ', and PAVE built its request for the hook ',
                 mono(answer.hook), '. These are requests for two different hooks.')
             : answer.hook ? el('p', {class: 'small'}, 'PAVE built its request for the hook ', mono(answer.hook), '.') : null,
+        arrangementPart(answer),
         notes.length > 0 ? el('ul', {class: 'notes'}, notes.map(note => el('li', null, note))) : null,
         casePart(answer, useMemberId),
         docs.node,
         answer.comparable === true ? differenceList(answer, differences, docs) : null);
+}
+
+/**
+ * How the two prefetches are arranged differently (D-309), said as one difference of arrangement
+ * ahead of the element by element list, where the same keys would otherwise read as many unrelated ones.
+ */
+function arrangementPart(answer) {
+    const lines = Array.isArray(answer.arrangement) ? answer.arrangement : [];
+    if (lines.length === 0) {
+        return null;
+    }
+    return el('div', {class: 'compare-arrangement'},
+        el('p', {class: 'notes__title'}, 'The prefetch is arranged differently'),
+        el('ul', {class: 'notes'}, lines.map(line => el('li', null, line))));
 }
 
 /* ---------- what was read out of the pasted request ---------- */

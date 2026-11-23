@@ -173,7 +173,46 @@ public final class CrdRequestComparer {
         }
         List<Difference> differences = result.differences().stream().map(masks::difference).toList();
         return answer.comparable(true).headline(headline(result.differences().size(), counted)).differences(differences)
-                .counts(counts).notes(all).maskedNote(masks.note()).build();
+                .counts(counts).notes(all).maskedNote(masks.note()).arrangement(arrangement(toolBody, yourText)).build();
+    }
+
+    /**
+     * How the two prefetches are arranged differently, key by key (D-309): a key only in the
+     * pasted request, a key only in the tool's, or a key holding another kind of thing in each,
+     * named by key and kind and never by value; then what answers it. Empty when they are alike,
+     * or when either request has no prefetch to arrange.
+     */
+    static List<String> arrangement(String toolBody, String yourText) {
+        PrefetchLayout tool = PrefetchLayout.read(toolBody);
+        PrefetchLayout yours = PrefetchLayout.read(yourText);
+        List<String> lines = new ArrayList<>();
+        if (tool == null || yours == null) {
+            return lines;
+        }
+        Map<String, PrefetchLayout.Key> toolKeys = new LinkedHashMap<>();
+        tool.keys().forEach(key -> toolKeys.put(key.name(), key));
+        Map<String, PrefetchLayout.Key> yourKeys = new LinkedHashMap<>();
+        yours.keys().forEach(key -> yourKeys.put(key.name(), key));
+        for (PrefetchLayout.Key key : yours.keys()) {
+            PrefetchLayout.Key same = toolKeys.get(key.name());
+            if (same == null) {
+                lines.add("The prefetch key " + key.shownName() + " is only in your request, holding " + key.holds() + ".");
+            } else if (!same.holds().equals(key.holds())) {
+                lines.add("The prefetch key " + key.shownName() + " holds " + key.holds() + " in your request and " + same.holds()
+                        + " in the tool's.");
+            }
+        }
+        for (PrefetchLayout.Key key : tool.keys()) {
+            if (!yourKeys.containsKey(key.name())) {
+                lines.add("The prefetch key " + key.shownName() + " is only in the tool's request, holding " + key.holds() + ".");
+            }
+        }
+        if (!lines.isEmpty()) {
+            lines.add("These are differences of arrangement: CDS Hooks fixes no names for the prefetch, and a service reads the keys it "
+                    + "names. Prefetch As the collection's sample, in Configuration > Environments > Edit > Request shapes, sends the keys "
+                    + "of the collection's coverage-check sample, each built from the case.");
+        }
+        return lines;
     }
 
     // ---- the pasted text ----

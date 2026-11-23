@@ -34,13 +34,16 @@ import java.util.List;
  *                    comparable one also carries it first among the notes
  * @param maskedNote  one sentence saying how many values are shown masked because the name of the
  *                    element holding each reads as a credential. Null when nothing was masked
+ * @param arrangement how the two prefetches are arranged differently, one line per key only in one
+ *                    request or holding another kind of thing there, by key and kind and never by
+ *                    value (D-309). Null when the two arrange their prefetch alike
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({"comparable", "whyNot", "headline", "caveat", "maskedNote", "hook", "counts", "notes", "caseSource", "notFound", "differences",
+@JsonPropertyOrder({"comparable", "whyNot", "headline", "caveat", "maskedNote", "hook", "counts", "arrangement", "notes", "caseSource", "notFound", "differences",
         "toolBody", "yourBody"})
 public record RequestComparison(boolean comparable, String whyNot, String headline, String hook, String toolBody, String yourBody,
                                 List<CaseValue> caseSource, List<NotFound> notFound, List<Difference> differences,
-                                List<GroupCount> counts, List<String> notes, String caveat, String maskedNote) {
+                                List<GroupCount> counts, List<String> notes, String caveat, String maskedNote, List<String> arrangement) {
 
     public RequestComparison {
         if (headline == null || headline.isBlank()) {
@@ -54,6 +57,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
         differences = differences == null ? List.of() : List.copyOf(differences);
         counts = counts == null ? List.of() : List.copyOf(counts);
         notes = notes == null ? List.of() : List.copyOf(notes);
+        arrangement = arrangement == null || arrangement.isEmpty() ? null : List.copyOf(arrangement);
     }
 
     public static Builder builder() {
@@ -80,6 +84,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
         private List<String> notes = List.of();
         private String caveat;
         private String maskedNote;
+        private List<String> arrangement;
 
         private Builder() {
         }
@@ -134,6 +139,11 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
             return this;
         }
 
+        public Builder arrangement(List<String> value) {
+            this.arrangement = value;
+            return this;
+        }
+
         public Builder notes(List<String> value) {
             this.notes = value;
             return this;
@@ -151,7 +161,7 @@ public record RequestComparison(boolean comparable, String whyNot, String headli
 
         public RequestComparison build() {
             return new RequestComparison(comparable, whyNot, headline, hook, toolBody, yourBody, caseSource, notFound, differences,
-                    counts, notes, caveat, maskedNote);
+                    counts, notes, caveat, maskedNote, arrangement);
         }
     }
 }

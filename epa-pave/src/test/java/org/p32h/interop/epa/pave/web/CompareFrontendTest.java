@@ -47,6 +47,26 @@ class CompareFrontendTest {
             };
             """;
 
+    /** D-309: a difference of arrangement is drawn as one part, ahead of the notes, line by line as the server words it. */
+    @Test
+    void aDifferenceOfArrangementIsDrawnAsOnePartAheadOfTheNotes(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the prefetch arranged differently", PRELUDE + """
+            const {drawComparison} = await import('./js/adv-compare.js');
+            const lines = ['The prefetch key "patient" is only in your request, holding a Patient.',
+                'These are differences of arrangement: CDS Hooks fixes no names for the prefetch, and a service reads the keys it names.'];
+            const node = drawComparison({comparable: true, headline: 'The two requests differ in 2 places.', notes: ['A note.'],
+                arrangement: lines, counts: [], differences: [], caseSource: [], notFound: []}, () => {});
+            const part = node.querySelector('.compare-arrangement');
+            say([part.querySelector('.notes__title').textContent, part.querySelectorAll('li').map(text)]);
+            const alike = drawComparison({comparable: true, headline: 'Alike.', notes: [], counts: [], differences: []}, () => {});
+            say(alike.querySelector('.compare-arrangement') === null);
+            """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly("[\"The prefetch is arranged differently\",[\"The prefetch key \\\"patient\\\" is only in "
+                + "your request, holding a Patient.\",\"These are differences of arrangement: CDS Hooks fixes no names for the prefetch, and a "
+                + "service reads the keys it names.\"]]", "true");
+    }
+
     /** A file refused, a file read, the comparison sent once and drawn, a difference chosen, then a refusal. */
     @Test
     void theRequestIsReadOrTypedComparedOnceAndEveryDifferenceDrawnAsTheServerWordsIt(@TempDir Path folder) throws Exception {
