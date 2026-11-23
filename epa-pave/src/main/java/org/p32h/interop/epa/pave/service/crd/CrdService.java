@@ -48,6 +48,7 @@ import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
 import org.p32h.interop.epa.pave.service.run.AsWritten;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.PayerAdvice;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
@@ -255,9 +256,10 @@ public class CrdService {
 
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call),
-                CrdVerdicts.statesFhirServer(call == null ? null : call.sampleBody()),
-                call != null && CrdVerdicts.writesPrefetch(call.sampleName(), call.sampleBody())), runId), exchange);
+        // A refusal for want of the coverage's payer points at the values that give one (D-320).
+        NextStepView nextStep = support.unsignedNextStep(followedFrom(PayerAdvice.over(CrdVerdicts.nextStep(reading, exchange, runId,
+                environmentName(call), CrdVerdicts.statesFhirServer(call == null ? null : call.sampleBody()),
+                call != null && CrdVerdicts.writesPrefetch(call.sampleName(), call.sampleBody())), exchange, call), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.

@@ -49,6 +49,7 @@ import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.run.AsWritten;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.PayerAdvice;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunRequest;
@@ -477,7 +478,12 @@ public class DtrService {
         VerdictView verdict = DtrVerdicts.verdict(operation, reading, exchange);
         ExpectationView expectation = Expectations.assess(request.expected(), reading.outcome(), reading.asked(), reading.answers(),
                 DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = support.unsignedNextStep(DtrVerdicts.nextStep(operation, reading, exchange, handoff, runId), exchange);
+        NextStepView step = DtrVerdicts.nextStep(operation, reading, exchange, handoff, runId);
+        // A refusal for want of the coverage's payer points at the values that give one (D-320); only the questionnaire request carries a Coverage.
+        if (operation == EpaOperation.DTR_QUESTIONNAIRE_PACKAGE) {
+            step = PayerAdvice.over(step, exchange, call);
+        }
+        NextStepView nextStep = support.unsignedNextStep(step, exchange);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
         MaskedReading masked = MaskedReading.of(exchange, MaskedReading.Reading.DTR);
