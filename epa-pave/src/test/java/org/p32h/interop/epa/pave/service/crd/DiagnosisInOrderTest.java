@@ -21,11 +21,12 @@ import org.p32h.interop.epa.pave.testsupport.FakeGateway;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The diagnosis on the order where the collection's sample puts one (D-310). The vendor's working
- * sample carries the diagnosis on its ServiceRequest as reasonCode; PAVE's order carried none,
- * though the Service card has Diagnosis codes. Every sample here is written for the test: its
- * codes are placeholders that must never reach what PAVE sends, and the only member ID is
- * S123456789.
+ * The diagnosis on the order (D-310, D-321). The vendor's working sample carries the diagnosis on its
+ * ServiceRequest as reasonCode; PAVE's order carried none, though the Service card has Diagnosis
+ * codes. D-310 sent them only beside a sample whose order carries one; since D-321 a diagnosis the
+ * case states goes on every order whatever the arrangement, and the sample decides only the coding
+ * system where it states one. Every sample here is written for the test: its codes are placeholders
+ * that must never reach what PAVE sends, and the only member ID is S123456789.
  */
 class DiagnosisInOrderTest {
 
@@ -92,9 +93,10 @@ class DiagnosisInOrderTest {
             assertThat(entry.at("/resource/reasonCode/0/coding/0/code").asString()).isEqualTo("G47.33");
         }
         assertThat(root.at("/prefetch/orders/entry").size()).isEqualTo(2);
+        // The sample's order names a performer, and this case names no servicing provider: none goes, and the note says so.
         assertThat(built.json()).doesNotContain("SAMPLE-DX-1").doesNotContain("sample-prac").doesNotContain("performer");
-        assertThat(built.notes()).contains("Each order carries the case's 2 diagnosis codes as reasonCode, as the sample's order carries "
-                + "a diagnosis there, with the system " + ICD + " that the sample's reasonCode uses.");
+        assertThat(built.notes()).contains("Each order carries the case's 2 diagnosis codes as reasonCode, with the system " + ICD
+                + ", which the reasonCode of the collection's request uses.", CrdRequestBuilder.NO_PERFORMER);
         assertThat(String.join(" ", built.notes())).doesNotContain("G47.33").doesNotContain("E66.01");
     }
 
@@ -104,20 +106,24 @@ class DiagnosisInOrderTest {
 
         assertThat(root(built).at("/context/draftOrders/entry/0/resource/reasonCode/0/coding/0/system").asString())
                 .isEqualTo("urn:placeholder:dx");
-        assertThat(built.notes()).contains("Each order carries the case's diagnosis code as reasonCode, as the sample's order carries a "
-                + "diagnosis there, with the system typed for each.");
+        assertThat(built.notes()).contains("Each order carries the case's diagnosis code as reasonCode, with the coding system typed "
+                + "with it.");
     }
 
+    /**
+     * Changed by D-321: a sample whose reasonCode states no system sent the code without one (D-310).
+     * The one rule of the three steps now goes on to the format of the code, as Submit always did.
+     */
     @Test
-    void aSampleReasonCodeWithNoSystemSendsTheCodeWithoutOneAndSaysSo() {
+    void aSampleReasonCodeWithNoSystemLeavesTheSystemToTheFormatOfTheCode() {
         String sample = WITH_REASON.replace("\"system\": \"http://hl7.org/fhir/sid/icd-10-cm\", ", "");
         CrdRequestBuilder.Built built = built(FROM_SAMPLE, sample, List.of(CodeInput.of("G47.33")));
 
         JsonNode coding = root(built).at("/context/draftOrders/entry/0/resource/reasonCode/0/coding/0");
-        assertThat(coding.has("system")).isFalse();
+        assertThat(coding.get("system").asString()).isEqualTo(ICD);
         assertThat(coding.get("code").asString()).isEqualTo("G47.33");
-        assertThat(built.notes()).contains("Each order carries the case's diagnosis code as reasonCode, as the sample's order carries a "
-                + "diagnosis there. The sample's reasonCode states no coding system, so none was sent with the code.");
+        assertThat(built.notes()).contains("Each order carries the case's diagnosis code as reasonCode, with the system ICD-10-CM (" + ICD
+                + "), taken from the format of the code.");
     }
 
     @Test
@@ -132,8 +138,13 @@ class DiagnosisInOrderTest {
         assertThat(built.json()).doesNotContain("SAMPLE-DX-1");
     }
 
+    /**
+     * Changed by D-321: D-310 sent nothing here, and so a diagnosis the tester typed was left out of
+     * the check without a word. Now it goes on every order under the named Bundles, with no sample
+     * and with a sample whose order has none, coded by the one rule.
+     */
     @Test
-    void nothingChangesUnderTheNamedBundlesOrWithASampleWhoseOrderHasNoDiagnosis() {
+    void theDiagnosisGoesUnderTheNamedBundlesWithNoSampleAndWithASampleWhoseOrderHasNone() {
         List<CodeInput> diagnoses = List.of(CodeInput.of("G47.33"));
         CrdRequestBuilder.Built named = built(RequestShapes.DEFAULTS, WITH_REASON, diagnoses);
         CrdRequestBuilder.Built noReason = built(FROM_SAMPLE, WITHOUT_REASON, diagnoses);
@@ -141,13 +152,22 @@ class DiagnosisInOrderTest {
                 FROM_SAMPLE, MemberIdRule.PACKED, null);
 
         for (CrdRequestBuilder.Built built : List.of(named, noReason, noSample)) {
-            assertThat(built.json()).doesNotContain("reasonCode").doesNotContain("G47.33");
-            assertThat(built.notes()).noneMatch(note -> note.contains("reasonCode"));
+            JsonNode root = root(built);
+            assertThat(root.at("/context/draftOrders/entry").size()).isEqualTo(2);
+            for (JsonNode entry : root.at("/context/draftOrders/entry")) {
+                assertThat(entry.at("/resource/reasonCode/0/coding/0/code").asString()).isEqualTo("G47.33");
+                assertThat(entry.at("/resource/reasonCode/0/coding/0/system").asString()).isEqualTo(ICD);
+            }
+            assertThat(String.join(" ", built.notes())).doesNotContain("G47.33");
         }
-        // Under the named Bundles the request is exactly the one a case without diagnosis codes gives.
-        CrdRequestBuilder.Built without = built(RequestShapes.DEFAULTS, WITH_REASON, List.of());
-        assertThat(named.json()).isEqualTo(without.json());
-        assertThat(named.notes()).isEqualTo(without.notes());
+        // Under the named Bundles the copies of the orders in serviceRequestBundle carry it too.
+        for (JsonNode entry : root(named).at("/prefetch/serviceRequestBundle/entry")) {
+            assertThat(entry.at("/resource/reasonCode/0/coding/0/code").asString()).isEqualTo("G47.33");
+        }
+        // With no diagnosis the request is the one D-310 sent, apart from the note under the sample that carries one.
+        CrdRequestBuilder.Built without = built(RequestShapes.DEFAULTS, WITHOUT_REASON, List.of());
+        assertThat(without.json()).doesNotContain("reasonCode");
+        assertThat(without.notes()).noneMatch(note -> note.contains("reasonCode"));
     }
 
     @Test

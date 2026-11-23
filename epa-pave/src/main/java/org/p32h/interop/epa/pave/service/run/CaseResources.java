@@ -848,13 +848,7 @@ public final class CaseResources {
         role.put("resourceType", "PractitionerRole");
         role.put("id", PRACTITIONER_ROLE_ID);
         if (organizationOnly(provider)) {
-            ObjectNode organization = JSON.objectNode();
-            organization.put("resourceType", "Organization");
-            organization.put("id", ORGANIZATION_ID);
-            if (Texts.present(provider.npi())) {
-                organization.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
-            }
-            organization.put("name", provider.organizationName().strip());
+            ObjectNode organization = organization(ORGANIZATION_ID, provider);
             role.putObject("organization").put("reference", ORGANIZATION_REF);
             notes.add("The provider is known by an organization name only, so it was sent as an Organization with its NPI and a "
                     + "PractitionerRole that names it, and not as a Practitioner.");
@@ -885,18 +879,155 @@ public final class CaseResources {
     }
 
     public static ObjectNode practitionerRole(ProviderDetail provider) {
+        return practitionerRole(PRACTITIONER_ROLE_ID, practitionerRef(provider));
+    }
+
+    /** A PractitionerRole under an id, naming the Practitioner a reference gives. */
+    static ObjectNode practitionerRole(String id, String practitionerReference) {
         ObjectNode role = JSON.objectNode();
         role.put("resourceType", "PractitionerRole");
-        role.put("id", PRACTITIONER_ROLE_ID);
-        role.putObject("practitioner").put("reference", practitionerRef(provider));
+        role.put("id", id);
+        role.putObject("practitioner").put("reference", practitionerReference);
         return role;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The servicing provider (D-321)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * True when a case names a servicing provider: any of its NPI, names or vendor practitioner id.
+     * A provider object with nothing in it names nobody, and nothing is sent for it.
+     */
+    public static boolean names(ProviderDetail provider) {
+        return provider != null && (Texts.present(provider.npi()) || Texts.present(provider.lastName()) || Texts.present(provider.firstName())
+                || Texts.present(provider.organizationName()) || Texts.present(provider.vendorPractitionerId()));
+    }
+
+    /**
+     * The servicing provider as the order of a coverage check or a questionnaire request names it,
+     * and the resources that travel for it.
+     *
+     * @param reference the order's performer: Practitioner/, Organization/ or PractitionerRole/ and its id
+     * @param kind      the type of the resource the reference names
+     * @param resources the resources to send beside the requesting provider's, each of its own id; empty when the servicing provider
+     *                  names the requesting provider's Practitioner
+     * @param shared    true when the servicing provider carries the requesting provider's vendor practitioner id, so the two are
+     *                  one Practitioner
+     */
+    public record Servicing(String reference, String kind, List<ObjectNode> resources, boolean shared) {
+
+        public Servicing {
+            resources = resources == null ? List.of() : List.copyOf(resources);
+        }
+
+        /** The resources of one type, in the order they are sent. */
+        public List<ObjectNode> of(String type) {
+            return resources.stream().filter(resource -> type.equals(JsonSafe.text(resource, "resourceType"))).toList();
+        }
+
+        /** The sentence a request's notes give it: what goes as the performer. */
+        public String performerNote() {
+            String note = "The servicing provider goes as the order's performer, " + reference + ".";
+            if (shared) {
+                note += " It carries the requesting provider's vendor practitioner id, so it names the same Practitioner and no second "
+                        + "Practitioner is sent.";
+            }
+            return note;
+        }
+
+        /** Redacted: the resources hold the provider's NPI and name. */
+        @Override
+        public String toString() {
+            return "Servicing[" + kind + "]";
+        }
+    }
+
+    /**
+     * The servicing provider of a case as an order's performer (D-321), with the ids Submit gives it,
+     * so one case names one servicing provider the same way at every step: a person as
+     * Practitioner/ the vendor practitioner id, else Practitioner/practitioner-servicing-1; one known
+     * by an organization name alone as Organization/organization-servicing-1; a person, where the
+     * order of the collection's request names its performer as a PractitionerRole, as the role
+     * PractitionerRole/practitioner-role-servicing-1 that names the Practitioner. Nothing is filled
+     * in: a case that names no servicing provider gets none, and the requesting provider never stands in for one.
+     *
+     * @param servicing  the servicing provider of the case, or null
+     * @param requesting the requesting provider, or null. When the servicing provider carries the same vendor practitioner id, the
+     *                   two are one Practitioner, as Submit rules it: a Bundle may not hold two resources of one type under one id
+     * @param sampleType the resource type the performer of the sample's order refers to, or null
+     * @return null when the case names no servicing provider
+     */
+    public static Servicing servicing(ProviderDetail servicing, ProviderDetail requesting, String sampleType) {
+        if (!names(servicing)) {
+            return null;
+        }
+        if (organizationOnly(servicing)) {
+            String id = org.p32h.interop.epa.pave.client.pas.OnyxPasConventions.SERVICING_ORGANIZATION_ID;
+            return new Servicing("Organization/" + id, "Organization", List.of(organization(id, servicing)), false);
+        }
+        String vendorId = Texts.trimToNull(servicing.vendorPractitionerId());
+        String id = vendorId == null ? org.p32h.interop.epa.pave.client.pas.OnyxPasConventions.SERVICING_PRACTITIONER_ID : vendorId;
+        boolean shared = vendorId != null && requesting != null && !organizationOnly(requesting)
+                && vendorId.equals(Texts.trimToNull(requesting.vendorPractitionerId()));
+        List<ObjectNode> resources = new java.util.ArrayList<>();
+        if (!shared) {
+            resources.add(practitioner(id, servicing));
+        }
+        if ("PractitionerRole".equals(sampleType)) {
+            String roleId = org.p32h.interop.epa.pave.client.pas.OnyxPasConventions.SERVICING_ROLE_ID;
+            resources.add(practitionerRole(roleId, "Practitioner/" + id));
+            return new Servicing("PractitionerRole/" + roleId, "PractitionerRole", resources, shared);
+        }
+        return new Servicing("Practitioner/" + id, "Practitioner", resources, shared);
+    }
+
+    /**
+     * Puts the case's diagnoses and its servicing provider on an order, each where FHIR's order of
+     * the elements of a ServiceRequest puts it: performer and reasonCode after requester and before
+     * insurance, so the order reads as a vendor's does.
+     *
+     * @param reasonCode the diagnoses as {@link Diagnoses#reasonCodes} gives them; nothing when empty
+     * @param performer  the reference of the servicing provider, or null
+     */
+    public static void onOrder(ObjectNode order, ArrayNode reasonCode, String performer) {
+        if ((reasonCode == null || reasonCode.isEmpty()) && performer == null) {
+            return;
+        }
+        tools.jackson.databind.JsonNode insurance = order.remove("insurance");
+        if (performer != null) {
+            order.putArray("performer").addObject().put("reference", performer);
+        }
+        if (reasonCode != null && !reasonCode.isEmpty()) {
+            order.set("reasonCode", reasonCode.deepCopy());
+        }
+        if (insurance != null) {
+            order.set("insurance", insurance);
+        }
+    }
+
+    /** An Organization under an id, with the NPI as its identifier when one was given and the organization name. */
+    static ObjectNode organization(String id, ProviderDetail provider) {
+        ObjectNode organization = JSON.objectNode();
+        organization.put("resourceType", "Organization");
+        organization.put("id", id);
+        if (Texts.present(provider.npi())) {
+            organization.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
+        }
+        organization.put("name", provider.organizationName().strip());
+        return organization;
     }
 
     /** The Practitioner under the id {@link #practitionerId} gives, with the NPI as its identifier when one was given. */
     public static ObjectNode practitioner(ProviderDetail provider) {
+        return practitioner(practitionerId(provider), provider);
+    }
+
+    /** As {@link #practitioner(ProviderDetail)}, under the id given: the requesting provider's and the servicing provider's are built alike. */
+    static ObjectNode practitioner(String id, ProviderDetail provider) {
         ObjectNode practitioner = JSON.objectNode();
         practitioner.put("resourceType", "Practitioner");
-        practitioner.put("id", practitionerId(provider));
+        practitioner.put("id", id);
         if (Texts.present(provider.npi())) {
             practitioner.putArray("identifier").addObject().put("system", NPI_SYSTEM).put("value", provider.npi().strip());
         }

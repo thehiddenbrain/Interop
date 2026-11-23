@@ -82,8 +82,9 @@ class SampleElementsTest {
     void eachResourceTypeSentSaysWhatTheSamplesCarriesByNameInOneNote() {
         CrdRequestBuilder.Built built = built(member().build(), List.of(CodeInput.of("G47.33")), SAMPLE);
 
+        // Changed by D-321: a performer the case names no servicing provider for is said once, by the order's own note.
         assertThat(built.notes()).contains(
-                "The sample's ServiceRequest also carries performer. PAVE has no value for it in this case, so it is not sent.",
+                CrdRequestBuilder.NO_PERFORMER,
                 "The sample's Patient also carries meta, extension, active, telecom, address and communication. PAVE has no value for "
                         + "them in this case, so they are not sent.",
                 "The sample's Coverage also carries relationship, class of type plan and class of type group. PAVE has no value for "
@@ -138,22 +139,24 @@ class SampleElementsTest {
         CrdRequestBuilder.Built built = built(member().build(), List.of(), SAMPLE);
 
         assertThat(built.notes()).contains("The sample's order carries a diagnosis (reasonCode). This case states none: add Diagnosis "
-                + "codes on the Service card.",
-                "The sample's ServiceRequest also carries performer. PAVE has no value for it in this case, so it is not sent.");
+                + "codes on the Service card.", CrdRequestBuilder.NO_PERFORMER);
+        // Changed by D-321: the performer is said by the order's note and is not named a second time among the elements.
+        assertThat(built.notes()).noneMatch(note -> note.startsWith("The sample's ServiceRequest also carries"));
     }
 
     @Test
     void theFormNamesWhatPaveNeverWritesWhateverTheCase() {
         List<String> lines = PrefetchLayout.read(SAMPLE).formLines();
 
+        // Changed by D-321: PAVE now writes a performer, so it is no longer named as one it has no field for; its own line says where it goes.
         assertThat(lines).containsExactly(
-                "The sample's ServiceRequest also carries performer. PAVE has no field for it, so it is not sent.",
                 "The sample's Patient also carries meta, extension, active, telecom, address and communication. PAVE has no field for "
                         + "them, so they are not sent.",
                 "The sample's Coverage also carries relationship and class of type group. PAVE has no field for them, so they are not "
                         + "sent.",
                 "The sample's order carries a diagnosis (reasonCode): the Diagnosis codes of the Service card go there, with the coding "
-                        + "system the sample uses.");
+                        + "system the sample uses.",
+                "The sample's order names a performer: the Servicing provider of the Provider card goes there.");
         noSampleValue(lines);
     }
 

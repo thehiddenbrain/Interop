@@ -34,9 +34,11 @@ import tools.jackson.databind.JsonNode;
  * @param elements  for each resource type the sample sends, the names of its first resource's own members, in the sample's
  *                  order: the order in context.draftOrders, then each resource of the prefetch (D-310). Names only
  * @param coverageClasses the type codes of the classes of the sample's first Coverage, such as group or plan
+ * @param performerType the resource type the first performer of the sample's order refers to, such as PractitionerRole, or null
+ *                  when the order names none: a type, never a value (D-321)
  */
 public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage, String practitionerSystem, List<String> contextExtras,
-                             Reason reason, Map<String, List<String>> elements, List<String> coverageClasses) {
+                             Reason reason, Map<String, List<String>> elements, List<String> coverageClasses, String performerType) {
 
     /** The members of context PAVE's request sends (CrdRequestBuilder). */
     public static final Set<String> CONTEXT_SENT = Set.of("userId", "patientId", "draftOrders", "selections");
@@ -157,8 +159,8 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
     }
 
     /**
-     * The members PAVE's builders can write on each resource type, whatever the case (CaseResources
-     * and the diagnosis of D-310). The form compares a sample with these, as it knows no case; a
+     * The members PAVE's builders can write on each resource type, whatever the case (CaseResources,
+     * and on the order the diagnosis as reasonCode and the servicing provider as performer, D-321). The form compares a sample with these, as it knows no case; a
      * request compares with what it sent. A test builds a case with every value and holds the two alike.
      */
     public static final Map<String, Set<String>> BUILDABLE = Map.of(
@@ -168,7 +170,7 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
             "PractitionerRole", Set.of("id", "practitioner", "organization"),
             "Organization", Set.of("id", "identifier", "name"),
             "ServiceRequest", Set.of("id", "status", "intent", "code", "subject", "occurrenceDateTime", "authoredOn", "requester",
-                    "reasonCode", "insurance"));
+                    "performer", "reasonCode", "insurance"));
 
     /** The class types PAVE's Coverage can carry: the plan, from the plan name. */
     static final Set<String> BUILDABLE_CLASSES = Set.of("plan");
@@ -182,7 +184,7 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
 
     /** The keys only, as a layout read before the sample's systems and context were followed. */
     public PrefetchLayout(List<Key> keys) {
-        this(keys, null, null, null, List.of(), null, Map.of(), List.of());
+        this(keys, null, null, null, List.of(), null, Map.of(), List.of(), null);
     }
 
     /** Counts only. */
@@ -239,13 +241,14 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
             }
         }
         JsonNode order = firstOrder(parsed.node());
+        JsonNode sampleOrder = order == null ? first.get("ServiceRequest") : order;
         Map<String, List<String>> elements = new java.util.LinkedHashMap<>();
         for (JsonNode resource : resources(parsed.node())) {
             elements.putIfAbsent(JsonSafe.presentText(resource, "resourceType"), names(resource));
         }
         return new PrefetchLayout(keys, identity(first.get("Patient")), identity(first.get("Coverage")),
-                onlySystem(first.get("Practitioner")), extras, reason(order == null ? first.get("ServiceRequest") : order), elements,
-                classTypes(first.get("Coverage")));
+                onlySystem(first.get("Practitioner")), extras, reason(sampleOrder), elements, classTypes(first.get("Coverage")),
+                org.p32h.interop.epa.pave.service.run.SampleOrder.read(savedBody).performerType());
     }
 
     /**
@@ -361,7 +364,7 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
 
     /**
      * What the sample's resources carry that PAVE's builders never write, whatever the case, for
-     * the form, which knows no case. The order's reasonCode is left to the diagnosis line.
+     * the form, which knows no case. The order's reasonCode and performer are left to their own lines.
      */
     public List<String> buildableLines() {
         List<String> lines = new ArrayList<>();
@@ -380,6 +383,9 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
         if (reason != null) {
             lines.add("The sample's order carries a diagnosis (reasonCode): the Diagnosis codes of the Service card go there, with the "
                     + "coding system the sample uses.");
+        }
+        if (performerType != null || elements.getOrDefault("ServiceRequest", List.of()).contains("performer")) {
+            lines.add("The sample's order names a performer: the Servicing provider of the Provider card goes there.");
         }
         return lines;
     }

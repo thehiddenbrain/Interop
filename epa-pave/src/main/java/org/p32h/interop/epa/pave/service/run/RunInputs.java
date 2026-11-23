@@ -141,6 +141,39 @@ public final class RunInputs {
         return this;
     }
 
+    /** Diagnosis codes are optional; none of those given may be blank. */
+    public RunInputs diagnoses(List<CodeInput> codes) {
+        for (int i = 0; codes != null && i < codes.size(); i++) {
+            if (codes.get(i) == null || Texts.blank(codes.get(i).code())) {
+                errors.add(new FieldError("diagnosisCodes[" + i + "].code", "This diagnosis code is blank."));
+            }
+        }
+        return this;
+    }
+
+    /**
+     * A servicing provider is optional, and checked the same for every step that sends it (D-321):
+     * when its NPI is typed, its check digit is tested as the requesting provider's is; when its
+     * vendor practitioner id is typed, it must be one a FHIR resource id can be, because it becomes
+     * the id of its Practitioner (R-40).
+     */
+    public RunInputs servicingProvider(ProviderDetail provider) {
+        if (provider == null) {
+            return this;
+        }
+        if (Texts.present(provider.npi())) {
+            String npiProblem = Npi.problem(provider.npi());
+            if (npiProblem != null) {
+                errors.add(new FieldError("servicingProvider.npi", npiProblem));
+            }
+        }
+        String problem = CaseResources.vendorIdProblem("A vendor practitioner id", provider.vendorPractitionerId());
+        if (problem != null) {
+            errors.add(new FieldError("servicingProvider.vendorPractitionerId", problem));
+        }
+        return this;
+    }
+
     /** An optional date that must be a real calendar date when given. */
     public RunInputs date(String field, String value) {
         if (Texts.present(value) && !IsoDates.valid(value)) {

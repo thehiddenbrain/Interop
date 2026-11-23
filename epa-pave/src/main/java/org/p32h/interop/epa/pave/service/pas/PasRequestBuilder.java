@@ -13,6 +13,7 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.Diagnoses;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import java.time.Clock;
 import java.time.Instant;
@@ -277,7 +278,7 @@ public final class PasRequestBuilder {
         for (CodeInput code : request.diagnosisCodes()) {
             ObjectNode entry = diagnosis.addObject();
             entry.put("sequence", diagnosis.size());
-            entry.set("diagnosisCodeableConcept", diagnosisConcept(code, notes));
+            entry.set("diagnosisCodeableConcept", diagnosisConcept(code, diagnosis.size(), notes));
         }
         if (diagnosis.isEmpty()) {
             notes.add("No diagnosis was sent, because none was supplied.");
@@ -704,30 +705,22 @@ public final class PasRequestBuilder {
     }
 
     /**
-     * A diagnosis code as a CodeableConcept. Its coding system is the one the tester stated, else
-     * ICD-10-CM when the code has that format, which is a rule about a published code format and
-     * is still reported. A code of any other format is sent without a system, and the note says
-     * that PAS binds the element, required, to a value set the code then cannot be shown to be in.
+     * A diagnosis code as a CodeableConcept, its coding system by the rule every step shares
+     * ({@link Diagnoses}): typed, else ICD-10-CM by its format, else none. Submit follows no sample's
+     * reasonCode, so its wire is what it was before the coverage check took the diagnosis (D-321). A
+     * code with no system is counted, as PAS binds the diagnosis, required, to a value set the code
+     * then cannot be shown to be in. The notes name a diagnosis by its position, never by its code.
      */
-    private static ObjectNode diagnosisConcept(CodeInput code, PasNotes notes) {
-        ObjectNode concept = JSON.objectNode();
-        ObjectNode coding = concept.putArray("coding").addObject();
-        String value = code.code().strip();
-        if (Texts.present(code.system())) {
-            coding.put("system", code.system().strip());
-        } else if (value.toUpperCase(Locale.ROOT).matches("[A-TV-Z][0-9][0-9AB](\\.?[0-9A-TV-Z]{1,4})?")) {
-            coding.put("system", OnyxPasConventions.ICD_10_CM);
-            notes.add("The coding system for the diagnosis " + value + " was taken from its format: ICD-10-CM.");
-        } else {
-            notes.missing("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis " + value + ")", "No coding system could be "
-                    + "worked out for the diagnosis " + value + ", so it was sent without one. " + notes.pas() + " binds the diagnosis, required, to "
+    private static ObjectNode diagnosisConcept(CodeInput code, int position, PasNotes notes) {
+        Diagnoses.Choice choice = Diagnoses.choose(code, null);
+        if (choice.source() == Diagnoses.Source.FORMAT) {
+            notes.add("The coding system for diagnosis " + position + " was taken from its format: ICD-10-CM.");
+        } else if (choice.source() == Diagnoses.Source.NONE) {
+            notes.missing("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis " + position + ")", "No coding system could be "
+                    + "worked out for diagnosis " + position + ", so it was sent without one. " + notes.pas() + " binds the diagnosis, required, to "
                     + "the value set X12278DiagnosisCodes, so the service may refuse it. State its system with the code.");
         }
-        coding.put("code", value);
-        if (Texts.present(code.description())) {
-            coding.put("display", code.description().strip());
-        }
-        return concept;
+        return Diagnoses.concept(code, choice);
     }
 
     /**

@@ -511,7 +511,9 @@ public final class CrdRequestComparer {
         }
         String dateOfService = out.value(CaseField.DATE_OF_SERVICE, form.dateOfService(), null);
 
+        // The diagnosis and the servicing provider are the form's, as a send of the same case carries them (D-321).
         out.request = CrdRunRequest.builder().hook(hook).member(member).provider(provider).procedureCodes(codes).dateOfService(dateOfService)
+                .diagnosisCodes(form.diagnosisCodes()).servicingProvider(form.servicingProvider())
                 .includePrefetch(form.includePrefetch()).variables(form.variables()).build();
         return out;
     }

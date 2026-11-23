@@ -12,6 +12,8 @@ import org.p32h.interop.epa.pave.model.ResolvedText;
 import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.Diagnoses;
+import org.p32h.interop.epa.pave.service.run.SampleOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.Clock;
@@ -103,6 +105,29 @@ public final class CrdRequestBuilder {
      */
     public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes,
                        MemberIdRule rule, PrefetchLayout sample) {
+        return build(request, hookInstance, variables, shapes, rule, sample, of(sample));
+    }
+
+    /** What a layout read from a sample says of its order, for a caller that has the layout alone. */
+    static SampleOrder of(PrefetchLayout sample) {
+        if (sample == null) {
+            return SampleOrder.NONE;
+        }
+        boolean performer = sample.performerType() != null || sample.elements().getOrDefault("ServiceRequest", List.of()).contains("performer");
+        return new SampleOrder(sample.reason() != null, sample.reason() == null ? null : sample.reason().system(), performer,
+                sample.performerType(), false, false);
+    }
+
+    /**
+     * As {@link #build(CrdRunRequest, String, Function, RequestShapes, MemberIdRule, PrefetchLayout)},
+     * with what the order of the collection's request the call is sent from says of its diagnosis and
+     * its performer, which holds whatever the arrangement of the prefetch (D-321).
+     *
+     * @param sampleOrder what the sample's order carries, by presence and type; {@link SampleOrder#NONE} for none
+     */
+    public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes,
+                       MemberIdRule rule, PrefetchLayout sample, SampleOrder sampleOrder) {
+        SampleOrder told = sampleOrder == null ? SampleOrder.NONE : sampleOrder;
         List<String> notes = new ArrayList<>();
         List<SentOrder> orders = new ArrayList<>();
         List<CaseResources.Required> missing = new ArrayList<>();
@@ -112,8 +137,9 @@ public final class CrdRequestBuilder {
         RequestShapes shaped = shapes == null ? RequestShapes.DEFAULTS : shapes;
         RequestShapes.Choice prefetchChoice = shaped.choice(RequestShape.CRD_PREFETCH);
         boolean asSample = RequestShape.AS_SAMPLE.equals(prefetchChoice.value());
-        // The diagnosis follows the sample only where the request is arranged as the sample is (D-310).
-        PrefetchLayout.Reason reason = asSample && sample != null ? sample.reason() : null;
+        // A diagnosis and a servicing provider the case states go on every order, whatever the arrangement of the prefetch (D-321).
+        ArrayNode reasonCodes = Diagnoses.reasonCodes(request.diagnosisCodes(), told.reasonSystem());
+        CaseResources.Servicing servicing = CaseResources.servicing(request.servicingProvider(), provider, told.performerType());
 
         ObjectNode root = JSON.objectNode();
         root.put("hook", hook);
@@ -154,9 +180,7 @@ public final class CrdRequestBuilder {
         for (CodeInput code : request.procedureCodes()) {
             String id = CaseResources.serviceRequestId(position);
             ObjectNode order = resources.serviceRequest(id, code, member, provider, request.dateOfService(), authoredOn, hcpcs, notes);
-            if (reason != null) {
-                diagnosis(order, request.diagnosisCodes(), reason);
-            }
+            CaseResources.onOrder(order, reasonCodes, servicing == null ? null : servicing.reference());
             hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
             CaseResources.entry(entries, order, fhirServer);
             sentOrders.add(order);
@@ -167,9 +191,7 @@ public final class CrdRequestBuilder {
         if (!orders.isEmpty()) {
             notes.add(CaseResources.authoredOnNote(authoredOn));
         }
-        if (reason != null) {
-            notes.add(diagnosisNote(request.diagnosisCodes(), reason));
-        }
+        notes.addAll(orderNotes(request.diagnosisCodes(), told, servicing));
         if (hcpcsSent) {
             notes.add(CaseResources.hcpcsNote(hcpcs));
         }
@@ -185,7 +207,7 @@ public final class CrdRequestBuilder {
 
         if (prefetchSent && asSample && sample != null) {
             Pieces pieces = new Pieces(member, provider, rule, variables, notes, missing, sentOrders, sample);
-            samplePrefetch(root.putObject("prefetch"), sample, pieces, fhirServer, prefetchChoice, notes);
+            samplePrefetch(root.putObject("prefetch"), sample, pieces, fhirServer, prefetchChoice, notes, servicing);
         } else if (prefetchSent) {
             if (asSample) {
                 notes.add("Prefetch: As the collection's sample, " + from(prefetchChoice) + ", but the request this call comes from "
@@ -197,12 +219,22 @@ public final class CrdRequestBuilder {
             prefetch.set("patientBundle", collection(fhirServer, resources.crdPatient(member, rule, variables, notes, missing)));
             prefetch.set("coverageBundle", collection(fhirServer, resources.crdCoverage(member, rule, variables, notes, missing)));
             CaseResources.Provider named = CaseResources.crdProvider(provider, notes, missing);
-            if (named.practitioner() != null) {
-                prefetch.set("practitionerBundle", collection(fhirServer, named.practitioner()));
-            } else {
-                prefetch.set("organizationBundle", collection(fhirServer, named.organization()));
+            String requesterKey = named.practitioner() != null ? "practitionerBundle" : "organizationBundle";
+            ObjectNode requesterBundle = collection(fhirServer, named.practitioner() != null ? named.practitioner() : named.organization());
+            ObjectNode roleBundle = collection(fhirServer, named.role());
+            prefetch.set(requesterKey, requesterBundle);
+            prefetch.set("practitionerRoleBundle", roleBundle);
+            if (servicing != null && !servicing.resources().isEmpty()) {
+                // The servicing provider's resources travel where the requesting provider's travel (D-321).
+                List<String> placed = new ArrayList<>();
+                for (ObjectNode resource : servicing.resources()) {
+                    String type = JsonSafe.text(resource, "resourceType");
+                    boolean role = "PractitionerRole".equals(type);
+                    CaseResources.entry((ArrayNode) (role ? roleBundle : requesterBundle).get("entry"), resource.deepCopy(), fhirServer);
+                    placed.add("its " + type + " in " + (role ? "practitionerRoleBundle" : requesterKey));
+                }
+                notes.add("The servicing provider's resources travel beside the requesting provider's: " + PrefetchLayout.words(placed) + ".");
             }
-            prefetch.set("practitionerRoleBundle", collection(fhirServer, named.role()));
             ObjectNode serviceRequests = collection(fhirServer);
             for (ObjectNode order : sentOrders) {
                 CaseResources.entry((ArrayNode) serviceRequests.get("entry"), order.deepCopy(), fhirServer);
@@ -221,17 +253,25 @@ public final class CrdRequestBuilder {
                             + "because the provider is known by an organization name only. The keys the live service declares are in its "
                             + "discovery response.");
         } else if (fhirServer != null) {
+            servicingNotSent(servicing, notes);
             notes.add("No prefetch was sent, because the form said to leave it out. The Patient, Coverage and provider resources, and "
                     + "what " + CaseResources.CRD_VERSION + " requires of them, are then the service's to fetch from the fhirServer sent.");
         } else {
+            servicingNotSent(servicing, notes);
             notes.add("No prefetch was sent, because the form said to leave it out, and no fhirServer was sent either: the variable "
                     + CaseResources.VAR_FHIR_SERVER + " is not set. This request gives the service no way to read the Patient, the "
                     + "Coverage or the provider.");
         }
         if (asSample && sample != null) {
-            // The diagnosis note already speaks for a reasonCode the case gave no code for, so it is not named twice.
-            notes.addAll(sample.elementLines(root, reason != null && request.diagnosisCodes().isEmpty() ? java.util.Set.of("reasonCode")
-                    : java.util.Set.of(), heldByCase(member, provider)));
+            // The order's notes already speak for a reasonCode or a performer the case gave nothing for, so neither is named twice.
+            java.util.Set<String> said = new java.util.HashSet<>();
+            if (told.reason() && request.diagnosisCodes().isEmpty()) {
+                said.add("reasonCode");
+            }
+            if (told.performer() && servicing == null) {
+                said.add("performer");
+            }
+            notes.addAll(sample.elementLines(root, said, heldByCase(member, provider)));
         }
         notes.add(CaseResources.fullUrlNote(fhirServer));
         if (!missing.isEmpty()) {
@@ -241,30 +281,6 @@ public final class CrdRequestBuilder {
                     + ". It goes all the same. The notes below say which, and what would supply each.");
         }
         return new Built(JsonSafe.pretty(root), notes, orders, missing);
-    }
-
-    /**
-     * Each diagnosis code of the case as a reasonCode of the order, with one coding: the system the
-     * tester stated, else the one the sample's reasonCode uses, and the code as typed. Placed before
-     * insurance, where FHIR's order of elements puts it, so the order reads as the sample's does.
-     */
-    private static void diagnosis(ObjectNode order, List<CodeInput> codes, PrefetchLayout.Reason reason) {
-        if (codes.isEmpty()) {
-            return;
-        }
-        JsonNode insurance = order.remove("insurance");
-        ArrayNode reasonCode = order.putArray("reasonCode");
-        for (CodeInput code : codes) {
-            ObjectNode coding = reasonCode.addObject().putArray("coding").addObject();
-            String system = Texts.present(code.system()) ? code.system().strip() : reason.system();
-            if (system != null) {
-                coding.put("system", system);
-            }
-            coding.put("code", code.code().strip());
-        }
-        if (insurance != null) {
-            order.set("insurance", insurance);
-        }
     }
 
     /**
@@ -295,18 +311,41 @@ public final class CrdRequestBuilder {
                 || Texts.present(address.state()) || Texts.present(address.postalCode()));
     }
 
-    /** What the request says of the diagnosis when the sample's order carries one: where it went, or that the case states none. */
-    static String diagnosisNote(List<CodeInput> codes, PrefetchLayout.Reason reason) {
-        if (codes.isEmpty()) {
-            return "The sample's order carries a diagnosis (reasonCode). This case states none: add Diagnosis codes on the Service card.";
+    /**
+     * What the request says of the diagnosis and the servicing provider on its orders (D-321): the
+     * count and coding system of the diagnoses, never a code, since a diagnosis beside a member is the
+     * member's own data; the performer by its reference; and, where the case states none of either and
+     * the order of the collection's request carries it, that the case states none.
+     */
+    static List<String> orderNotes(List<CodeInput> codes, SampleOrder sample, CaseResources.Servicing servicing) {
+        List<String> out = new ArrayList<>();
+        String diagnosis = Diagnoses.orderNote(codes, sample.reasonSystem());
+        if (diagnosis != null) {
+            out.add(diagnosis);
+        } else if (sample.reason()) {
+            out.add(NO_DIAGNOSIS);
         }
-        // A count and a system, never the codes: a diagnosis beside a member is the member's own data.
-        String count = codes.size() == 1 ? "the case's diagnosis code" : "the case's " + codes.size() + " diagnosis codes";
-        boolean ownSystem = codes.stream().allMatch(code -> Texts.present(code.system()));
-        return "Each order carries " + count + " as reasonCode, as the sample's order carries a diagnosis there"
-                + (ownSystem ? ", with the system typed for each." : reason.system() == null
-                ? ". The sample's reasonCode states no coding system, so none was sent with the code."
-                : ", with the system " + reason.system() + " that the sample's reasonCode uses.");
+        if (servicing != null) {
+            out.add(servicing.performerNote());
+        } else if (sample.performer()) {
+            out.add(NO_PERFORMER);
+        }
+        return out;
+    }
+
+    /** The note for an order of the collection's request that carries a diagnosis, when the case states none (D-310). */
+    static final String NO_DIAGNOSIS = "The sample's order carries a diagnosis (reasonCode). This case states none: add Diagnosis codes on "
+            + "the Service card.";
+
+    /** The note for an order of the collection's request that names a performer, when the case names no servicing provider. */
+    static final String NO_PERFORMER = "The sample's order names a performer. This case names no servicing provider, so none was sent: "
+            + "add a Servicing provider on the Provider card.";
+
+    /** The line for a servicing provider whose resources go nowhere because no prefetch was sent. */
+    private static void servicingNotSent(CaseResources.Servicing servicing, List<String> notes) {
+        if (servicing != null && !servicing.resources().isEmpty()) {
+            notes.add("No prefetch was sent, so the servicing provider's resources were not sent either; the order still names it.");
+        }
     }
 
     /** Where a shape's value came from, as a note says it after the value. */
@@ -487,10 +526,16 @@ public final class CrdRequestBuilder {
      * the case (D-309). A key or an entry that the case cannot fill is left out and said.
      */
     private static void samplePrefetch(ObjectNode prefetch, PrefetchLayout sample, Pieces pieces, String fhirServer,
-                                       RequestShapes.Choice choice, List<String> notes) {
+                                       RequestShapes.Choice choice, List<String> notes, CaseResources.Servicing servicing) {
         List<String> sent = new ArrayList<>();
         List<String> said = new ArrayList<>(sample.leftOutLines());
         java.util.Set<String> held = new java.util.HashSet<>();
+        // The servicing provider's resources go as further entries of the first Bundle that holds their type (D-321).
+        List<String> servicingPlaced = new ArrayList<>();
+        java.util.Set<String> servicingTypes = new java.util.LinkedHashSet<>();
+        if (servicing != null) {
+            servicing.resources().forEach(resource -> servicingTypes.add(JsonSafe.text(resource, "resourceType")));
+        }
         for (PrefetchLayout.Key key : sample.keys()) {
             switch (key.kind()) {
                 case NULL -> {
@@ -531,7 +576,12 @@ public final class CrdRequestBuilder {
                             continue;
                         }
                         held.add(type);
-                        List<ObjectNode> built = pieces.of(type);
+                        List<ObjectNode> built = new ArrayList<>(pieces.of(type));
+                        boolean servicingHere = servicingTypes.remove(type);
+                        if (servicingHere) {
+                            servicing.of(type).forEach(resource -> built.add(resource.deepCopy()));
+                            servicingPlaced.add("its " + type + " in the Bundle under " + key.shownName());
+                        }
                         if (built.isEmpty()) {
                             if (!"ServiceRequest".equals(type)) {
                                 said.add(unbuilt(type, "in the Bundle under " + key.shownName()));
@@ -572,6 +622,14 @@ public final class CrdRequestBuilder {
         notes.add("Prefetch: As the collection's sample, " + from(choice) + ". The prefetch was sent under the sample's keys, each built "
                 + "from the case: " + (sent.isEmpty() ? "none could be filled" : PrefetchLayout.words(sent)) + ".");
         notes.addAll(said);
+        if (!servicingPlaced.isEmpty()) {
+            notes.add("The servicing provider's resources travel where the sample holds resources of their type: "
+                    + PrefetchLayout.words(servicingPlaced) + ".");
+        }
+        for (String type : servicingTypes) {
+            notes.add("The sample's prefetch has no Bundle that holds " + PrefetchLayout.article(type) + " " + type + ", so the servicing "
+                    + "provider's " + type + " was not sent. The order still names it as its performer.");
+        }
         notes.addAll(sample.contextLines());
         List<String> notHeld = new ArrayList<>();
         for (String type : List.of("Patient", "Coverage", "Practitioner", "PractitionerRole")) {

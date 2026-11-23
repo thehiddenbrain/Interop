@@ -1,10 +1,7 @@
 package org.p32h.interop.epa.pave.service.pas;
 
 import org.p32h.interop.epa.pave.model.CodeInput;
-import org.p32h.interop.epa.pave.model.Npi;
-import org.p32h.interop.epa.pave.model.ProviderDetail;
 import org.p32h.interop.epa.pave.model.Texts;
-import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import java.math.BigDecimal;
 import java.util.List;
@@ -51,24 +48,8 @@ final class PasCardChecks {
             inputs.require(unit == null || (unit.length() == 2 && lettersOrDigits(unit)), "procedureCodes[" + i + "].unit",
                     "A unit is an X12 code of two capital letters or digits, such as FL for units or DY for days.");
         }
-        servicing(request.servicingProvider(), inputs);
-    }
-
-    /**
-     * A servicing provider is optional. When its NPI is typed, its check digit is tested as the
-     * ordering provider's is; when its vendor practitioner id is typed, it must be one a FHIR
-     * resource id can be, because it becomes the id of its Practitioner (R-40).
-     */
-    private static void servicing(ProviderDetail provider, RunInputs inputs) {
-        if (provider == null) {
-            return;
-        }
-        if (Texts.present(provider.npi())) {
-            String npiProblem = Npi.problem(provider.npi());
-            inputs.require(npiProblem == null, "servicingProvider.npi", npiProblem);
-        }
-        String problem = CaseResources.vendorIdProblem("A vendor practitioner id", provider.vendorPractitionerId());
-        inputs.require(problem == null, "servicingProvider.vendorPractitionerId", problem);
+        // The same checks the coverage check and the questionnaire request give it (D-321).
+        inputs.servicingProvider(request.servicingProvider());
     }
 
     private static void closed(RunInputs inputs, String field, String value, List<PasOptions.Option> list, String what) {

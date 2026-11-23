@@ -158,7 +158,6 @@ class RegexStackGuardTest {
             inline("service/error/Faults.java", "replaceAll", "[\\s\\p{Cntrl}\\u0085\\u2028\\u2029]+"),
             inline("service/ledger/JsonlRunLedger.java", "replaceAll", "[\\s_.\\-\\p{Pd}\\p{Cf}]"),
             inline("service/pas/NotificationReceiver.java", "matches", "\\(not recorded, \\d+ characters\\)"),
-            inline("service/pas/PasRequestBuilder.java", "matches", "[A-TV-Z][0-9][0-9AB](\\.?[0-9A-TV-Z]{1,4})?"),
             inline("service/pas/PasResources.java", "replaceAll", "[^a-z0-9]"),
             inline("service/pas/PasResources.java", "matches", "\\d{5}"),
             inline("service/pas/PasResources.java", "matches", "\\d{4}[FTU]"),

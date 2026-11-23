@@ -6,7 +6,6 @@ import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.AdditionalField;
-import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -52,6 +51,7 @@ import org.p32h.interop.epa.pave.service.run.PayerAdvice;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
+import org.p32h.interop.epa.pave.service.run.SampleOrder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -142,7 +142,7 @@ public class CrdService {
         } else {
             CaseResources.Reads reads = CaseResources.reading(call);
             CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call), call.memberIdRule(),
-                    sampleLayout(call));
+                    sampleLayout(call), sampleOrder(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             requestNotes.addAll(reads.requestNotes());
@@ -321,6 +321,15 @@ public class CrdService {
         return call == null ? null : PrefetchLayout.ofCall(call.sampleName(), call.sampleBody());
     }
 
+    /**
+     * What the order of the collection's request the call is sent from says of its diagnosis and its
+     * performer (D-321), whatever the arrangement of the prefetch; nothing for a call with no saved
+     * body or a sample of an error.
+     */
+    static SampleOrder sampleOrder(PreparedCall call) {
+        return call == null ? SampleOrder.NONE : SampleOrder.ofCall(call.sampleName(), call.sampleBody());
+    }
+
     /** What the request would be, without sending it. Nothing is recorded. */
     public RequestPreview preview(CrdRunRequest posted, ProdUnlock unlock) {
         AsWritten written = AsWritten.take(posted, operation(CrdRequestBuilder.hook(posted)), gateway);
@@ -352,7 +361,7 @@ public class CrdService {
             String hookInstance = UUID.randomUUID().toString();
             CaseResources.Reads reads = CaseResources.reading(call);
             CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call), call.memberIdRule(),
-                    sampleLayout(call));
+                    sampleLayout(call), sampleOrder(call));
             body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.addAll(reads.requestNotes());
@@ -439,10 +448,8 @@ public class CrdService {
         } else {
             inputs.member(request.member()).providerByNpiOrVendorId(request.provider()).codes(request.procedureCodes());
         }
-        for (int i = 0; i < request.diagnosisCodes().size(); i++) {
-            CodeInput code = request.diagnosisCodes().get(i);
-            inputs.require(code != null && Texts.present(code.code()), "diagnosisCodes[" + i + "].code", "This diagnosis code is blank.");
-        }
+        // The same checks Submit gives them (D-321).
+        inputs.diagnoses(request.diagnosisCodes()).servicingProvider(request.servicingProvider());
         inputs.date("dateOfService", request.dateOfService())
                 .expectation(request.expected(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
                 .scenario(request.scenarioId(), epa)

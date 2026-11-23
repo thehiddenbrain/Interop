@@ -398,8 +398,7 @@ final class PasResources {
      *                   bundle may not hold two resources of one type under one id
      */
     static Servicing servicing(ProviderDetail provider, ProviderDetail requesting, PasNotes notes) {
-        if (provider == null || (Texts.blank(provider.npi()) && Texts.blank(provider.lastName()) && Texts.blank(provider.firstName())
-                && Texts.blank(provider.organizationName()) && Texts.blank(provider.vendorPractitionerId()))) {
+        if (!CaseResources.names(provider)) {
             return null;
         }
         if (requestorIsAnOrganization(provider)) {

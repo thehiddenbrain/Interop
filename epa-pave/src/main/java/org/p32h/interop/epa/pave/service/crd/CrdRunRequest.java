@@ -16,8 +16,11 @@ import java.util.Map;
  *
  * @param hook            order-sign or order-select. Blank means order-sign
  * @param includePrefetch false to send the request without prefetch. Null means true
- * @param diagnosisCodes  the Diagnosis codes of the Service card. Sent only where the collection's
- *                        sample puts a diagnosis on its order (D-310); CRD itself requires none
+ * @param diagnosisCodes  the Diagnosis codes of the Service card, each sent as a reasonCode of every
+ *                        order (D-321); CRD itself requires none
+ * @param servicingProvider who performs the service, sent as the performer of every order, as Submit
+ *                        sends it on the care team (D-321). Optional; the requesting provider never
+ *                        stands in for it
  */
 public record CrdRunRequest(
         String hook,
@@ -27,6 +30,7 @@ public record CrdRunRequest(
         List<String> providerOverrides,
         List<CodeInput> procedureCodes,
         List<CodeInput> diagnosisCodes,
+        ProviderDetail servicingProvider,
         String dateOfService,
         Boolean includePrefetch,
         String scenarioId,
@@ -64,8 +68,8 @@ public record CrdRunRequest(
      * run goes down the path such a body takes. Every other field is kept.
      */
     public CrdRunRequest withRawBody(String body) {
-        return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes, dateOfService,
-                includePrefetch, scenarioId, expected, testerRef, note, chainId, request, body, asWritten, variables, carry, configEpoch,
+        return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes, servicingProvider,
+                dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, body, asWritten, variables, carry, configEpoch,
                 unrecognised);
     }
 
@@ -83,6 +87,7 @@ public record CrdRunRequest(
         private List<String> providerOverrides = List.of();
         private List<CodeInput> procedureCodes = List.of();
         private List<CodeInput> diagnosisCodes = List.of();
+        private ProviderDetail servicingProvider;
         private String dateOfService;
         private Boolean includePrefetch;
         private String scenarioId;
@@ -132,6 +137,11 @@ public record CrdRunRequest(
 
         public Builder diagnosisCodes(List<CodeInput> value) {
             this.diagnosisCodes = value;
+            return this;
+        }
+
+        public Builder servicingProvider(ProviderDetail value) {
+            this.servicingProvider = value;
             return this;
         }
 
@@ -202,7 +212,7 @@ public record CrdRunRequest(
 
         public CrdRunRequest build() {
             return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
-                    dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables, carry, configEpoch,
+                    servicingProvider, dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables, carry, configEpoch,
                     Map.of());
         }
     }

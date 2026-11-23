@@ -355,8 +355,10 @@ class PasRequestBuilderTest {
         JsonNode diagnosis = claim(built).get("diagnosis");
         assertThat(diagnosis.at("/0/diagnosisCodeableConcept/coding/0/system").asString()).isEqualTo("http://hl7.org/fhir/sid/icd-10-cm");
         assertThat(diagnosis.at("/1/diagnosisCodeableConcept/coding/0").has("system")).isFalse();
-        assertThat(built.notes()).contains("No coding system could be worked out for the diagnosis 327.23, so it was sent without one. PAS 2.2.1 "
+        // Changed by D-321: a note names a diagnosis by its position, never by its code, as a diagnosis beside a member is the member's own.
+        assertThat(built.notes()).contains("No coding system could be worked out for diagnosis 2, so it was sent without one. PAS 2.2.1 "
                 + "binds the diagnosis, required, to the value set X12278DiagnosisCodes, so the service may refuse it. State its system with the code.");
+        assertThat(String.join(" ", built.notes()) + String.join(" ", built.leftOut())).doesNotContain("327.23").doesNotContain("G47.33");
     }
 
     @Test
@@ -364,7 +366,8 @@ class PasRequestBuilderTest {
         // PAS 2.2.1 PASClaimBase binds item.productOrService and diagnosis.diagnosisCodeableConcept, required; PASServiceRequest binds code.
         PasRequestBuilder.Built built = submit(complete().procedureCodes(List.of(CodeInput.of("ABC12")))
                 .diagnosisCodes(List.of(CodeInput.of("XYZ"))).build(), ALL);
-        assertThat(built.leftOut()).containsExactly("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis XYZ)",
+        // Changed by D-321: the diagnosis is named by its position, never by its code.
+        assertThat(built.leftOut()).containsExactly("PASClaim diagnosis.diagnosisCodeableConcept system (diagnosis 1)",
                 "PASServiceRequest code system (code ABC12)", "PASClaim item.productOrService system (code ABC12)");
         assertThat(built.notes().get(0)).startsWith("This request goes out without 3 elements PAS 2.2.1 requires");
         assertThat(built.notes()).contains("The order ServiceRequest/service-request-1 carries the code ABC12 with no system, as its item "
