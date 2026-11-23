@@ -576,6 +576,21 @@ public class ConfigStoreGateway implements OperationGateway {
     }
 
     @Override
+    public WrittenBody writtenBody(EpaOperation operation, RequestRef request) {
+        ConfigSnapshot snapshot = store.snapshot();
+        // The same target a call of the operation would have, so the body is the one of the request the run goes to.
+        Target target = target(snapshot, CallIntent.of(operation).withRequest(request));
+        if (target.source() != Source.REQUEST) {
+            return WrittenBody.none(target.described(), target.source() == Source.TYPED);
+        }
+        List<String> scripts = new ArrayList<>();
+        for (StoredCollection.Mapped each : target.collection().requests()) {
+            each.request().scripts().forEach(script -> scripts.add(script.source()));
+        }
+        return new WrittenBody(target.request().request().qualifiedName(), target.described(), target.savedBody(), scripts, false);
+    }
+
+    @Override
     public ResolvedText resolve(String template, Map<String, String> runValues) {
         if (template == null) {
             return null;

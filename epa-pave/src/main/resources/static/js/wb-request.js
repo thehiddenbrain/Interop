@@ -21,6 +21,8 @@ export const STEP_OPERATIONS = ['CRD_ORDER_SIGN', 'CRD_ORDER_SELECT', 'DTR_QUEST
 
 // operation -> {collectionId, requestId}: a request chosen on this page.
 const chosen = new Map();
+// operation -> true: "As the collection writes it" chosen for the step's runs.
+const asWritten = new Map();
 // operation -> sentence: what "Use for every run" did, kept across the redraw the change of configuration brings.
 const said = new Map();
 let effective = null;
@@ -58,9 +60,34 @@ export function choose(operation, ref) {
     }
 }
 
+/** True when the step's runs send the collection's body as written. */
+export function sendsAsWritten(operation) {
+    return asWritten.get(operation) === true;
+}
+
+/** Chooses how the step's body is made: true for "As the collection writes it", false for "Built from the case". */
+export function writeAsWritten(operation, on) {
+    if (on) {
+        asWritten.set(operation, true);
+    } else {
+        asWritten.delete(operation);
+    }
+    for (const line of lines) {
+        line.redraw();
+    }
+}
+
+// What a run built from the case carries and a body as written does not: the body names its own member, provider and
+// codes, and sending the Case column's beside it would put on the ledger line a member the request never named.
+const CASE_FIELDS = ['member', 'memberOverrides', 'provider', 'providerOverrides', 'servicingProvider', 'procedureCodes', 'diagnosisCodes',
+    'dateOfService', 'placeOfService', 'levelOfService', 'certificationType', 'requestType', 'serviceType', 'questionnaires',
+    'coverageAssertionId', 'questionnaire', 'questionnaireResponse', 'answers', 'wrapInParameter', 'attachments', 'claimId', 'rawBody'];
+
 /**
  * A run's body with the request chosen for its step, when one is: the server then sends that
- * request's address and headers and follows its sample. A body for any other call goes as it was.
+ * request's address and headers and follows its sample. With "As the collection writes it" the
+ * run asks the server for the request's own body: the page holds none and sends nothing of the case
+ * for it. A body for any other call goes as it was.
  */
 export function withChosenRequest(path, body) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -71,7 +98,14 @@ export function withChosenRequest(path, body) {
         return body;
     }
     const ref = chosenFor(operation);
-    return ref ? {...body, request: ref} : body;
+    const out = ref ? {...body, request: ref} : {...body};
+    if (sendsAsWritten(operation)) {
+        for (const name of CASE_FIELDS) {
+            delete out[name];
+        }
+        out.asWritten = true;
+    }
+    return ref || sendsAsWritten(operation) ? out : body;
 }
 
 function requestsOf(operation) {
@@ -143,7 +177,8 @@ export function inForce(operation) {
 /**
  * The line, built once per step. spec: {operation() (the operation the step sends now), label (the
  * step in words), environment() (the active environment's name, for the link to its addresses),
- * changed() (a request chosen or taken back)}. Returns {node, summary, redraw()}: summary is the
+ * changed() (a request chosen or taken back), laterStep (a step after the coverage check, which
+ * says that what was handed on is not put into a body as written)}. Returns {node, summary, redraw()}: summary is the
  * short line for under the step's head.
  */
 export function createRequestLine(spec) {
@@ -193,6 +228,7 @@ export function createRequestLine(spec) {
         if (open && requests.length > 1) {
             shown.push(list(op, requests, force));
         }
+        shown.push(bodyChoice(op, force));
         fill(node, shown);
         drawSummary(requests, force);
     }
@@ -206,6 +242,47 @@ export function createRequestLine(spec) {
         fill(summary, 'Request: ', force.available ? ['"' + requestName(force.available) + '", ', force.words]
             : force.kind === 'typed' ? 'the address typed in the settings' : 'none of them', '. ', String(requests.length),
             ' requests of the stored collections fit this step; choose another under Options.');
+    }
+
+    /**
+     * "Body": built from the case, or as the collection writes it. Offered for a request of the
+     * collection that has a body of its own; an address typed in the settings has none.
+     */
+    function bodyChoice(op, force) {
+        if (!force.available && force.kind !== 'typed') {
+            asWritten.delete(op);
+            return null;
+        }
+        const request = force.available && force.available.request ? force.available.request : null;
+        const possible = Boolean(request && request.hasBody === true);
+        if (!possible && sendsAsWritten(op)) {
+            asWritten.delete(op);
+        }
+        const group = 'request-body-' + op;
+        const option = (value, words, checked) => {
+            const input = el('input', {type: 'radio', name: group, value, checked, disabled: !possible && value === 'written'});
+            input.addEventListener('change', () => {
+                if (input.checked) {
+                    writeAsWritten(op, value === 'written');
+                    if (typeof spec.changed === 'function') {
+                        spec.changed();
+                    }
+                }
+            });
+            return el('label', {class: 'request-body__option'}, input, ' ', words);
+        };
+        const written = sendsAsWritten(op);
+        return el('div', {class: 'request-body', role: 'radiogroup', 'aria-label': 'Body'},
+            el('span', {class: 'request-line__label'}, 'Body'), ' ',
+            option('case', 'Built from the case', !written), ' ',
+            option('written', 'As the collection writes it', written),
+            written ? el('p', {class: 'small request-line__note'}, 'The body is the collection\'s own. The member, provider and codes in it are '
+                + 'sent, not those of the Case column.', spec.laterStep ? ' What the step before handed on is not put into it.' : null,
+                ' A placeholder with no value is asked for before anything is sent; Postman\'s {{$guid}}, {{$randomUUID}}, {{$timestamp}}, '
+                + '{{$isoTimestamp}} and {{$randomInt}} are made afresh at each send.') : null,
+            !possible ? el('p', {class: 'small muted'}, force.kind === 'typed'
+                ? 'The address typed in the settings has no body of a collection request: choose a request to send its body as written.'
+                : 'The request in use has no body of its own to send as written.') : null);
     }
 
     function changeButton(op, requests, force) {
@@ -370,6 +447,7 @@ export function createRequestLine(spec) {
 export function forgetLines() {
     lines.clear();
     chosen.clear();
+    asWritten.clear();
     said.clear();
     effective = null;
 }

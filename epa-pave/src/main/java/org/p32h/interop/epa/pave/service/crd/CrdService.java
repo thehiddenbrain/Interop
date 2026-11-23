@@ -46,6 +46,7 @@ import org.p32h.interop.epa.pave.model.RequestShapes;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
 import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.AsWritten;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
@@ -101,7 +102,10 @@ public class CrdService {
      *               point the run at any collection request, and the gateway judges that request
      *               for what it is. A suite run or a replay always passes null
      */
-    public RunEnvelope<CrdDetail> run(CrdRunRequest request, RunOrigin origin, ProdUnlock unlock) {
+    public RunEnvelope<CrdDetail> run(CrdRunRequest posted, RunOrigin origin, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, operation(CrdRequestBuilder.hook(posted)), gateway);
+        CrdRunRequest request = written == null ? posted : posted.withRawBody(written.template());
         validate(request);
         String hook = CrdRequestBuilder.hook(request);
         EpaOperation operation = operation(hook);
@@ -122,6 +126,9 @@ public class CrdService {
         boolean unreadableOnMock = false;
         if (ownBody) {
             body = call.resolve(request.rawBody());
+            if (written != null) {
+                written.requireFilled(call, body);
+            }
             orders = SentOrder.fromBody(body.value());
             // The tester's body is sent as written, valid or not: a malformed body is a negative
             // case they are entitled to send. They are told, so it cannot happen unnoticed.
@@ -140,6 +147,13 @@ public class CrdService {
             orders = built.orders();
             incomplete = built.incomplete();
         }
+        if (written != null) {
+            List<String> said = AsWritten.reworded(requestNotes);
+            requestNotes.clear();
+            requestNotes.addAll(written.notes(false));
+            requestNotes.addAll(said);
+        }
+
         String chosen = RunSupport.chosenRequestNote(request, call);
         if (chosen != null) {
             requestNotes.add(0, chosen);
@@ -305,7 +319,9 @@ public class CrdService {
     }
 
     /** What the request would be, without sending it. Nothing is recorded. */
-    public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
+    public RequestPreview preview(CrdRunRequest posted, ProdUnlock unlock) {
+        AsWritten written = AsWritten.take(posted, operation(CrdRequestBuilder.hook(posted)), gateway);
+        CrdRunRequest request = written == null ? posted : posted.withRawBody(written.template());
         validate(request);
         EpaOperation operation = operation(CrdRequestBuilder.hook(request));
         PreparedCall call;
@@ -321,8 +337,13 @@ public class CrdService {
         if (RunSupport.ownBody(request)) {
             ResolvedText resolved = call.resolve(request.rawBody());
             body = resolved.resolved() ? resolved.display() : request.rawBody();
-            notes = resolved.resolved() ? List.of()
-                    : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + ".");
+            if (written != null) {
+                notes = new ArrayList<>(written.notes(false));
+                notes.addAll(written.previewLines(resolved));
+            } else {
+                notes = resolved.resolved() ? List.of()
+                        : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + ".");
+            }
         } else {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();

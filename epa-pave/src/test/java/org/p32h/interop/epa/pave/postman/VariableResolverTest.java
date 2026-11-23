@@ -376,10 +376,21 @@ class VariableResolverTest {
         Resolution resolution = resolver.resolve("{{$randomInt}}-{{$randomFirstName}}", List.of());
 
         assertThat(resolution.complete()).isFalse();
-        assertThat(resolution.unresolved()).containsExactly("$randomInt", "$randomFirstName");
-        assertThat(resolution.reasons().get("$randomInt")).isEqualTo(
-                "Postman computes {{$randomInt}} itself and this tool does not. Type a value for it for this run.");
+        assertThat(resolution.unresolved()).containsExactly("$randomFirstName");
+        assertThat(resolution.reasons().get("$randomFirstName")).isEqualTo(
+                "Postman computes {{$randomFirstName}} itself and this tool does not: it makes only {{$guid}}, {{$randomUUID}}, "
+                        + "{{$timestamp}}, {{$isoTimestamp}} and {{$randomInt}}. Type a value for it for this run.");
         // Typing one is the way out, and it works.
+        assertThat(resolver.resolve("{{$randomFirstName}}", List.of(VariableLayer.runValues(values("$randomFirstName", "Pat")))).send())
+                .isEqualTo("Pat");
+    }
+
+    /** Postman's {{$randomInt}} is a whole number from 0 to 1000, made afresh for each use (D-313). */
+    @Test
+    void randomIntIsAWholeNumberFromZeroToAThousandMadeForEachUse() {
+        String[] made = VariableResolver.forProcess(CLOCK).resolve("{{$randomInt}} {{$randomInt}} {{$randomInt}}", List.of()).send().split(" ");
+        assertThat(made).hasSize(3).allSatisfy(value -> assertThat(Integer.parseInt(value)).isBetween(0, 1000));
+        // A value typed for the run still wins.
         assertThat(resolver.resolve("{{$randomInt}}", List.of(VariableLayer.runValues(values("$randomInt", "42")))).send()).isEqualTo("42");
     }
 

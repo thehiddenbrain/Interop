@@ -716,3 +716,14 @@ td .notes {
     gap: var(--s-1);
     align-items: baseline;
 }
+
+.request-body {
+    margin-top: var(--s-2);
+}
+
+.request-body__option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    margin-right: var(--s-3);
+}

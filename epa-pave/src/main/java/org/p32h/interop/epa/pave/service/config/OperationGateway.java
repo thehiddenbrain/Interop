@@ -237,6 +237,18 @@ public interface OperationGateway {
      * The member ID rule of the active environment: its own when it states one, else packed. For
      * what is shown before any call is prepared, such as the form a member ID will be sent in.
      */
+    /**
+     * The body of the collection request a run of the operation would use, for a run sent as the
+     * collection writes it (D-313): the request named for the run, else the one in force for the
+     * operation. A run to an address typed in the settings has none. This default knows no
+     * collection and answers that there is none.
+     *
+     * @param request the request named for the run, or null
+     */
+    default WrittenBody writtenBody(org.p32h.interop.epa.pave.model.EpaOperation operation, RequestRef request) {
+        return WrittenBody.none(null, false);
+    }
+
     default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
         return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
     }

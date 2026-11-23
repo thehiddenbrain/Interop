@@ -17,7 +17,7 @@ import org.p32h.interop.epa.pave.web.StaticSources.NodeRun;
 class StepRequestFrontendTest {
 
     private static final String EFFECTIVE = """
-            const request = (id, name, folders, url, extra) => Object.assign({id, name, folderPath: folders, method: 'POST', urlTemplate: url}, extra || {});
+            const request = (id, name, folders, url, extra) => Object.assign({id, name, folderPath: folders, method: 'POST', urlTemplate: url, hasBody: true}, extra || {});
             const effective = (typed) => ({operations: [{operation: 'CRD_ORDER_SIGN', label: 'CRD order-sign',
               target: typed ? {display: 'https://typed.example.invalid/cds-services/order-sign', typed: true, source: 'the address typed for CRD order-sign'}
                 : {display: 'https://other.example.invalid/other/cds-services/order-sign', requestName: 'Coverage check', source: 'the request'},
@@ -87,7 +87,7 @@ class StepRequestFrontendTest {
                 "\"This run goes to the request's own address, not the one typed in the settings.\"",
                 "[null,\"typed\",\"Request The address typed in the settings https://typed.example.invalid/cds-services/order-sign Change\"]",
                 "[\"Request Inquiry POST .../Claim/$inquire the one chosen in Configuration It is the only request of the stored collections that"
-                        + " fits this step.\",0,true]",
+                        + " fits this step.Body Built from the case As the collection writes it\",0,true]",
                 "[\"Request application.yml: onyx.pas.url followed by /Claim/$submit No request of the stored collections fits this step, so there"
                         + " is none to choose.\",0]",
                 "[\".../epa/cds-services/order-sign\",\".../a\",\"\"]");
@@ -136,5 +136,51 @@ class StepRequestFrontendTest {
                 "[\"Every run of CRD order-sign that names no request now uses \\\"Vendor / CRD / Coverage check\\\", and the request before it in"
                         + " the file no longer stands for it. The address typed in the settings for CRD order-sign still wins until it is taken away:"
                         + " Edit.\",[\"#configuration/environments/Vendor%20UAT/addresses\"],{\"collectionId\":\"c2\",\"requestId\":\"r3\"}]");
+    }
+
+    @Test
+    void asTheCollectionWritesItAsksTheServerForTheBodyAndSendsNothingOfTheCase(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the body as written", """
+                import './browser.js';
+                import {createRequestLine, useEffective, withChosenRequest, sendsAsWritten} from './js/wb-request.js';
+                const say = value => console.log(JSON.stringify(value));
+                const text = node => node.textContent.replace(/\\s+/g, ' ').trim();
+                """ + EFFECTIVE + """
+                const line = createRequestLine({operation: () => 'CRD_ORDER_SIGN', label: 'the coverage check'});
+                const later = createRequestLine({operation: 'PAS_INQUIRE', label: 'the inquiry', laterStep: true});
+                document.body.append(line.node, later.node);
+                useEffective(effective(false));
+                const radios = node => node.querySelectorAll('input').filter(each => each.type === 'radio');
+                say(radios(line.node).map(each => [each.value, each.checked, each.disabled]));
+                const run = {hook: 'order-sign', member: {memberId: 'S123456789'}, memberOverrides: [], provider: {npi: '1234567893'},
+                  procedureCodes: [{code: 'E0470'}], dateOfService: '2026-12-01', chainId: 'new', configEpoch: 5, expected: 'X', note: 'n'};
+                say(withChosenRequest('/api/crd', run));
+                const written = radios(line.node).find(each => each.value === 'written');
+                written.checked = true;
+                written.dispatchEvent({type: 'change'});
+                say([sendsAsWritten('CRD_ORDER_SIGN'), withChosenRequest('/api/crd', run)]);
+                say(text(line.node.querySelector('.request-body .request-line__note')));
+                const laterWritten = radios(later.node).find(each => each.value === 'written');
+                laterWritten.checked = true;
+                laterWritten.dispatchEvent({type: 'change'});
+                say(text(later.node.querySelector('.request-body .request-line__note')).includes('What the step before handed on is not put into it.'));
+                // An address typed in the settings and no request chosen: there is no body to send as written.
+                useEffective(effective(true));
+                say([radios(line.node).map(each => [each.value, each.checked, each.disabled]), sendsAsWritten('CRD_ORDER_SIGN'),
+                  text(line.node.querySelector('.request-body .muted'))]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[[\"case\",true,false],[\"written\",false,false]]",
+                "{\"hook\":\"order-sign\",\"member\":{\"memberId\":\"S123456789\"},\"memberOverrides\":[],\"provider\":{\"npi\":\"1234567893\"},"
+                        + "\"procedureCodes\":[{\"code\":\"E0470\"}],\"dateOfService\":\"2026-12-01\",\"chainId\":\"new\",\"configEpoch\":5,"
+                        + "\"expected\":\"X\",\"note\":\"n\"}",
+                "[true,{\"hook\":\"order-sign\",\"chainId\":\"new\",\"configEpoch\":5,\"expected\":\"X\",\"note\":\"n\",\"asWritten\":true}]",
+                "\"The body is the collection's own. The member, provider and codes in it are sent, not those of the Case column. A placeholder"
+                        + " with no value is asked for before anything is sent; Postman's {{$guid}}, {{$randomUUID}}, {{$timestamp}},"
+                        + " {{$isoTimestamp}} and {{$randomInt}} are made afresh at each send.\"",
+                "true",
+                "[[[\"case\",true,false],[\"written\",false,true]],false,\"The address typed in the settings has no body of a collection"
+                        + " request: choose a request to send its body as written.\"]");
     }
 }

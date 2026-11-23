@@ -36,6 +36,7 @@ public record CrdRunRequest(
         String chainId,
         RequestRef request,
         String rawBody,
+        Boolean asWritten,
         Map<String, String> variables,
         Map<String, List<String>> carry,
         Long configEpoch,
@@ -56,6 +57,16 @@ public record CrdRunRequest(
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * This request with the collection's body as written in place of a body of its own (D-313), so the
+     * run goes down the path such a body takes. Every other field is kept.
+     */
+    public CrdRunRequest withRawBody(String body) {
+        return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes, dateOfService,
+                includePrefetch, scenarioId, expected, testerRef, note, chainId, request, body, asWritten, variables, carry, configEpoch,
+                unrecognised);
     }
 
     /** Redacted, because it carries member data. */
@@ -81,6 +92,7 @@ public record CrdRunRequest(
         private String chainId;
         private RequestRef request;
         private String rawBody;
+        private Boolean asWritten;
         private Map<String, String> variables = Map.of();
         private Map<String, List<String>> carry = Map.of();
         private Long configEpoch;
@@ -168,6 +180,11 @@ public record CrdRunRequest(
             return this;
         }
 
+        public Builder asWritten(Boolean value) {
+            this.asWritten = value;
+            return this;
+        }
+
         public Builder variables(Map<String, String> value) {
             this.variables = value;
             return this;
@@ -185,7 +202,7 @@ public record CrdRunRequest(
 
         public CrdRunRequest build() {
             return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
-                    dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry, configEpoch,
+                    dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables, carry, configEpoch,
                     Map.of());
         }
     }
