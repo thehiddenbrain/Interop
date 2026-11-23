@@ -277,7 +277,9 @@ public class ConfigStoreGateway implements OperationGateway {
                 continue;
             }
             String sampled = savedBody == null ? null : org.p32h.interop.epa.pave.service.crd.VendorSamples.fromBody(shape, savedBody);
-            if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH
+            // Asked without a call (the shapes of the active environment, for the Submit options) there is no
+            // request to look at: every page that asked this way got an internal error for the missing check.
+            if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH && target != null
                     && org.p32h.interop.epa.pave.service.crd.PrefetchLayout.errorSample(target.requestName())) {
                 // A sample of an error may arrange its prefetch as the service refuses it, to show the refusal (D-309).
                 sampled = null;

@@ -78,6 +78,17 @@ class ApplicationJourneyTest {
         assertThat(json(get("/api/config/effective"), 200).get("epoch").longValue()).isEqualTo(mode.get("epoch").longValue());
     }
 
+    /**
+     * The Submit step asks for its options when the Workbench opens, with no call in hand. The
+     * shapes of the active environment are then read without a request to look at, and that
+     * reading once failed for every page (an internal error on a tester's workstation).
+     */
+    @Test
+    void theSubmitOptionsAnswerWithNoCallInHand() throws Exception {
+        JsonNode options = json(get("/api/pas/options"), 200);
+        assertThat(options.isObject()).isTrue();
+    }
+
     @Test
     void aRunIsRecordedReadBackGroupedIntoItsChainAndRunAgain() throws Exception {
         JsonNode run = crd("P32H-NO-AUTH", "NO_AUTH_REQUIRED", "new");
