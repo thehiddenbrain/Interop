@@ -439,8 +439,16 @@ public class ConfigService {
             return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(
                     LiteralCredentials.inUrl(onyx.subscription().callbackUrl().strip()).shown(), "APPLICATION_YML", "from application.yml"));
         }
+        if (RequestValues.NAMES.contains(name)) {
+            // Not an empty box (D-307): a call takes these from its own collection request when nothing sets them (D-320).
+            return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(null, "REQUEST", NOT_SET_HERE));
+        }
         return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(null, "NOT_SET", "not set"));
     }
+
+    /** What Edit says of a value a call takes from its request when nothing here sets it (D-320). */
+    static final String NOT_SET_HERE = "Not set here. A call takes it from the collection request it is sent from, when that request "
+            + "states one.";
 
     /** What a draft of the environment form needs of the configuration (D-307). Reads only. */
     public DraftSupport draftSupport() {

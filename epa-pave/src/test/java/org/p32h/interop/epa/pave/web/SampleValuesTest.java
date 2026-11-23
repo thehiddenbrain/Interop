@@ -27,6 +27,7 @@ import tools.jackson.databind.JsonNode;
  * sample had stated all along, and the operator had to find it in Postman and type it. Each file
  * is written for the test with placeholder values; no value of a secret appears.
  */
+@SuppressWarnings("unchecked")
 class SampleValuesTest {
 
     private static final String V21 = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
@@ -200,7 +201,8 @@ class SampleValuesTest {
         MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
         String id = save(mvc, null, environment, collection, true, null).at("/settings/id").asString();
         assertThat(settingsValue(mvc, id, "payerIdentifier").at("/inForce/source").asString()).isEqualTo("EXPORT");
-        assertThat(settingsValue(mvc, id, "payerIdentifierSystem").at("/inForce/source").asString()).isEqualTo("NOT_SET");
+        // Nothing stored for it: Edit says a call takes it from its own request (D-320), where it said "not set".
+        assertThat(settingsValue(mvc, id, "payerIdentifierSystem").at("/inForce/source").asString()).isEqualTo("REQUEST");
     }
 
     @Test
@@ -315,7 +317,8 @@ class SampleValuesTest {
         ConfigFixture fixture = ConfigFixture.mock(directory);
         MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
         String id = save(mvc, null, environment(), null, false, null).at("/settings/id").asString();
-        assertThat(settingsValue(mvc, id, "fhirServer").at("/inForce/source").asString()).isEqualTo("NOT_SET");
+        // Nothing stored for it: Edit says a call takes it from its own request (D-320), where it said "not set".
+        assertThat(settingsValue(mvc, id, "fhirServer").at("/inForce/source").asString()).isEqualTo("REQUEST");
 
         JsonNode edited = save(mvc, id, null, collection(V21, hook("\"" + SANDBOX + "\"", true)), true, Map.of("fhirServer", ""));
         assertThat(strings(edited.get("warnings"))).contains("FHIR server set from the collection's request \"" + HOOK + "\".");
@@ -347,11 +350,100 @@ class SampleValuesTest {
 
         JsonNode unticked = save(mvc, null, environment("Unticked UAT"), collection, false, null);
         assertThat(strings(unticked.get("warnings"))).noneMatch(line -> line.startsWith("FHIR server set from"));
+        // Nothing stored for it: Edit says a call takes it from its own request (D-320), where it said "not set".
         assertThat(settingsValue(mvc, unticked.at("/settings/id").asString(), "fhirServer").at("/inForce/source").asString())
-                .isEqualTo("NOT_SET");
+                .isEqualTo("REQUEST");
     }
 
     // ------------------------------------------------------------------------------------------
+
+    // ---- the payer of the coverage check (D-320) ----
+
+    /** The coverage-check sample with a Coverage under "coverage" whose one payor is written as given. */
+    private static Map<String, Object> hookWithPayor(String payor) {
+        String body = "{\"hook\": \"order-sign\", \"hookInstance\": \"{{$guid}}\", \"context\": {\"patientId\": \"pat-001\"}, "
+                + "\"prefetch\": {\"coverage\": {\"resourceType\": \"Coverage\", \"id\": \"cov-001\", \"subscriberId\": \"" + MEMBER
+                + "\", \"payor\": [" + payor + "]}}}";
+        return Map.of("name", "CRD - Prior Auth Check", "request", Map.of("method", "POST",
+                "url", Map.of("raw", "{{base}}/cds-services/epa-crd-service"), "header", List.of(),
+                "body", Map.of("mode", "raw", "raw", body)));
+    }
+
+    private static String collection(Map<String, Object>... items) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("info", Map.of("name", "Placeholder vendor collection", "schema", V21));
+        root.put("item", List.of(items));
+        return JsonSafe.mapper().writeValueAsString(root);
+    }
+
+    private static final String PAYOR = "{\"reference\": \"Organization/org-payer-001\", \"identifier\": {\"system\": "
+            + "\"urn:example:payer-ids\", \"value\": \"P32H-PAYER-1\"}, \"display\": \"Placeholder Payer\"}";
+
+    @Test
+    void theCoverageCheckGivesThePayerRowsAndPayerReferenceWhenTheSubmitSampleStatesNone() throws Exception {
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(hookWithPayor(PAYOR)));
+        String from = "from the collection's request \"CRD - Prior Auth Check\"";
+        assertThat(value(values, "payerName").get("display").asString()).isEqualTo("Placeholder Payer");
+        assertThat(value(values, "payerName").get("from").asString()).isEqualTo(from);
+        assertThat(value(values, "payerIdentifier").get("display").asString()).isEqualTo("P32H-PAYER-1");
+        assertThat(value(values, "payerIdentifierSystem").get("display").asString()).isEqualTo("urn:example:payer-ids");
+        assertThat(value(values, "payerReference").get("label").asString()).isEqualTo("Payer reference");
+        assertThat(value(values, "payerReference").get("display").asString()).isEqualTo("Organization/org-payer-001");
+        assertThat(value(values, "payerReference").get("from").asString()).isEqualTo(from);
+        // Nothing of the member: the subscriber is read by nobody here.
+        assertThat(values.toString()).doesNotContain(MEMBER);
+    }
+
+    @Test
+    void aSubmitSampleThatStatesAPayerWinsAndTheCoverageChecksIsNotMixedIn() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\"");
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(hookWithPayor(PAYOR),
+                submit(organization, patient("{\"value\": \"" + MEMBER + "\"}"))));
+        assertThat(value(values, "payerName").get("display").asString()).isEqualTo("Placeholder Health Plan");
+        assertThat(value(values, "payerName").get("from").asString()).isEqualTo("from the collection's request \"Claim Submit\"");
+        assertThat(value(values, "payerIdentifier").has("display")).isFalse();
+        assertThat(value(values, "payerReference").has("display")).isFalse();
+    }
+
+    @Test
+    void twoPayorsGiveNoPayerRowAndALineSaysSo() throws Exception {
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(hookWithPayor(PAYOR + ", " + PAYOR)));
+        assertThat(value(values, "payerName").has("display")).isFalse();
+        assertThat(strings(value(values, "payerName").get("notes"))).containsExactly("The collection's request \"CRD - Prior Auth Check\" "
+                + "names 2 payers on its Coverage, so none is taken: choose one and type it.");
+    }
+
+    @Test
+    void theSaveStoresThePayerOfTheCoverageCheckAndEditSaysWhereItComesFrom() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        JsonNode saved = save(mvc, null, environment(), collection(hookWithPayor(PAYOR)), true, null);
+        assertThat(strings(saved.get("warnings"))).contains("Payer reference set from the collection's request \"CRD - Prior Auth Check\".");
+        String id = saved.at("/settings/id").asString();
+        JsonNode reference = settingsValue(mvc, id, "payerReference");
+        assertThat(reference.at("/inForce/source").asString()).isEqualTo("SAMPLE");
+        assertThat(reference.at("/inForce/display").asString()).isEqualTo("Organization/org-payer-001");
+        // A value nothing sets is no empty box on Edit: a call takes it from its own request (D-320).
+        JsonNode memberSystem = settingsValue(mvc, id, "memberIdSystem");
+        assertThat(memberSystem.at("/inForce/source").asString()).isEqualTo("NOT_SET");
+    }
+
+    @Test
+    void onEditAPayerValueNothingSetsSaysACallTakesItFromItsRequest() throws Exception {
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        JsonNode saved = save(mvc, null, environment(), null, false, Map.of("payerName", "Typed Payer"));
+        String id = saved.at("/settings/id").asString();
+        for (String name : List.of("fhirServer", "payerIdentifier", "payerIdentifierSystem", "payerReference")) {
+            JsonNode row = settingsValue(mvc, id, name);
+            assertThat(row.at("/inForce/source").asString()).as(name).isEqualTo("REQUEST");
+            assertThat(row.at("/inForce/sourceLabel").asString()).as(name).isEqualTo("Not set here. A call takes it from the collection "
+                    + "request it is sent from, when that request states one.");
+            assertThat(row.at("/inForce").has("display")).isFalse();
+        }
+        assertThat(settingsValue(mvc, id, "payerName").at("/inForce/source").asString()).isEqualTo("THIS_ENVIRONMENT");
+        assertThat(settingsValue(mvc, id, "pasRequestType").at("/inForce/source").asString()).isEqualTo("NOT_SET");
+    }
 
     private JsonNode draft(ConfigFixture fixture, String environment, String collection) throws Exception {
         MockMvc mvc = TestMvc.standalone(new DraftController(new EnvironmentDrafts(fixture.service)));

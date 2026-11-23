@@ -139,7 +139,8 @@ public final class SettingsViews {
      * A value in force and where it comes from.
      *
      * @param display     the value, a secret masked; absent when not set
-     * @param source      THIS_ENVIRONMENT, SAMPLE, EXPORT, APPLICATION_YML or NOT_SET
+     * @param source      THIS_ENVIRONMENT, SAMPLE, EXPORT, APPLICATION_YML, REQUEST (nothing here sets it, and a call takes it from
+     *                    its own collection request, D-320) or NOT_SET
      * @param sourceLabel the source in words: "typed here", "from the collection's request \"<name>\"", "from the export's
      *                    variable <name>", "from application.yml", "not set"
      */

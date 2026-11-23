@@ -119,6 +119,9 @@ public final class SampleValues {
         if (submit != null) {
             submit(taken, lines, submit);
         }
+        if (hook != null && !taken.containsKey("payerName") && !taken.containsKey("payerIdentifier")) {
+            hookPayer(taken, lines, hook);
+        }
         return new Reading(ordered(taken), lines, hook == null ? null : hook.quotedName(), extras);
     }
 
@@ -302,6 +305,31 @@ public final class SampleValues {
                         + ", so the member ID system is not taken.");
             }
         }
+    }
+
+    /**
+     * The payer the coverage-check sample states on its Coverage, by the reading a call makes of the
+     * request it is sent from (D-320), when the Submit sample states none: a call takes it from there
+     * anyway, and the form shows and stores it where it comes from. Payer reference is read only here,
+     * since only the Coverage of CRD and DTR carries it.
+     */
+    private static void hookPayer(Map<String, Taken> taken, Map<String, List<String>> lines, PostmanRequest hook) {
+        RequestValues.Stated stated = RequestValues.read(hook.quotedName(), hook.name(), hook.body());
+        for (String name : RequestValues.PAYER) {
+            String value = stated.values().get(name);
+            if (value != null) {
+                taken.put(name, new Taken(name, value, hook.quotedName()));
+            }
+            for (String line : stated.lines(name)) {
+                if (!lines(lines, name).contains(line)) {
+                    line(lines, name, line);
+                }
+            }
+        }
+    }
+
+    private static List<String> lines(Map<String, List<String>> lines, String name) {
+        return lines.getOrDefault(name, List.of());
     }
 
     /**

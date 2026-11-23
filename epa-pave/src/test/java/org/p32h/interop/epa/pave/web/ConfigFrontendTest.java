@@ -355,6 +355,69 @@ class ConfigFrontendTest {
                 "false");
     }
 
+    /**
+     * D-320: on Edit a row of FHIR server or of the payer that nothing sets is no empty box: it says a
+     * call takes the value from the collection request it is sent from, and "Change" opens the box
+     * as for any row. After Fill, the payer rows and Payer reference come from the coverage-check
+     * request when the Submit sample states none, with where each comes from.
+     */
+    @Test
+    void aPayerRowNothingSetsSaysACallTakesItFromItsRequestAndTheFormShowsTheCoverageChecksPayer(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the payer rows", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                const words = 'Not set here. A call takes it from the collection request it is sent from, when that request states one.';
+                const settings = Object.assign({}, full, {values: [
+                    {name: 'payerReference', label: 'Payer reference', why: 'On the Coverage of CRD and DTR.', typed: null,
+                        inForce: {source: 'REQUEST', sourceLabel: words}},
+                    {name: 'memberIdSystem', label: 'Member ID system', why: 'On the Coverage.', typed: null,
+                        inForce: {source: 'NOT_SET', sourceLabel: 'not set'}}]});
+                const editor = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings});
+                const row = label => editor.dialog.querySelectorAll('.field').find(each => each.querySelector('.field__label')
+                    && each.querySelector('.field__label').textContent === label);
+                const state = label => {
+                    const wrapper = row(label);
+                    const input = wrapper.querySelector('input');
+                    return [wrapper.querySelector('.config-in-force').textContent, input.hidden,
+                        wrapper.querySelectorAll('button').filter(each => !each.hidden).map(each => each.textContent)];
+                };
+                say(state('Payer reference'));
+                say(state('Member ID system'));
+                row('Payer reference').querySelectorAll('button').find(each => each.textContent === 'Change').click();
+                say(state('Payer reference'));
+                row('Payer reference').querySelector('input').value = 'Organization/org-payer-001';
+                say(editor.input().values.payerReference);
+                row('Payer reference').querySelectorAll('button').find(each => each.textContent === 'Leave it to the request').click();
+                say([state('Payer reference'), editor.input().values.payerReference]);
+
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [], name: 'Vendor UAT', nameTaken: false,
+                    warnings: [], epoch: 1, collectionId: 'vendor-requests-1a2b', addresses: [], requests: [],
+                    values: [
+                        {name: 'payerName', label: 'Payer name', display: 'Placeholder Payer',
+                            from: `from the collection's request "CRD - Prior Auth Check"`, request: 'CRD - Prior Auth Check', notes: []},
+                        {name: 'payerReference', label: 'Payer reference', display: 'Organization/org-payer-001',
+                            from: `from the collection's request "CRD - Prior Auth Check"`, request: 'CRD - Prior Auth Check', notes: []}]}};
+                const fresh = createEditor({environment: null, settings: null});
+                const boxes = inputsOf(fresh.dialog).filter(each => each.type === 'file');
+                boxes[1].files = [new File(['{}'], 'col.json', {type: 'application/json'})];
+                boxes[1].value = 'C:/fakepath/col.json';
+                await fresh.dialog.querySelectorAll('button').find(each => each.textContent === 'Fill the form from these files').click();
+                await settle();
+                const rows = fresh.dialog.querySelector('.config-gives').querySelectorAll('.config-gives__row')
+                    .filter(each => each.getAttribute('data-value'));
+                say(rows.map(each => [each.querySelector('.field__label').textContent, each.querySelector('.config-in-force').textContent]));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        String words = "Not set here. A call takes it from the collection request it is sent from, when that request states one.";
+        assertThat(run.lines()).containsExactly(
+                "[\"" + words + "\",true,[\"Change\"]]",
+                "[\"not set\",false,[]]",
+                "[\"" + words + "\",false,[\"Leave it to the request\"]]",
+                "\"Organization/org-payer-001\"",
+                "[[\"" + words + "\",true,[\"Change\"]],\"\"]",
+                "[[\"Payer name\",\"Placeholder Payer from the collection's request \\\"CRD - Prior Auth Check\\\"\"],"
+                        + "[\"Payer reference\",\"Organization/org-payer-001 from the collection's request \\\"CRD - Prior Auth Check\\\"\"]]");
+    }
+
     @Test
     void aRefusalWhoseFieldErrorsAreAllPlacedStillSaysItsTitleAboveTheForm(@TempDir Path folder) throws Exception {
         // look-guardrail-1: a sandbox given a production address is refused at Kind; the title names the address.

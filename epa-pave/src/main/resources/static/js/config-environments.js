@@ -1487,6 +1487,10 @@ function againWords(source) {
     if (source === 'SAMPLE') {
         return "Use the sample's again";
     }
+    if (source === 'REQUEST') {
+        // Nothing here sets it: a call takes it from its own collection request (D-320).
+        return 'Leave it to the request';
+    }
     return "Use the file's again";
 }
 
