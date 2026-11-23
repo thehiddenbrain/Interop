@@ -13,6 +13,15 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**The questionnaire step follows a questionnaire that is named (D-314).** The vendor's service answered
+the operator's coverage check for the first time: prior authorization is needed, with the canonical
+urls of its questionnaires and a doc-purpose, and no doc-needed. PAVE read doc-needed as the only thing
+that says the questionnaire step is next, so the card offered "Continue to Submit" and the operator
+never saw a question. Now an answer that names a questionnaire, or a partly completed response, leads
+to the questionnaire step whatever it says about doc-needed; the reason on the card says that
+doc-needed was not stated, which CRD 2.0.1 asks for beside a questionnaire. Held by a test shaped like
+the vendor's answer; the questionnaire step itself has not yet met the vendor's service.
+
 **The right sample among several (D-312).** The operator's collection holds 124 mapped requests,
 several of them coverage checks, each for a service of its own. With the address of the coverage check
 typed, PAVE followed the first of them in the file, which carries the patient in a Bundle under

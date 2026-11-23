@@ -75,6 +75,7 @@ entry.
 | D-310 | A sixth correction after release 2: where the coverage-check sample's order carries a diagnosis (`reasonCode`), the Diagnosis codes of the Service card go on every order with the sample's coding system; what the sample's resources carry and PAVE's do not is named, by resource type, in the request's notes, under Prefetch in the form and in "Compare with a request that works" (`51b3505`, `7f951cd`, `6256f1f`) | The operator asked that anything missing be added and anything not standard be said. The diagnosis is the case's own and the only element added; every other element is standard FHIR that CRD does not require and that the case holds no value for (or, for a member's address, that the coverage check does not write), so it is named and never filled in. Names only, never a value. Seen on live against the stand-in, not against the vendor's service |
 | D-311 | A call to a typed address follows the sample of the collection's request for its operation in its request shapes (it still carries no header and no body of that request); the Submit options answer with no call in hand (`4d9d85a`) | The operator typed the address of the coverage check to correct it, the request fell back to PAVE's named Bundles and the vendor's service answered "No patient data provided" again. The build of `a580682` read the shapes of the active environment through a request that was not there, and every page that asks for the Submit options got an internal error. Held by tests; not seen against the vendor's service |
 | D-312 | A call to a typed address follows the collection request that goes to that address; the first mapped only when none does | The operator's collection holds several coverage checks, each for a service of its own. The first in the file was followed, its sample carries the patient under `patientBundle`, and the vendor's service answered "No patient data provided" a third time. Read from the operator's recording of In force now: one collection, 124 requests mapped, the address of the coverage check typed. Held by a test; not seen against the vendor's service |
+| D-314 | After a coverage check, a questionnaire or a partly completed response that the answer names leads to the questionnaire step, whatever the answer says about doc-needed; the reason says doc-needed was not stated | The vendor's service names its questionnaires with a doc-purpose and no doc-needed. PAVE offered "Continue to Submit" and the operator never saw a question. D-313 is taken by work in progress in another worktree |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9022,3 +9023,29 @@ round of corrections; the code handed over.**
 - **Left.** Not seen against the vendor's service. The form's Request shapes and "What these files give"
   still show the Prefetch shape of the first sample in the file; the request's notes name the request
   really followed. The Workbench offers no choice of request for a step.
+
+**D-314. A questionnaire the answer names leads to the questionnaire step, with or without doc-needed.**
+- **What happened.** With D-312 pulled, the vendor's service answered the operator's coverage check for
+  the first time: prior authorization is needed (pa-needed auth-needed), the documentation goes with the
+  prior authorization request (doc-purpose withpa), and a list of the canonical urls of its
+  questionnaires, with a card that links a DTR launch. It states no doc-needed. The result card offered
+  "Continue to Submit". The operator: "Why am I unable to see the questions? ... if you have any
+  questions, it should go to the next automatically and show the questions there so that I can enter the
+  answers."
+- **The cause.** `CrdVerdicts` took the questionnaire step to be next only when doc-needed asks for
+  documentation, on the ground that in CRD 2.0.1 doc-needed is what says DTR is to be used. The guide also
+  says a questionnaire may be named only beside a doc-needed that asks for documentation; a service that
+  names one without it breaks that rule, and the tool then acted as if no questionnaire had been named.
+- **Decided.** When the answer names a questionnaire, or a partly completed questionnaire response, the
+  next step is the questionnaire step, for every outcome after which it could follow today. The reason on
+  the card says that doc-needed was not stated and that the guide asks for it, and, when doc-purpose says
+  the answers go with the prior authorization request, that Submit follows. The outcome and its headline
+  are unchanged ("Prior authorization is required."). An answer with doc-needed is read as before. An
+  answer with neither a questionnaire nor doc-needed still goes to Submit.
+- **Why.** The questionnaires are evidence the service gave, not a guess: it named them. What the guide
+  requires beside them is reported, and does not decide whether a tester may answer them.
+- **What holds it.** `CrdVerdictsTest.questionnairesNamedWithoutDocNeededStillLeadToDtrAndTheReasonSaysWhatIsMissing`.
+  The scenario, chain and journey tests pass unchanged.
+- **Left.** The questionnaire step has never met the vendor's service: the address of its request is
+  typed in the operator's settings, the body is PAVE's own, and the answer named some dozens of
+  questionnaires at once. Not seen on a screen for this change.

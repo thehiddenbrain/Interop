@@ -167,6 +167,37 @@ class CrdVerdictsTest {
         assertThat(next("P32H-EMPTY").action()).isEqualTo(NextAction.REPORT_NO_DETERMINATION);
     }
 
+    /**
+     * The vendor's service answers that prior authorization is needed, names its questionnaires and a
+     * doc-purpose, and states no doc-needed. The tester was sent straight to Submit and never saw a
+     * question (D-314).
+     */
+    @Test
+    void questionnairesNamedWithoutDocNeededStillLeadToDtrAndTheReasonSaysWhatIsMissing() {
+        VendorExchange exchange = TestExchanges.crd(200, one("{\"url\":\"covered\",\"valueCode\":\"covered\"},"
+                + "{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},{\"url\":\"doc-purpose\",\"valueCode\":\"withpa\"},"
+                + "{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/p32h-placeholder/Questionnaire/q1\"},"
+                + "{\"url\":\"questionnaire\",\"valueCanonical\":\"https://example.org/p32h-placeholder/Questionnaire/q2\"},"
+                + "{\"url\":\"coverage-assertion-id\",\"valueString\":\"assertion-1\"}"));
+
+        NextStepView next = CrdVerdicts.nextStep(mapper.read(exchange), exchange);
+
+        assertThat(next.action()).isEqualTo(NextAction.START_DTR);
+        assertThat(next.headline()).isEqualTo("Next: complete the payer's documentation in DTR.");
+        assertThat(next.reason()).isEqualTo("The response names 2 questionnaires for DTR, though it states no doc-needed, which CRD 2.0.1 "
+                + "asks for beside a questionnaire. The questionnaires are what the payer wants answered, so DTR comes first. Its doc-purpose "
+                + "says the answers go with the prior authorization request, so Submit follows DTR.");
+        assertThat(next.carry().get(NextStepView.CARRY_QUESTIONNAIRE)).containsExactly(
+                "https://example.org/p32h-placeholder/Questionnaire/q1", "https://example.org/p32h-placeholder/Questionnaire/q2");
+        assertThat(next.carry()).containsEntry(NextStepView.CARRY_DOC_PURPOSE, List.of("withpa"));
+        assertThat(next.carry()).containsEntry(NextStepView.CARRY_COVERAGE_ASSERTION_ID, List.of("assertion-1"));
+
+        // With no questionnaire and no doc-needed, prior authorization still goes straight to Submit.
+        VendorExchange plain = TestExchanges.crd(200, one("{\"url\":\"pa-needed\",\"valueCode\":\"auth-needed\"},"
+                + "{\"url\":\"doc-purpose\",\"valueCode\":\"withpa\"}"));
+        assertThat(CrdVerdicts.nextStep(mapper.read(plain), plain).action()).isEqualTo(NextAction.START_PAS);
+    }
+
     @Test
     void documentationWithNoQuestionnaireAndNoLinkStillGoesToDtrBecauseDocNeededSaysSo() {
         // CRD201-03: in CRD 2.0.1 doc-needed itself says DTR is to be used. No questionnaire or link is needed.

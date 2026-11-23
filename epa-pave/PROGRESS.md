@@ -4,6 +4,13 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**The vendor's service answered a coverage check, and the questionnaire step now follows** (D-314). With
+D-312 the operator's coverage check was answered: prior authorization needed, questionnaires named, no
+doc-needed. PAVE offered Submit; it now offers the questionnaire step whenever a questionnaire is named.
+Built and tested by the integrator from the operator's recording. Open: the questionnaire step has not
+met the vendor's service. The gates are run on the commit that carries these records; their result is
+reported with the hand-over.
+
 **The right sample among several** (D-312). The operator's collection holds several coverage checks; a
 call to a typed address followed the first in the file and the service found no patient again. Such a call
 now follows the request that goes to the typed address. Built and tested by the integrator from the

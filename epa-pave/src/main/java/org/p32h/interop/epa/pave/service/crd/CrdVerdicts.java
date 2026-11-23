@@ -425,6 +425,26 @@ public final class CrdVerdicts {
                 }
                 return new NextStepView(NextAction.START_DTR, "Next: complete the payer's documentation in DTR.", reason.toString(), carry);
             }
+            // A service can name its questionnaires without stating doc-needed, as the vendor's does. The guide asks
+            // for doc-needed beside them, and that stays a finding; the questionnaires are still what the payer wants
+            // answered, and a tester sent straight to Submit never saw a question (D-314).
+            if (!questionnaires.isEmpty() || !responses.isEmpty()) {
+                StringBuilder reason = new StringBuilder("The response names ");
+                if (questionnaires.isEmpty()) {
+                    reason.append("a partly completed questionnaire response for DTR to start from");
+                } else {
+                    reason.append(questionnaires.size() == 1 ? "a questionnaire" : questionnaires.size() + " questionnaires").append(" for DTR");
+                }
+                reason.append(", though it states no doc-needed, which ").append(CrdCodes.JUDGED_BY)
+                        .append(" asks for beside a questionnaire. The questionnaires are what the payer wants answered, so DTR comes first.");
+                if (purposes.contains("withpa")) {
+                    reason.append(" Its doc-purpose says the answers go with the prior authorization request, so Submit follows DTR.");
+                }
+                if (asked != null) {
+                    reason.append(" ").append(asked);
+                }
+                return new NextStepView(NextAction.START_DTR, "Next: complete the payer's documentation in DTR.", reason.toString(), carry);
+            }
             if (!information.isEmpty()) {
                 return new NextStepView(NextAction.SUPPLY_INFORMATION, "Next: supply what the payer asked for and send CRD again.",
                         "The payer cannot give a firm answer from what it was sent. " + asked, carry);
