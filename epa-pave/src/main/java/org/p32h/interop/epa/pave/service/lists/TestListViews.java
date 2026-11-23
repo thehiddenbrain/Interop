@@ -44,6 +44,17 @@ public final class TestListViews {
         }
     }
 
+    /** The saved diagnosis codes: entries of the same shape as procedure codes, kept apart from them. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonPropertyOrder({"enabled", "diagnoses", "count", "problem"})
+    public record DiagnosisList(boolean enabled, List<TestCode> diagnoses, int count, String problem) {
+
+        @Override
+        public String toString() {
+            return "DiagnosisList[enabled=" + enabled + ", count=" + count + "]";
+        }
+    }
+
     /** What a row of an imported file does, or would do on a dry run. */
     public enum Status {
         ADD, REPLACE, REFUSED

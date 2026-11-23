@@ -25,6 +25,7 @@ import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundCode;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundMember;
 import org.p32h.interop.epa.pave.service.lists.FoundViews.FoundProvider;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.CodeList;
+import org.p32h.interop.epa.pave.service.lists.TestListViews.DiagnosisList;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRow;
@@ -36,13 +37,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * Saved test members, providers and procedure codes: added, replaced and removed one at a time, or imported from a
- * CSV file with a dry run first. Entries are kept as given: nothing is looked up, nothing derived.
+ * Saved test members, providers, procedure codes and diagnosis codes: added, replaced and removed one at a time, or
+ * imported from a CSV file with a dry run first. Entries are kept as given: nothing is looked up, nothing derived.
  * They exist on both profiles, never reach the ledger, and the log holds counts only.
  *
  * <p>One member ID (in its no-space form), one vendor patient id, one NPI, one vendor practitioner id
  * and one code in one code system name at most one entry, so that a re-import knows which entry a
  * row replaces.
+ *
+ * <p>A list of diagnosis codes holds codes alone, as the list of procedure codes does: no member,
+ * no patient id and no name stands in an entry, so it says of no one whose diagnosis a code is.
  */
 @Service
 public class TestListService {
@@ -51,6 +55,12 @@ public class TestListService {
 
     /** The file of the saved procedure codes, beside the two the store names. */
     static final String CODES = "codes.json";
+
+    /**
+     * The file of the saved diagnosis codes. An installation written before this list existed has
+     * none, and a list never saved reads as empty, so such a store is read as it is.
+     */
+    static final String DIAGNOSES = "diagnoses.json";
 
     static final String OFF = "Saved test lists are switched off on this installation (test-lists.enabled).";
     private static final String OFF_ACTION = "Set test-lists.enabled to true in application.yml, then start PAVE again.";
@@ -75,6 +85,7 @@ public class TestListService {
     private final Kind<TestMember, TestMemberInput> members;
     private final Kind<TestProvider, TestProviderInput> providers;
     private final Kind<TestCode, TestCodeInput> codes;
+    private final Kind<TestCode, TestCodeInput> diagnoses;
 
     public TestListService(TestListProperties properties, TestListStore store, Clock clock) {
         this.properties = properties;
@@ -98,6 +109,13 @@ public class TestListService {
                 TestListService::sameCode, List.of("code"),
                 field -> "A saved procedure code has this code and code system already. Edit that entry instead.",
                 "This row matches two saved procedure codes. Correct one of them.");
+        // The same entry as a procedure code, under a file and words of its own: a diagnosis code
+        // is matched, limited and imported as a procedure code is.
+        this.diagnoses = new Kind<>(DIAGNOSES, TestCode.class, "d-", "diagnosis code", TestCode.COLUMNS, TestCodeInput::of,
+                TestCodeInput::withId, TestCode::values, input -> input.withId(null).values(), TestListRules::diagnosis,
+                TestListService::sameCode, List.of("code"),
+                field -> "A saved diagnosis code has this code and code system already. Edit that entry instead.",
+                "This row matches two saved diagnosis codes. Correct one of them.");
     }
 
     /**
@@ -167,6 +185,30 @@ public class TestListService {
         }
         TestListStore.Loaded<TestCode> loaded = store.read(codes.file(), TestCode.class);
         return new CodeList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public DiagnosisList diagnoses() {
+        if (!enabled()) {
+            return new DiagnosisList(false, List.of(), 0, null);
+        }
+        TestListStore.Loaded<TestCode> loaded = store.read(diagnoses.file(), TestCode.class);
+        return new DiagnosisList(true, loaded.entries(), loaded.entries().size(), loaded.problem());
+    }
+
+    public TestCode addDiagnosis(TestCodeInput input) {
+        return add(diagnoses, input);
+    }
+
+    public TestCode replaceDiagnosis(String id, TestCodeInput input) {
+        return replace(diagnoses, id, input);
+    }
+
+    public boolean removeDiagnosis(String id) {
+        return remove(diagnoses, id);
+    }
+
+    public ImportResult importDiagnoses(ImportRequest request) {
+        return importRows(diagnoses, request);
     }
 
     public TestCode addCode(TestCodeInput input) {
@@ -341,6 +383,20 @@ public class TestListService {
                 row("label", "Equipment", "code", "E0601", "system", "https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
                         "description", "Continuous positive airway pressure device"),
                 row("label", "No system stated", "code", "95810", "description", "Sleep study, attended"));
+        return ListCsv.write(TestCode.COLUMNS, rows);
+    }
+
+    /**
+     * The diagnosis codes template: two ICD-10-CM codes and one with no system stated. Codes and
+     * descriptions only: a row names no member.
+     */
+    public static String diagnosisTemplate() {
+        List<Map<String, String>> rows = List.of(
+                row("label", "Sleep study", "code", "G47.33", "system", "http://hl7.org/fhir/sid/icd-10-cm", "description",
+                        "Obstructive sleep apnea (adult) (pediatric)"),
+                row("label", "Second diagnosis", "code", "E11.9", "system", "http://hl7.org/fhir/sid/icd-10-cm", "description",
+                        "Type 2 diabetes mellitus without complications"),
+                row("label", "No system stated", "code", "R06.83", "description", "Snoring"));
         return ListCsv.write(TestCode.COLUMNS, rows);
     }
 

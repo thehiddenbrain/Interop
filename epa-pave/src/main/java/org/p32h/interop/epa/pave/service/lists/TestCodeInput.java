@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import java.util.Map;
 import org.p32h.interop.epa.pave.model.Texts;
 
-/** A saved procedure code as the form or a CSV row gives it, without the id this tool mints. */
+/** A saved procedure code or diagnosis code as the form or a CSV row gives it, without the id this tool mints. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({"label", "code", "system", "description"})
 public record TestCodeInput(String label, String code, String system, String description) {

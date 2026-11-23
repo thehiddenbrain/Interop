@@ -7,8 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A saved procedure code: a code the vendor's sandbox answers for, kept at hand to fill the Service
- * card. Every value is as the tester gave it, or as the collection it was read from wrote it.
+ * A saved procedure code or diagnosis code: a code the vendor's sandbox answers for, kept at hand to
+ * fill the Service card. Every value is as the tester gave it, or as the collection it was read from
+ * wrote it. The two lists keep entries of this one shape in files of their own.
  *
  * @param id          minted by this tool when the entry was added
  * @param system      the code system as written, sent with the code; absent when not stated
@@ -18,7 +19,7 @@ import java.util.Map;
 @JsonPropertyOrder({"id", "label", "code", "system", "description"})
 public record TestCode(String id, String label, String code, String system, String description) implements TestListEntry {
 
-    /** The columns of a procedure codes CSV file, in the order the template writes them. */
+    /** The columns of a procedure codes or diagnosis codes CSV file, in the order the template writes them. */
     public static final List<String> COLUMNS = List.of("label", "code", "system", "description");
 
     Map<String, String> values() {

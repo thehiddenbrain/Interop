@@ -66,9 +66,21 @@ final class TestListRules {
     }
 
     static List<FieldError> code(TestCodeInput code) {
+        return code(code, "97110");
+    }
+
+    /**
+     * A saved diagnosis code holds what a saved procedure code holds, under the same limits: it is
+     * a code the sandbox knows, never a member's record, so nothing beside the code is asked for.
+     */
+    static List<FieldError> diagnosis(TestCodeInput code) {
+        return code(code, "G47.33");
+    }
+
+    private static List<FieldError> code(TestCodeInput code, String example) {
         List<FieldError> errors = new ArrayList<>();
         if (code.code() == null) {
-            errors.add(new FieldError("code", "Enter the code, for example 97110."));
+            errors.add(new FieldError("code", "Enter the code, for example " + example + "."));
         } else if (!fitsCode(code.code())) {
             errors.add(new FieldError("code", "A code is at most 40 characters, with no space in it."));
         }

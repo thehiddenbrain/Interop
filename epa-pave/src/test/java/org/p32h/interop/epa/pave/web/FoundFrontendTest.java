@@ -344,7 +344,8 @@ class FoundFrontendTest {
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                "[\"pages\",[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Procedure codes\",\"Access token\","
+                // Diagnosis codes is the fourth saved list (D-322).
+                "[\"pages\",[\"Environments\",\"Collections\",\"Members\",\"Providers\",\"Procedure codes\",\"Diagnosis codes\",\"Access token\","
                         + "\"Production writes\",\"Advanced\"],[\"procedure-codes\"]]",
                 "[\"page\",\"Test procedure codes\",[\"Label\",\"Code\",\"Code system\",\"Description\",\"Actions\"],"
                         + "[\"From Order sign97110http://www.ama-assn.org/go/cptTherapeutic exerciseEdit\"],\"/api/lists/codes/template.csv\"]",

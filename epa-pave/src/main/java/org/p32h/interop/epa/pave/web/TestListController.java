@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.service.lists.TestCode;
 import org.p32h.interop.epa.pave.service.lists.TestCodeInput;
 import org.p32h.interop.epa.pave.service.lists.TestListService;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.CodeList;
+import org.p32h.interop.epa.pave.service.lists.TestListViews.DiagnosisList;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportRequest;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.ImportResult;
 import org.p32h.interop.epa.pave.service.lists.TestListViews.MemberList;
@@ -29,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Saved test members, providers and procedure codes. A CSV file is read in the browser and posted as JSON text, so
+ * Saved test members, providers, procedure codes and diagnosis codes. A CSV file is read in the browser and posted as JSON text, so
  * no upload reaches the multipart path; the template is a download of placeholders only.
  */
 @RestController
@@ -130,6 +131,36 @@ public class TestListController {
     @PostMapping("/codes/import")
     public ImportResult importCodes(@RequestBody ImportRequest request) {
         return lists.importCodes(request);
+    }
+
+    @GetMapping("/diagnoses")
+    public DiagnosisList diagnoses() {
+        return lists.diagnoses();
+    }
+
+    @PostMapping("/diagnoses")
+    public TestCode addDiagnosis(@RequestBody TestCodeInput code) {
+        return lists.addDiagnosis(code);
+    }
+
+    @PutMapping("/diagnoses/{id}")
+    public TestCode replaceDiagnosis(@PathVariable("id") String id, @RequestBody TestCodeInput code) {
+        return lists.replaceDiagnosis(id, code);
+    }
+
+    @DeleteMapping("/diagnoses/{id}")
+    public Map<String, Boolean> removeDiagnosis(@PathVariable("id") String id) {
+        return Map.of("removed", lists.removeDiagnosis(id));
+    }
+
+    @GetMapping("/diagnoses/template.csv")
+    public ResponseEntity<String> diagnosisTemplate() {
+        return csv(TestListService.diagnosisTemplate(), "test-diagnosis-codes-template.csv");
+    }
+
+    @PostMapping("/diagnoses/import")
+    public ImportResult importDiagnoses(@RequestBody ImportRequest request) {
+        return lists.importDiagnoses(request);
     }
 
     private static ResponseEntity<String> csv(String text, String fileName) {

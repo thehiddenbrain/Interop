@@ -1,6 +1,7 @@
-// Configuration > Members, Providers and Procedure codes: the saved test lists (plan 3.4, R-12).
+// Configuration > Members, Providers, Procedure codes and Diagnosis codes: the saved test lists
+// (plan 3.4, R-12).
 //
-// One module serves the three addresses, because the lists differ only in their fields: the frame
+// One module serves the four addresses, because the lists differ only in their fields: the frame
 // mounts it once and calls update(['providers']) or update(['members']) when the tester moves
 // between them, so the page is drawn again for the other list. Entries are kept as the tester
 // typed them; nothing here looks a member up or fills a field the tester did not fill.
@@ -21,7 +22,7 @@ const OFF_LINE = 'Saved test lists are switched off on this installation (test-l
 
 const GENDERS = ['female', 'male', 'other', 'unknown'];
 
-// The two lists: their words, their address, and the fields of an entry in the order the form and
+// The four lists: their words, their address, and the fields of an entry in the order the form and
 // the server's record give them. key is the property the server reads and answers with.
 const LISTS = {
     members: {
@@ -106,6 +107,29 @@ const LISTS = {
             {label: 'Code system', value: entry => entry.system, mono: true},
             {label: 'Description', value: entry => entry.description}
         ]
+    },
+    // Codes alone, as the procedure codes are: no column names a member, and none is ever added.
+    diagnoses: {
+        path: '/api/lists/diagnoses',
+        entries: 'diagnoses',
+        title: 'Test diagnosis codes',
+        line: 'Diagnosis codes the sandbox knows, picked in the Service card under Saved diagnosis codes. Codes only: an entry never says whose diagnosis it is.',
+        one: 'diagnosis code',
+        many: 'diagnosis codes',
+        template: 'test-diagnosis-codes-template.csv',
+        empty: 'No diagnosis code is saved yet. Add one, import a CSV file, or read a collection in an environment\'s form.',
+        fields: [
+            {key: 'label', label: 'Label'},
+            {key: 'code', label: 'Code', mono: true, placeholder: 'G47.33'},
+            {key: 'system', label: 'Code system', mono: true, placeholder: 'http://hl7.org/fhir/sid/icd-10-cm'},
+            {key: 'description', label: 'Description'}
+        ],
+        columns: [
+            {label: 'Label', value: entry => entry.label},
+            {label: 'Code', value: entry => entry.code, mono: true},
+            {label: 'Code system', value: entry => entry.system, mono: true},
+            {label: 'Description', value: entry => entry.description}
+        ]
     }
 };
 
@@ -120,10 +144,13 @@ function joined(first, second, between) {
     return [first, second].filter(value => typeof value === 'string' && value.trim() !== '').join(between || ' ');
 }
 
-/** The list an address names: providers, procedure codes, or members for any other. */
+// The list each address names; any other address is the members'.
+const KIND_OF_ADDRESS = {providers: 'providers', 'procedure-codes': 'codes', 'diagnosis-codes': 'diagnoses'};
+
+/** The list an address names: providers, procedure codes, diagnosis codes, or members for any other. */
 function kindOf(route) {
     const first = Array.isArray(route) ? route[0] : null;
-    return first === 'providers' ? 'providers' : first === 'procedure-codes' ? 'codes' : 'members';
+    return Object.prototype.hasOwnProperty.call(KIND_OF_ADDRESS, first) ? KIND_OF_ADDRESS[first] : 'members';
 }
 
 /** Draws the page into root. route: the parts of the address after #configuration. */
