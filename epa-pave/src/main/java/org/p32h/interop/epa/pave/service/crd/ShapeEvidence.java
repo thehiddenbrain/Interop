@@ -10,8 +10,13 @@ import org.p32h.interop.epa.pave.model.RequestShape;
  * @param shape       the shape the sample decides
  * @param value       one of the shape's option values, for example {@link RequestShape#LEFT_OUT}
  * @param requestName the name of the collection request whose saved body shows it
+ * @param layout      for the prefetch, the arrangement the sample writes; null for every other shape
  */
-public record ShapeEvidence(RequestShape shape, String value, String requestName) {
+public record ShapeEvidence(RequestShape shape, String value, String requestName, PrefetchLayout layout) {
+
+    public ShapeEvidence(RequestShape shape, String value, String requestName) {
+        this(shape, value, requestName, null);
+    }
 
     /** Prints the shape and the value. The request name is the vendor's text and is said to be there, never printed. */
     @Override

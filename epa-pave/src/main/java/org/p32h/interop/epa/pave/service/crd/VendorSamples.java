@@ -45,7 +45,8 @@ public final class VendorSamples {
         for (RequestShape shape : RequestShape.values()) {
             String value = fromBody(shape, sample.body());
             if (value != null) {
-                found.add(new ShapeEvidence(shape, value, sample.name()));
+                found.add(new ShapeEvidence(shape, value, sample.name(),
+                        shape == RequestShape.CRD_PREFETCH ? PrefetchLayout.read(sample.body()) : null));
             }
         }
         return found;
@@ -68,6 +69,9 @@ public final class VendorSamples {
         }
         return switch (shape) {
             case CRD_DRAFT_ORDERS_TYPE -> draftOrdersType(parsed.node());
+            // A sample that writes a prefetch is evidence of the keys its service reads; one with
+            // none, or an empty one, says nothing, and the named Bundles stay.
+            case CRD_PREFETCH -> PrefetchLayout.read(savedBody) == null ? null : RequestShape.AS_SAMPLE;
             // A CRD sample says nothing about the PAS guide; only the environment states it.
             case PAS_GUIDE -> null;
         };
@@ -109,6 +113,19 @@ public final class VendorSamples {
      * pass over the characters, so its depth never grows with the body.
      */
     public static String placeholdersAsNull(String body) {
+        return placeholders(body, false);
+    }
+
+    /**
+     * The body with every placeholder written outside a JSON string written as that string
+     * instead, so a reader can tell a value the sample leaves to a variable from one it writes as
+     * null. One pass, as {@link #placeholdersAsNull}.
+     */
+    public static String placeholdersQuoted(String body) {
+        return placeholders(body, true);
+    }
+
+    private static String placeholders(String body, boolean quoted) {
         StringBuilder out = new StringBuilder(body.length());
         boolean inString = false;
         int i = 0;
@@ -137,7 +154,13 @@ public final class VendorSamples {
             if (c == '{' && i + 1 < length && body.charAt(i + 1) == '{') {
                 int close = body.indexOf("}}", i + 2);
                 if (close > i + 2 && body.substring(i + 2, close).indexOf('{') < 0) {
-                    out.append("null");
+                    if (quoted) {
+                        // The name holds no quote or backslash in any placeholder Postman resolves; one that does stays null.
+                        String name = body.substring(i, close + 2);
+                        out.append(name.indexOf('"') < 0 && name.indexOf('\\') < 0 ? "\"" + name + "\"" : "null");
+                    } else {
+                        out.append("null");
+                    }
                     i = close + 2;
                     continue;
                 }

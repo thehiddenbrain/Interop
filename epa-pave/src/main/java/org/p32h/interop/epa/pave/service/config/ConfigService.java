@@ -354,6 +354,13 @@ public class ConfigService {
             String requestName = null;
             String sampled = orderSign == null || orderSign.savedBody() == null ? null
                     : org.p32h.interop.epa.pave.service.crd.VendorSamples.fromBody(shape, orderSign.savedBody());
+            org.p32h.interop.epa.pave.service.crd.PrefetchLayout layout = null;
+            if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH && orderSign != null) {
+                layout = org.p32h.interop.epa.pave.service.crd.PrefetchLayout.ofCall(orderSign.requestName(), orderSign.savedBody());
+                if (layout == null) {
+                    sampled = null;
+                }
+            }
             if (stated != null) {
                 value = stated;
                 from = org.p32h.interop.epa.pave.model.RequestShapes.FROM_ENVIRONMENT;
@@ -366,9 +373,13 @@ public class ConfigService {
                 value = shape.defaultValue();
                 from = org.p32h.interop.epa.pave.model.RequestShapes.FROM_DEFAULT;
             }
+            org.p32h.interop.epa.pave.service.crd.PrefetchLayout keys = layout;
+            // The option that follows the sample names the keys it would send, so Edit shows what "the sample" means here.
             List<SettingsViews.Option> options = shape.options().stream().map(option -> new SettingsViews.Option(option.value(),
-                    option.words())).toList();
-            shapes.add(new SettingsViews.ShapeView(shape.name(), shape.label(), value, from, requestName, options, shape.why()));
+                    keys != null && org.p32h.interop.epa.pave.model.RequestShape.AS_SAMPLE.equals(option.value()) ? keys.optionWords()
+                            : option.words())).toList();
+            shapes.add(new SettingsViews.ShapeView(shape.name(), shape.label(), value, from, requestName, options, shape.why(),
+                    keys == null ? List.of() : keys.leftOutLines()));
         }
 
         List<SettingsViews.ValueView> values = new ArrayList<>();

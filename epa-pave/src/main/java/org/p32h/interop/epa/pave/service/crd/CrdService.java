@@ -132,7 +132,8 @@ public class CrdService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call), call.memberIdRule());
+            CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call), call.memberIdRule(),
+                    sampleLayout(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
             orders = built.orders();
@@ -290,6 +291,14 @@ public class CrdService {
         return shapes == null ? RequestShapes.DEFAULTS : shapes;
     }
 
+    /**
+     * The arrangement of the prefetch the collection's request the call comes from writes (D-309),
+     * or null for a call with no saved body, such as one to a typed address or on mock.
+     */
+    static PrefetchLayout sampleLayout(PreparedCall call) {
+        return call == null ? null : PrefetchLayout.ofCall(call.requestName(), call.savedBody());
+    }
+
     /** What the request would be, without sending it. Nothing is recorded. */
     public RequestPreview preview(CrdRunRequest request, ProdUnlock unlock) {
         validate(request);
@@ -313,7 +322,8 @@ public class CrdService {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
             CaseResources.Reads reads = CaseResources.reading(call::resolve);
-            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call), call.memberIdRule());
+            CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call), call.memberIdRule(),
+                    sampleLayout(call));
             body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");

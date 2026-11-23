@@ -220,7 +220,7 @@ public class EnvironmentDrafts {
         List<DraftAddresses.Detected> detected = List.of();
         if (collection != null) {
             for (ShapeEvidence evidence : VendorSamples.read(collection)) {
-                shapes.add(new ShapeRow(evidence.shape().name(), evidence.value(), FROM_SAMPLE, evidence.requestName()));
+                shapes.add(shapeRow(evidence));
             }
             operations.addAll(operations(collection));
             detected = DraftAddresses.detect(collection);
@@ -241,6 +241,21 @@ public class EnvironmentDrafts {
         }
         return new Draft(files, name, nameTaken, variables, signIn, shapes, operations, warnings, list.epoch(), collectionId, addresses,
                 requests, values);
+    }
+
+    /**
+     * One shape a sample shows, with its words; for Prefetch the words name the sample's keys and
+     * the lines say what following it leaves out, so the form shows what "as the sample" sends.
+     */
+    static ShapeRow shapeRow(ShapeEvidence evidence) {
+        org.p32h.interop.epa.pave.model.RequestShape shape = evidence.shape();
+        String words = shape.words(evidence.value());
+        List<String> lines = null;
+        if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH && evidence.layout() != null) {
+            words = evidence.layout().optionWords();
+            lines = evidence.layout().leftOutLines();
+        }
+        return new ShapeRow(shape.name(), evidence.value(), FROM_SAMPLE, evidence.requestName(), shape.label(), words, lines);
     }
 
     // ------------------------------------------------------------------------------------------

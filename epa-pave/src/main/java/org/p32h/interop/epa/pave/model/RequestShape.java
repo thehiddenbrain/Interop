@@ -10,7 +10,10 @@ import java.util.List;
  * <p>Shapes that the guides allow and the vendor accepted are simply what the tool sends, and are
  * not listed here. A departure from FHIR becomes a setting, and its default is always the shape
  * FHIR requires: turning a departure on needs evidence (the environment states it, or the vendor's
- * own sample in the collection shows it), never a guess. The version of the PAS guide Submit is
+ * own sample in the collection shows it), never a guess. The prefetch's arrangement is a setting for
+ * another reason: CDS Hooks fixes no names for the prefetch, each service names its own keys, so
+ * neither arrangement is the one FHIR requires; its default is the one PAVE has always sent, and a
+ * vendor's sample turns the other on. The version of the PAS guide Submit is
  * held against is a setting too, because payers run different versions; its default is the one the
  * payer this tool was built for runs.
  */
@@ -20,6 +23,12 @@ public enum RequestShape {
                     new Option(RequestShape.LEFT_OUT, "Left out (this vendor refuses it)")),
             RequestShape.SENT,
             "The vendor's sandbox refused context.draftOrders.type with HTTP 400; FHIR requires Bundle.type."),
+    CRD_PREFETCH("Prefetch", "prefetch",
+            List.of(new Option(RequestShape.NAMED_BUNDLES, "PAVE's named Bundles (patientBundle, coverageBundle, ...)"),
+                    new Option(RequestShape.AS_SAMPLE, "As the collection's sample")),
+            RequestShape.NAMED_BUNDLES,
+            "CDS Hooks fixes no names for the prefetch: each service names its own keys, and a service that looks for the patient "
+                    + "under another key finds none."),
     PAS_GUIDE("PAS guide", "the Claim of Submit and of the inquiry",
             List.of(new Option(RequestShape.PAS_201, "2.0.1"), new Option(RequestShape.PAS_221, "2.2.1")),
             RequestShape.PAS_201,
@@ -29,6 +38,10 @@ public enum RequestShape {
     public static final String SENT = "SENT";
     /** The value of a shape whose element is left out because the vendor refuses it. */
     public static final String LEFT_OUT = "LEFT_OUT";
+    /** The value of the prefetch shape that sends the five Bundles under PAVE's own names, as an earlier sandbox accepted them. */
+    public static final String NAMED_BUNDLES = "NAMED_BUNDLES";
+    /** The value of the prefetch shape that sends each key the collection's sample has, holding what the sample holds there. */
+    public static final String AS_SAMPLE = "AS_SAMPLE";
     /** The value of the PAS guide for Da Vinci PAS 2.0.1, the version the payer runs. */
     public static final String PAS_201 = "2.0.1";
     /** The value of the PAS guide for Da Vinci PAS 2.2.1, for a service that asks for it. */

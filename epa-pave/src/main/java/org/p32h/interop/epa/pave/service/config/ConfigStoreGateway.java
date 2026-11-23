@@ -277,6 +277,11 @@ public class ConfigStoreGateway implements OperationGateway {
                 continue;
             }
             String sampled = savedBody == null ? null : org.p32h.interop.epa.pave.service.crd.VendorSamples.fromBody(shape, savedBody);
+            if (shape == org.p32h.interop.epa.pave.model.RequestShape.CRD_PREFETCH
+                    && org.p32h.interop.epa.pave.service.crd.PrefetchLayout.errorSample(target.requestName())) {
+                // A sample of an error may arrange its prefetch as the service refuses it, to show the refusal (D-309).
+                sampled = null;
+            }
             if (sampled != null) {
                 shapes = shapes.with(shape, org.p32h.interop.epa.pave.model.RequestShapes.Choice.ofSample(sampled, target.requestName()));
             }

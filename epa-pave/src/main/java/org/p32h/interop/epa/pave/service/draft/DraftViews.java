@@ -148,9 +148,20 @@ public final class DraftViews {
      * @param value       one of its option values
      * @param from        "the collection's sample"
      * @param requestName the collection request whose saved body shows it
+     * @param label       the shape's name in the form, such as Prefetch
+     * @param words       the value in words, as the form's option names it; for Prefetch with the sample's keys
+     * @param lines       what following the sample leaves out, by key and type and never by value (D-309); null when nothing
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ShapeRow(String key, String value, String from, String requestName) {
+    public record ShapeRow(String key, String value, String from, String requestName, String label, String words, List<String> lines) {
+
+        public ShapeRow {
+            lines = lines == null || lines.isEmpty() ? null : List.copyOf(lines);
+        }
+
+        public ShapeRow(String key, String value, String from, String requestName) {
+            this(key, value, from, requestName, null, null, null);
+        }
     }
 
     /**

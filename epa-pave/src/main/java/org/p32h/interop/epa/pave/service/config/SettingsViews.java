@@ -109,12 +109,19 @@ public final class SettingsViews {
      *
      * @param from        "default", "this environment" or "the collection's sample"
      * @param requestName for a value read from a sample, the collection request it was read from
+     * @param lines       what following the sample leaves out, by key and type (D-309); null when nothing
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ShapeView(String key, String label, String value, String from, String requestName, List<Option> options, String why) {
+    public record ShapeView(String key, String label, String value, String from, String requestName, List<Option> options, String why,
+                            List<String> lines) {
 
         public ShapeView {
             options = options == null ? List.of() : List.copyOf(options);
+            lines = lines == null || lines.isEmpty() ? null : List.copyOf(lines);
+        }
+
+        public ShapeView(String key, String label, String value, String from, String requestName, List<Option> options, String why) {
+            this(key, label, value, from, requestName, options, why, null);
         }
     }
 

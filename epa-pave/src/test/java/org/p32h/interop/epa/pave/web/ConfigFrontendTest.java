@@ -401,6 +401,52 @@ class ConfigFrontendTest {
                 "[\"Not the token url of a production environment.\"]");
     }
 
+    /**
+     * D-309: after Fill, "What these files give" shows the Prefetch shape with the sample's keys,
+     * the request it was read from and what following it leaves out; on Edit the shape's lines
+     * stand under its select.
+     */
+    @Test
+    void thePrefetchShapeIsShownAfterFillWithItsKeysAndOnEditWithItsLines(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the prefetch shape", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                const line = `The sample's prefetch also carries Encounter under "encounter". PAVE does not build it, so it is not sent.`;
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [], name: 'Vendor UAT', nameTaken: false,
+                    warnings: [], epoch: 1, collectionId: 'vendor-requests-1a2b', requests: [],
+                    addresses: [{operation: 'CRD_ORDER_SIGN', key: 'crdOrderSign', label: 'CRD order-sign', display: 'https://vendor.example.invalid/cds-services/crd',
+                        from: `from the collection's request "CRD - Prior Auth Check"`}],
+                    values: [],
+                    shapes: [{key: 'CRD_PREFETCH', value: 'AS_SAMPLE', from: "the collection's sample", requestName: 'CRD - Prior Auth Check',
+                        label: 'Prefetch', words: 'As the collection\\'s sample (patient, coverage, encounter)', lines: [line]}]}};
+                const editor = createEditor({environment: null, settings: null});
+                const dialog = editor.dialog;
+                const boxes = inputsOf(dialog).filter(each => each.type === 'file');
+                boxes[1].files = [new File(['{}'], 'col.json', {type: 'application/json'})];
+                boxes[1].value = 'C:/fakepath/col.json';
+                await dialog.querySelectorAll('button').find(each => each.textContent === 'Fill the form from these files').click();
+                await settle();
+                const row = dialog.querySelector('[data-shape="CRD_PREFETCH"]');
+                say([row.querySelector('.field__label').textContent, row.querySelector('.config-in-force').textContent,
+                    row.querySelectorAll('.field__hint').map(each => each.textContent)]);
+
+                const stored = Object.assign({}, full, {shapes: [{key: 'CRD_PREFETCH', label: 'Prefetch', value: 'AS_SAMPLE',
+                    from: "the collection's sample", requestName: 'CRD - Prior Auth Check', why: 'Why it exists.',
+                    options: [{value: 'NAMED_BUNDLES', words: "PAVE's named Bundles (patientBundle, coverageBundle, ...)"},
+                        {value: 'AS_SAMPLE', words: "As the collection's sample (patient, coverage, encounter)"}], lines: [line]}]});
+                const edit = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: stored});
+                const field = edit.dialog.querySelectorAll('.field').find(each => each.querySelector('.field__label')
+                    && each.querySelector('.field__label').textContent === 'Prefetch');
+                say([field.querySelector('select').value, field.querySelectorAll('.config-shape-line').map(each => each.textContent)]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"Prefetch\",\"As the collection's sample (patient, coverage, encounter) from the collection's request "
+                        + "\\\"CRD - Prior Auth Check\\\"\",[\"The sample's prefetch also carries Encounter under \\\"encounter\\\". PAVE "
+                        + "does not build it, so it is not sent.\"]]",
+                "[\"AS_SAMPLE\",[\"The sample's prefetch also carries Encounter under \\\"encounter\\\". PAVE does not build it, so "
+                        + "it is not sent.\"]]");
+    }
+
     @Test
     void theKindAndMethodOptionsSayWhatTheyDoInPlainWords(@TempDir Path folder) throws Exception {
         // I-15: no "application.yml" and no "never guessed" in the options a tester picks from.

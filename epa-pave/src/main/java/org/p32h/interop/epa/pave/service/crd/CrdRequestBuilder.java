@@ -91,6 +91,17 @@ public final class CrdRequestBuilder {
      */
     public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes,
                        MemberIdRule rule) {
+        return build(request, hookInstance, variables, shapes, rule, null);
+    }
+
+    /**
+     * As {@link #build(CrdRunRequest, String, Function, RequestShapes, MemberIdRule)}, with the
+     * prefetch arranged as the collection's sample writes it when the shape Prefetch says so (D-309).
+     *
+     * @param sample the arrangement of the sample the call comes from, or null when it has none
+     */
+    public Built build(CrdRunRequest request, String hookInstance, Function<String, ResolvedText> variables, RequestShapes shapes,
+                       MemberIdRule rule, PrefetchLayout sample) {
         List<String> notes = new ArrayList<>();
         List<SentOrder> orders = new ArrayList<>();
         List<CaseResources.Required> missing = new ArrayList<>();
@@ -161,7 +172,18 @@ public final class CrdRequestBuilder {
         context.set("draftOrders", bundle);
         notes.add(draftOrdersNote(shaped.choice(RequestShape.CRD_DRAFT_ORDERS_TYPE)));
 
-        if (prefetchSent) {
+        RequestShapes.Choice prefetchChoice = shaped.choice(RequestShape.CRD_PREFETCH);
+        boolean asSample = RequestShape.AS_SAMPLE.equals(prefetchChoice.value());
+        if (prefetchSent && asSample && sample != null) {
+            Pieces pieces = new Pieces(member, provider, rule, variables, notes, missing, sentOrders);
+            samplePrefetch(root.putObject("prefetch"), sample, pieces, fhirServer, prefetchChoice, notes);
+        } else if (prefetchSent) {
+            if (asSample) {
+                notes.add("Prefetch: As the collection's sample, " + from(prefetchChoice) + ", but the request this call comes from "
+                        + "writes no prefetch to follow, so the named Bundles below were sent.");
+            } else if (RequestShapes.FROM_ENVIRONMENT.equals(prefetchChoice.from())) {
+                notes.add("Prefetch: PAVE's named Bundles, from this environment.");
+            }
             ObjectNode prefetch = root.putObject("prefetch");
             prefetch.set("patientBundle", collection(fhirServer, resources.crdPatient(member, rule, variables, notes, missing)));
             prefetch.set("coverageBundle", collection(fhirServer, resources.crdCoverage(member, rule, variables, notes, missing)));
@@ -207,6 +229,198 @@ public final class CrdRequestBuilder {
         return new Built(JsonSafe.pretty(root), notes, orders, missing);
     }
 
+    /** Where a shape's value came from, as a note says it after the value. */
+    static String from(RequestShapes.Choice choice) {
+        return switch (choice.from()) {
+            case RequestShapes.FROM_ENVIRONMENT -> "from this environment";
+            case RequestShapes.FROM_SAMPLE -> "from the collection's sample"
+                    + (Texts.present(choice.requestName()) ? " (the request \"" + choice.requestName() + "\")" : "");
+            default -> "default";
+        };
+    }
+
+    /**
+     * The resources of the case, each built the first time a key of the sample asks for it, so the
+     * notes and the elements counted as missing are those of what was sent and nothing else.
+     */
+    private final class Pieces {
+
+        private final MemberDetail member;
+        private final ProviderDetail provider;
+        private final MemberIdRule rule;
+        private final Function<String, ResolvedText> variables;
+        private final List<String> notes;
+        private final List<CaseResources.Required> missing;
+        private final List<ObjectNode> orders;
+        private ObjectNode patient;
+        private ObjectNode coverage;
+        private CaseResources.Provider named;
+
+        Pieces(MemberDetail member, ProviderDetail provider, MemberIdRule rule, Function<String, ResolvedText> variables,
+               List<String> notes, List<CaseResources.Required> missing, List<ObjectNode> orders) {
+            this.member = member;
+            this.provider = provider;
+            this.rule = rule;
+            this.variables = variables;
+            this.notes = notes;
+            this.missing = missing;
+            this.orders = orders;
+        }
+
+        private CaseResources.Provider named() {
+            if (named == null) {
+                named = CaseResources.crdProvider(provider, notes, missing);
+            }
+            return named;
+        }
+
+        /**
+         * The resources of a type built from the case, each a copy, so one resource sent under two
+         * keys is two trees: every order for ServiceRequest, else one or none.
+         */
+        List<ObjectNode> of(String type) {
+            List<ObjectNode> out = new ArrayList<>();
+            switch (type) {
+                case "Patient" -> {
+                    if (patient == null) {
+                        patient = resources.crdPatient(member, rule, variables, notes, missing);
+                    }
+                    out.add(patient.deepCopy());
+                }
+                case "Coverage" -> {
+                    if (coverage == null) {
+                        coverage = resources.crdCoverage(member, rule, variables, notes, missing);
+                    }
+                    out.add(coverage.deepCopy());
+                }
+                case "Practitioner" -> addIfBuilt(out, named().practitioner());
+                case "PractitionerRole" -> addIfBuilt(out, named().role());
+                case "Organization" -> addIfBuilt(out, named().organization());
+                case "ServiceRequest" -> orders.forEach(order -> out.add(order.deepCopy()));
+                default -> {
+                    // A type PAVE does not build: nothing, and the caller says so.
+                }
+            }
+            return out;
+        }
+
+        private void addIfBuilt(List<ObjectNode> out, ObjectNode resource) {
+            if (resource != null) {
+                out.add(resource.deepCopy());
+            }
+        }
+    }
+
+    /**
+     * The prefetch under the sample's keys, each holding what the sample holds there, built from
+     * the case (D-309). A key or an entry that the case cannot fill is left out and said.
+     */
+    private static void samplePrefetch(ObjectNode prefetch, PrefetchLayout sample, Pieces pieces, String fhirServer,
+                                       RequestShapes.Choice choice, List<String> notes) {
+        List<String> sent = new ArrayList<>();
+        List<String> said = new ArrayList<>(sample.leftOutLines());
+        java.util.Set<String> held = new java.util.HashSet<>();
+        for (PrefetchLayout.Key key : sample.keys()) {
+            switch (key.kind()) {
+                case NULL -> {
+                    // CDS Hooks reads null as "could not be fetched"; the sample sends it so, and so does PAVE.
+                    prefetch.putNull(key.name());
+                    sent.add(key.shownName() + " as null, as the sample writes it");
+                }
+                case RESOURCE -> {
+                    if (!PrefetchLayout.BUILT.contains(key.resourceType())) {
+                        continue;
+                    }
+                    held.add(key.resourceType());
+                    List<ObjectNode> built = pieces.of(key.resourceType());
+                    if (built.isEmpty()) {
+                        said.add(unbuilt(key.resourceType(), "under " + key.shownName()));
+                        continue;
+                    }
+                    prefetch.set(key.name(), built.get(0));
+                    sent.add(key.shownName() + " (" + PrefetchLayout.article(key.resourceType()) + " " + key.resourceType() + ")");
+                    if (built.size() > 1) {
+                        said.add("The sample holds a single ServiceRequest under " + key.shownName() + ", so the first order was sent "
+                                + "there; every order is in context.draftOrders.");
+                    }
+                }
+                case BUNDLE -> {
+                    ObjectNode bundle = JSON.objectNode();
+                    bundle.put("resourceType", "Bundle");
+                    if (key.bundleType() != null) {
+                        bundle.put("type", key.bundleType());
+                    } else {
+                        said.add("The sample's Bundle under " + key.shownName() + " states no type, so none was sent: FHIR requires "
+                                + "Bundle.type, and a service that follows FHIR may refuse it.");
+                    }
+                    ArrayNode entries = JSON.arrayNode();
+                    List<String> types = new ArrayList<>();
+                    for (String type : key.entryTypes()) {
+                        if (!PrefetchLayout.BUILT.contains(type)) {
+                            continue;
+                        }
+                        held.add(type);
+                        List<ObjectNode> built = pieces.of(type);
+                        if (built.isEmpty()) {
+                            if (!"ServiceRequest".equals(type)) {
+                                said.add(unbuilt(type, "in the Bundle under " + key.shownName()));
+                            }
+                            continue;
+                        }
+                        types.add(type);
+                        String mode = key.searchMode(type);
+                        for (ObjectNode resource : built) {
+                            CaseResources.entry(entries, resource, fhirServer);
+                            if (mode != null) {
+                                ((ObjectNode) entries.get(entries.size() - 1)).putObject("search").put("mode", mode);
+                            }
+                        }
+                    }
+                    if (entries.isEmpty() && !key.entryTypes().isEmpty()) {
+                        if (key.entryTypes().stream().anyMatch(PrefetchLayout.BUILT::contains)) {
+                            said.add("Nothing the case gives fills the Bundle under " + key.shownName() + ", so the key was not sent.");
+                        }
+                        continue;
+                    }
+                    if (key.total()) {
+                        bundle.put("total", entries.size());
+                    }
+                    if (!entries.isEmpty()) {
+                        // No empty array leaves this tool: the vendor's validator refused one each time.
+                        bundle.set("entry", entries);
+                    }
+                    prefetch.set(key.name(), bundle);
+                    sent.add(key.shownName() + " (a Bundle" + (key.bundleType() == null ? " with no type" : " of type " + key.bundleType())
+                            + (types.isEmpty() ? " with no entries" : " holding " + PrefetchLayout.words(types)) + ")");
+                }
+                default -> {
+                    // A placeholder or something that is no resource: leftOutLines has said it.
+                }
+            }
+        }
+        notes.add("Prefetch: As the collection's sample, " + from(choice) + ". The prefetch was sent under the sample's keys, each built "
+                + "from the case: " + (sent.isEmpty() ? "none could be filled" : PrefetchLayout.words(sent)) + ".");
+        notes.addAll(said);
+        List<String> notHeld = new ArrayList<>();
+        for (String type : List.of("Patient", "Coverage", "Practitioner", "PractitionerRole")) {
+            if (!held.contains(type)) {
+                notHeld.add(type);
+            }
+        }
+        if (!notHeld.isEmpty()) {
+            notes.add("The sample's prefetch holds no " + PrefetchLayout.words(notHeld).replace(" and ", " or ") + ", so "
+                    + (notHeld.size() == 1 ? "it was" : "they were") + " not sent in the prefetch.");
+        }
+    }
+
+    /** The line for a type PAVE builds that this case gives none of, such as a Practitioner for a provider known as an organization. */
+    private static String unbuilt(String type, String where) {
+        return "The sample's prefetch holds " + PrefetchLayout.article(type) + " " + type + " " + where + ". This case gives none: "
+                + ("Practitioner".equals(type) ? "the provider is known by an organization name only."
+                : "Organization".equals(type) ? "the provider is a person, and PAVE builds an Organization only for a provider known by "
+                        + "an organization name." : "nothing builds it.") + " It was not sent.";
+    }
+
     /** A Bundle of type collection holding the resources given, each with its fullUrl. */
     private static ObjectNode collection(String fhirServer, ObjectNode... resources) {
         ObjectNode bundle = JSON.objectNode();
@@ -225,12 +439,7 @@ public final class CrdRequestBuilder {
      */
     static String draftOrdersNote(RequestShapes.Choice choice) {
         boolean leftOut = RequestShape.LEFT_OUT.equals(choice.value());
-        String from = switch (choice.from()) {
-            case RequestShapes.FROM_ENVIRONMENT -> "from this environment";
-            case RequestShapes.FROM_SAMPLE -> "from the collection's sample"
-                    + (Texts.present(choice.requestName()) ? " (the request \"" + choice.requestName() + "\")" : "");
-            default -> "default";
-        };
+        String from = from(choice);
         if (leftOut) {
             return "draftOrders type: Left out, " + from + ". context.draftOrders was sent without type, as the vendor's sandbox accepted "
                     + "it; FHIR requires Bundle.type, so a service that follows FHIR may refuse it.";

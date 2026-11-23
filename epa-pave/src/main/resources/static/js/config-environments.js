@@ -599,6 +599,10 @@ export function createEditor(options) {
             source.hidden = !(shape.from && shape.from !== 'default');
             const wrapper = field({label: shape.label || shape.key, input: select, hint: shape.why || null});
             wrapper.append(source);
+            // What following the sample leaves out, by key and type (D-309), so a refusal is read beside it.
+            for (const line of Array.isArray(shape.lines) ? shape.lines : []) {
+                wrapper.append(el('p', {class: 'field__hint config-shape-line'}, line));
+            }
             rows.push(register('shapes.' + shape.key, wrapper, 'shapes'));
             if (shape.from && shape.from !== 'default') {
                 differs = true;
@@ -840,6 +844,11 @@ export function createEditor(options) {
         for (const [key, shape] of shapes) {
             const select = shapeInputs.get(key);
             if (select && shape.value) {
+                const option = Array.from(select.options).find(each => each.value === shape.value);
+                if (option && shape.words) {
+                    // The files name the sample's keys: the option says them, as Edit does once saved.
+                    option.textContent = shape.words;
+                }
                 select.value = shape.value;
                 const wrapper = parts.fields.get('shapes.' + key);
                 const source = wrapper ? wrapper.wrapper.querySelector('.config-source') : null;
@@ -903,11 +912,34 @@ export function createEditor(options) {
             signInLine ? el('p', {class: 'field__hint'}, 'The fields are filled under Sign-in below.') : null,
             el('p', {class: 'section-label'}, 'Addresses'),
             el('div', {class: 'config-gives__rows'}, addresses.map(address => givenAddress(address, requests))),
+            givenShapes(),
             el('p', {class: 'section-label'}, 'Values'),
             values.some(value => !value.display) ? el('p', {class: 'field__hint'}, 'A value these files do not give is left out of '
                 + 'the requests that read it.' + (isNew() ? ' Type it here, or on Edit once the environment is saved.' : '')) : null,
             samplesChoice,
             el('div', {class: 'config-gives__rows'}, values.map(value => givenValue(value))));
+    }
+
+    /**
+     * The request shapes the samples show (D-309): each with its words and the request it was read
+     * from, and what following the sample leaves out, by key and type. Nothing when no sample shows one.
+     */
+    function givenShapes() {
+        const rows = (Array.isArray(draft.shapes) ? draft.shapes : []).filter(shape => shape.label);
+        if (rows.length === 0) {
+            return null;
+        }
+        return el('div', {class: 'config-gives__shapes'},
+            el('p', {class: 'section-label'}, 'Request shapes'),
+            el('div', {class: 'config-gives__rows'}, rows.map(shape => el('div', {class: 'config-gives__row', 'data-shape': shape.key},
+                el('p', {class: 'field__label'}, shape.label),
+                el('p', {class: 'config-in-force'}, el('span', null, String(shape.words || shape.value)), ' ',
+                    el('span', {class: 'muted'}, shape.requestName ? 'from the collection\'s request "' + shape.requestName + '"'
+                        : 'from the collection\'s sample')),
+                (Array.isArray(shape.lines) ? shape.lines : []).map(line => el('p', {class: 'field__hint'}, line))))),
+            el('p', {class: 'field__hint'}, isNew()
+                ? 'Each call follows the sample it is sent from. Once saved, Edit > Request shapes can state another.'
+                : 'Each call follows the sample it is sent from. Request shapes below can state another.'));
     }
 
     function givenLine(line, display, from, nothing) {
