@@ -342,6 +342,35 @@ export async function readBack(target, ask) {
     return {ok: true, chainId, chain, runs, theCase, notKept};
 }
 
+// The steps whose request carries the diagnosis codes and the servicing provider of the case (D-321).
+const CASE_PART_STEPS = ['CRD_ORDER_SIGN', 'CRD_ORDER_SELECT', 'DTR_QUESTIONNAIRE_PACKAGE', 'PAS_SUBMIT'];
+
+/**
+ * The case a kept run posted, as a reload reads it back, with the diagnosis codes and the servicing
+ * provider of the newest kept run of a step that sends them (D-321) when the run is of one that sends
+ * neither (a later questionnaire request, an inquiry): the case is one, and a reload keeps both.
+ * entry: the trail's entry of the run; runs: readBack's runs.
+ */
+export function casePosted(entry, runs) {
+    const posted = {...(entry && entry.case && typeof entry.case === 'object' ? entry.case : {})};
+    if (entry && entry.envelope && CASE_PART_STEPS.includes(entry.envelope.operation)) {
+        return posted;
+    }
+    let giver = null;
+    for (const run of Object.values(runs || {})) {
+        const kept = run && run.entry && run.entry.case && run.entry.envelope ? run : null;
+        if (kept && CASE_PART_STEPS.includes(kept.entry.envelope.operation) && (!giver || String(kept.at || '') >= String(giver.at || ''))) {
+            giver = kept;
+        }
+    }
+    for (const name of ['diagnosisCodes', 'servicingProvider']) {
+        if (giver && posted[name] === undefined && giver.entry.case[name] !== undefined) {
+            posted[name] = giver.entry.case[name];
+        }
+    }
+    return posted;
+}
+
 async function keptRun(runId, ask) {
     const answer = await ask('GET', '/api/trail/' + encodeURIComponent(runId));
     return answer.ok && answer.data ? answer.data : null;

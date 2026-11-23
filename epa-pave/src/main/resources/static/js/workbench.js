@@ -25,7 +25,7 @@ import {createMemberCard} from './wb-member.js';
 import {createProviderCard} from './wb-provider.js';
 import {createServiceCard} from './wb-service.js';
 import {createStepper} from './wb-stepper.js';
-import {createJourney, stepOfAction, stepOfOperation, statusCarry, readBack, caseFromLedger, NOT_KEPT_LINE, STEPS} from './wb-journey.js';
+import {createJourney, stepOfAction, stepOfOperation, statusCarry, readBack, caseFromLedger, casePosted, NOT_KEPT_LINE, STEPS} from './wb-journey.js';
 import {optionsToggle} from './wb-run.js';
 import {createRunValues} from './wb-values.js';
 import {useEffective, createRequestLine} from './wb-request.js';
@@ -526,7 +526,9 @@ function build() {
             return;
         }
         const dot = () => el('span', {class: 'banner__sep', 'aria-hidden': 'true'}, ' \u00b7 ');
-        fill(bannerText, el('strong', null, who || 'no member'), dot(), by || 'no provider', dot(),
+        // The servicing provider where one is named (D-321): every step sends it.
+        const serving = typeof provider.servicingLabel === 'function' ? provider.servicingLabel() : '';
+        fill(bannerText, el('strong', null, who || 'no member'), dot(), by || 'no provider', serving ? ', servicing ' + serving : null, dot(),
             el('span', {class: 'mono'}, codes || 'no code'));
     }
 
@@ -666,7 +668,7 @@ function build() {
         if (!found) {
             return;
         }
-        const posted = found.from === 'trail' ? found.entry.case || {} : caseFromLedger(found.record);
+        const posted = found.from === 'trail' ? casePosted(found.entry, back.runs) : caseFromLedger(found.record);
         const mark = found.from === 'trail' ? MARKS.TRAIL : MARKS.LEDGER;
         member.restore(posted.member, posted.memberOverrides, mark);
         provider.restore(posted.provider, posted.providerOverrides, posted.servicingProvider, mark);

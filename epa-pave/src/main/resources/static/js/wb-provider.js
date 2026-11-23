@@ -1,8 +1,9 @@
 // The Provider card of the case (plan 3.2, "Case column"): the NPI and its lookup, a saved
 // provider, the fields a run sends (phone, fax and the vendor's own practitioner id among them),
-// and, last in "Edit provider fields", the servicing provider that Submit alone sends.
+// and the servicing provider, a part of the card in its own right (D-321): every step sends it, the
+// coverage check and the questionnaire request as the order's performer, Submit on the care team.
 
-import {el, fold, button, fill, clear} from './dom.js';
+import {el, fold, button, fill} from './dom.js';
 import {caseField, caseChanged, fieldsOf, restoreFields, MARKS} from './wb-case.js';
 import {cardHead, latestOnly, lookUp, fillFromLookup, clearLookedUp, statusChip, lookupLine, returnedFold} from './wb-lookup.js';
 
@@ -53,13 +54,12 @@ export function createProviderCard(env) {
     const line = el('div');
     const returned = el('div');
 
-    // The servicing provider: Submit only, and only when one is chosen or typed.
+    // The servicing provider, seen without opening the fold: one line while none is named.
     const servicing = createServicing(env);
 
-    const edit = fold({summary: 'Edit provider fields', inline: true, body: el('div', null,
-        grid(fields), servicing.node)});
+    const edit = fold({summary: 'Edit provider fields', inline: true, body: el('div', null, grid(fields))});
     const node = el('section', {class: 'card', 'aria-label': 'Provider'}, head.node,
-        el('div', {class: 'card__body'}, pickerLabel, picker, npiRow, summary, line, edit, returned));
+        el('div', {class: 'card__body'}, pickerLabel, picker, npiRow, summary, line, edit, returned, servicing.node));
 
     function drawPicker() {
         const saved = env.savedProviders();
@@ -156,14 +156,17 @@ export function createProviderCard(env) {
             }
             return {provider, providerOverrides: overrides.filter(name => name !== 'npi'), servicingProvider: servicing.request()};
         },
+        /** The servicing provider in a few words, for the case line, or '' when none is named. */
+        servicingLabel() {
+            return servicing.label();
+        },
         label() {
             const values = fieldsOf(fields).values;
             return [values.firstName, values.lastName].filter(Boolean).join(' ') || values.organizationName || npi.value()
                 || values.vendorPractitionerId || '';
         },
         show(name, message) {
-            if (name.startsWith('servicingProvider.')) {
-                edit.open = true;
+            if (name.startsWith('servicingProvider')) {
                 return servicing.show(name.slice('servicingProvider.'.length), message);
             }
             const control = [npi].concat(fields).find(each => each.name === name);
@@ -231,7 +234,10 @@ function grid(controls) {
     return rows;
 }
 
-/** The part "Servicing provider (optional, Submit only)": a saved provider, or its fields typed. */
+/**
+ * The part "Servicing provider": who performs the service, a saved provider or its fields typed. Closed
+ * to one line while none is named, and open once one is, so a tester sees it without opening anything.
+ */
 function createServicing(env) {
     const fields = [
         caseField({name: 'npi', label: 'NPI', mono: true}),
@@ -259,19 +265,45 @@ function createServicing(env) {
         }
         caseChanged('picked');
     });
-    const node = el('div', {class: 'servicing'},
-        el('p', {class: 'notes__title'}, 'Servicing provider (optional, Submit only)'),
+    const closed = el('p', {class: 'servicing__closed small'}, 'Servicing provider: none. ',
+        button('Add one', () => {
+            open = true;
+            draw();
+            const first = fields[0].input;
+            first.focus();
+        }, {small: true, quiet: true}));
+    const body = el('div', {class: 'servicing__body'},
+        el('p', {class: 'notes__title'}, 'Servicing provider'),
+        el('p', {class: 'field__hint servicing__hint'}, 'Who performs the service. Sent as the order\'s performer in the coverage check '
+            + 'and the questionnaire request, and on the care team in Submit.'),
         pickerLabel, picker, grid(fields),
         button('Remove the servicing provider', () => {
             forget();
             caseChanged('typed');
         }, {small: true, quiet: true}));
+    const node = el('div', {class: 'servicing', 'data-servicing': ''}, closed, body);
+    let open = false;
+
+    function named() {
+        return Object.keys(fieldsOf(fields).values).length > 0;
+    }
+
+    /** Open once one is named or the tester asked to add one; one line otherwise. */
+    function draw() {
+        const shown = open || named();
+        closed.hidden = shown;
+        body.hidden = !shown;
+    }
+
     function forget() {
         picker.value = '';
         for (const control of fields) {
             control.clear();
         }
+        open = false;
+        draw();
     }
+    draw();
     return {
         node,
         drawPicker() {
@@ -286,11 +318,16 @@ function createServicing(env) {
             const {values} = fieldsOf(fields);
             return Object.keys(values).length > 0 ? values : null;
         },
+        /** "Sam Servicing", the organization, the NPI or the vendor id: '' when none is named. */
+        label() {
+            const values = fieldsOf(fields).values;
+            return [values.firstName, values.lastName].filter(Boolean).join(' ') || values.organizationName || values.npi
+                || values.vendorPractitionerId || '';
+        },
         show(name, message) {
-            const control = fields.find(each => each.name === name);
-            if (!control) {
-                return false;
-            }
+            open = true;
+            draw();
+            const control = fields.find(each => each.name === name) || fields[0];
             control.setError(message || null);
             control.input.focus();
             return true;
@@ -299,6 +336,8 @@ function createServicing(env) {
         restore(given, mark) {
             picker.value = '';
             restoreFields(fields, given, [], mark);
+            open = false;
+            draw();
         }
     };
 }

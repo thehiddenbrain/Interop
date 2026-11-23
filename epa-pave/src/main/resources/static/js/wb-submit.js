@@ -247,6 +247,9 @@ export function mount(root, ctx) {
         const servicing = request.servicingProvider;
         if (servicing && (servicing.npi || servicing.vendorPractitionerId)) {
             line1.push(chip('servicing ' + (servicing.npi || servicing.vendorPractitionerId), {mono: true}));
+        } else if (servicing && (servicing.lastName || servicing.firstName || servicing.organizationName)) {
+            // A servicing provider named by a name alone still goes on the care team, so it is shown too.
+            line1.push(chip('servicing ' + ([servicing.firstName, servicing.lastName].filter(Boolean).join(' ') || servicing.organizationName)));
         }
 
         const line2 = [];

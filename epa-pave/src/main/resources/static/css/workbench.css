@@ -53,6 +53,19 @@
     border-top: 1px dashed var(--line);
 }
 
+.servicing__closed {
+    margin: 0;
+}
+
+.servicing__body {
+    display: grid;
+    gap: var(--s-2);
+}
+
+.servicing__body > p {
+    margin: 0;
+}
+
 /* ---------- the code type-ahead ---------- */
 
 .picker__entry {

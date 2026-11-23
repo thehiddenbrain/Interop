@@ -71,7 +71,9 @@ export function createServiceCard(env) {
     // a native date field shows the browser's locale order and is cut at 1024.
     const date = caseField({name: 'dateOfService', label: 'Date of service', mono: true});
     date.input.placeholder = 'YYYY-MM-DD';
-    const diagnosis = caseField({name: 'diagnosisCodes', label: 'Diagnosis codes', mono: true});
+    // Every step sends them, each in its own place (D-321).
+    const diagnosis = caseField({name: 'diagnosisCodes', label: 'Diagnosis codes', mono: true,
+        hint: 'Sent as the order\'s reason in the coverage check and the questionnaire request, and as the claim\'s diagnosis in Submit.'});
     const placesId = 'places-' + lists;
     const typesId = 'service-types-' + lists;
     const places = el('datalist', {id: placesId});
