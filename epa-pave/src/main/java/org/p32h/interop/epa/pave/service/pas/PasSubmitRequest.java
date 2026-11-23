@@ -48,6 +48,7 @@ public record PasSubmitRequest(
         String chainId,
         RequestRef request,
         String rawBody,
+        Boolean asWritten,
         Map<String, String> variables,
         Map<String, List<String>> carry,
         Long configEpoch,
@@ -68,6 +69,16 @@ public record PasSubmitRequest(
         variables = variables == null ? Map.of() : Map.copyOf(variables);
         carry = carry == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(carry));
         unrecognised = unrecognised == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(unrecognised));
+    }
+
+    /**
+     * This request with the collection's body as written in place of a body of its own (D-313), so the
+     * run goes down the path such a body takes. Every other field is kept.
+     */
+    public PasSubmitRequest withRawBody(String body) {
+        return new PasSubmitRequest(claimId, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
+                attachments, dateOfService, scenarioId, expected, testerRef, note, chainId, request, body, asWritten, variables, carry,
+                configEpoch, placeOfService, levelOfService, certificationType, requestType, serviceType, servicingProvider, unrecognised);
     }
 
     public static Builder builder() {
@@ -97,6 +108,7 @@ public record PasSubmitRequest(
         private String chainId;
         private RequestRef request;
         private String rawBody;
+        private Boolean asWritten;
         private Map<String, String> variables = Map.of();
         private Map<String, List<String>> carry = Map.of();
         private Long configEpoch;
@@ -185,6 +197,11 @@ public record PasSubmitRequest(
             return this;
         }
 
+        public Builder asWritten(Boolean value) {
+            this.asWritten = value;
+            return this;
+        }
+
         public Builder rawBody(String value) {
             this.rawBody = value;
             return this;
@@ -237,7 +254,7 @@ public record PasSubmitRequest(
 
         public PasSubmitRequest build() {
             return new PasSubmitRequest(claimId, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
-                    attachments, dateOfService, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry,
+                    attachments, dateOfService, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables, carry,
                     configEpoch, placeOfService, levelOfService, certificationType, requestType, serviceType, servicingProvider, Map.of());
         }
     }

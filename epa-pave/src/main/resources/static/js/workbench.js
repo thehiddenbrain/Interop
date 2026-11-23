@@ -28,7 +28,7 @@ import {createStepper} from './wb-stepper.js';
 import {createJourney, stepOfAction, stepOfOperation, statusCarry, readBack, caseFromLedger, NOT_KEPT_LINE, STEPS} from './wb-journey.js';
 import {optionsToggle} from './wb-run.js';
 import {createRunValues} from './wb-values.js';
-import {useEffective} from './wb-request.js';
+import {useEffective, createRequestLine} from './wb-request.js';
 import * as crdStep from './wb-crd.js';
 import * as statusStep from './wb-status.js';
 // Not used by the Workbench itself. The step modules that read a chosen file (attachments in
@@ -133,9 +133,23 @@ function build() {
     };
     const scenarioFields = {};
     const optionRows = {};
+    // Which request of the collection each later step sends, and how its body is made (D-313). A
+    // body as written there carries nothing handed on from the step before, and the line says so.
+    const environmentName = () => {
+        const mode = app.mode();
+        return mode && mode.environment && typeof mode.environment.name === 'string' && mode.environment.name !== ''
+            ? mode.environment.name : null;
+    };
+    const requestLines = {
+        2: [createRequestLine({operation: 'DTR_QUESTIONNAIRE_PACKAGE', label: 'the questionnaire package', laterStep: true, environment: environmentName}),
+            createRequestLine({operation: 'DTR_NEXT_QUESTION', label: 'the next question', laterStep: true, environment: environmentName})],
+        3: [createRequestLine({operation: 'PAS_SUBMIT', label: 'Submit', laterStep: true, environment: environmentName})],
+        4: [createRequestLine({operation: 'PAS_INQUIRE', label: 'the inquiry', laterStep: true, environment: environmentName})]
+    };
     for (const n of [2, 3, 4]) {
         scenarioFields[n] = caseField({name: 'scenarioId', label: 'Mock scenario', kind: 'select', options: []});
-        optionRows[n] = el('div', {class: 'panel__options'}, Object.values(options[n]).map(control => control.node));
+        optionRows[n] = el('div', {class: 'panel__options'}, requestLines[n].map(line => line.node),
+            Object.values(options[n]).map(control => control.node));
     }
 
     const panels = {};
@@ -212,11 +226,7 @@ function build() {
                 return handedLine(step);
             },
             crdScenarios: () => (app.isMock() && loaded.mockLists ? loaded.mockLists.crd : null),
-            environmentName: () => {
-                const mode = app.mode();
-                return mode && mode.environment && typeof mode.environment.name === 'string' && mode.environment.name !== ''
-                    ? mode.environment.name : null;
-            }
+            environmentName
         };
     }
 
@@ -735,6 +745,13 @@ function build() {
         guarded(() => {
             handle = module.mount(panels[n], ctxFor(n));
         });
+        // The short line that names the request in force while several fit, above the step's options where they are drawn.
+        const row = optionRows[n];
+        if (row && row.parentNode && requestLines[n]) {
+            for (const line of requestLines[n]) {
+                row.before(line.summary);
+            }
+        }
         return handle;
     }
 

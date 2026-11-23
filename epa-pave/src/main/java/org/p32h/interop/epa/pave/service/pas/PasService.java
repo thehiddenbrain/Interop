@@ -40,6 +40,7 @@ import org.p32h.interop.epa.pave.service.config.OperationGateway;
 import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.AsWritten;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
@@ -100,7 +101,10 @@ public class PasService {
      *
      * @param unlock the session's production unlock, or null. A suite run or a replay always passes null
      */
-    public RunEnvelope<PasDetail> runSubmit(PasSubmitRequest request, RunOrigin origin, ProdUnlock unlock) {
+    public RunEnvelope<PasDetail> runSubmit(PasSubmitRequest posted, RunOrigin origin, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.PAS_SUBMIT, gateway);
+        PasSubmitRequest request = written == null ? posted : posted.withRawBody(written.template());
         validateSubmit(request);
         EpaOperation operation = EpaOperation.PAS_SUBMIT;
         boolean ownBody = RunSupport.ownBody(request);
@@ -119,6 +123,9 @@ public class PasService {
         List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
+            if (written != null) {
+                written.requireFilled(call, body);
+            }
             sent = SentClaim.fromBody(body.value());
             ownBodyNotes(body, sent, requestNotes);
             if (Texts.present(request.claimId()) || !request.diagnosisCodes().isEmpty() || !request.attachments().isEmpty()
@@ -135,6 +142,11 @@ public class PasService {
             sent = built.sent();
             attachmentMode = built.attachmentMode();
             leftOut = built.leftOut();
+        }
+        if (written != null) {
+            List<String> said = written.resultNotes(requestNotes, true);
+            requestNotes.clear();
+            requestNotes.addAll(said);
         }
 
         String chosen = RunSupport.chosenRequestNote(request, call);
@@ -156,7 +168,10 @@ public class PasService {
      * passed all the same, because a tester can point the run at any collection request and the
      * gateway judges that request for what it is.
      */
-    public RunEnvelope<PasDetail> runInquire(PasInquireRequest request, RunOrigin origin, ProdUnlock unlock) {
+    public RunEnvelope<PasDetail> runInquire(PasInquireRequest posted, RunOrigin origin, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.PAS_INQUIRE, gateway);
+        PasInquireRequest request = written == null ? posted : posted.withRawBody(written.template());
         validateInquire(request);
         EpaOperation operation = EpaOperation.PAS_INQUIRE;
         boolean ownBody = RunSupport.ownBody(request);
@@ -176,6 +191,9 @@ public class PasService {
         List<String> leftOut = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
+            if (written != null) {
+                written.requireFilled(call, body);
+            }
             sent = SentClaim.fromBody(body.value());
             ownBodyNotes(body, sent, requestNotes);
         } else {
@@ -188,6 +206,11 @@ public class PasService {
             requestNotes.addAll(built.notes());
             sent = built.sent();
             leftOut = built.leftOut();
+        }
+        if (written != null) {
+            List<String> said = written.resultNotes(requestNotes, true);
+            requestNotes.clear();
+            requestNotes.addAll(said);
         }
 
         String chosen = RunSupport.chosenRequestNote(request, call);
@@ -332,7 +355,10 @@ public class PasService {
     }
 
     /** What the submission would be, without sending it. Nothing is recorded. */
-    public RequestPreview previewSubmit(PasSubmitRequest request, ProdUnlock unlock) {
+    public RequestPreview previewSubmit(PasSubmitRequest posted, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.PAS_SUBMIT, gateway);
+        PasSubmitRequest request = written == null ? posted : posted.withRawBody(written.template());
         validateSubmit(request);
         EpaOperation operation = EpaOperation.PAS_SUBMIT;
         PreparedCall call;
@@ -343,7 +369,7 @@ public class PasService {
         }
         MemberIdForms shown = shown(request, call.memberIdRule());
         if (RunSupport.ownBody(request)) {
-            return ownBodyPreview(operation, call, request, shown);
+            return ownBodyPreview(operation, call, request, shown, written);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
@@ -359,7 +385,10 @@ public class PasService {
     }
 
     /** What the inquiry would be, without sending it. Nothing is recorded. */
-    public RequestPreview previewInquire(PasInquireRequest request, ProdUnlock unlock) {
+    public RequestPreview previewInquire(PasInquireRequest posted, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.PAS_INQUIRE, gateway);
+        PasInquireRequest request = written == null ? posted : posted.withRawBody(written.template());
         validateInquire(request);
         EpaOperation operation = EpaOperation.PAS_INQUIRE;
         PreparedCall call;
@@ -370,7 +399,7 @@ public class PasService {
         }
         MemberIdForms shown = shown(request, call.memberIdRule());
         if (RunSupport.ownBody(request)) {
-            return ownBodyPreview(operation, call, request, shown);
+            return ownBodyPreview(operation, call, request, shown, written);
         }
         String claimId = claimId(request, false);
         Codes codes = inquiryCodes(request, claimId);
@@ -380,10 +409,11 @@ public class PasService {
         return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
     }
 
-    private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, RunRequest request, MemberIdForms shown) {
+    private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, RunRequest request, MemberIdForms shown,
+                                                 AsWritten written) {
         ResolvedText resolved = call.resolve(request.rawBody());
         String body = resolved.resolved() ? resolved.display() : request.rawBody();
-        List<String> notes = resolved.resolved() ? List.of()
+        List<String> notes = written != null ? written.previewNotes(resolved, true) : resolved.resolved() ? List.of()
                 : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + ".");
         return RequestPreview.of(operation, call, body, notes, shown);
     }

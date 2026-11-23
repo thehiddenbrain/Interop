@@ -110,6 +110,23 @@ public record AsWritten(WrittenBody written) {
         return lines;
     }
 
+    /** The notes of a preview of a body as written: what it is, and each placeholder that still has no value. */
+    public List<String> previewNotes(ResolvedText body, boolean laterStep) {
+        List<String> notes = new ArrayList<>(notes(laterStep));
+        notes.addAll(previewLines(body));
+        return notes;
+    }
+
+    /**
+     * The notes of a result whose body was sent as written: what it is, then the notes of a body of
+     * the tester's own, said of the collection's body.
+     */
+    public List<String> resultNotes(List<String> ownBodyNotes, boolean laterStep) {
+        List<String> notes = new ArrayList<>(notes(laterStep));
+        notes.addAll(reworded(ownBodyNotes));
+        return notes;
+    }
+
     /**
      * What a result and a preview say about a body sent as written.
      *
