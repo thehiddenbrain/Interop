@@ -31,6 +31,7 @@ import org.p32h.interop.epa.pave.model.Texts;
 import org.p32h.interop.epa.pave.model.Timing;
 import org.p32h.interop.epa.pave.model.VendorExchange;
 import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.model.SentSecrets;
 import org.p32h.interop.epa.pave.model.WireRequest;
 import org.p32h.interop.epa.pave.model.WireView;
 import org.p32h.interop.epa.pave.service.RunLedger;
@@ -245,6 +246,19 @@ public class RunSupport {
                 .map(String::strip).toList();
     }
 
+    /**
+     * The line a result's notes carry for a run that named its collection request, or null for one
+     * that named none. A vendor's collection can hold several requests for one step, each for a
+     * service of its own, so the result says which one went (D-313).
+     */
+    public static String chosenRequestNote(RunRequest request, org.p32h.interop.epa.pave.service.config.PreparedCall call) {
+        if (request == null || request.request() == null || call == null || call.url() == null || !call.url().configured()
+                || Texts.blank(call.url().source())) {
+            return null;
+        }
+        return "Sent with the request chosen for this run: " + call.url().source() + ".";
+    }
+
     /** True when the tester supplied their own body, to be sent in place of one the tool would build. */
     public static boolean ownBody(RunRequest request) {
         return Texts.present(request.rawBody());
@@ -316,7 +330,8 @@ public class RunSupport {
         MemberIdForms memberId = wireMemberId(request, activeRule());
         WireRequest attempted = new WireRequest(refusal.method(), target == null ? null : target.display(),
                 target == null ? null : target.template(), List.of(), null, false,
-                "Blocked by the production guardrail. Nothing left this machine.");
+                "Blocked by the production guardrail. Nothing left this machine.", SentSecrets.none(),
+                target == null || !target.configured() ? null : target.source());
         return RunEnvelope.<D>builder()
                 .runId(record.runId())
                 .chainId(record.chainId())

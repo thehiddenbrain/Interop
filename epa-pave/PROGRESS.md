@@ -4,6 +4,15 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Each step says which request it sends, and can send it as the collection writes it** (D-313). The
+Workbench's coverage check, questionnaire package and next question, Submit and inquiry each name the
+request of the collection in force under "Request" in their Options, list every request that fits, send
+the one chosen, and can make it the one for every run (`c7adbfa`); the coverage check (`51c1a3e`) and the
+later steps (`ed9d05e`) can send the request's own body as the collection writes it. Built and tested by
+one agent and seen on live against a stand-in at 1440 by 900 and 1024 by 768, and on mock; not seen
+against the vendor's service, and the next question as written was sent through the API only. Open: a
+body as written gets only its placeholders filled; a value a script sets is asked for, never computed.
+
 **The vendor's service answered a coverage check, and the questionnaire step now follows** (D-314). With
 D-312 the operator's coverage check was answered: prior authorization needed, questionnaires named, no
 doc-needed. PAVE offered Submit; it now offers the questionnaire step whenever a questionnaire is named.

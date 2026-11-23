@@ -41,10 +41,11 @@ import org.p32h.interop.epa.pave.postman.Resolution.Piece;
  *       names that start with {@code PAVE_} can be read, so an uploaded environment cannot read
  *       arbitrary variables of the server process and put them in a url. A value read this way is
  *       always a secret.</li>
- *   <li><b>{@code {{$guid}}}, {@code {{$randomUUID}}}, {@code {{$timestamp}}} and
- *       {@code {{$isoTimestamp}}}</b> are generated, since they need no script. Each use gets its
- *       own value, as in Postman. Any other {@code $name} is something Postman would have computed
- *       and this tool does not.</li>
+ *   <li><b>{@code {{$guid}}}, {@code {{$randomUUID}}}, {@code {{$timestamp}}},
+ *       {@code {{$isoTimestamp}}} and {@code {{$randomInt}}}</b> are generated, since they need no
+ *       script. Each use gets its own value, as in Postman, so a body sent as the collection writes
+ *       it carries a fresh hookInstance at each send (D-313). Any other {@code $name} is something
+ *       Postman would have computed and this tool does not.</li>
  *   <li><b>A secret is masked by its name</b>, wherever its value would appear in the form that is
  *       shown, including when it is reached through another variable.</li>
  * </ul>
@@ -296,11 +297,13 @@ public final class VariableResolver {
                 case "$guid", "$randomUUID" -> guids.get();
                 case "$timestamp" -> String.valueOf(clock.instant().getEpochSecond());
                 case "$isoTimestamp" -> ISO_MILLIS.format(clock.instant());
+                // Postman's is a whole number from 0 to 1000. Taken from the identifier source, so a test that fixes it fixes this too.
+                case "$randomInt" -> String.valueOf(Math.floorMod(guids.get().hashCode(), 1001));
                 default -> null;
             };
             if (value == null) {
-                return missing(name, secret, out, missing, "Postman computes {{" + name + "}} itself and this tool does not. "
-                        + "Type a value for it for this run.");
+                return missing(name, secret, out, missing, "Postman computes {{" + name + "}} itself and this tool does not: it makes only "
+                        + "{{$guid}}, {{$randomUUID}}, {{$timestamp}}, {{$isoTimestamp}} and {{$randomInt}}. Type a value for it for this run.");
             }
             out.add(Piece.value(name, value));
             // One entry for every use, because every use has its own value.

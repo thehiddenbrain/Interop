@@ -61,6 +61,15 @@ public interface RunRequest {
     /** A body the tester edited, sent in place of the one the tool would build. Blank means none. */
     String rawBody();
 
+    /**
+     * True to send the body of the collection request the run uses as the collection writes it, with
+     * the environment's values put in, in place of the one this tool builds (D-313). The body is
+     * taken from the stored collection, never from the page. Null or false: built from the case.
+     */
+    default Boolean asWritten() {
+        return null;
+    }
+
     /** Placeholder values typed for this run. */
     Map<String, String> variables();
 

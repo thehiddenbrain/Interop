@@ -624,3 +624,106 @@ td .notes {
 .question--off .select {
     border-style: dashed;
 }
+
+/* The Request line of a step (D-313): a whole row of the step's Options, the list under it. */
+.request-line {
+    flex-basis: 100%;
+    min-width: 0;
+}
+
+.request-line p {
+    margin: var(--s-1) 0 0;
+}
+
+.request-line__head {
+    overflow-wrap: anywhere;
+}
+
+.request-line__label {
+    display: inline-block;
+    min-width: 72px;
+    font-weight: 600;
+}
+
+.request-line__note,
+.request-line__said {
+    padding-left: var(--s-2);
+    border-left: 3px solid var(--line-strong);
+}
+
+.request-line__summary {
+    margin: var(--s-2) 0 0;
+    overflow-wrap: anywhere;
+}
+
+.request-list__wrap {
+    margin-top: var(--s-2);
+}
+
+.request-list__wrap .input {
+    width: 100%;
+    max-width: 480px;
+    margin-top: var(--s-1);
+}
+
+.request-list {
+    list-style: none;
+    margin: var(--s-2) 0 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r-box);
+    background: var(--surface);
+}
+
+.request-list li + li {
+    border-top: 1px solid var(--line);
+}
+
+.request-list__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--s-1) var(--s-3);
+    width: 100%;
+    padding: var(--s-2) var(--s-3);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.request-list__item:hover,
+.request-list__item:focus-visible {
+    background: var(--surface-sunk);
+}
+
+.request-list__item--current {
+    box-shadow: inset 3px 0 0 var(--line-strong);
+}
+
+.request-list__name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.request-list__marks {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    align-items: baseline;
+}
+
+.request-body {
+    margin-top: var(--s-2);
+}
+
+.request-body__option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    margin-right: var(--s-3);
+}

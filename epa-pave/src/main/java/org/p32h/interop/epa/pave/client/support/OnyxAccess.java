@@ -158,7 +158,7 @@ public class OnyxAccess {
         }
         // The secrets go with it: an answer is masked by the values its request carried.
         WireRequest noted = new WireRequest(request.method(), request.url(), request.urlTemplate(), request.headers(), request.body(),
-                request.sent(), request.note() == null ? note : request.note() + " " + note, request.secrets());
+                request.sent(), request.note() == null ? note : request.note() + " " + note, request.secrets(), request.from());
         return new VendorExchange(noted, exchange.httpStatus(), exchange.responseHeaders(), exchange.responseBody(), exchange.responseBytes(),
                 exchange.json(), exchange.parseError(), exchange.elapsedMillis(), exchange.failureType(), exchange.failureDetail(),
                 exchange.signals(), exchange.scenarioId(), exchange.scenarioNote(), exchange.bodyNotes());

@@ -9,7 +9,7 @@
 
 import {call} from './api.js';
 import {app} from './app.js';
-import {el, fill, clear, chip, button, fold, kv} from './dom.js';
+import {el, fill, clear, chip, button, fold, kv, named} from './dom.js';
 import {errorPanel} from './fault.js';
 import {pageHead, section, part, productionWords, during, sentences, none} from './cfg-parts.js';
 
@@ -251,8 +251,25 @@ export function mount(root, route) {
             target && target.scripted ? [' ', chip('script, not run', {tone: 'neutral'})] : null,
             !target && requests.length > 0 ? el('span', null, requests.length === 1 ? 'One request of a collection is listed.'
                 : requests.length + ' requests of a collection are listed.') : null,
-            row.defaultRule ? fold({summary: 'Which request is used', inline: true, body: el('p', {class: 'small'}, row.defaultRule)}) : null
+            row.defaultRule ? fold({summary: 'Which request is used', inline: true, body: el('p', {class: 'small'}, row.defaultRule)}) : null,
+            typedOverRequests(target, requests)
         ];
+    }
+
+    /**
+     * An address typed in the settings wins over every request of a collection (R-02), so a request
+     * made the one for every run on the Workbench (D-313) is not what a run uses while it stands:
+     * said here, with the request that stands for the operation once the address is taken away.
+     */
+    function typedOverRequests(target, requests) {
+        const standing = requests.find(each => each.errorSample !== true);
+        if (!target || target.typed !== true || !standing) {
+            return null;
+        }
+        const request = standing.request || {};
+        const name = (Array.isArray(request.folderPath) ? request.folderPath : []).concat([request.name || '']).join(' / ');
+        return el('div', {class: 'small'}, 'The typed address wins over the ' + (requests.length === 1 ? 'request' : requests.length + ' requests')
+            + ' of the collections that fit, until it is taken away. Then "' + named(name) + '" stands for it.');
     }
 
     function statusCell(row, signIn, saidAbove) {

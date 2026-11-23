@@ -48,6 +48,7 @@ public record DtrNextQuestionRequest(
         String chainId,
         RequestRef request,
         String rawBody,
+        Boolean asWritten,
         Map<String, String> variables,
         Map<String, List<String>> carry,
         Long configEpoch,
@@ -61,6 +62,16 @@ public record DtrNextQuestionRequest(
         variables = variables == null ? Map.of() : Map.copyOf(variables);
         carry = carry == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(carry));
         unrecognised = unrecognised == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unrecognised));
+    }
+
+    /**
+     * This request with the collection's body as written in place of a body of its own (D-313), so the
+     * run goes down the path such a body takes. Every other field is kept.
+     */
+    public DtrNextQuestionRequest withRawBody(String body) {
+        return new DtrNextQuestionRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
+                questionnaire, questionnaireResponse, answers, wrapInParameter, scenarioId, expected, testerRef, note, chainId, request, body,
+                asWritten, variables, carry, configEpoch, unrecognised);
     }
 
     public static Builder builder() {
@@ -91,6 +102,7 @@ public record DtrNextQuestionRequest(
         private String chainId;
         private RequestRef request;
         private String rawBody;
+        private Boolean asWritten;
         private Map<String, String> variables = Map.of();
         private Map<String, List<String>> carry = Map.of();
         private Long configEpoch;
@@ -178,6 +190,11 @@ public record DtrNextQuestionRequest(
             return this;
         }
 
+        public Builder asWritten(Boolean value) {
+            this.asWritten = value;
+            return this;
+        }
+
         public Builder rawBody(String value) {
             this.rawBody = value;
             return this;
@@ -201,7 +218,7 @@ public record DtrNextQuestionRequest(
         public DtrNextQuestionRequest build() {
             return new DtrNextQuestionRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
                     questionnaire, questionnaireResponse, answers, wrapInParameter, scenarioId, expected, testerRef, note, chainId, request,
-                    rawBody, variables, carry, configEpoch, Map.of());
+                    rawBody, asWritten, variables, carry, configEpoch, Map.of());
         }
     }
 }

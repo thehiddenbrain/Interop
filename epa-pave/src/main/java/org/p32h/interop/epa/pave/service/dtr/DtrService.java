@@ -47,6 +47,7 @@ import org.p32h.interop.epa.pave.service.config.PreparedCall;
 import org.p32h.interop.epa.pave.service.config.ProdUnlock;
 import org.p32h.interop.epa.pave.service.error.ConfigurationChangedException;
 import org.p32h.interop.epa.pave.service.error.ProdWriteBlockedException;
+import org.p32h.interop.epa.pave.service.run.AsWritten;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
 import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
@@ -123,7 +124,10 @@ public class DtrService {
      *               can point the run at any collection request, and the gateway judges that
      *               request for what it is. A suite run or a replay always passes null
      */
-    public RunEnvelope<DtrDetail> runPackage(DtrPackageRequest request, RunOrigin origin, ProdUnlock unlock) {
+    public RunEnvelope<DtrDetail> runPackage(DtrPackageRequest posted, RunOrigin origin, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, gateway);
+        DtrPackageRequest request = written == null ? posted : posted.withRawBody(written.template());
         validatePackage(request);
         EpaOperation operation = EpaOperation.DTR_QUESTIONNAIRE_PACKAGE;
         boolean ownBody = RunSupport.ownBody(request);
@@ -140,6 +144,9 @@ public class DtrService {
         DtrRequestBuilder.Package sent;
         if (ownBody) {
             body = call.resolve(request.rawBody());
+            if (written != null) {
+                written.requireFilled(call, body);
+            }
             sent = DtrRequestBuilder.readPackage(body.value());
             ownBodyNotes(body, requestNotes);
             if (!request.questionnaires().isEmpty() || Texts.present(request.coverageAssertionId())) {
@@ -156,7 +163,16 @@ public class DtrService {
             body = reads.body(sent.json());
             requestNotes.addAll(packageNotes(sent));
         }
+        if (written != null) {
+            List<String> said = written.resultNotes(requestNotes, true);
+            requestNotes.clear();
+            requestNotes.addAll(said);
+        }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.questionnairePackage(call, body, selection(request));
 
         // From here on the call has been made, so whatever happens next the run is recorded. The
@@ -190,7 +206,10 @@ public class DtrService {
     }
 
     /** What the package request would be, without sending it. Nothing is recorded. */
-    public RequestPreview previewPackage(DtrPackageRequest request, ProdUnlock unlock) {
+    public RequestPreview previewPackage(DtrPackageRequest posted, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(posted, EpaOperation.DTR_QUESTIONNAIRE_PACKAGE, gateway);
+        DtrPackageRequest request = written == null ? posted : posted.withRawBody(written.template());
         validatePackage(request);
         EpaOperation operation = EpaOperation.DTR_QUESTIONNAIRE_PACKAGE;
         PreparedCall call;
@@ -202,7 +221,7 @@ public class DtrService {
         }
         MemberIdForms shown = CaseResources.memberIdForms(request.member(), call.memberIdRule());
         if (RunSupport.ownBody(request)) {
-            return ownBodyPreview(operation, call, request.rawBody(), shown);
+            return ownBodyPreview(operation, call, request.rawBody(), shown, written);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule());
@@ -218,7 +237,10 @@ public class DtrService {
      *
      * @param unlock the session's production unlock, or null, for the same reason as a package fetch
      */
-    public RunEnvelope<DtrDetail> runNextQuestion(DtrNextQuestionRequest request, RunOrigin origin, ProdUnlock unlock) {
+    public RunEnvelope<DtrDetail> runNextQuestion(DtrNextQuestionRequest asPosted, RunOrigin origin, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(asPosted, EpaOperation.DTR_NEXT_QUESTION, gateway);
+        DtrNextQuestionRequest request = written == null ? asPosted : asPosted.withRawBody(written.template());
         DtrAnswers.Posted posted = validateNextQuestion(request);
         EpaOperation operation = EpaOperation.DTR_NEXT_QUESTION;
         boolean ownBody = RunSupport.ownBody(request);
@@ -236,6 +258,9 @@ public class DtrService {
         List<DtrProfileCheck.Gap> gaps = List.of();
         if (ownBody) {
             body = call.resolve(request.rawBody());
+            if (written != null) {
+                written.requireFilled(call, body);
+            }
             JsonSafe.Parsed parsed = JsonSafe.parse(body.value());
             sent = parsed.ok() ? QuestionnaireJson.findResponse(parsed.node()) : null;
             ownBodyNotes(body, requestNotes);
@@ -255,7 +280,16 @@ public class DtrService {
             sent = built.response();
             gaps = built.gaps();
         }
+        if (written != null) {
+            List<String> said = written.resultNotes(requestNotes, true);
+            requestNotes.clear();
+            requestNotes.addAll(said);
+        }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.nextQuestion(call, body, selection(request));
 
         String runId = RunStamps.newRunId();
@@ -287,7 +321,10 @@ public class DtrService {
     }
 
     /** What the next-question request would be, without sending it. Nothing is recorded. */
-    public RequestPreview previewNextQuestion(DtrNextQuestionRequest request, ProdUnlock unlock) {
+    public RequestPreview previewNextQuestion(DtrNextQuestionRequest asPosted, ProdUnlock unlock) {
+        // A body as the collection writes it goes down the path a body of the tester's own takes (D-313).
+        AsWritten written = AsWritten.take(asPosted, EpaOperation.DTR_NEXT_QUESTION, gateway);
+        DtrNextQuestionRequest request = written == null ? asPosted : asPosted.withRawBody(written.template());
         DtrAnswers.Posted posted = validateNextQuestion(request);
         EpaOperation operation = EpaOperation.DTR_NEXT_QUESTION;
         PreparedCall call;
@@ -297,7 +334,7 @@ public class DtrService {
             return RequestPreview.blocked(operation, refusal, null);
         }
         if (RunSupport.ownBody(request)) {
-            return ownBodyPreview(operation, call, request.rawBody(), null);
+            return ownBodyPreview(operation, call, request.rawBody(), null, written);
         }
         CaseResources.Reads reads = CaseResources.reading(call::resolve);
         DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request, reads), support.clock(),
@@ -531,10 +568,12 @@ public class DtrService {
         }
     }
 
-    private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, String rawBody, MemberIdForms shown) {
+    private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, String rawBody, MemberIdForms shown,
+                                                 AsWritten written) {
         ResolvedText resolved = call.resolve(rawBody);
-        return RequestPreview.of(operation, call, resolved.resolved() ? resolved.display() : rawBody, resolved.resolved() ? List.of()
-                : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + "."), shown);
+        List<String> notes = written != null ? written.previewNotes(resolved, true) : resolved.resolved() ? List.of()
+                : List.of("The body still contains placeholders with no value: " + String.join(", ", resolved.unresolved()) + ".");
+        return RequestPreview.of(operation, call, resolved.resolved() ? resolved.display() : rawBody, notes, shown);
     }
 
     // ---- validation: a bad form is refused before anything is sent or recorded ----

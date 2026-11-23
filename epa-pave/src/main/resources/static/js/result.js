@@ -460,6 +460,8 @@ function wireBody(wire, facts) {
                 {key: 'Url', value: request.url ? el('span', {class: 'mono'}, failedToReach ? addressOnly(request.url) : request.url)
                     : chip('none', {dashed: true})},
                 {key: 'Url as configured', value: request.urlTemplate ? el('span', {class: 'mono'}, request.urlTemplate) : chip('none', {dashed: true})},
+                // A collection can hold many requests for one step: the server names the one this call used (D-313).
+                request.from ? {key: 'From', value: request.from} : null,
                 {key: 'Sent', value: request.sent ? 'Yes, sent' : 'Not sent'}
             ]),
             headers(request.headers),
