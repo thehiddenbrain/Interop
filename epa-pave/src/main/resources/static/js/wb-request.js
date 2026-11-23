@@ -27,6 +27,24 @@ const asWritten = new Map();
 const said = new Map();
 let effective = null;
 const lines = new Set();
+// Whoever must hear that a step now sends another request or another body, such as the line before sending (D-321).
+const choiceListeners = new Set();
+
+/** Calls listener() each time a request or a body is chosen for a step on this page; returns the function that stops it. */
+export function watchChoice(listener) {
+    choiceListeners.add(listener);
+    return () => choiceListeners.delete(listener);
+}
+
+function choiceMade() {
+    for (const listener of Array.from(choiceListeners)) {
+        try {
+            listener();
+        } catch (defect) {
+            // A listener that fails must not stop the choice itself, nor the other listeners.
+        }
+    }
+}
 
 /** The answer of GET /api/config/effective the lines are drawn from; a choice no longer listed is forgotten. */
 export function useEffective(data) {
@@ -58,6 +76,7 @@ export function choose(operation, ref) {
     for (const line of lines) {
         line.redraw();
     }
+    choiceMade();
 }
 
 /** True when the step's runs send the collection's body as written. */
@@ -75,6 +94,7 @@ export function writeAsWritten(operation, on) {
     for (const line of lines) {
         line.redraw();
     }
+    choiceMade();
 }
 
 // What a run built from the case carries and a body as written does not: the body names its own member, provider and
@@ -449,5 +469,6 @@ export function forgetLines() {
     chosen.clear();
     asWritten.clear();
     said.clear();
+    choiceListeners.clear();
     effective = null;
 }

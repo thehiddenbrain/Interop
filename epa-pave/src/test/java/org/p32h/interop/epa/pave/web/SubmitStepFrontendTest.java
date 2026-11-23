@@ -87,7 +87,8 @@ class SubmitStepFrontendTest {
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                "[\"/api/pas/submit/preview\"]",
+                // Changed by D-321: opening the step also asks for the line before sending, which reads the collection's request.
+                "[\"/api/pas/submit/preview\",\"/api/workbench/before-sending\"]",
                 "true",
                 "[3,true,\"member S123456789 rule: packed NPI 1234567893 phone\",\"81162 x2 FL 2026-11-23 place 11\","
                         + "\"questionnaire response, 2 answers  Include it no files dx Z80.3\"]",

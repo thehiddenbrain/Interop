@@ -35,6 +35,7 @@ import {showPreview} from './wb-preview.js';
 import {wireFold, resultCard} from './result.js';
 import {responseDetail, detailHint} from './detail.js';
 import {flatItems, heldByLinkId, questionField, itemLine, formChips, linkIdOf, isDateQuestion} from './wb-dtr-items.js';
+import {createBeforeLine} from './wb-before.js';
 
 // The form's button carries the server's words for the next action it takes (plan 7.4, the
 // vocabulary's nextActions), so a next step and its button are one name. Until the vocabulary has
@@ -96,6 +97,14 @@ export function caseBody(request, own) {
 /** The package request: the case, the step's options and what step 1 handed on. A scenario on mock only. */
 export function packageBody(request, own, carry) {
     const body = caseBody(request, own);
+    // The package request alone takes them (D-321): each on every order, as the coverage check sends them. The later
+    // DTR requests are read strictly and carry no order of their own.
+    if (Array.isArray(request.diagnosisCodes) && request.diagnosisCodes.length > 0) {
+        body.diagnosisCodes = request.diagnosisCodes.map(each => (typeof each === 'string' ? {code: each} : each));
+    }
+    if (request.servicingProvider && typeof request.servicingProvider === 'object') {
+        body.servicingProvider = request.servicingProvider;
+    }
     if (own.questionnaireUrl) {
         body.questionnaires = [own.questionnaireUrl];
     }
@@ -318,12 +327,14 @@ export function mount(root, ctx) {
     const refusal = el('div', {class: 'step-refusal'});
     const packageSlot = el('div', {class: 'panel__section dtr-package'});
     const work = el('div', {class: 'dtr-work'});
+    // What the collection's request carries and the case names not, said where the package is asked for (D-321).
+    const before = createBeforeLine({operation: () => 'DTR_QUESTIONNAIRE_PACKAGE', request: () => ctx.request()});
     // A step mounted before the Workbench gives it an options row has none; nothing is drawn for it.
     root.append(...[
         panelHead({title: 'Questionnaire', tag: 'DTR', lede: 'Answer the payer\'s questions.', id: 'step-title-2',
             controls: [el('label', {class: 'control-label', for: 'dtr-expect'}, 'Expect'), expect, toggle, previewButton, fetchButton]
                 .filter(Boolean)}),
-        optionsRow, readiness, handed, busy.node, refusal, packageSlot, work].filter(Boolean));
+        before.node, optionsRow, readiness, handed, busy.node, refusal, packageSlot, work].filter(Boolean));
 
     let session = null;
     let loaded = null;
@@ -855,6 +866,7 @@ export function mount(root, ctx) {
         show(how) {
             drawReadiness();
             drawHanded();
+            before.ask();
             if (how && how.start === true && !fetchButton.disabled) {
                 fetchPackage();
             }
@@ -862,6 +874,7 @@ export function mount(root, ctx) {
         hide() {},
         caseChanged() {
             drawHanded();
+            before.soon();
             // A date of service typed after the date line showed may now answer those questions.
             const line = work.querySelector('.dtr-date-line');
             if (session && line && !line.hidden) {
@@ -910,10 +923,12 @@ export function mount(root, ctx) {
             clear(packageSlot);
             clear(work);
             drawHanded();
+            before.clear();
         },
         unmount() {
             clearTimeout(caseTimer);
             busy.stop();
+            before.stop();
         },
         /** The words or the configuration changed. */
         redraw(words) {

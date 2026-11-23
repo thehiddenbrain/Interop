@@ -656,6 +656,15 @@ td .notes {
     overflow-wrap: anywhere;
 }
 
+/* What the collection's request carries and the case names not (D-321): a line where the step is sent, never a block. */
+.before-line {
+    margin: var(--s-2) 0 0;
+    padding-left: var(--s-2);
+    border-left: 3px solid var(--action-edge);
+    color: var(--action-ink);
+    overflow-wrap: anywhere;
+}
+
 .request-list__wrap {
     margin-top: var(--s-2);
 }

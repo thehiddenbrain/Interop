@@ -16,6 +16,7 @@ import {sizeText} from './files.js';
 import {panelHead, busyLine, sendRun, failurePanel} from './wb-run.js';
 import {showPreview} from './wb-preview.js';
 import {createAttachments} from './wb-attachments.js';
+import {createBeforeLine} from './wb-before.js';
 
 // The page asks the server for the gaps this long after the last change of the case.
 const QUIET_MS = 500;
@@ -163,11 +164,13 @@ export function mount(root, ctx) {
     const busy = busyLine();
     const refusal = el('div', {class: 'step-refusal'});
     const result = el('div', {class: 'step-result'});
+    // What the collection's request carries and the case names not, said where the request is sent (D-321).
+    const before = createBeforeLine({operation: () => 'PAS_SUBMIT', request: () => ctx.request()});
     root.append(...[
         panelHead({title: 'Submit', tag: 'PAS', lede: 'Send the prior authorization request.', id: 'step-title-3',
             controls: [el('label', {class: 'control-label', for: 'pas-expect'}, 'Expect'), expect, toggle, previewButton, sendButton]
                 .filter(Boolean)}),
-        optionsRow, writes, readiness, goes, gaps, files.node, busy.node, refusal, result].filter(Boolean));
+        before.node, optionsRow, writes, readiness, goes, gaps, files.node, busy.node, refusal, result].filter(Boolean));
 
     let latestPreview = null;
     let timer = null;
@@ -410,12 +413,14 @@ export function mount(root, ctx) {
                 fill(result, ctx.card(latest));
             }
             askGaps();
+            before.ask();
         },
         hide() {
             clearTimeout(timer);
         },
         caseChanged() {
             drawGoes();
+            before.soon();
             if (ctx.visible()) {
                 askSoon();
             }
@@ -437,11 +442,13 @@ export function mount(root, ctx) {
             clear(result);
             clear(gaps);
             drawGoes();
+            before.clear();
         },
         unmount() {
             clearTimeout(timer);
             busy.stop();
             offWatch();
+            before.stop();
         },
         redraw(words) {
             drawWords(words);

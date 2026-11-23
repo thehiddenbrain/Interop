@@ -262,6 +262,34 @@ public interface OperationGateway {
         return RequestValues.ForCall.NONE;
     }
 
+    /**
+     * The collection request whose sample a call of the operation would follow, by name and saved
+     * body: the request named for the run, the one a typed address goes to, else the first mapped
+     * (D-311, D-312, D-313), the one {@link PreparedCall#sampleBody} gives a prepared call. For what
+     * a step says before it is sent (D-321), with no call prepared. This default knows no collection
+     * and answers that there is none.
+     *
+     * @param request   the request named for the run, or null
+     * @param runValues the values typed for the run
+     * @return null when the call would follow no request of a collection
+     */
+    default Sample sample(EpaOperation operation, RequestRef request, Map<String, String> runValues) {
+        return null;
+    }
+
+    /**
+     * A collection request a call would follow: its name and its saved body, placeholders intact.
+     * Nothing of it is sent.
+     */
+    record Sample(String name, String body) {
+
+        /** Redacted: the body is the vendor's sample and may hold member data. */
+        @Override
+        public String toString() {
+            return "Sample[" + (body == null ? 0 : body.length()) + " characters]";
+        }
+    }
+
     default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
         return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
     }

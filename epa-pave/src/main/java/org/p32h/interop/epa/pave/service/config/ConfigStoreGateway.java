@@ -280,6 +280,22 @@ public class ConfigStoreGateway implements OperationGateway {
         return requestValues(snapshot, values, target);
     }
 
+    @Override
+    public Sample sample(EpaOperation operation, RequestRef request, Map<String, String> runValues) {
+        if (operation == null || !operation.outbound() || operation == EpaOperation.UNMAPPED) {
+            return null;
+        }
+        ConfigSnapshot snapshot = store.snapshot();
+        Target target;
+        try {
+            target = target(snapshot, CallIntent.of(operation).withRequest(request).withRunValues(runValues == null ? Map.of() : runValues));
+        } catch (NotFoundException | BadInputException stale) {
+            // A request chosen from a list that has changed since: nothing is said before the send, which says why.
+            return null;
+        }
+        return target.sampleName() == null && target.sampleBody() == null ? null : new Sample(target.sampleName(), target.sampleBody());
+    }
+
     /** The stored collection that holds a request, or null. */
     private static StoredCollection holding(ConfigSnapshot snapshot, StoredCollection.Mapped request) {
         for (StoredCollection collection : snapshot.collections()) {

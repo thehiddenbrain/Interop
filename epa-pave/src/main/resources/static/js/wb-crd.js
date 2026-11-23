@@ -8,6 +8,7 @@ import {vocabulary} from './words.js';
 import {showPreview} from './wb-preview.js';
 import {panelHead, busyLine, sendRun, failurePanel, optionsToggle} from './wb-run.js';
 import {createRequestLine} from './wb-request.js';
+import {createBeforeLine} from './wb-before.js';
 
 /** Builds the CRD body from the case and the step's own controls. Only what CRD reads is sent. */
 export function crdBody(request, own) {
@@ -25,9 +26,13 @@ export function crdBody(request, own) {
     if (request.dateOfService) {
         body.dateOfService = request.dateOfService;
     }
-    // The server puts them on the order only where the collection's sample does (D-310); absent, nothing changes.
+    // Each goes on every order as its reasonCode (D-321); absent, the orders carry none.
     if (Array.isArray(request.diagnosisCodes) && request.diagnosisCodes.length > 0) {
         body.diagnosisCodes = request.diagnosisCodes.map(each => (typeof each === 'string' ? {code: each} : each));
+    }
+    // The order's performer (D-321); absent, none is sent, and the requesting provider never stands in for it.
+    if (request.servicingProvider && typeof request.servicingProvider === 'object') {
+        body.servicingProvider = request.servicingProvider;
     }
     if (own.expected) {
         body.expected = own.expected;
@@ -57,8 +62,11 @@ export function mount(root, ctx) {
     const requestLine = createRequestLine({
         operation: () => operationOfHook(),
         label: 'the coverage check',
-        environment: () => (typeof ctx.environmentName === 'function' ? ctx.environmentName() : null)
+        environment: () => (typeof ctx.environmentName === 'function' ? ctx.environmentName() : null),
+        changed: () => before.ask()
     });
+    // What the collection's request carries and the case names not, said where the check is sent (D-321).
+    const before = createBeforeLine({operation: () => operationOfHook(), request: () => ctx.request()});
     const optionsRow = el('div', {class: 'panel__options'}, requestLine.node,
         el('label', {class: 'small', for: 'crd-prefetch'}, prefetch, ' Send prefetch'));
     const toggle = optionsToggle(optionsRow);
@@ -72,7 +80,7 @@ export function mount(root, ctx) {
     root.append(
         panelHead({title: 'Coverage check', tag: 'CRD', lede: 'Is prior authorization required, and what is needed?', id: 'step-title-1',
             controls: [el('label', {class: 'control-label', for: 'crd-expect'}, 'Expect'), expect, hook, toggle, previewButton, runButton]}),
-        requestLine.summary, optionsRow, readiness, busy.node, refusal, result);
+        requestLine.summary, before.node, optionsRow, readiness, busy.node, refusal, result);
 
     function drawWords(words) {
         const before = expect.value;
@@ -119,6 +127,7 @@ export function mount(root, ctx) {
     hook.addEventListener('change', () => {
         drawReadiness();
         requestLine.redraw();
+        before.ask();
     });
 
     async function run() {
@@ -166,9 +175,12 @@ export function mount(root, ctx) {
             drawScenarios();
             drawReadiness();
             draw();
+            before.ask();
         },
         hide() {},
-        caseChanged() {},
+        caseChanged() {
+            before.soon();
+        },
         /** A result read back after a reload is the step's latest: drawn as one that just arrived. */
         restored() {
             clear(refusal);
@@ -178,9 +190,11 @@ export function mount(root, ctx) {
         reset() {
             clear(refusal);
             clear(result);
+            before.clear();
         },
         unmount() {
             busy.stop();
+            before.stop();
         },
         /** For the frame: the words or the configuration changed. */
         redraw(words) {
