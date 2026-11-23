@@ -185,7 +185,7 @@ public final class Exchanges {
                 : (note == null ? "" : note + " ") + "Not sent as written on the collection request: " + String.join(", ", withheld)
                 + ". The HTTP client writes " + (withheld.size() == 1 ? "this header" : "these headers") + " itself.";
         return new WireRequest(method(call), call.url().display(), call.url().template(), shown,
-                carriesBody ? body.display() : null, sent, about, secrets);
+                carriesBody ? body.display() : null, sent, about, secrets, call.url().configured() ? call.url().source() : null);
     }
 
     /**

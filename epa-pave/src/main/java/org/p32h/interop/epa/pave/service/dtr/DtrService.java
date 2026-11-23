@@ -157,6 +157,10 @@ public class DtrService {
             requestNotes.addAll(packageNotes(sent));
         }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.questionnairePackage(call, body, selection(request));
 
         // From here on the call has been made, so whatever happens next the run is recorded. The
@@ -256,6 +260,10 @@ public class DtrService {
             gaps = built.gaps();
         }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.nextQuestion(call, body, selection(request));
 
         String runId = RunStamps.newRunId();

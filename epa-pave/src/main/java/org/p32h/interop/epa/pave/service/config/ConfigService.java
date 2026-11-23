@@ -1004,7 +1004,8 @@ public class ConfigService {
         boolean fromRequest = plan.target().source() == Source.REQUEST;
         return new TargetView(plan.url().template(), plan.filled().shown(), unresolved.isEmpty(), unresolved, tokens, plan.url().source(),
                 plan.target().requestName(), fromRequest ? new RequestRef(plan.target().collection().id(),
-                plan.target().request().request().id()) : null, plan.target().scripted());
+                plan.target().request().request().id()) : null, plan.target().scripted(),
+                plan.target().source() == Source.TYPED ? Boolean.TRUE : null);
     }
 
     /** Every request mapped to the operation, in collection order, with the one a call uses by default marked. */
@@ -1065,7 +1066,7 @@ public class ConfigService {
             for (StoredCollection.Mapped mapped : collection.requests()) {
                 if (mapped.effective() == operation) {
                     requests.add(new AvailableRequest(collection.id(), collection.name(), summary(snapshot, collection, mapped),
-                            mapped == usedByDefault));
+                            mapped == usedByDefault, errorSample(mapped) ? Boolean.TRUE : null));
                 }
             }
         }

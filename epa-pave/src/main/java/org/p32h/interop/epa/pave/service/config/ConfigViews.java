@@ -451,10 +451,14 @@ public final class ConfigViews {
      *                    when the url came from application.yml or was derived
      * @param request     a reference to that request, for choosing it again, or absent
      * @param scripted    true when that request carries a pre-request script this tool will not run
+     * @param typed       true when the address is the one typed in the environment's settings, which
+     *                    wins over every request of a collection unless a run names one; absent
+     *                    otherwise. A screen tells a tester where a step's request comes from by it,
+     *                    never by reading the words of {@code source}
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record TargetView(String template, String display, boolean resolved, List<String> unresolved, List<String> tokens,
-                             String source, String requestName, RequestRef request, boolean scripted) {
+                             String source, String requestName, RequestRef request, boolean scripted, Boolean typed) {
 
         public TargetView {
             unresolved = unresolved == null ? List.of() : List.copyOf(unresolved);
@@ -466,9 +470,13 @@ public final class ConfigViews {
      * A collection request that is mapped to an operation and can be chosen for it.
      *
      * @param usedByDefault true for the one a call uses when it names no request
+     * @param errorSample   true for a sample of an error (its name contains "error"), which a run
+     *                      uses only when it is chosen; absent otherwise. Said by the server, so a
+     *                      screen never applies the rule itself
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record AvailableRequest(String collectionId, String collectionName, RequestSummary request, boolean usedByDefault) {
+    public record AvailableRequest(String collectionId, String collectionName, RequestSummary request, boolean usedByDefault,
+                                   Boolean errorSample) {
     }
 
     /**

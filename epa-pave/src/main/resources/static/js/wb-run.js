@@ -16,6 +16,7 @@ import {call} from './api.js';
 import {el, button} from './dom.js';
 import {errorPanel} from './fault.js';
 import {withRunValues, operationOf} from './wb-values.js';
+import {withChosenRequest} from './wb-request.js';
 
 /**
  * The text a send is refused for, or empty when it may go: what was typed in the procedure code box
@@ -103,7 +104,8 @@ export async function sendRun(spec) {
     try {
         // A read or a delete of a subscription sends its facts as parameters; everything else as a JSON body.
         // The values typed for this run go with every run that has a body; a read sends parameters only.
-        answer = await call(spec.method || 'POST', spec.path, spec.body === undefined ? {query: spec.query} : {body: withRunValues(spec.body)});
+        // The request chosen for the step's operation goes with it too (D-313).
+        answer = await call(spec.method || 'POST', spec.path, spec.body === undefined ? {query: spec.query} : {body: withRunValues(withChosenRequest(spec.path, spec.body))});
     } finally {
         spec.busy.stop();
         for (const control of spec.buttons) {

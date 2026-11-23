@@ -7,6 +7,7 @@ import {el, fill, clear} from './dom.js';
 import {vocabulary} from './words.js';
 import {showPreview} from './wb-preview.js';
 import {panelHead, busyLine, sendRun, failurePanel, optionsToggle} from './wb-run.js';
+import {createRequestLine} from './wb-request.js';
 
 /** Builds the CRD body from the case and the step's own controls. Only what CRD reads is sent. */
 export function crdBody(request, own) {
@@ -52,7 +53,13 @@ export function mount(root, ctx) {
     const prefetch = el('input', {type: 'checkbox', id: 'crd-prefetch', checked: true});
     const scenario = el('select', {class: 'select', id: 'crd-scenario'});
     const scenarioField = el('div', {class: 'field'}, el('label', {class: 'field__label', for: 'crd-scenario'}, 'Mock scenario'), scenario);
-    const optionsRow = el('div', {class: 'panel__options'},
+    // Which request of the collection the check sends, and a list to choose another (D-313).
+    const requestLine = createRequestLine({
+        operation: () => operationOfHook(),
+        label: 'the coverage check',
+        environment: () => (typeof ctx.environmentName === 'function' ? ctx.environmentName() : null)
+    });
+    const optionsRow = el('div', {class: 'panel__options'}, requestLine.node,
         el('label', {class: 'small', for: 'crd-prefetch'}, prefetch, ' Send prefetch'));
     const toggle = optionsToggle(optionsRow);
     const previewButton = el('button', {type: 'button', class: 'btn', on: {click: () => preview()}}, 'Preview');
@@ -65,7 +72,7 @@ export function mount(root, ctx) {
     root.append(
         panelHead({title: 'Coverage check', tag: 'CRD', lede: 'Is prior authorization required, and what is needed?', id: 'step-title-1',
             controls: [el('label', {class: 'control-label', for: 'crd-expect'}, 'Expect'), expect, hook, toggle, previewButton, runButton]}),
-        optionsRow, readiness, busy.node, refusal, result);
+        requestLine.summary, optionsRow, readiness, busy.node, refusal, result);
 
     function drawWords(words) {
         const before = expect.value;
@@ -98,14 +105,21 @@ export function mount(root, ctx) {
             scenarioId: ctx.isMock() ? scenario.value : ''};
     }
 
+    function operationOfHook() {
+        return hook.value === 'order-select' ? 'CRD_ORDER_SELECT' : 'CRD_ORDER_SIGN';
+    }
+
     function drawReadiness() {
-        const operation = hook.value === 'order-select' ? 'CRD_ORDER_SELECT' : 'CRD_ORDER_SIGN';
+        const operation = operationOfHook();
         const blocked = ctx.blocked(operation);
         runButton.disabled = Boolean(blocked);
         runButton.title = blocked || '';
         fill(readiness, blocked ? ctx.readinessLine(blocked) : '');
     }
-    hook.addEventListener('change', drawReadiness);
+    hook.addEventListener('change', () => {
+        drawReadiness();
+        requestLine.redraw();
+    });
 
     async function run() {
         const request = ctx.request();

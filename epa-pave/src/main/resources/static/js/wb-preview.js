@@ -6,6 +6,7 @@ import {el, chip, kv, button, modal} from './dom.js';
 import {errorPanel} from './fault.js';
 import {jsonView} from './json-view.js';
 import {withRunValues} from './wb-values.js';
+import {withChosenRequest} from './wb-request.js';
 
 /**
  * Asks the server for the preview of a request and shows it in a dialog. path: the preview
@@ -14,8 +15,8 @@ import {withRunValues} from './wb-values.js';
  * of a refusal, so the panel never names a property path. Returns the answer of api.js.
  */
 export async function showPreview(path, body, onRefused, labelOf) {
-    // The preview builds what the run would send, so it takes the values typed for this run too.
-    const answer = await call('POST', path, {body: withRunValues(body)});
+    // The preview builds what the run would send, so it takes the values typed for this run and the request chosen too.
+    const answer = await call('POST', path, {body: withRunValues(withChosenRequest(path, body))});
     if (!answer.ok) {
         if (answer.status === 422 && typeof onRefused === 'function') {
             onRefused(answer.error);

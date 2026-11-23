@@ -137,6 +137,10 @@ public class PasService {
             leftOut = built.leftOut();
         }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.submit(call, body, MockSelection.of(request.scenarioId(), mockKey(request), RunSupport.npi(request)));
 
         // From here on the call has been made, so whatever happens next the run is recorded. A later
@@ -186,6 +190,10 @@ public class PasService {
             leftOut = built.leftOut();
         }
 
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         VendorExchange exchange = client.inquire(call, body, MockSelection.of(request.scenarioId(), mockKey(request), RunSupport.npi(request)));
 
         // The submission this inquiry follows from: the one the carry names, otherwise the run the

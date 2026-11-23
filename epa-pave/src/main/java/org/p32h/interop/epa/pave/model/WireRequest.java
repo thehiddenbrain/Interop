@@ -23,14 +23,24 @@ import java.util.List;
  * @param secrets     the secret values the request carried in its url, headers and body, and every
  *                    other one this tool holds for the configuration it was sent under, which the
  *                    response is masked with as well. Never serialised and never printed. Never null
+ * @param from        where the address came from, in words: the collection request with its folders
+ *                    and its collection, or the address typed in the settings. A collection can hold
+ *                    many requests for one step, so the wire view names the one this call used.
+ *                    Null where nothing says
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record WireRequest(String method, String url, String urlTemplate, List<WireHeader> headers, String body,
-                          boolean sent, String note, @JsonIgnore SentSecrets secrets) {
+                          boolean sent, String note, @JsonIgnore SentSecrets secrets, String from) {
 
     public WireRequest {
         headers = headers == null ? List.of() : List.copyOf(headers);
         secrets = secrets == null ? SentSecrets.none() : secrets;
+    }
+
+    /** A request whose wire view says nothing of where its address came from. */
+    public WireRequest(String method, String url, String urlTemplate, List<WireHeader> headers, String body, boolean sent, String note,
+                       SentSecrets secrets) {
+        this(method, url, urlTemplate, headers, body, sent, note, secrets, null);
     }
 
     /** A request that carried no secret, or one that never had a response to show: nothing was sent, or it was refused. */

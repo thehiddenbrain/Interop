@@ -140,7 +140,10 @@ public class CrdService {
             orders = built.orders();
             incomplete = built.incomplete();
         }
-
+        String chosen = RunSupport.chosenRequestNote(request, call);
+        if (chosen != null) {
+            requestNotes.add(0, chosen);
+        }
         // A mock scenario is chosen by the packed form, so a sentinel picks its scenario under every rule.
         VendorExchange exchange = client.hook(call, body, MockSelection.of(request.scenarioId(), memberId.sent(), RunSupport.npi(request)));
         MemberIdForms sentMemberId = CaseResources.memberIdForms(request.member(), call.memberIdRule());

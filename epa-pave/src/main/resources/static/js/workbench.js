@@ -28,6 +28,7 @@ import {createStepper} from './wb-stepper.js';
 import {createJourney, stepOfAction, stepOfOperation, statusCarry, readBack, caseFromLedger, NOT_KEPT_LINE, STEPS} from './wb-journey.js';
 import {optionsToggle} from './wb-run.js';
 import {createRunValues} from './wb-values.js';
+import {useEffective} from './wb-request.js';
 import * as crdStep from './wb-crd.js';
 import * as statusStep from './wb-status.js';
 // Not used by the Workbench itself. The step modules that read a chosen file (attachments in
@@ -210,7 +211,12 @@ function build() {
             handedLine(step) {
                 return handedLine(step);
             },
-            crdScenarios: () => (app.isMock() && loaded.mockLists ? loaded.mockLists.crd : null)
+            crdScenarios: () => (app.isMock() && loaded.mockLists ? loaded.mockLists.crd : null),
+            environmentName: () => {
+                const mode = app.mode();
+                return mode && mode.environment && typeof mode.environment.name === 'string' && mode.environment.name !== ''
+                    ? mode.environment.name : null;
+            }
         };
     }
 
@@ -795,6 +801,7 @@ function build() {
             loaded.savedCodes = codes.ok && codes.data && Array.isArray(codes.data.codes) ? codes.data.codes : [];
             loaded.pasOptions = pasOptions.ok ? pasOptions.data : null;
             loaded.effective = effective.ok ? effective.data : null;
+            useEffective(loaded.effective);
             member.drawPicker();
             provider.drawPicker();
             service.drawOptions();
