@@ -15,6 +15,8 @@ import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson;
 import org.p32h.interop.epa.pave.model.dtr.QuestionnaireJson.Item;
 import org.p32h.interop.epa.pave.service.ProcedureCodeDirectory;
 import org.p32h.interop.epa.pave.service.run.CaseResources;
+import org.p32h.interop.epa.pave.service.run.Diagnoses;
+import org.p32h.interop.epa.pave.service.run.SampleOrder;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -210,6 +212,21 @@ public final class DtrRequestBuilder {
      * @param rule the call's member ID rule; null reads as packed
      */
     public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables, MemberIdRule rule) {
+        return buildPackage(request, variables, rule, SampleOrder.NONE);
+    }
+
+    /**
+     * As {@link #buildPackage(DtrPackageRequest, Function, MemberIdRule)}, with what the order of the
+     * collection's request the call is sent from says of its diagnosis and its performer (D-321): the
+     * coding system its reasonCode uses, and whether it names its performer as a PractitionerRole.
+     *
+     * @param sample what the sample's order carries, by presence and type; {@link SampleOrder#NONE} for none
+     */
+    public Package buildPackage(DtrPackageRequest request, Function<String, ResolvedText> variables, MemberIdRule rule, SampleOrder sample) {
+        SampleOrder told = sample == null ? SampleOrder.NONE : sample;
+        // The diagnosis and the servicing provider go on every order, as the coverage check sends them (D-321).
+        ArrayNode reasonCodes = Diagnoses.reasonCodes(request.diagnosisCodes(), told.reasonSystem());
+        CaseResources.Servicing servicing = CaseResources.servicing(request.servicingProvider(), request.provider(), told.performerType());
         List<String> notes = new ArrayList<>();
         Map<String, List<String>> carry = request.carry();
         MemberDetail member = request.member();
@@ -261,6 +278,7 @@ public final class DtrRequestBuilder {
                 CodeInput code = codes.get(position - 1);
                 ObjectNode order = resources.serviceRequest(CaseResources.serviceRequestId(position), code, member, request.provider(),
                         request.dateOfService(), authoredOn, hcpcs, notes);
+                CaseResources.onOrder(order, reasonCodes, servicing == null ? null : servicing.reference());
                 hcpcsSent |= !Texts.present(code.system()) && hcpcs.equals(JsonSafe.text(order.at("/code/coding/0/system")));
                 List<JsonNode> extensions = coverageInformation.getOrDefault(CaseResources.serviceRequestRef(position),
                         coverageInformation.getOrDefault(CaseResources.serviceRequestId(position), List.of()));
@@ -280,6 +298,17 @@ public final class DtrRequestBuilder {
         }
         if (!sentCodes.isEmpty()) {
             notes.add(CaseResources.authoredOnNote(authoredOn));
+            String diagnosis = Diagnoses.orderNote(request.diagnosisCodes(), told.reasonSystem());
+            if (diagnosis != null) {
+                notes.add(diagnosis);
+            }
+            if (servicing != null) {
+                notes.add(servicing.performerNote());
+            }
+        } else if (!request.diagnosisCodes().isEmpty() || servicing != null) {
+            // With no order there is no place for either: said, so a case that states them does not seem to have sent them.
+            notes.add("No order was sent, so the case's " + (servicing == null ? "diagnosis codes were" : request.diagnosisCodes().isEmpty()
+                    ? "servicing provider was" : "diagnosis codes and servicing provider were") + " not sent either.");
         }
         if (hcpcsSent) {
             notes.add(CaseResources.hcpcsNote(hcpcs));
@@ -316,6 +345,16 @@ public final class DtrRequestBuilder {
         String practitionerNote = CaseResources.practitionerIdNote(request.provider(), false);
         if (practitionerNote != null) {
             notes.add(practitionerNote);
+        }
+        if (servicing != null && !sentCodes.isEmpty() && !servicing.resources().isEmpty()) {
+            // The servicing provider's resources go where the requesting provider's go in this request (D-321).
+            List<String> types = new ArrayList<>();
+            for (ObjectNode resource : servicing.resources()) {
+                parameters.addObject().put("name", OnyxDtrConventions.PARAM_REFERENCED).set("resource", resource.deepCopy());
+                types.add(JsonSafe.text(resource, "resourceType"));
+            }
+            notes.add("The servicing provider's " + String.join(" and ", types) + " travel" + (types.size() == 1 ? "s" : "") + " among the "
+                    + "referenced resources, as the requesting provider's do.");
         }
 
         for (String canonical : canonicals) {

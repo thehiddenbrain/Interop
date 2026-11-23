@@ -19,6 +19,11 @@ import java.util.Map;
  * @param questionnaires      canonical urls of the questionnaires to ask for. Empty to ask for
  *                            the ones CRD named, or for none, which leaves the choice to the service
  * @param coverageAssertionId the coverage assertion id CRD returned. Blank to use the one carried
+ * @param diagnosisCodes      the Diagnosis codes of the Service card, each sent as a reasonCode of every
+ *                            order, as the coverage check sends them (D-321). Optional
+ * @param servicingProvider   who performs the service, sent as the performer of every order, as the
+ *                            coverage check sends it (D-321). Optional; the requesting provider never
+ *                            stands in for it
  */
 public record DtrPackageRequest(
         MemberDetail member,
@@ -29,6 +34,8 @@ public record DtrPackageRequest(
         String dateOfService,
         List<String> questionnaires,
         String coverageAssertionId,
+        List<CodeInput> diagnosisCodes,
+        ProviderDetail servicingProvider,
         String scenarioId,
         String expected,
         String testerRef,
@@ -46,6 +53,7 @@ public record DtrPackageRequest(
         memberOverrides = memberOverrides == null ? List.of() : List.copyOf(memberOverrides);
         providerOverrides = providerOverrides == null ? List.of() : List.copyOf(providerOverrides);
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
+        diagnosisCodes = diagnosisCodes == null ? List.of() : List.copyOf(diagnosisCodes);
         questionnaires = questionnaires == null ? List.of() : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(questionnaires));
         variables = variables == null ? Map.of() : Map.copyOf(variables);
         carry = carry == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(carry));
@@ -58,8 +66,8 @@ public record DtrPackageRequest(
      */
     public DtrPackageRequest withRawBody(String body) {
         return new DtrPackageRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService, questionnaires,
-                coverageAssertionId, scenarioId, expected, testerRef, note, chainId, request, body, asWritten, variables, carry, configEpoch,
-                unrecognised);
+                coverageAssertionId, diagnosisCodes, servicingProvider, scenarioId, expected, testerRef, note, chainId, request, body, asWritten,
+                variables, carry, configEpoch, unrecognised);
     }
 
     public static Builder builder() {
@@ -78,6 +86,8 @@ public record DtrPackageRequest(
         private ProviderDetail provider;
         private List<String> providerOverrides = List.of();
         private List<CodeInput> procedureCodes = List.of();
+        private List<CodeInput> diagnosisCodes = List.of();
+        private ProviderDetail servicingProvider;
         private String dateOfService;
         private List<String> questionnaires = List.of();
         private String coverageAssertionId;
@@ -113,6 +123,16 @@ public record DtrPackageRequest(
 
         public Builder providerOverrides(List<String> value) {
             this.providerOverrides = value;
+            return this;
+        }
+
+        public Builder diagnosisCodes(List<CodeInput> value) {
+            this.diagnosisCodes = value;
+            return this;
+        }
+
+        public Builder servicingProvider(ProviderDetail value) {
+            this.servicingProvider = value;
             return this;
         }
 
@@ -193,7 +213,7 @@ public record DtrPackageRequest(
 
         public DtrPackageRequest build() {
             return new DtrPackageRequest(member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
-                    questionnaires, coverageAssertionId, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables,
+                    questionnaires, coverageAssertionId, diagnosisCodes, servicingProvider, scenarioId, expected, testerRef, note, chainId, request, rawBody, asWritten, variables,
                     carry, configEpoch, Map.of());
         }
     }

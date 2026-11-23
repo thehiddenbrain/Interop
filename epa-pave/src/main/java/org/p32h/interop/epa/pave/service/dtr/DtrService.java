@@ -54,6 +54,7 @@ import org.p32h.interop.epa.pave.service.run.RequestPreview;
 import org.p32h.interop.epa.pave.service.run.RunInputs;
 import org.p32h.interop.epa.pave.service.run.RunRequest;
 import org.p32h.interop.epa.pave.service.run.RunSupport;
+import org.p32h.interop.epa.pave.service.run.SampleOrder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -160,7 +161,7 @@ public class DtrService {
             }
         } else {
             CaseResources.Reads reads = CaseResources.reading(call);
-            sent = builder.buildPackage(request, reads, call.memberIdRule());
+            sent = builder.buildPackage(request, reads, call.memberIdRule(), SampleOrder.ofCall(call.sampleName(), call.sampleBody()));
             body = reads.body(sent.json());
             requestNotes.addAll(packageNotes(sent));
             requestNotes.addAll(reads.requestNotes());
@@ -226,7 +227,8 @@ public class DtrService {
             return ownBodyPreview(operation, call, request.rawBody(), shown, written);
         }
         CaseResources.Reads reads = CaseResources.reading(call);
-        DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule());
+        DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule(),
+                SampleOrder.ofCall(call.sampleName(), call.sampleBody()));
         String shownBody = reads.shown(built.json());
         List<String> notes = new ArrayList<>(packageNotes(built));
         notes.addAll(reads.requestNotes());
@@ -624,6 +626,8 @@ public class DtrService {
             inputs.require(holdsMember == null, "questionnaires[" + i + "]", holdsMember);
         }
         carriedRun(inputs, request);
+        // The same checks the coverage check and Submit give them (D-321).
+        inputs.diagnoses(request.diagnosisCodes()).servicingProvider(request.servicingProvider());
         inputs.date("dateOfService", request.dateOfService())
                 .expectation(request.expected(), DtrOutcome.values(), DtrCodes.EXPECTATION_ELEMENTS)
                 .scenario(request.scenarioId(), epa)
