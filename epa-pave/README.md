@@ -13,6 +13,15 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**The Submit bundle says which PAS bundle it is (D-318).** The vendor's service refused a Submit built
+from the case: "Bundle.meta.profile must include:
+http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle". The Bundle this tool
+built declared no profile. It now declares the PAS request bundle profile, and the inquiry's Bundle the
+PAS inquiry request bundle profile, as the guide's own examples do under 2.0.1 and under 2.2.1. The
+resources inside a Submit still declare no profile of their own: whether the vendor's service asks for
+that is not known. Until it is, step 3 can send the collection's own Submit: choose its request and
+"As the collection writes it" (D-313).
+
 **Submit stays open when the questionnaire step fails (D-317).** The steps at the top of the Workbench
 are buttons: any step opens at any time, and Submit sends without a questionnaire response when step 2
 completed none. A tester whose questionnaire request had failed did not see that, and asked to be able

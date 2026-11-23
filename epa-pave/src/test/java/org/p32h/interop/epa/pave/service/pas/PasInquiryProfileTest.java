@@ -19,7 +19,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The inquiry's Claim declares the PAS profile-claim-inquiry (the vendor's sandbox refused an
- * inquiry without it), and both bundles stamp whole seconds in UTC (the sandbox refused seven
+ * inquiry without it), each bundle declares the PAS bundle profile it is (the vendor's service
+ * refused a Submit without it), and both bundles stamp whole seconds in UTC (the sandbox refused seven
  * fractional digits and a local offset), whatever the zone and the precision of the clock.
  */
 class PasInquiryProfileTest {
@@ -58,6 +59,25 @@ class PasInquiryProfileTest {
     @Test
     void theSubmittedClaimDeclaresNoInquiryProfile() {
         assertThat(submission().at("/entry/0/resource").has("meta")).isFalse();
+    }
+
+    /**
+     * The vendor's service refused a Submit whose Bundle did not say which PAS bundle it is ("Bundle.meta.profile must
+     * include: ..."), so each bundle declares its own profile and no other (D-318).
+     */
+    @Test
+    void eachBundleDeclaresThePasBundleProfileItIs() {
+        JsonNode submitted = submission();
+        assertThat(submitted.get("resourceType").asString()).isEqualTo("Bundle");
+        assertThat(submitted.at("/meta/profile")).hasSize(1);
+        assertThat(submitted.at("/meta/profile/0").asString())
+                .isEqualTo("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle");
+        JsonNode asked = inquiry();
+        assertThat(asked.at("/meta/profile")).hasSize(1);
+        assertThat(asked.at("/meta/profile/0").asString())
+                .isEqualTo("http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-inquiry-request-bundle");
+        // The profile is the first thing after the resource type, where a reader of the wire view looks for it.
+        assertThat(submitted.propertyNames().stream().limit(2).toList()).containsExactly("resourceType", "meta");
     }
 
     @Test

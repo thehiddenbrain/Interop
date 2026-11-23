@@ -79,6 +79,7 @@ entry.
 | D-314 | After a coverage check, a questionnaire or a partly completed response that the answer names leads to the questionnaire step, whatever the answer says about doc-needed; the reason says doc-needed was not stated | The vendor's service names its questionnaires with a doc-purpose and no doc-needed. PAVE offered "Continue to Submit" and the operator never saw a question. |
 | D-315 | A sign-in whose service could not be reached says what failed (the host's name, a refused connection, a timeout, a certificate, a proxy), and the console names the types of the failure | After a pull the operator's sign-in failed as "could not be reached (unavailable)" while Postman signed in, and nothing told the cases apart. The code that signs in had not changed |
 | D-317 | A questionnaire result that offers no way on says that Submit is open and offers "Continue to Submit without it", plainly | The operator's questionnaire request failed at the vendor's service and nothing on the card led to Submit, though the stepper opens any step. D-316 is kept for the test of a connection, begun and stopped at the operator's word |
+| D-318 | The Submit bundle declares the PAS request bundle profile, and the inquiry's bundle the PAS inquiry request bundle profile | The vendor's service refused a Submit whose Bundle did not say which PAS bundle it is. The guide's own examples declare it under both versions |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9153,3 +9154,23 @@ round of corrections; the code handed over.**
   card, the press opening step 3, the browser's storage holding only `pave.tab`.
 - **Left.** Why the questionnaire request fails at the vendor's service is not known: its card has not
   been seen. Submit has not met the vendor's service.
+
+**D-318. The Submit and inquiry bundles declare their PAS bundle profile.**
+- **What happened.** The operator's first Submit built from the case was refused by the vendor's
+  service with an OperationOutcome: "Bundle.meta.profile must include:
+  http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle".
+- **What was so.** `PasRequestBuilder` wrote the Bundle with an identifier, a type and a timestamp and
+  no `meta`. Of all the resources it writes, only the inquiry's Claim declared a profile (the vendor's
+  sandbox had refused an inquiry without it).
+- **Decided.** The Bundle of a Submit declares
+  `http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle`, and the Bundle of
+  an inquiry `.../profile-pas-inquiry-request-bundle`, as the first member after the resource type. It
+  is so under 2.0.1 and under 2.2.1: the canonical is the same and the guide's examples declare it in
+  both. It is not a request shape: nothing is known that refuses a declared profile.
+- **Not decided here.** The resources inside the Bundle (the Claim of a Submit, the Patient, the
+  Coverage, the organizations, the practitioner, the order) declare no profile. The guide's examples
+  declare one on each. Whether the vendor's service asks for them is not known, and the next refusal,
+  if there is one, will say. The collection's own Submit can be sent meanwhile from step 3 with "As the
+  collection writes it" (D-313).
+- **What holds it.** `PasInquiryProfileTest.eachBundleDeclaresThePasBundleProfileItIs`.
+- **Left.** Submit built from the case has not been accepted by the vendor's service yet.

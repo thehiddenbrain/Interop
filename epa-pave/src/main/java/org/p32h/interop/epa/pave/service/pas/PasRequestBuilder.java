@@ -733,10 +733,19 @@ public final class PasRequestBuilder {
      * urls a relative reference resolves to nothing, so every reference inside the bundle that
      * names an entry is rewritten to that entry's full url.
      */
+    /** The canonical url of the PAS bundle profile a bundle of this kind is: the request bundle, or the inquiry request bundle. */
+    static String bundleCanonical(String bundleProfile) {
+        return "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/"
+                + ("PASInquiryRequestBundle".equals(bundleProfile) ? "profile-pas-inquiry-request-bundle" : "profile-pas-request-bundle");
+    }
+
     private String bundle(String bundleId, String bundleProfile, List<ObjectNode> bundled, Function<String, ResolvedText> variables,
                           PasNotes notes) {
         ObjectNode bundle = JSON.objectNode();
         bundle.put("resourceType", "Bundle");
+        // The vendor's service refuses a Submit whose Bundle does not say which PAS bundle it is ("Bundle.meta.profile
+        // must include: ..."). The guide's own examples declare it, under both versions (D-318).
+        bundle.putObject("meta").putArray("profile").add(bundleCanonical(bundleProfile));
         bundle.putObject("identifier").put("system", URI_SYSTEM).put("value", bundleId);
         bundle.put("type", "collection");
         bundle.put("timestamp", instant());
