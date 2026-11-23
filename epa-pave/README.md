@@ -13,6 +13,35 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**The diagnosis and the servicing provider go out with every step (D-321).** The business analyst of
+the team testing against the vendor's UAT read the requests PAVE sent and said: "You are missing a Diag
+code and Servicing Provider". Before this, the coverage check sent the Diagnosis codes only beside a
+collection sample whose order carried one, the questionnaire request never sent them, and only Submit
+could name a servicing provider. Now:
+
+- **The coverage check and the questionnaire request** put each diagnosis code of the case on every
+  order as its `reasonCode`, whatever the arrangement of the prefetch, and the servicing provider as the
+  order's `performer`: `Practitioner/<vendor practitioner id>` or `Practitioner/practitioner-servicing-1`
+  for a person, `Organization/organization-servicing-1` for one known by an organization name alone,
+  and `PractitionerRole/practitioner-role-servicing-1` where the collection's request names its own
+  performer as a role. Its Practitioner (or Organization, or role) travels where the requesting
+  provider's travels: beside it in the prefetch, in a Bundle of the sample's that holds that type, or
+  among the questionnaire request's referenced resources. The requesting provider never stands in for
+  a servicing provider nobody named. **Submit** sends what it sent before: the diagnosis on the Claim,
+  the servicing provider on the care team.
+- **One coding rule for the three steps**: the system typed with the code; else the one the
+  collection's request uses on its own `reasonCode`; else ICD-10-CM when the code has that format; else
+  none, said in a note. A note names a diagnosis by its position, never by its code.
+- **The Provider card** has a part "Servicing provider" of its own, seen without opening "Edit provider
+  fields": one line, "Servicing provider: none. Add one", until one is named. **The Service card** says
+  under Diagnosis codes where they go.
+- **Before sending**, steps 1, 2 and 3 say so in one line when the collection's request for the step
+  carries a diagnosis or a servicing provider and the case names none: "The collection's request for
+  this step carries a diagnosis and a servicing provider. This case names neither. Add Diagnosis codes
+  on the Service card and a Servicing provider on the Provider card, or send as it is." It never blocks.
+
+Seen in Chromium against a stand-in on this machine, not against the vendor's service.
+
 **A call takes the payer from the collection request it is sent from (D-320).** On the vendor's UAT a
 coverage check came back with one card, "Vendor Request Rejected", whose detail said the payor of the
 first resource of the coverage Bundle must be present. The Coverage PAVE built named no payer: PAVE took
@@ -146,7 +175,8 @@ stand-in changed to answer "No patient data provided" unless the patient comes u
 
 Since then (D-310), where the sample's order carries a diagnosis as `reasonCode`, the Diagnosis codes of
 the Service card go on every order the same way, with the sample's coding system, and a case with none is
-told to add them. What the sample's Patient, Coverage or order carries and PAVE's does not (an address, a
+told to add them. Since D-321 they go on every order whatever the sample, and the servicing provider goes
+as `performer`. What the sample's Patient, Coverage or order carries and PAVE's does not (an address, a
 `performer`, a class of type group) is named, never filled in, in the request's notes, under Prefetch in
 the form and, for a pasted request, in "Compare with a request that works".
 
@@ -929,6 +959,12 @@ Submit was first built to 2.2.1 on an answer of the operator's; they then said a
 uses 2.0.1, so 2.0.1 is the default and 2.2.1 is kept as a choice, with everything built for it
 (D-300).
 
+- **Where the diagnosis and the servicing provider go, step by step (D-321)**: the Diagnosis codes of
+  the Service card go as the `reasonCode` of every order in the coverage check and the questionnaire
+  request, and as the Claim's `diagnosis` in Submit. The Servicing provider of the Provider card goes as
+  the `performer` of every order in the coverage check and the questionnaire request, its resources
+  beside the requesting provider's, and on the Claim's care team in Submit. A case that names neither
+  sends neither; nothing is filled in for it.
 - **What it reads**: from the Service card, each code with its quantity and unit, the date and
   place of service, the diagnosis codes and, in "Service details", the level of service, the
   certification type, the request type and the service type; from the Provider card, the phone
@@ -1381,6 +1417,7 @@ normal answer.
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
 | GET | `/api/procedure-codes/self-check` | What the tool made of the code list |
 | POST | `/api/crd`, `/api/crd/preview` | One CRD call, or its request without sending it |
+| POST | `/api/workbench/before-sending` | What a step says before it is sent: `{operation, request, variables, diagnosisCodes, servicingProvider}`, answered `{line, sampleDiagnosis, sampleServicing}` (D-321) |
 | POST | `/api/crd/compare` | Compare a pasted CRD request (`rawBody`) with PAVE's own; sends and records nothing |
 | GET | `/api/crd/discover` | CDS Hooks discovery |
 | GET | `/api/crd/scenarios`, `/api/dtr/scenarios`, `/api/pas/scenarios?for=` | Mock scenarios with their short words, and the outcome vocabulary |

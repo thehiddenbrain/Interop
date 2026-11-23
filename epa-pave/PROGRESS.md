@@ -4,6 +4,18 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**The diagnosis and the servicing provider go out with every step** (D-321). The business analyst of
+the operator's team read the requests PAVE sent to the vendor's UAT and said a diagnosis code and a
+servicing provider were missing. The coverage check and the questionnaire request now put each diagnosis
+code of the case on every order as `reasonCode`, whatever the arrangement of the prefetch, and the
+servicing provider as the order's `performer`, its resources where the requesting provider's travel;
+Submit sends what it sent before. One rule codes a diagnosis for the three steps, and a note names a
+diagnosis by its position, never its code. The Provider card shows the servicing provider as a part of
+its own, the Service card says where the codes go, and steps 1, 2 and 3 say in one line before sending
+when the collection's request carries either and the case names none. Built and tested by one builder,
+seen in Chromium against a stand-in on loopback, not against the vendor's service. Open: whether the
+vendor's service reads the performer and the reasonCode as PAVE sends them.
+
 **A call takes the payer from the collection request it is sent from** (D-320). The vendor's service
 refused the operator's coverage check with one card, "Vendor Request Rejected", for a Coverage that named
 no payer. The operator's files were not seen, so whether their coverage-check request states one is not
@@ -647,6 +659,11 @@ Each line can be read alone. The detail of each is in the entry named.
     answering"; the member and provider lookups keep their wording for a 401; on mock a note or a case id
     that uses the scenario word a mock member is named after is refused as holding the member's last
     name.
+22. **The diagnosis and the servicing provider** (D-321): not seen against the vendor's service. Not
+    built: a saved list of diagnosis codes, taking diagnosis codes or performers from an uploaded
+    collection into the saved lists (the next piece), a `reasonReference` to a Condition, and columns for
+    either in a suite file. "Compare with a request that works" builds PAVE's side with the form's
+    diagnosis and servicing provider; it was not looked at on a screen.
 
 ### Gates, first
 

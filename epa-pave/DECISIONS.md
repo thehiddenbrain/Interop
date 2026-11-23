@@ -82,6 +82,7 @@ entry.
 | D-318 | The Submit bundle declares the PAS request bundle profile, and the inquiry's bundle the PAS inquiry request bundle profile | The vendor's service refused a Submit whose Bundle did not say which PAS bundle it is. The guide's own examples declare it under both versions |
 | D-319 | Each resource this tool builds for a Submit or an inquiry declares the PAS profile it is built as | A service that refuses a Bundle for naming no profile may look for one on each resource. The guide's examples declare them, and waiting for one refusal after another costs the tester a pull and a run each time |
 | D-320 | A call takes the FHIR server and the payer from the collection request it is sent from, at the time of the call, when nothing else sets them; a new value Payer reference; a refusal naming payor says where to set it | The vendor's service refused a coverage check whose Coverage named no payer, while the vendor's own request stated one. Lowest of all sources, so whatever the tester sets still wins. Seen against a stand-in only |
+| D-321 | The diagnosis codes and the servicing provider are part of the case for every step: the coverage check and the questionnaire request send each code as the order's reasonCode and the servicing provider as its performer, with its resources where the requester's travel; Submit's wire is unchanged; one coding rule for the three steps; a line before sending when the collection's request carries either and the case names none | A business analyst read the requests PAVE sent and said a diagnosis code and a servicing provider were missing. The requester never stands in for a performer; nothing is filled in on live. Seen against a stand-in only |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9313,3 +9314,128 @@ round of corrections; the code handed over.**
   switch: a value set on the environment wins, and that is the switch. Why the operator's questionnaire
   request fails is not known. A payer read from the coverage-check request is not offered to Submit, which
   reads only its own request.
+
+**D-321. The diagnosis and the servicing provider go out with every step, each in its own place.**
+- **What happened.** On the second day against the vendor's UAT the operator passed on what the business
+  analyst of their team said of the requests PAVE sent: "You are missing a Diag code and Servicing
+  Provider". The operator's files and screens were not seen and were not asked for. Decided by the
+  integrator (`TASK_DIAGNOSIS_AND_PERFORMER.md`).
+- **What was so.** The Service card had "Diagnosis codes": Submit sent them as `Claim.diagnosis`; the
+  coverage check sent them as the order's `reasonCode` only under the sample's arrangement and only when
+  the sample's order carried a `reasonCode` (D-310); the questionnaire request had no field for them. A
+  servicing provider existed for Submit alone (`Claim.careTeam`), at the bottom of "Edit provider fields"
+  under "Servicing provider (optional, Submit only)". The coverage check and the questionnaire request
+  sent no `performer`, and D-310 said so in a note ("The sample's ServiceRequest also carries performer.
+  PAVE has no field for it, so it is not sent.").
+- **Decided.** Both are part of the case for every step, and each step sends them in its own place.
+  - **The case.** `CrdRunRequest` takes `servicingProvider`; `DtrPackageRequest` takes `diagnosisCodes`
+    and `servicingProvider`, each checked as Submit checks them (`RunInputs.diagnoses`,
+    `RunInputs.servicingProvider`: a blank code at `diagnosisCodes[i].code`, a bad NPI at
+    `servicingProvider.npi`, a bad id at `servicingProvider.vendorPractitionerId`). The Workbench sends
+    each step the same case. Later questionnaire requests take neither: they carry no order.
+  - **The order** (`CaseResources.onOrder`): `performer` after `requester`, then `reasonCode`, then
+    `insurance`, as FHIR orders the elements, on every order in `context.draftOrders`, in every copy the
+    prefetch carries and on every order of the questionnaire request.
+  - **The coding system** (`Diagnoses`, one rule for the three steps): the system typed with the code;
+    else the one the `reasonCode` of the call's collection request uses, where that request states one
+    and is not a sample of an error; else ICD-10-CM when the code has that format; else none. Submit
+    follows no sample's system, so its wire is what it was. D-310's sending of a code with no system
+    beside a sample whose `reasonCode` states none is replaced by the format rule.
+  - **The performer** (`CaseResources.servicing`): a person as `Practitioner/<vendor practitioner id>`,
+    else `Practitioner/practitioner-servicing-1`; one known by an organization name alone as
+    `Organization/organization-servicing-1`; a person, where the call's collection request names its
+    order's performer as a `PractitionerRole`, as `PractitionerRole/practitioner-role-servicing-1` that
+    names the Practitioner. A servicing provider with the requesting provider's vendor practitioner id
+    names the one Practitioner and sends no second one. `PrefetchLayout.performerType` and
+    `SampleOrder.performerType` keep the type the sample refers to, never a value.
+  - **Where its resources travel**, built by the builders of the requester's resources
+    (`CaseResources.practitioner`, `practitionerRole`, `organization`, now taking an id): under PAVE's
+    named Bundles beside the requester's (`practitionerBundle`, or `organizationBundle` for a requester
+    known by an organization name; a role in `practitionerRoleBundle`); under the sample's arrangement as
+    a further entry of the first Bundle of the sample that holds that type, with the search mode the
+    sample's entries of that type have, and where none does, not sent, with the note "The sample's
+    prefetch has no Bundle that holds a Practitioner, so the servicing provider's Practitioner was not
+    sent. The order still names it as its performer."; in the questionnaire request among the
+    `referenced` parameters, as the requester's; with no prefetch, nowhere, said.
+  - **The notes.** "Each order carries the case's 2 diagnosis codes as reasonCode, with the system
+    ICD-10-CM (http://hl7.org/fhir/sid/icd-10-cm), taken from the format of the code." and, where the
+    sources differ, by position ("Diagnosis 1 with the coding system typed with it; diagnosis 2 ...").
+    "The servicing provider goes as the order's performer, Practitioner/practitioner-servicing-1." and
+    where its resources travel. With none in the case and the sample carrying one: D-310's "The sample's
+    order carries a diagnosis (reasonCode). This case states none: add Diagnosis codes on the Service
+    card." and "The sample's order names a performer. This case names no servicing provider, so none was
+    sent: add a Servicing provider on the Provider card." `PrefetchLayout.BUILDABLE` holds `performer`,
+    and the form says "The sample's order names a performer: the Servicing provider of the Provider card
+    goes there." Submit's notes name a diagnosis by its position too: "The coding system for diagnosis 1
+    was taken from its format: ICD-10-CM.", and what it counts as left out reads "PASClaim
+    diagnosis.diagnosisCodeableConcept system (diagnosis 1)", where both named the code before.
+  - **Before sending** (`BeforeSending`, `POST /api/workbench/before-sending`, `wb-before.js`): the
+    request a step would follow (`OperationGateway.sample`: the request chosen, the one a typed address
+    goes to, else the first mapped) is read by presence only (`SampleOrder`: the order's reasonCode and
+    performer, a Claim's diagnosis and care team provider). When it carries either and the case names
+    none, steps 1, 2 and 3 show under their head: "The collection's request for this step carries a
+    diagnosis and a servicing provider. This case names neither. Add Diagnosis codes on the Service card
+    and a Servicing provider on the Provider card, or send as it is.", or the words for one alone ("...
+    carries a diagnosis. This case names none. Add Diagnosis codes on the Service card, or send as it
+    is." and "... carries a servicing provider. This case names none. Add a Servicing provider on the
+    Provider card, or send as it is."). With no collection, no request, no body, a body that is not JSON,
+    a sample of an error or a choice no longer listed, nothing is said, and the answer is a 200. With "As
+    the collection writes it" nothing is asked. A failed ask shows nothing.
+  - **The screens.** The Provider card's part "Servicing provider" stands outside "Edit provider fields":
+    "Servicing provider: none. Add one" while none is named, and once one is, its line "Who performs the
+    service. Sent as the order's performer in the coverage check and the questionnaire request, and on
+    the care team in Submit.", the saved list and the fields. The Service card says under Diagnosis codes
+    "Sent as the order's reason in the coverage check and the questionnaire request, and as the claim's
+    diagnosis in Submit." The case line shows ", servicing <name>" and Submit's chips name one known by a
+    name alone. A reload and "Load into the Workbench" read both back from the newest kept run of a step
+    that sends them when the newest run is of one that sends neither (`casePosted`).
+- **Why a typed diagnosis is always sent.** D-310 sent it only beside a sample that carries one, to keep
+  every other request as it was. A diagnosis the tester typed for the case is the tester's statement of
+  the case; leaving it out without a word made the check another check than the one meant. A payer
+  decides a prior authorization on the diagnosis and on who performs the service.
+- **Why the requester never stands in for the performer.** Who orders and who performs are different
+  facts. Putting the requester in `performer` would state something nobody said, which this tool never
+  does (brief rule 5).
+- **Why Submit's wire is unchanged.** Submit already sent both, each where PAS puts it, and its order
+  (`PasResources.serviceRequest`) was accepted as it is so far as anything is known. `SubmitUnchangedTest`
+  holds six whole Submit bodies (a person, an organization and a shared id, under 2.0.1 and 2.2.1)
+  against those the commit before this work built.
+- **Rules kept.** A diagnosis code is never logged, never written to the ledger and never put in a note
+  or finding; the ledger records of the two steps nothing of either, as Submit's did not. The trail keeps
+  the case as posted, as it kept Submit's (D-301). Nothing is filled in on mock or on live; no scenario
+  changed; "As the collection writes it" and a body of the tester's own are untouched; the payer and the
+  FHIR server come from where D-320 takes them; the browser keeps no new key. Bodies are read by fixed
+  paths.
+- **What holds it.** `ServicingAndDiagnosisInOrderTest` (each coding rule, several codes, none; a person,
+  an organization, a vendor id, a shared id, a role where the sample's performer is one, none; both
+  arrangements, an organization requester, a sample with no place for the type, no prefetch; the
+  sample read by presence and type), `DiagnosisAndServicingStepsTest` (the three steps through the
+  services with a stored collection, each preview the same body, a bad NPI and a blank code refused at
+  each step, and two marked codes found in no word of the run, no ledger line and no log line),
+  `SubmitUnchangedTest`, `BeforeSendingTest` and `BeforeSendingControllerTest` (both, one, the case
+  naming them, a chosen request, no collection, no body, not JSON, a sample of an error, a stale choice,
+  a step that is not one, a misspelt property), `BeforeSendingFrontendTest` and
+  `DiagnosisAndServicingScreensFrontendTest` (the line, the Provider card's part, the Service card's
+  line, the bodies, a reload). Changed, each for its reason: `DiagnosisInOrderTest` (the diagnosis now
+  goes under the named Bundles and with no sample; a sample's `reasonCode` with no system leaves it to
+  the format), `SampleElementsTest` (a performer is said by the order's note and the form no longer calls
+  it one PAVE has no field for), `PasRequestBuilderTest` (a diagnosis named by position),
+  `SubmitStepFrontendTest` (opening the step also asks for the line), and `RegexStackGuardTest` loses the
+  inline ICD-10-CM pattern of `PasRequestBuilder`, now a static pattern of `Diagnoses` that the test
+  reads by reflection. `RecursionGuardTest` and `DeepAnswerStackTest` unchanged. Not shown to fail
+  without the change.
+- **What was seen.** On a copy of the jar of the commit before the documents, on live, against a copy of
+  the stand-in on loopback and a collection and export written for the check (placeholders only), in
+  Chromium: a case with the diagnosis G47.33 and a servicing provider with NPI 9999999995, sent through
+  steps 1, 2 and 3. The stand-in received a coverage check whose order carried `reasonCode` and
+  `performer` `Practitioner/practitioner-servicing-1`, the servicing Practitioner in the sample's
+  practitioners Bundle; a questionnaire request whose order carried both and whose referenced resources
+  held the servicing Practitioner; a Submit with the diagnosis on the Claim, the care team and an order
+  with neither. The same case with neither showed the line on each step. A reload brought both back.
+  Each tab opened with no answer of the 5xx kind; the browser held only `pave.tab`; the log held no
+  diagnosis code. The Provider card, the Service card and the line at 1440 by 900 and 1024 by 768. Not
+  seen: the vendor's files or service, mock in a browser for this change, Windows, the IDE, the
+  comparison on a screen, a role as performer on a screen.
+- **Left.** A saved list of diagnosis codes, and taking diagnosis codes or performers from a collection
+  into the saved lists, are the next piece. A suite row can state neither today. No `reasonReference`.
+  Whether the vendor's service reads the performer and the reasonCode as sent is not known.
