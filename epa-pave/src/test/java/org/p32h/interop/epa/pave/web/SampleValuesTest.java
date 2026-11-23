@@ -223,6 +223,70 @@ class SampleValuesTest {
         assertThat(Files.readString(directory.resolve("store.json"))).doesNotContain(MEMBER);
     }
 
+    // ---- the PAS types of the items, and the report type ----
+
+    private static final String EXT = "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-";
+
+    private static String item(int sequence, String requestType, String certification, String serviceType) {
+        return "{\"sequence\": " + sequence + ", \"extension\": [{\"url\": \"" + EXT + "itemTraceNumber\", \"valueIdentifier\": "
+                + "{\"value\": \"T-" + sequence + "\"}}, {\"url\": \"" + EXT + "serviceItemRequestType\", \"valueCodeableConcept\": "
+                + "{\"coding\": [{\"system\": \"https://codesystem.x12.org/005010/1525\", \"code\": \"" + requestType + "\"}]}}, "
+                + "{\"url\": \"" + EXT + "certificationType\", \"valueCodeableConcept\": {\"coding\": [{\"system\": "
+                + "\"https://codesystem.x12.org/005010/1322\", \"code\": \"" + certification + "\"}]}}], \"category\": {\"coding\": "
+                + "[{\"system\": \"https://codesystem.x12.org/005010/1365\", \"code\": \"" + serviceType + "\"}]}}";
+    }
+
+    private static String supporting(String reportType) {
+        return "{\"sequence\": 1, \"extension\": [{\"url\": \"" + EXT + "documentInformation\", \"extension\": [{\"url\": "
+                + "\"reportTypeCode\", \"valueCodeableConcept\": {\"coding\": [{\"system\": \"https://codesystem.x12.org/005010/755\", "
+                + "\"code\": \"" + reportType + "\"}]}}]}]}";
+    }
+
+    @Test
+    void theItemsGiveTheirPasTypesWhereTheBuilderWritesThemAndTheSupportingInformationItsReportType() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\"");
+        String claim = "\"item\": [" + item(1, "HS", "I", "12") + ", " + item(2, "HS", "I", "12") + "], \"supportingInfo\": ["
+                + supporting("09") + "]";
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(V21, submit(organization,
+                patient("{\"value\": \"" + MEMBER + "\"}"), claim)));
+
+        String from = "from the collection's request \"" + SUBMIT + "\"";
+        assertThat(value(values, "pasRequestType").get("display").asString()).isEqualTo("HS");
+        assertThat(value(values, "pasRequestType").get("from").asString()).isEqualTo(from);
+        assertThat(value(values, "pasServiceType").get("display").asString()).isEqualTo("12");
+        assertThat(value(values, "pasCertificationType").get("display").asString()).isEqualTo("I");
+        assertThat(value(values, "pasReportType").get("display").asString()).isEqualTo("09");
+        // The callback url is the address of this tool's own receiver, which no vendor's sample can state.
+        assertThat(value(values, "callbackUrl").has("request")).isFalse();
+    }
+
+    @Test
+    void itemsThatDisagreeGiveNoneAndALineSaysSo() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\"");
+        String claim = "\"item\": [" + item(1, "HS", "I", "12") + ", " + item(2, "AR", "I", "12") + "]";
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(V21, submit(organization,
+                patient("{\"value\": \"" + MEMBER + "\"}"), claim)));
+
+        JsonNode requestType = value(values, "pasRequestType");
+        assertThat(requestType.has("display")).isFalse();
+        assertThat(strings(requestType.get("notes"))).containsExactly("The items of the collection's request \"" + SUBMIT + "\" state "
+                + "different PAS request types (HS and AR), so none is taken.");
+        // The types the items agree on are still taken.
+        assertThat(value(values, "pasCertificationType").get("display").asString()).isEqualTo("I");
+        assertThat(value(values, "pasServiceType").get("display").asString()).isEqualTo("12");
+    }
+
+    @Test
+    void aCodeOfAnotherSystemIsNotWhereTheBuilderWritesTheTypeAndGivesNothing() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\"");
+        String claim = "\"item\": [{\"sequence\": 1, \"category\": {\"coding\": [{\"system\": \"https://example.org/categories\", "
+                + "\"code\": \"12\"}]}}]";
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(V21, submit(organization,
+                patient("{\"value\": \"" + MEMBER + "\"}"), claim)));
+        assertThat(value(values, "pasServiceType").has("display")).isFalse();
+        assertThat(strings(value(values, "pasServiceType").get("notes"))).isEmpty();
+    }
+
     // ---- the save ----
     // ---- the save ----
 
@@ -371,9 +435,14 @@ class SampleValuesTest {
 
     /** A Submit sample whose Claim names the payer by its fullUrl and the patient by type and id. */
     private static Map<String, Object> submit(String organization, String patient) {
+        return submit(organization, patient, "\"item\": [{\"sequence\": 1}]");
+    }
+
+    /** As above, the Claim's items and supporting information written as given. */
+    private static Map<String, Object> submit(String organization, String patient, String claimParts) {
         String body = "{\"resourceType\": \"Bundle\", \"type\": \"collection\", \"entry\": [{\"fullUrl\": \"urn:uuid:claim-1\", "
                 + "\"resource\": {\"resourceType\": \"Claim\", \"use\": \"preauthorization\", \"insurer\": {\"reference\": "
-                + "\"urn:uuid:payer-1\"}, \"patient\": {\"reference\": \"Patient/pat-1\"}, \"item\": [{\"sequence\": 1}]}}, "
+                + "\"urn:uuid:payer-1\"}, \"patient\": {\"reference\": \"Patient/pat-1\"}, " + claimParts + "}}, "
                 + organization + ", " + patient + "]}";
         return Map.of("name", "Claim Submit", "request", Map.of("method", "POST", "url", Map.of("raw", "{{base}}/Claim/$submit"),
                 "header", List.of(), "body", Map.of("mode", "raw", "raw", body)));

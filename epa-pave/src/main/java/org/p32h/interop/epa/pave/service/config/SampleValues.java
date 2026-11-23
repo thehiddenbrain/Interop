@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.p32h.interop.epa.pave.client.pas.OnyxPasConventions;
 import org.p32h.interop.epa.pave.model.EpaOperation;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.Texts;
@@ -281,6 +282,13 @@ public final class SampleValues {
                         + ", so none is taken: choose one and type it.");
             }
         }
+        itemType(taken, lines, "pasRequestType", "PAS request types", claim, from,
+                item -> extensionCode(item, OnyxPasConventions.ITEM_REQUEST_TYPE, OnyxPasConventions.X12_REQUEST_TYPES));
+        itemType(taken, lines, "pasServiceType", "PAS service types", claim, from,
+                item -> code(JsonSafe.child(item, "category"), OnyxPasConventions.X12_SERVICE_TYPES));
+        itemType(taken, lines, "pasCertificationType", "PAS certification types", claim, from,
+                item -> extensionCode(item, OnyxPasConventions.ITEM_CERTIFICATION_TYPE, OnyxPasConventions.X12_CERTIFICATION_TYPES));
+        reportType(taken, lines, claim, from);
         JsonNode patient = referred(root, JsonSafe.presentText(JsonSafe.child(claim, "patient"), "reference"), "Patient");
         if (patient != null) {
             List<JsonNode> identifiers = withValue(JsonSafe.elements(patient, "identifier"));
@@ -294,6 +302,83 @@ public final class SampleValues {
                         + ", so the member ID system is not taken.");
             }
         }
+    }
+
+    /**
+     * A type PAVE's builder writes on every item, read from the first item of the sample's Claim
+     * where the builder writes it. Items that state different codes give none: PAVE sends one code
+     * for every item, and which of the sample's is meant cannot be told.
+     */
+    private static void itemType(Map<String, Taken> taken, Map<String, List<String>> lines, String name, String plural, JsonNode claim,
+                                 PostmanRequest from, java.util.function.Function<JsonNode, JsonNode> read) {
+        List<JsonNode> items = JsonSafe.elements(claim, "item");
+        if (items.isEmpty()) {
+            return;
+        }
+        java.util.Set<String> stated = new java.util.LinkedHashSet<>();
+        for (JsonNode item : items) {
+            String code = JsonSafe.presentText(read.apply(item));
+            if (code != null) {
+                stated.add(code);
+            }
+        }
+        if (stated.size() > 1) {
+            line(lines, name, "The items of the collection's request \"" + from.quotedName() + "\" state different " + plural + " ("
+                    + words(new ArrayList<>(stated)) + "), so none is taken.");
+            return;
+        }
+        take(taken, lines, name, read.apply(items.get(0)), from);
+    }
+
+    /**
+     * The report type, read where PAVE's builder writes it under PAS 2.2.1: the reportTypeCode of
+     * the documentInformation extension on the Claim's supporting information. Entries that state
+     * different codes give none.
+     */
+    private static void reportType(Map<String, Taken> taken, Map<String, List<String>> lines, JsonNode claim, PostmanRequest from) {
+        java.util.Set<String> stated = new java.util.LinkedHashSet<>();
+        JsonNode first = null;
+        for (JsonNode info : JsonSafe.elements(claim, "supportingInfo")) {
+            JsonNode information = extension(info, OnyxPasConventions.DOCUMENT_INFORMATION);
+            JsonNode node = code(JsonSafe.child(extension(information, "reportTypeCode"), "valueCodeableConcept"),
+                    OnyxPasConventions.X12_REPORT_TYPES);
+            String code = JsonSafe.presentText(node);
+            if (code != null) {
+                stated.add(code);
+                first = first == null ? node : first;
+            }
+        }
+        if (stated.size() > 1) {
+            line(lines, "pasReportType", "The supporting information of the collection's request \"" + from.quotedName() + "\" states "
+                    + "different PAS report types (" + words(new ArrayList<>(stated)) + "), so none is taken.");
+        } else if (first != null) {
+            take(taken, lines, "pasReportType", first, from);
+        }
+    }
+
+    /** The code of an X12 coding in the extension of this url, as PAVE's builder writes it, or null. */
+    private static JsonNode extensionCode(JsonNode item, String url, String system) {
+        return code(JsonSafe.child(extension(item, url), "valueCodeableConcept"), system);
+    }
+
+    /** The first extension of this url on a node, or null. */
+    private static JsonNode extension(JsonNode node, String url) {
+        for (JsonNode extension : JsonSafe.elements(node, "extension")) {
+            if (url.equals(JsonSafe.presentText(extension, "url"))) {
+                return extension;
+            }
+        }
+        return null;
+    }
+
+    /** The code node of the first coding of this system in a CodeableConcept, or null. */
+    private static JsonNode code(JsonNode concept, String system) {
+        for (JsonNode coding : JsonSafe.elements(concept, "coding")) {
+            if (system.equals(JsonSafe.presentText(coding, "system"))) {
+                return JsonSafe.child(coding, "code");
+            }
+        }
+        return null;
     }
 
     /** The Claims of a Bundle's entries, in their order; none for a body that is not a Bundle. */
