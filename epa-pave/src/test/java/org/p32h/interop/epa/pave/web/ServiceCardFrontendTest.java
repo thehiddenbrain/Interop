@@ -29,7 +29,8 @@ class ServiceCardFrontendTest {
                 document.body.append(card.node);
                 // Before the server gives its words, every choice offers "Not stated" only.
                 // The choices of the service; "Saved codes" is a pick of the saved list, held by FoundFrontendTest.
-                const selects = () => card.node.querySelectorAll('select').filter(each => !String(each.id || '').startsWith('saved-codes'))
+                // The two saved lists' choices are not choices of the service (saved-codes, and saved-diagnoses since D-322).
+                const selects = () => card.node.querySelectorAll('select').filter(each => !String(each.id || '').startsWith('saved-'))
                     .map(each => each.textContent);
                 say(selects());
                 options = {levelsOfService: [{code: 'U', label: 'Urgent'}], certificationTypes: [{code: 'I', label: 'Initial'}],

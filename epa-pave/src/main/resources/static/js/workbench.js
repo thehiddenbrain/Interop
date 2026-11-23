@@ -44,6 +44,7 @@ const loaded = {
     savedMembers: [],
     savedProviders: [],
     savedCodes: [],
+    savedDiagnoses: [],
     pasOptions: null,
     effective: null,
     epoch: null
@@ -105,7 +106,8 @@ function build() {
     const service = createServiceCard({
         lineOfBusiness: () => member.lineOfBusiness(),
         options: () => loaded.pasOptions,
-        savedCodes: () => loaded.savedCodes
+        savedCodes: () => loaded.savedCodes,
+        savedDiagnoses: () => loaded.savedDiagnoses
     });
 
     const caseColumn = el('aside', {class: 'case', 'aria-label': 'Case'},
@@ -807,7 +809,7 @@ function build() {
             }
             loaded.epoch = epoch;
             const mock = app.isMock();
-            const [words, crd, dtr, pas, members, providers, pasOptions, effective, codes] = await Promise.all([
+            const [words, crd, dtr, pas, members, providers, pasOptions, effective, codes, diagnoses] = await Promise.all([
                 vocabulary(),
                 mock ? call('GET', '/api/crd/scenarios') : null,
                 mock ? call('GET', '/api/dtr/scenarios') : null,
@@ -816,7 +818,8 @@ function build() {
                 call('GET', '/api/lists/providers'),
                 call('GET', '/api/pas/options'),
                 call('GET', '/api/config/effective'),
-                call('GET', '/api/lists/codes')
+                call('GET', '/api/lists/codes'),
+                call('GET', '/api/lists/diagnoses')
             ]);
             loaded.words = words;
             loaded.mockLists = mock && crd && crd.ok ? {crd: crd.data, dtr: dtr && dtr.ok ? dtr.data : null, pas: pas && pas.ok ? pas.data : null}
@@ -824,6 +827,9 @@ function build() {
             loaded.savedMembers = members.ok && Array.isArray(members.data.members) ? members.data.members : [];
             loaded.savedProviders = providers.ok && Array.isArray(providers.data.providers) ? providers.data.providers : [];
             loaded.savedCodes = codes.ok && codes.data && Array.isArray(codes.data.codes) ? codes.data.codes : [];
+            // An answer that failed or holds no list offers no saved diagnosis code; the card still opens.
+            loaded.savedDiagnoses = diagnoses && diagnoses.ok && diagnoses.data && Array.isArray(diagnoses.data.diagnoses)
+                ? diagnoses.data.diagnoses : [];
             loaded.pasOptions = pasOptions.ok ? pasOptions.data : null;
             loaded.effective = effective.ok ? effective.data : null;
             useEffective(loaded.effective);

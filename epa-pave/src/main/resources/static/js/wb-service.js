@@ -1,12 +1,12 @@
 // The Service card of the case (plan 3.2, "Case column"): the procedure codes, the date of
-// service, the diagnosis codes, the fold "Service details" that Submit sends (quantity and unit
+// service, the diagnosis codes (typed, or picked from the saved list with their system), the fold "Service details" that Submit sends (quantity and unit
 // per code, place of service, level of service, certification, request and service types) and the
 // fold "Options" with the tester's reference and note, which the ledger keeps as typed.
 //
 // The words of every choice in "Service details" are the server's (GET /api/pas/options): before
 // it gives them, a choice offers "Not stated" only and its text fields take any value.
 
-import {el, fold, fill, clear} from './dom.js';
+import {el, fold, fill, clear, chip, button} from './dom.js';
 import {createCodePicker} from './code-picker.js';
 import {caseField, caseChanged, restoreFields, LEDGER_TEXT_HINT, MARKS} from './wb-case.js';
 import {cardHead} from './wb-lookup.js';
@@ -22,7 +22,26 @@ export function savedCodeText(entry) {
     return entry.code + (words ? ' \u00b7 ' + words : '');
 }
 
-/** env: {lineOfBusiness(), options() (the answer of GET /api/pas/options, or null), savedCodes() (the saved list, or [])}. */
+/**
+ * A saved diagnosis code as the "Saved diagnosis codes" choice names it: its code, then its label
+ * or else its description. Its system is the option's title.
+ */
+export function savedDiagnosisText(entry) {
+    const words = entry.label || entry.description || '';
+    return entry.code + (words ? ' \u00b7 ' + words : '');
+}
+
+const SYSTEM_WORDS = {'http://hl7.org/fhir/sid/icd-10-cm': 'ICD-10-CM', 'http://snomed.info/sct': 'SNOMED CT'};
+
+/** True when two diagnosis codes are one: the same code in the same system, no system being its own. */
+function sameDiagnosis(one, other) {
+    return one.code === other.code && (one.system || '') === (other.system || '');
+}
+
+/**
+ * env: {lineOfBusiness(), options() (the answer of GET /api/pas/options, or null), savedCodes() (the
+ * saved list, or []), savedDiagnoses() (the saved diagnosis codes, or [])}.
+ */
 export function createServiceCard(env) {
     lists += 1;
     const head = cardHead('Service', 'service');
@@ -74,6 +93,74 @@ export function createServiceCard(env) {
     // Every step sends them, each in its own place (D-321).
     const diagnosis = caseField({name: 'diagnosisCodes', label: 'Diagnosis codes', mono: true,
         hint: 'Sent as the order\'s reason in the coverage check and the questionnaire request, and as the claim\'s diagnosis in Submit.'});
+    // "Saved diagnosis codes": a pick adds the code with its system and description, shown as a line of
+    // its own under the field, so the field holds what was typed and the lines what was picked (D-322).
+    // The steps send a picked code's system as typed with it, which the coding rule takes first (D-321).
+    let picked = [];
+    const savedDiagnosisId = 'saved-diagnoses-' + lists;
+    const savedDiagnosis = el('select', {class: 'select', id: savedDiagnosisId});
+    const savedDiagnosisField = el('div', {class: 'field', hidden: true},
+        el('label', {class: 'field__label', for: savedDiagnosisId}, 'Saved diagnosis codes'), savedDiagnosis);
+    const pickedNote = el('p', {class: 'field__hint', 'aria-live': 'polite'});
+    const pickedLines = el('div', {class: 'code-lines', 'aria-label': 'Diagnosis codes picked from the saved list'});
+    savedDiagnosis.addEventListener('change', () => {
+        const entry = savedDiagnoses().find(each => each.id === savedDiagnosis.value);
+        savedDiagnosis.value = '';
+        if (!entry) {
+            return;
+        }
+        const candidate = {code: entry.code};
+        if (entry.system) {
+            candidate.system = entry.system;
+        }
+        if (entry.description) {
+            candidate.description = entry.description;
+        }
+        if (picked.some(each => sameDiagnosis(each.code, candidate))) {
+            pickedNote.textContent = 'This diagnosis code is in the case already.';
+            return;
+        }
+        pickedNote.textContent = '';
+        picked.push({code: candidate, mark: MARKS.SAVED});
+        drawPicked();
+        caseChanged('picked');
+    });
+
+    function savedDiagnoses() {
+        const given = typeof env.savedDiagnoses === 'function' ? env.savedDiagnoses() : [];
+        return Array.isArray(given) ? given.filter(each => each && typeof each.code === 'string' && each.code !== '') : [];
+    }
+
+    /** Draws the saved diagnosis codes, offered only when the list holds any. */
+    function drawSavedDiagnoses() {
+        const entries = savedDiagnoses();
+        fill(savedDiagnosis, el('option', {value: ''}, 'Choose a saved diagnosis code'),
+            entries.map(entry => el('option', {value: entry.id, title: entry.system || null}, savedDiagnosisText(entry))));
+        savedDiagnosis.value = '';
+        savedDiagnosisField.hidden = entries.length === 0;
+    }
+    drawSavedDiagnoses();
+
+    /** One line a picked code: the code, its system, its description, a way to take it out, and under it where it came from. */
+    function drawPicked() {
+        fill(pickedLines, ...picked.map(each => {
+            const system = each.code.system ? (SYSTEM_WORDS[each.code.system] || each.code.system) : 'no code system';
+            const line = el('div', {class: 'code-line'},
+                chip(each.code.code, {mono: true}),
+                el('span', {class: 'code-line__text', title: each.code.system || null}, system),
+                each.code.description ? el('span', {class: 'code-line__text', title: each.code.description}, each.code.description) : null,
+                button('Remove', () => {
+                    picked = picked.filter(other => other !== each);
+                    pickedNote.textContent = '';
+                    drawPicked();
+                    caseChanged('typed');
+                }, {small: true, quiet: true, title: 'Remove ' + each.code.code}));
+            return [line, el('p', {class: 'field__hint code-line__mark'}, each.code.code + ' ' + each.mark)];
+        }));
+        for (const remove of pickedLines.querySelectorAll('button')) {
+            remove.setAttribute('aria-label', remove.title);
+        }
+    }
     const placesId = 'places-' + lists;
     const typesId = 'service-types-' + lists;
     const places = el('datalist', {id: placesId});
@@ -101,7 +188,8 @@ export function createServiceCard(env) {
         el('div', {class: 'field-row'}, testerRef.node, note.node),
         el('p', {class: 'field__hint'}, LEDGER_TEXT_HINT))});
     const node = el('section', {class: 'card', 'aria-label': 'Service'}, head.node,
-        el('div', {class: 'card__body'}, savedField, picker.node, el('div', {class: 'field-row'}, date.node, diagnosis.node), details, options));
+        el('div', {class: 'card__body'}, savedField, picker.node, el('div', {class: 'field-row'}, date.node, diagnosis.node),
+            savedDiagnosisField, pickedNote, pickedLines, details, options));
 
     date.input.addEventListener('input', () => caseChanged('date'));
 
@@ -159,8 +247,11 @@ export function createServiceCard(env) {
     return {
         node,
         drawOptions,
-        /** The saved list was read again: its codes are offered as it now holds them. */
-        drawSaved,
+        /** The saved lists were read again: their codes are offered as they now hold them. */
+        drawSaved() {
+            drawSaved();
+            drawSavedDiagnoses();
+        },
         /** The service as every run sends it. Quantity and unit go with a code only when given. */
         request() {
             const procedureCodes = picker.values().map(code => {
@@ -177,8 +268,11 @@ export function createServiceCard(env) {
                 return out;
             });
             const text = control => (control.value() === '' ? undefined : control.value());
-            const diagnosisCodes = diagnosis.value() === '' ? undefined
+            // The typed codes as typed, then each picked one with its system and description.
+            const typed = diagnosis.value() === '' ? []
                 : diagnosis.value().split(',').map(each => each.trim()).filter(each => each !== '');
+            const all = typed.concat(picked.map(each => ({...each.code})));
+            const diagnosisCodes = all.length === 0 ? undefined : all;
             return {
                 procedureCodes,
                 dateOfService: text(date),
@@ -250,8 +344,9 @@ export function createServiceCard(env) {
         },
         /**
          * The service of a case read back after a reload: the codes with their quantity and unit,
-         * and every field, marked where they came from. Diagnosis codes go back as typed, comma
-         * separated; one posted as {code} gives its code.
+         * and every field, marked where they came from. A diagnosis code posted with a system or a
+         * description was picked and goes back as a picked line with both; any other goes back as
+         * typed, comma separated.
          */
         restore(given, mark) {
             const values = given && typeof given === 'object' ? given : {};
@@ -273,7 +368,25 @@ export function createServiceCard(env) {
                     row.unit.set(code.unit, mark);
                 }
             }
-            const diagnoses = (Array.isArray(values.diagnosisCodes) ? values.diagnosisCodes : [])
+            const posted = Array.isArray(values.diagnosisCodes) ? values.diagnosisCodes : [];
+            const carries = each => each && typeof each === 'object' && typeof each.code === 'string' && each.code !== ''
+                && ((typeof each.system === 'string' && each.system !== '') || (typeof each.description === 'string' && each.description !== ''));
+            picked = [];
+            for (const each of posted.filter(carries)) {
+                const code = {code: each.code};
+                if (typeof each.system === 'string' && each.system !== '') {
+                    code.system = each.system;
+                }
+                if (typeof each.description === 'string' && each.description !== '') {
+                    code.description = each.description;
+                }
+                if (!picked.some(other => sameDiagnosis(other.code, code))) {
+                    picked.push({code, mark: mark || MARKS.SAVED});
+                }
+            }
+            pickedNote.textContent = '';
+            drawPicked();
+            const diagnoses = posted.filter(each => !carries(each))
                 .map(each => (typeof each === 'string' ? each : each && typeof each.code === 'string' ? each.code : ''))
                 .filter(each => each !== '');
             const text = {...values, diagnosisCodes: diagnoses.length > 0 ? diagnoses.join(', ') : undefined};
@@ -282,6 +395,9 @@ export function createServiceCard(env) {
         },
         clear() {
             picker.replace([]);
+            picked = [];
+            pickedNote.textContent = '';
+            drawPicked();
             for (const control of [date, diagnosis, place, level, certification, requestType, serviceType, testerRef, note]) {
                 control.clear();
             }

@@ -222,8 +222,15 @@ export function createProviderCard(env) {
     };
 }
 
-function savedText(entry) {
-    return (entry.label || entry.npi || entry.vendorPractitionerId) + (entry.npi ? ' (NPI ' + entry.npi + ')' : ' (' + entry.vendorPractitionerId + ')');
+/**
+ * A saved provider as a pick names it: its label, which for one read from a collection says whether
+ * it requests or performs (D-322), then what identifies it. A facility saved by its name alone is
+ * named by that name.
+ */
+export function savedText(entry) {
+    const named = entry.label || entry.npi || entry.vendorPractitionerId || entry.organization || '';
+    const identifies = entry.npi ? 'NPI ' + entry.npi : entry.vendorPractitionerId || entry.organization || '';
+    return identifies && identifies !== named ? named + ' (' + identifies + ')' : named;
 }
 
 function grid(controls) {

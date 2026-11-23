@@ -188,6 +188,106 @@ class DiagnosisListFrontendTest {
     }
 
     @Test
+    void aSavedDiagnosisCodeIsPickedWithItsSystemSentByEachStepAndKeptByAReload(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "Saved diagnosis codes on the Service card", PRELUDE + """
+                const {createServiceCard} = await import('./js/wb-service.js');
+                const {crdBody} = await import('./js/wb-crd.js');
+                const {packageBody} = await import('./js/wb-dtr.js');
+                const {submitBody} = await import('./js/wb-submit.js');
+                let given = [];
+                const card = createServiceCard({lineOfBusiness: () => '', options: () => null, savedCodes: () => [], savedDiagnoses: () => given});
+                document.body.append(card.node);
+                const select = card.node.querySelector('#' + card.node.querySelectorAll('select').find(each => each.id.startsWith('saved-diagnoses')).id);
+                say(['none saved', select.closest('.field').hidden, card.request().diagnosisCodes]);
+                given = [{id: 'd-1', label: 'From Order sign', code: 'G47.33', system: ICD, description: 'Obstructive sleep apnea'},
+                    {id: 'd-2', code: 'R06.83'}, {id: 'd-3', label: 'Broken'}];
+                card.drawSaved();
+                say(['offered', select.closest('.field').hidden, text(select.closest('.field').querySelector('label')),
+                    select.querySelectorAll('option').map(text), select.querySelectorAll('option').map(each => each.title || null)]);
+                // A code typed in the field, then one picked: the field keeps what was typed, the line what was picked.
+                const typed = card.node.querySelector('[data-case-field="diagnosisCodes"] input');
+                typed.value = 'E11.9, ';
+                select.value = 'd-1';
+                await select.dispatchEvent({type: 'change'});
+                say(['picked', card.request().diagnosisCodes, typed.value, select.value,
+                    card.node.querySelectorAll('.code-lines').map(text).filter(each => each.includes('G47.33'))]);
+                select.value = 'd-1';
+                await select.dispatchEvent({type: 'change'});
+                say(['again', card.request().diagnosisCodes.length, text(card.node).includes('This diagnosis code is in the case already.')]);
+                // Each of the three steps sends the picked code with its system, and the typed one as a code.
+                const theCase = {member: {memberId: 'S123456789'}, provider: {npi: '1234567893'}, procedureCodes: [{code: '95810'}],
+                    diagnosisCodes: card.request().diagnosisCodes, chainId: 'new', configEpoch: 1};
+                say(['crd', crdBody(theCase, {hook: 'order-sign', includePrefetch: true}).diagnosisCodes]);
+                say(['dtr', packageBody(theCase, {expected: '', questionnaireUrl: '', coverageAssertionId: '', mock: false, scenarioId: ''}, null).diagnosisCodes]);
+                say(['pas', submitBody(theCase, {}, null, []).diagnosisCodes]);
+                // A reload or "Load into the Workbench" gives back the case as posted: the picked code comes back with its system.
+                const sent = crdBody(theCase, {hook: 'order-sign', includePrefetch: true}).diagnosisCodes;
+                card.clear();
+                say(['cleared', card.request().diagnosisCodes, card.node.querySelectorAll('.code-line').length]);
+                card.restore({diagnosisCodes: sent}, 'from the trail');
+                say(['restored', card.request().diagnosisCodes, typed.value, text(card.node).includes('G47.33 from the trail')]);
+                // Removing the picked line takes it out of the case.
+                card.node.querySelectorAll('button').find(each => each.getAttribute('aria-label') === 'Remove G47.33').dispatchEvent({type: 'click'});
+                say(['removed', card.request().diagnosisCodes, stored]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"none saved\",true,null]",
+                "[\"offered\",false,\"Saved diagnosis codes\",[\"Choose a saved diagnosis code\",\"G47.33 \u00b7 From Order sign\",\"R06.83\"],"
+                        + "[null,\"http://hl7.org/fhir/sid/icd-10-cm\",null]]",
+                "[\"picked\",[\"E11.9\",{\"code\":\"G47.33\",\"system\":\"http://hl7.org/fhir/sid/icd-10-cm\","
+                        + "\"description\":\"Obstructive sleep apnea\"}],\"E11.9, \",\"\","
+                        + "[\"G47.33ICD-10-CMObstructive sleep apneaRemoveG47.33 from saved list\"]]",
+                "[\"again\",2,true]",
+                "[\"crd\",[{\"code\":\"E11.9\"},{\"code\":\"G47.33\",\"system\":\"http://hl7.org/fhir/sid/icd-10-cm\","
+                        + "\"description\":\"Obstructive sleep apnea\"}]]",
+                "[\"dtr\",[{\"code\":\"E11.9\"},{\"code\":\"G47.33\",\"system\":\"http://hl7.org/fhir/sid/icd-10-cm\","
+                        + "\"description\":\"Obstructive sleep apnea\"}]]",
+                "[\"pas\",[{\"code\":\"E11.9\"},{\"code\":\"G47.33\",\"system\":\"http://hl7.org/fhir/sid/icd-10-cm\","
+                        + "\"description\":\"Obstructive sleep apnea\"}]]",
+                "[\"cleared\",null,0]",
+                "[\"restored\",[\"E11.9\",{\"code\":\"G47.33\",\"system\":\"http://hl7.org/fhir/sid/icd-10-cm\","
+                        + "\"description\":\"Obstructive sleep apnea\"}],\"E11.9\",true]",
+                "[\"removed\",[\"E11.9\"],[]]");
+    }
+
+    @Test
+    void theProviderCardOffersAFacilityAsTheServicingProviderAndTellsAPerformerFromARequester(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the Provider card's picks of a facility", PRELUDE + """
+                const {createProviderCard} = await import('./js/wb-provider.js');
+                const {crdBody} = await import('./js/wb-crd.js');
+                const saved = [
+                    {id: 'p-1', label: 'Requester in Order sign', vendorPractitionerId: 'prac-001'},
+                    {id: 'p-2', label: 'Performer in Order sign', npi: '9999999995', organization: 'Placeholder Sleep Laboratory', phone: '617-555-0110'},
+                    {id: 'p-3', organization: 'Placeholder Imaging Center'}];
+                const card = createProviderCard({savedProviders: () => saved, placeOfService: () => null});
+                document.body.append(card.node);
+                const picker = card.node.querySelector('#servicing-picker');
+                say(['servicing options', picker.querySelectorAll('option').map(text)]);
+                say(['provider options', card.node.querySelector('#provider-picker').querySelectorAll('option').map(text)]);
+                picker.value = 'p-2';
+                picker.dispatchEvent({type: 'change'});
+                say(['picked', card.request().servicingProvider, card.servicingLabel()]);
+                const body = crdBody({member: {memberId: 'S123456789'}, provider: {npi: '1234567893'}, procedureCodes: [{code: '95810'}],
+                    servicingProvider: card.request().servicingProvider, chainId: 'new', configEpoch: 1}, {hook: 'order-sign', includePrefetch: true});
+                say(['sent', body.servicingProvider]);
+                picker.value = 'p-3';
+                picker.dispatchEvent({type: 'change'});
+                say(['by name alone', card.request().servicingProvider, stored]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"servicing options\",[\"Choose a saved provider\",\"Requester in Order sign (prac-001)\","
+                        + "\"Performer in Order sign (NPI 9999999995)\",\"Placeholder Imaging Center\"]]",
+                "[\"provider options\",[\"Choose a saved provider\",\"Requester in Order sign (prac-001)\","
+                        + "\"Performer in Order sign (NPI 9999999995)\",\"Placeholder Imaging Center\"]]",
+                "[\"picked\",{\"npi\":\"9999999995\",\"organizationName\":\"Placeholder Sleep Laboratory\",\"phone\":\"617-555-0110\"},"
+                        + "\"Placeholder Sleep Laboratory\"]",
+                "[\"sent\",{\"npi\":\"9999999995\",\"organizationName\":\"Placeholder Sleep Laboratory\",\"phone\":\"617-555-0110\"}]",
+                "[\"by name alone\",{\"organizationName\":\"Placeholder Imaging Center\"},[]]");
+    }
+
+    @Test
     void switchedOffUnreadableOrFailingThePageStillOpensAndSaysWhy(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the diagnosis codes list in its bad states", PRELUDE + """
                 const {mount} = await import('./js/cfg-lists.js');

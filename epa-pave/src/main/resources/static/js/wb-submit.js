@@ -112,7 +112,7 @@ export function submitBody(request, own, carry, attachments) {
             body[name] = request[name];
         }
     }
-    // The Service card gives diagnosis codes as typed text; PAS reads each as a code.
+    // The Service card gives a typed diagnosis code as text and a picked one with its system (D-322); PAS reads each as a code.
     if (Array.isArray(request.diagnosisCodes) && request.diagnosisCodes.length > 0) {
         body.diagnosisCodes = request.diagnosisCodes.map(each => (typeof each === 'string' ? {code: each} : each));
     }
