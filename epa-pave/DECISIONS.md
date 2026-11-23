@@ -9004,8 +9004,12 @@ round of corrections; the code handed over.**
   "As the collection's sample" produced the arrangement the operator's service refuses.
 - **Decided.** For a call to a typed address, the sample is the request mapped to the operation whose own
   address, with its placeholders filled as a call under the environment fills them, is the address that
-  was typed (compared without query, fragment or trailing slash, in one case). The first mapped only when
-  no request goes there. A sample of an error is passed over. Nothing else of the request is taken: the
+  was typed (compared without query, fragment or trailing slash, in one case). A request whose address
+  does not fill under the environment (a variable the export gives no value, which is often why the
+  address was typed) is told by how its address ends: the text written after its last placeholder is the
+  end of the typed address; where several end that way the longest end wins, and an end of fewer than two
+  path parts is never used. The first mapped only when no request is found either way. A sample of an
+  error is passed over. Nothing else of the request is taken: the
   call still carries no header and no body of it (R-02).
 - **Why.** The address is the one thing the tester stated about which service is meant. It is evidence,
   not a guess: a request that goes to the same address is a request to the same service.
@@ -9013,7 +9017,8 @@ round of corrections; the code handed over.**
   the file, or the one chosen in "What these files give" or mapped in Configuration > Collections. In a
   collection of this size the first is easily the wrong one, which is how the operator came to type the
   address.
-- **What holds it.** `ShapeEvidenceTest.aTypedAddressFollowsTheRequestThatGoesToThatAddressNotTheFirstInTheFile`.
+- **What holds it.** `ShapeEvidenceTest.aTypedAddressFollowsTheRequestThatGoesToThatAddressNotTheFirstInTheFile`
+  and `aRequestWhoseAddressDoesNotFillIsToldByHowItsAddressEnds`.
 - **Left.** Not seen against the vendor's service. The form's Request shapes and "What these files give"
   still show the Prefetch shape of the first sample in the file; the request's notes name the request
   really followed. The Workbench offers no choice of request for a step.

@@ -1429,10 +1429,19 @@ public class ConfigStoreGateway implements OperationGateway {
      * service of its own and each arranged its own way; the first in the file was followed for a
      * tester whose address belonged to another, and the service found no patient (D-312). A sample
      * of an error is passed over, as for a call.
+     *
+     * <p>A request whose address cannot be filled here (a variable the export gives no value, which
+     * is often why the address was typed) is still told by how its address ends: the written end of
+     * its address, after its last placeholder, is the end of the typed one. Where several end that
+     * way the longest end wins, since "/epa/cds-services/order-sign" says more than
+     * "/cds-services/order-sign"; the first in the file among equals.
      */
     private Located sampleFor(ConfigSnapshot snapshot, EpaOperation operation, StoredEnvironment environment, String typed) {
-        String wanted = comparable(resolvedOrNull(typed, environment, null));
+        String filled = resolvedOrNull(typed, environment, null);
+        String wanted = comparable(filled != null ? filled : typed);
         Located first = null;
+        Located byEnd = null;
+        int longest = 0;
         for (StoredCollection collection : snapshot.collections()) {
             for (StoredCollection.Mapped request : collection.requests()) {
                 if (request.effective() != operation || request.request().name().toLowerCase(Locale.ROOT).contains("error")) {
@@ -1442,12 +1451,44 @@ public class ConfigStoreGateway implements OperationGateway {
                 if (first == null) {
                     first = located;
                 }
-                if (wanted != null && wanted.equals(comparable(resolvedOrNull(request.request().url(), environment, collection)))) {
+                String url = request.request().url();
+                if (wanted == null || Texts.blank(url)) {
+                    continue;
+                }
+                if (wanted.equals(comparable(resolvedOrNull(url, environment, collection)))) {
                     return located;
+                }
+                String end = writtenEnd(url);
+                if (end != null && end.length() > longest && wanted.endsWith(end)) {
+                    byEnd = located;
+                    longest = end.length();
                 }
             }
         }
-        return first;
+        return byEnd != null ? byEnd : first;
+    }
+
+    /**
+     * How an address ends as it is written: its text after its last placeholder, or after its host
+     * when it has no placeholder, in the form two addresses are compared in. Null when that end
+     * names no path of at least two parts, which would fit almost any address.
+     */
+    static String writtenEnd(String template) {
+        String text = template.strip();
+        int last = text.lastIndexOf("}}");
+        String end;
+        if (last >= 0) {
+            end = text.substring(last + 2);
+        } else {
+            int scheme = text.indexOf("://");
+            int path = text.indexOf('/', scheme < 0 ? 0 : scheme + 3);
+            end = path < 0 ? "" : text.substring(path);
+        }
+        end = comparable(end);
+        if (end == null || !end.startsWith("/") || end.indexOf('/', 1) < 0) {
+            return null;
+        }
+        return end;
     }
 
     /** An address with its placeholders filled as a call under the environment would fill them, or null when one has no value. */

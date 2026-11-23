@@ -18,7 +18,8 @@ several of them coverage checks, each for a service of its own. With the address
 typed, PAVE followed the first of them in the file, which carries the patient in a Bundle under
 `patientBundle`; the request the operator runs in Postman carries it under `patient`, and the vendor's
 service answered "No patient data provided" a third time. A call to a typed address now follows the
-request of the collection that goes to that address, and the first in the file only when none does. The
+request of the collection that goes to that address (or, when the collection's own address does not fill,
+the one whose address ends as the typed one does), and the first in the file only when none does. The
 request's notes name the request that was followed. Held by a test of that case; not seen against the
 vendor's service. The form still shows the Prefetch shape of the first sample in the file.
 

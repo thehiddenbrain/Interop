@@ -169,6 +169,38 @@ class ShapeEvidenceTest {
         assertThat(other.shapes().choice(RequestShape.CRD_DRAFT_ORDERS_TYPE).value()).isEqualTo(RequestShape.LEFT_OUT);
     }
 
+    /**
+     * The address is often typed because the collection's own does not fill: its variable has no
+     * value in the export. The request is then told by how its address ends, and the longer end
+     * wins over a shorter one that also fits.
+     */
+    @Test
+    void aRequestWhoseAddressDoesNotFillIsToldByHowItsAddressEnds() {
+        String named = "{\"hook\": \"order-sign\", \"context\": {\"draftOrders\": {\"resourceType\": \"Bundle\", \"entry\": []}}, "
+                + "\"prefetch\": {\"patientBundle\": {\"resourceType\": \"Bundle\", \"type\": \"collection\", \"entry\": []}}}";
+        String bare = "{\"hook\": \"order-sign\", \"context\": {\"draftOrders\": {\"resourceType\": \"Bundle\", \"type\": \"collection\", "
+                + "\"entry\": []}}, \"prefetch\": {\"patient\": {\"resourceType\": \"Patient\", \"id\": \"pat-001\"}}}";
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        fixture.activate(PostmanFiles.SANDBOX_ENVIRONMENT, EnvironmentKind.SANDBOX);
+        fixture.collectionOf("Vendor sample", ConfigFixture.items(
+                ConfigFixture.item("order-sign First service", "POST", "{{noSuchBase}}/cds-services/order-sign").body(named),
+                ConfigFixture.item("order-sign Second service", "POST", "{{noSuchBase}}/epa/cds-services/order-sign").body(bare)));
+        StoredEnvironment sandbox = fixture.store.snapshot().byName("Onyx Sandbox");
+        fixture.store.saveSettings(new ConfigStore.SettingsSave(sandbox.id(), null, null, false, null, null,
+                stored -> new EnvironmentSettings(null, null, Map.of(EpaOperation.CRD_ORDER_SIGN,
+                        "https://typed.vendor.example.invalid/v1/API/epa/cds-services/order-sign"), null, null, null)), (stored, after) -> null);
+
+        PreparedCall call = fixture.gateway.prepare(CallIntent.of(EpaOperation.CRD_ORDER_SIGN));
+
+        assertThat(call.sampleName()).isEqualTo("order-sign Second service");
+        assertThat(call.shapes().choice(RequestShape.CRD_PREFETCH).requestName()).isEqualTo("order-sign Second service");
+        // An end of one part, or none, tells nothing and is never used.
+        assertThat(ConfigStoreGateway.writtenEnd("{{base}}/order-sign")).isNull();
+        assertThat(ConfigStoreGateway.writtenEnd("{{base}}")).isNull();
+        assertThat(ConfigStoreGateway.writtenEnd("https://vendor.example.invalid/EPA/cds-services/order-sign/?x=1"))
+                .isEqualTo("/epa/cds-services/order-sign");
+    }
+
     @Test
     void aTypedAddressWithNoRequestOfTheCollectionTakesTheDefault() {
         ConfigFixture fixture = ConfigFixture.mock(directory);
