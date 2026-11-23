@@ -13,6 +13,23 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**A call takes the payer from the collection request it is sent from (D-320).** On the vendor's UAT a
+coverage check came back with one card, "Vendor Request Rejected", whose detail said the payor of the
+first resource of the coverage Bundle must be present. The Coverage PAVE built named no payer: PAVE took
+the payer only from Payer name and Payer identifier, and the operator's environment set neither, though
+the vendor's own coverage-check request in the collection states one. Now, when nothing else sets them,
+the coverage check, the questionnaire request and Submit take the FHIR server and the payer from the
+collection request each is sent from, at the time of the call, with no save and no form opened. A value
+typed for the run, stored on the environment, given by the export, the collection's variables or
+application.yml still wins. The request's notes say so: "Payer name and Payer identifier come from the
+collection's request "<name>", which this call is sent from: nothing else sets them." A payer the request
+states and that is not taken (a placeholder nothing defines, a secret, two payors) is said with its rule.
+A new value, Payer reference, carries a payor written as a reference to an Organization the service
+holds. Should a service still refuse for want of a payer, the card now says: "The service asks for the
+payer of the coverage, and this request named none. Set Payer name or Payer identifier in Configuration >
+Environments > Edit > Values." On Edit, these five values no longer stand as empty boxes when nothing sets
+them. Seen against a stand-in on this machine, not against the vendor's service.
+
 **Each resource of a Submit says which PAS profile it is (D-319).** A service that refuses a Bundle
 for naming no profile may look for one on each resource too, so this tool no longer waits for the next
 refusal. The Claim of a Submit declares the PAS claim, the Patient the PAS beneficiary, the Coverage,
@@ -564,6 +581,8 @@ by the next call.
      variable fhirServer"), else the sample request that states it ("from the collection's request "1.
      CRD / CRD - Prior Auth Check""), or "not given". The coverage-check sample gives the FHIR server;
      the Submit sample the payer, its identifier and system, the member ID system and the PAS types.
+     When the Submit sample states no payer, the payer rows and Payer reference come from the payor of the
+     coverage-check sample's Coverage, read as a call reads it (D-320).
      With such a value, the box "Use the values these samples state" stands ticked above the rows: the
      save then stores each for a value nothing else gives. What the coverage-check sample sends and PAVE
      does not is named under the FHIR server ("The sample also sends fhirAuthorization. ..."). A value
@@ -648,7 +667,11 @@ by the next call.
      "not set"). A typed value lies over the export's own; "Use the file's again" takes it away at the
      next save. A value stored from a sample stays when its box is left closed; "Change" and a typed
      value replace it. To take a sample's value on Edit, choose the collection export there, press "Fill
-     the form from these files" and save. A name that reads as a secret is refused there.
+     the form from these files" and save. A name that reads as a secret is refused there. The FHIR
+     server, Payer name, Payer identifier, Payer identifier system and Payer reference need no saving at
+     all: when nothing sets them, a call takes them from the collection request it is sent from, and
+     their rows say "Not set here. A call takes it from the collection request it is sent from, when that
+     request states one." (D-320).
    - **Addresses**: one row per operation, with the address in force and where it comes from ("from
      the collection's request ...", "from application.yml", "typed here", "not set"). A typed address
      replaces the collection request for that operation, its headers and saved body included. The

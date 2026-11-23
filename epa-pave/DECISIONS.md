@@ -81,6 +81,7 @@ entry.
 | D-317 | A questionnaire result that offers no way on says that Submit is open and offers "Continue to Submit without it", plainly | The operator's questionnaire request failed at the vendor's service and nothing on the card led to Submit, though the stepper opens any step. D-316 is kept for the test of a connection, begun and stopped at the operator's word |
 | D-318 | The Submit bundle declares the PAS request bundle profile, and the inquiry's bundle the PAS inquiry request bundle profile | The vendor's service refused a Submit whose Bundle did not say which PAS bundle it is. The guide's own examples declare it under both versions |
 | D-319 | Each resource this tool builds for a Submit or an inquiry declares the PAS profile it is built as | A service that refuses a Bundle for naming no profile may look for one on each resource. The guide's examples declare them, and waiting for one refusal after another costs the tester a pull and a run each time |
+| D-320 | A call takes the FHIR server and the payer from the collection request it is sent from, at the time of the call, when nothing else sets them; a new value Payer reference; a refusal naming payor says where to set it | The vendor's service refused a coverage check whose Coverage named no payer, while the vendor's own request stated one. Lowest of all sources, so whatever the tester sets still wins. Seen against a stand-in only |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9210,3 +9211,103 @@ round of corrections; the code handed over.**
 - **Left.** Not seen against the vendor's service. What else its validator asks of a Submit built from
   the case is not known: the collection's own Submit, sent from step 3 as the collection writes it, is
   the request known to pass.
+
+**D-320. A call takes the payer, and the FHIR server, from the collection request it is sent from.**
+- **What happened.** On the second day against the vendor's UAT the operator sent a photo of the
+  answer to a coverage check: one card, indicator critical, summary "Vendor Request Rejected", topic
+  coverage-info, detail "Element 'Bundle.entry[0].resource.payor' with minimum cardinality 1 must be
+  present." The Bundle is the coverage Bundle of the prefetch, its first resource the Coverage PAVE
+  built, which named no payer. The operator's files were not seen and were not asked for.
+- **What was so.** `CaseResources.crdCoverage` (the Coverage of the coverage check and of the
+  questionnaire request) wrote `payor` only when Payer name or Payer identifier resolved, and otherwise
+  left it out with a note; D-310 even said "The sample's Coverage also carries payor. PAVE has no value
+  for it in this case, so it is not sent." FHIR makes `Coverage.payor` 1..*. D-308 took a payer for the
+  environment only from the Submit sample, and only at a save with the files chosen: an environment saved
+  before, or a collection whose Submit names the insurer another way, had no payer in force, and nothing
+  read the payer the coverage-check request states. `PasResources.insurer` builds the insurer of a Submit
+  from the same values. One value, three steps. Decided by the integrator (`TASK_PAYER_FROM_REQUEST.md`).
+- **Decided.** A call takes `fhirServer`, `payerName`, `payerIdentifier`, `payerIdentifierSystem` and a
+  new value `payerReference` from the collection request it is sent from (the one D-312 and D-313
+  settle: the request named for the run, the one a typed address goes to, else the first mapped), at the
+  time of the call, from the snapshot the call is prepared against, when nothing else gives them. It is
+  the lowest of all sources: a value typed for the run, stored on the environment, given by the export, by
+  the collection's variables or by application.yml wins, in the order it had. Nothing is stored.
+  - **Where each is read** (`RequestValues`), only where PAVE's own builder writes the same value, by
+    fixed paths: a CDS Hooks body gives `fhirServer` at its top and the payer of the first Coverage of
+    its prefetch (alone under a key, or the first Coverage entry of a Bundle under a key); a Parameters
+    body the payer of the first Coverage among its parameters; a Bundle that carries a Claim the
+    Organization `Claim.insurer` refers to, as D-308 reads it.
+  - **The payer of a Coverage** is its `payor` when it has exactly one: `display` gives the name,
+    `identifier` the identifier and its system. A `reference` to something the request carries (a
+    contained resource by `#id`, an Organization elsewhere in the body by type and id or by its fullUrl)
+    gives that Organization's name and its one identifier, and the reference is not taken; a reference
+    to nothing the request carries is taken as Payer reference, as written. Several payors or none: nothing
+    is taken, and one line says so. The identifier's system goes only beside the identifier of the same
+    request (D-308).
+  - **Never taken**: a value written as a placeholder nothing defines, one that names only itself, one
+    that resolves through a secret or holds a credential, one longer than a stored value may be (the rules
+    of `SampleValues.refusal`), anything of a request whose name marks it as a sample of an error, and
+    anything of the member: not the beneficiary, not the subscriber, not an identifier of the Coverage.
+  - **Payer reference** is a value of the Edit form like the others. `CaseResources.payer` writes it as
+    `reference` before the identifier and the display. It is for the Coverage of the coverage check and
+    of the questionnaire request; in a Submit the Coverage's payor points at the insurer in the Bundle, as
+    before, and Payer reference is not used.
+  - **The request says what it took**, by label: "Payer name and Payer identifier come from the
+    collection's request "<name>", which this call is sent from: nothing else sets them." A payer the
+    request states that is not taken is said with its rule, where nothing else gave the value. When still
+    nothing gives a payer, the notes PAVE had stay.
+  - **A preview and a send agree**: both read through `CaseResources.reading(call)`, and "Compare with a
+    request that works" builds PAVE's side with the values the gateway reads for the same request
+    (`OperationGateway.requestValues`). "As the collection writes it" (D-313) is untouched: that body is
+    the collection's own and resolves as before.
+- **Why at the time of the call and not at a save.** The operator expects the next pull to work with no
+  form opened. A value read at a save rests on files chosen at that save; an environment saved before
+  D-308, or saved without the files, kept nothing. Read at the call from the stored collection, the value
+  is the one of the request that is actually sent, under the same epoch rule as everything else.
+- **Why only these five.** They are the values a request is not valid without: FHIR makes the payor of a
+  Coverage 1..*, PAS makes the insurer 1..1, and the vendor's service asks for `fhirServer`. The member ID
+  system and the PAS types choose content and stay the tester's choice at a save (D-308).
+- **Why a reference the request carries is not sent.** PAVE does not send the resource it names: the
+  Organization stays in the vendor's sample, so the reference would point at nothing in PAVE's request.
+  What that Organization says of itself (its name and identifier) is taken instead.
+- **The advice** (`PayerAdvice`). When the answer to a coverage check or a questionnaire request names
+  `payor` (a card's detail, an issue's diagnostics or details text) and the request as sent carried a
+  Coverage with no payor, the next step is "The service asks for the payer of the coverage, and this
+  request named none. Set Payer name or Payer identifier in Configuration > Environments > Edit >
+  Values.", followed by the rule that kept the request's own payer out when that request states one. A
+  refused sign-in keeps its own step. Read as D-308 and D-309 read theirs; no general reader of refusals.
+- **The screens.** On Edit, a row of FHIR server, Payer name, Payer identifier, Payer identifier system
+  or Payer reference that nothing sets says "Not set here. A call takes it from the collection request it
+  is sent from, when that request states one." (source `REQUEST`) in the place of an empty box; "Change"
+  opens the box and "Leave it to the request" closes it. In "What these files give" the payer rows and
+  Payer reference come from the coverage-check sample when the Submit sample states no payer, with where
+  each comes from, and "Save environment" stores them as D-308 stores the others.
+- **What holds it.** `RequestValuesTest` (each reading on bodies written for the test: a display, an
+  identifier, both, a contained Organization, an Organization elsewhere by id and by fullUrl, a reference
+  to nothing carried, two payors, none, a Bundle under a key, a Parameters body, a Submit Bundle, a defined
+  and an undefined placeholder, a secret, a value naming itself, a long one, a sample of an error, no body
+  and a body that is not JSON; the reference on the payor; the order under the call's own values; the
+  system beside an identifier from elsewhere); `PayerFromRequestTest` (the case of the photo end to end for
+  the coverage check, the questionnaire request and the insurer of a Submit, each with its preview, the
+  comparison, every source winning over the request, a typed address, application.yml alone, a request
+  with no body, no environment at all); `PayerAdviceTest` (the card of the photo, an OperationOutcome, a
+  payer not taken, a request that carried one, a refused sign-in); `SampleValuesTest` and
+  `ConfigFrontendTest` (the form's rows, the save, the Edit rows). Changed, each for its reason:
+  `FilesGiveTest` (the member ID system is now the sixth row, after Payer reference) and three
+  expectations of `SampleValuesTest` (a row nothing sets now says `REQUEST`, where it said `NOT_SET`).
+  `RecursionGuardTest`, `RegexStackGuardTest` and `DeepAnswerStackTest` unchanged.
+- **What was seen.** On a copy of the jar of the commit before the documents, on live, against a copy of
+  the stand-in on loopback changed to answer the card of the photo when the Coverage of the prefetch has no
+  payor and to keep the last coverage check it received; an environment export with no payer value and
+  collections written for the check (placeholders only). With the collection's payor set aside, the
+  Workbench showed the card's verdict and the advice above "Open Configuration". With a collection whose
+  coverage-check request states the payer, with no value typed or stored, the check was answered
+  "Documentation is required.", the stand-in's copy of the body carried the payor and `fhirServer`, and the
+  notes said where they came from. Edit > Values and the form after Fill in Chromium at 1440 by 900 and
+  1024 by 768. Not seen: the jar of the commit this work started from (the "before" was this jar with the
+  payor set aside), the questionnaire request or Submit on a screen, the vendor's files or service,
+  Windows, the IDE.
+- **Left.** Taking the member ID system or the PAS types at the time of a call is not done. There is no
+  switch: a value set on the environment wins, and that is the switch. Why the operator's questionnaire
+  request fails is not known. A payer read from the coverage-check request is not offered to Submit, which
+  reads only its own request.
