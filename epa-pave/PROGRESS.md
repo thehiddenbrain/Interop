@@ -36,6 +36,24 @@ against the vendor's service. The gates of section 0 are run by the integrator o
 these records; their result is reported with the hand-over. **The new entry**: D-308, with a "Later:"
 line under D-307. The commit that records it changes this file, `DECISIONS.md` and `README.md` only.
 
+**A fifth correction after release 2: the coverage check goes the way the collection's sample goes**
+(D-309). On the same evening the vendor's UAT answered PAVE's coverage check "No patient data provided"
+and answered the same check sent from the vendor's Postman collection: PAVE sent its prefetch under its
+own five names, and CDS Hooks fixes none. **The code** is four commits on top of `4655397` on the branch
+`prefetch-shape`: `fc9d2a5` (the request shape "Prefetch", filled from the coverage-check sample, and the
+prefetch sent under the sample's keys, built from the case, with what cannot be filled said by key and
+type), `338e757` (the advice after "No patient data"), `f3b8f55` (the member ID's and NPI's systems and
+the identifier type following the sample, and the context's members PAVE has no value for said) and
+`ced7239` (the comparison names the arrangement). These records were committed after them. One builder
+built and walked it on live against a copy of the stand-in changed to answer "No patient data provided"
+unless the patient comes under the sample's key, at 1440 by 900, and once on mock; no second agent
+checked it, and nothing ran on Windows or against the vendor's service. The gates of section 0 are run by
+the integrator on the commit that carries these records; their result is reported with the hand-over.
+**The new entry**: D-309, with a "Later:" line under D-291. The commit that records it changes this
+file, `DECISIONS.md` and `README.md` only. **Open**: the prefetch keys are read from the sample, never
+from the service's discovery answer; "Compare with a request that works" still builds PAVE's side with
+the named Bundles.
+
 **A second correction after release 2: the saved lists filled from a collection** (D-306). On the same
 first run against the vendor's UAT the operator typed every member, provider and procedure code by hand,
 though the vendor's collection states them, and asked that they go into the saved lists. **The code** is

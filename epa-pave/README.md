@@ -22,6 +22,39 @@ what the join itself needed (the merge `e09dfe8` and the commits after it). A fi
 sample request states (D-308), was added after the join. The parts below say what each gives, the newest
 first; [Setting up a service](#setting-up-a-service) gives the joined form step by step.
 
+**A fifth correction after release 2: the coverage check goes the way the collection's sample goes**
+(D-309). On the same evening the vendor's UAT answered PAVE's coverage check with one card, "Error",
+"No patient data provided", and answered the same check sent from the vendor's Postman collection
+properly. PAVE sent its prefetch as five Bundles under names of its own (`patientBundle`,
+`coverageBundle`, ...), the arrangement an earlier sandbox accepted; CDS Hooks fixes no names for the
+prefetch, each service names its own keys, so a service that looks for the patient under another key
+finds none. The code of commits `fc9d2a5`, `338e757`, `f3b8f55` and `ced7239`, with this README after
+them, changes that. Every resource is still built from the case; only the arrangement is read from the
+sample:
+
+- A new request shape, **Prefetch**, beside "draftOrders type": "As the collection's sample (<its
+  keys>)" or "PAVE's named Bundles (patientBundle, coverageBundle, ...)". With nothing stated it follows
+  the collection's coverage-check sample when that sample writes a prefetch, and is PAVE's named Bundles
+  otherwise, so a collection with no such sample and every mock scenario go as before.
+- In the sample's arrangement each key of the sample goes holding what the sample holds there: a single
+  resource, or a Bundle with the sample's type, its entry types in its order, its search mode and a
+  total when it states one. A key or an entry of a type PAVE does not build, a placeholder, or anything
+  that is no resource is left out and said by key and type ("The sample's prefetch also carries Encounter
+  under "encounter". PAVE does not build it, so it is not sent."), and so is a member of the sample's
+  context PAVE has no value for ("The sample's context also carries encounterId. ...").
+- The member ID's system and type and the NPI's system follow the sample where PAVE has only a default
+  (a Member ID system set for the environment still wins); the values are always the case's.
+- "What these files give" shows the shape with the request it was read from and those lines; Edit shows
+  them under the shape; the request notes and the preview say which arrangement went.
+- After "No patient data" following the named Bundles the card says "The service found no patient in
+  the request. PAVE sent the prefetch under its own names; set Prefetch to As the collection's sample in
+  Configuration > Environments > Edit > Request shapes." (with no sample, it names CDS discovery).
+- "Compare with a request that works" says "The prefetch is arranged differently", key by key.
+
+The Coverage id the vendor supplies is not read from the sample. Seen on live against a copy of the
+stand-in changed to answer "No patient data provided" unless the patient comes under the sample's key, at
+1440 by 900; never against the vendor's service (D-309).
+
 **A fourth correction after release 2: the values a sample request states are taken from it.** On the
 evening of the first real run against the vendor's UAT, the coverage check was refused: `"fhirServer"
 is required`. The vendor's collection stated the value all along, in the body of its sample coverage
@@ -473,6 +506,10 @@ by the next call.
      refuses it)". Filled from the collection's own sample when the environment states none. The
      builders' sample collection carries the type, so the vendor's sandbox (and the stand-in that
      plays it) answers the first coverage check with HTTP 400 until this reads Left out.
+     "Prefetch", "PAVE's named Bundles (patientBundle, coverageBundle, ...)" or "As the collection's
+     sample (<its keys>)": the keys the coverage check's prefetch goes under (D-309). Filled from the
+     collection's coverage-check sample when the environment states none and that sample writes a
+     prefetch; the lines under it say what following the sample leaves out, by key and type.
      "PAS guide", "2.0.1" or "2.2.1": the version of Da Vinci PAS that Submit and the inquiry
      follow, 2.0.1 when the environment states none ("Submit follows Da Vinci PAS 2.0.1 unless the
      service asks for 2.2.1."). See [Submit](#submit).
@@ -563,6 +600,7 @@ Forget; no one has seen it on a screen.
 | Refused before | Now |
 | --- | --- |
 | HTTP 400 on CRD for `context.draftOrders.type` | Request shapes, "Left out (this vendor refuses it)"; filled from the collection's sample when it leaves the type out. "Open Configuration" opens the list of environments: press Edit on the active one and open Request shapes. After that 400 the card says what the service said and "Set draftOrders type to Left out for <name> in Configuration > Environments, then run the check again." |
+| A coverage check answered "No patient data provided" (the vendor's UAT, D-309) | Request shapes, Prefetch "As the collection's sample", filled from the collection's coverage-check sample. After that answer to the named Bundles the card says "The service found no patient in the request. PAVE sent the prefetch under its own names; set Prefetch to As the collection's sample in Configuration > Environments > Edit > Request shapes." |
 | A member ID with spaces | Member ID rule packed, the default |
 | An inquiry with no declared profile | The inquiry Claim declares its profile; nothing to set |
 | A patient or practitioner id its FHIR server did not hold | "Vendor patient id" in the Member card, "Vendor practitioner id" in the Provider card and on saved entries |
@@ -1517,6 +1555,11 @@ open item, the worst first, with the entry that gives the reason.
   pressed and the environment saved. A value stored from a sample stays when the export later gives one
   under its own name, and Edit offers no way to empty it: type another value over it with "Change".
   `fhirAuthorization` is never sent.
+- **The prefetch keys are read from the collection's sample, not from the service's discovery answer**
+  (D-309). A service names its prefetch keys in discovery; PAVE follows the sample a call is sent from
+  instead, and a key of a type PAVE does not build (an Encounter, say) is left out and said. "Compare
+  with a request that works" builds PAVE's request with the named Bundles whatever the environment
+  states. Not seen against the vendor's service.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.

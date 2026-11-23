@@ -71,6 +71,7 @@ entry.
 | D-306 | A second correction after release 2: what a collection's requests state about members, providers and procedure codes goes into the saved lists, on the tester's tick; procedure codes a third list, picked in the Service card; a saved member may hold a vendor patient id alone (`babb793`, `fdce17b`, `85b8834`, `76743d4`, merged as `165bbd2`) | The operator asked for it after the first real run. It stays inside D-298's bounds: the box is the purpose, and the stored collection already holds every value. Only what a request sends is read, nothing is guessed, the log holds counts only, nothing goes to the ledger. Seen on mock and on live against the stand-in, not with the vendor's files |
 | D-307 | A third correction after release 2: right after Fill the form shows every address and value the files give with where it comes from, and a request can be chosen for an operation none was found for; on Edit nothing in force is an empty box; a request is also told by its body; a v2.0 collection is read (`25b200a`, `6664bd1`, `fc80b7d`, `050f977`) | On the operator's first run against the vendor's UAT every address and value was typed by hand, and a typed address replaced the collection's request. A chosen request is the collection's mapping, recorded in a second call after the save. Seen on live against the stand-in, not against the vendor's service |
 | D-308 | A fourth correction after release 2: the values of the Edit form a vendor's sample requests state (the FHIR server from the coverage-check sample; the payer, its identifier and system, the member ID system and the PAS types from the Submit sample) are shown with the request they come from and stored by the save for a value nothing else gives; what the coverage-check sample sends and PAVE does not is named; a refusal that names fhirServer says where to set it (`d7a3246`, `f390ba0`, `8354f76`) | The coverage check was refused for a missing fhirServer the vendor's own sample stated. A value is read only where PAVE's own builder writes it, from the sample a call for that operation is sent from; a value typed or given by the export is never replaced; the callback url is never taken from a sample. Seen on live against a changed copy of the stand-in, not against the vendor's service |
+| D-309 | A fifth correction after release 2: the coverage check's prefetch goes under the keys of the collection's coverage-check sample, holding what the sample holds there, built from the case (request shape "Prefetch"); the member ID's and NPI's systems and the identifier type follow the sample; what cannot be filled is said by key and type; the card after "No patient data" names the setting; the comparison names the arrangement (`fc9d2a5`, `338e757`, `f3b8f55`, `ced7239`) | The vendor's UAT answered "No patient data provided" to PAVE's named Bundles and answered the vendor's own sample. CDS Hooks fixes no prefetch names; following the sample stands in for reading the service's discovery answer, which is not built. Nothing of a sample's resources is sent. Seen on live against a changed copy of the stand-in, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -7471,6 +7472,11 @@ setting.**
   name now shown and a name still masked (`authServerToken`, `serverPassword`), and failed without the
   change. Not seen on a running jar since.
 
+Later: D-309. The named Bundles were one sandbox's habit, not the standard: CDS Hooks fixes no names for
+the prefetch. When the collection's coverage-check sample writes a prefetch, the request shape "Prefetch"
+sends the sample's keys, holding what the sample holds there, each built from the case; the named
+Bundles stay the default with no such sample.
+
 **D-292. Member ID rules: packed, spaced and split, per environment.**
 - **What a tester met before.** One rule, every space removed. The vendor's sandbox wanted the packed
   form; the operator's own tool offered the others, and the card form has spaces.
@@ -8766,3 +8772,107 @@ round of corrections; the code handed over.**
   `fhirAuthorization` is never sent, and no other member of a sample is copied into PAVE's request. The
   advice's second sentence reads the call's own request only, not every stored collection. The callback
   url is never read from a sample.
+
+**D-309. A fifth correction after release 2: the coverage check goes the way the collection's sample goes.**
+- **What happened.** On the evening of the first real run against the vendor's UAT, with the FHIR server
+  put right (D-308), the vendor's service answered PAVE's coverage check with one card: summary "Error",
+  detail "No patient data provided". The same check sent from the vendor's Postman collection was
+  answered properly. The operator compared the two bodies side by side: each carried blocks the other
+  lacked. The operator asked that anything missing be added, that anything not standard be said, and
+  that the requests go the way the collection's go; the id of the Coverage, which the vendor supplies,
+  was to be left aside. The comparison reached the integrator as a video too small to read; the
+  operator's files were not seen and were not asked for. Decided by the integrator
+  (`TASK_PREFETCH_SHAPE.md`).
+- **What the standard says.** CDS Hooks fixes no names for the prefetch. Each service names its keys in
+  its discovery answer, each with a FHIR read or search; a client sends a read as the resource itself and
+  a search as a searchset Bundle. PAVE's five named Bundles of type collection (`patientBundle`,
+  `coverageBundle`, `practitionerBundle` or `organizationBundle`, `practitionerRoleBundle`,
+  `serviceRequestBundle`, D-291) are what one earlier sandbox accepted, not the standard, and a service
+  that looks for the patient under another key finds none. **Following the collection's sample is what
+  this tool does in place of asking the service's discovery: reading the keys from discovery is not
+  built.**
+- **Decided.** Every resource is still built from the case; nothing of a sample's member, provider or
+  order is sent. What follows the sample is the arrangement, the rule the tool already keeps for
+  `context.draftOrders.type`. A new request shape, "Prefetch" (`CRD_PREFETCH`), beside "draftOrders type":
+  "PAVE's named Bundles (patientBundle, coverageBundle, ...)" (`NAMED_BUNDLES`, the default) or "As the
+  collection's sample" (`AS_SAMPLE`), whose words on Edit and after Fill name the sample's keys ("As the
+  collection's sample (patient, coverage, encounter)"), with the line "CDS Hooks fixes no names for the
+  prefetch: each service names its own keys, and a service that looks for the patient under another key
+  finds none." With nothing stated, a call takes `AS_SAMPLE` from the saved body of the collection
+  request it comes from when that body writes a prefetch with at least one key, and the named Bundles
+  otherwise; a sample whose name says "error" is not followed. So nothing changes for a collection with no
+  such sample, a typed address, or the mock scenarios.
+- **The arrangement** (`PrefetchLayout`, `CrdRequestBuilder`). The sample's body is parsed once
+  (placeholders outside strings kept as text) and its prefetch read two levels deep by fixed paths. For
+  each key, in the sample's order: a single resource of a type PAVE builds (Patient, Coverage,
+  Practitioner, PractitionerRole, Organization, ServiceRequest) goes as that resource; a Bundle goes with
+  the sample's `type` (none when it states none, with a note that FHIR requires one), entries of the
+  sample's entry types in the order they first appear (every order for ServiceRequest), each with its
+  `fullUrl`, the sample's `search.mode` for that type when it states one, and `total` when the sample has
+  one; a key written as null goes as null, as the sample sends it. Left out and said, by key and type,
+  never by value, in the request notes and the form: a type PAVE does not build ("The sample's prefetch
+  also carries Encounter under "encounter". PAVE does not build it, so it is not sent.", and "... in the
+  Bundle under "<key>" ..." for an entry), a Bundle holding no type PAVE builds, an entry with no
+  resource type, a key written as a placeholder ("... writes "<key>" as a placeholder. PAVE sends nothing
+  of a sample's values, so it is not sent."), and anything that is no resource. A type PAVE builds that
+  this case gives none of (a Practitioner for a provider known as an organization) is said too. Each
+  resource is built only when a key asks for it, so the notes and the elements counted as missing are
+  those of what went. The notes say "Prefetch: As the collection's sample, from the collection's sample
+  (the request "<name>"). The prefetch was sent under the sample's keys, each built from the case: ..."
+  and which of Patient, Coverage, Practitioner and PractitionerRole the sample's prefetch holds none of.
+  With the five named Bundles written as a sample the request is byte for byte what PAVE sends with the
+  default. A shape stated `AS_SAMPLE` with no sample to follow sends the named Bundles and says so.
+- **The context and the identifiers.** The members PAVE sends in `context` stay; a member of the sample's
+  context PAVE has no value for is not sent and is said by name ("The sample's context also carries
+  encounterId. PAVE has no value for it, so it is not sent."). In the sample's arrangement, the member ID
+  on the Patient and the Coverage goes with the system the sample's own resource states (else the other
+  one's) when the value Member ID system is not set, which still wins; it is typed as the sample types it
+  when the sample states a type other than MB; the practitioner's NPI goes with the system of the sample's
+  Practitioner's only identifier. The values are always the case's; a placeholder is never taken. Where
+  the sample's Patient has no identifier, PAVE's is sent without the member ID; where the sample's
+  Coverage carries `subscriberId`, PAVE's carries the member ID there too, and where that is its only
+  place, without an identifier. Each is said in a note.
+- **The advice** (`CrdVerdicts`). As the draftOrders refusal is read, by fixed words of the answer and no
+  general reader of refusals: when the answer to a coverage check says "no patient data" or "no member
+  data" (or "... data not provided") in a card or an issue, whatever its status, and the request as sent
+  carried `prefetch.patientBundle`, the next step is "The service found no patient in the request. PAVE
+  sent the prefetch under its own names; set Prefetch to As the collection's sample in Configuration >
+  Environments > Edit > Request shapes." when the request the call came from writes a prefetch, and
+  otherwise "... the service names the prefetch keys it reads in its discovery answer, in Configuration >
+  Advanced > CDS discovery."; the reason: "The service's answer says no patient data was given, and this
+  request carried the patient in patientBundle, a name PAVE gives it. CDS Hooks fixes no names for the
+  prefetch: each service names the keys it reads." The result card shows that whole line above "Open
+  Configuration" for an answer that came back whole, where before only the button stood.
+- **The comparison** ("Compare with a request that works"). The answer gains `arrangement`: one line per
+  prefetch key only in the pasted request, only in PAVE's, or holding another kind of thing in each, by
+  key and kind ("a Patient", "a Bundle of type searchset holding Coverage"), then "These are differences of
+  arrangement: ...", drawn as "The prefetch is arranged differently" ahead of the notes. PAVE's side is
+  still built with the named Bundles.
+- **What holds it.** `PrefetchShapeTest` (a bare Patient and a searchset Bundle; one Bundle of several
+  types; the five named Bundles byte for byte; no sample, notes unchanged; a type PAVE does not build; a
+  key written as null and as a placeholder; a Practitioner for an organization; the shape stated with no
+  sample; a sample of an error; a v2.1 and a v2.0 collection; the systems and type followed, the
+  environment's system winning, the member ID's place, a context member), `PrefetchShapeFormTest` (after
+  Fill, on Edit from the sample and then stated by the environment, and the default with no sample),
+  `NoPatientAdviceTest`, `PrefetchCompareTest`, and in `ConfigFrontendTest`, `WorkbenchRecheckFrontendTest`
+  and `CompareFrontendTest` the screens. One expectation of an existing test changed:
+  `CrdRequestComparerTest` lists the answer's parts, now with `arrangement` for its vendor-shaped sample.
+  The existing CRD tests pass unchanged. `RecursionGuardTest`, `RegexStackGuardTest` and
+  `DeepAnswerStackTest` unchanged. Not shown to fail without the change.
+- **What was seen.** On the jar of the head, on live, in Chromium at 1440 by 900, with an environment
+  export and a collection written for the check (placeholders only) whose coverage-check sample carries a
+  single Patient under `patient`, a searchset Bundle of Coverage under `coverage` and an Encounter under
+  `encounter`, against a copy of the stand-in changed to answer one card "Error", "No patient data
+  provided" unless the request carries a Patient under `patient`. After Fill, "Request shapes" showed
+  "Prefetch: As the collection's sample (patient, coverage, encounter) from the collection's request
+  "CRD - Prior Auth Check"" with the Encounter line; saved and made active, the preview and the wire view
+  showed the Patient under `patient` and the searchset Bundle under `coverage`, and the check was
+  answered "Documentation is required.". Set to PAVE's named Bundles on Edit, the check was answered "No
+  patient data provided" and the card showed the advice above "Open Configuration". With `encounterId` in
+  the sample's context the form and the preview said it. The comparison of the sample with PAVE's
+  request showed the arrangement part. On mock, a coverage check with a scenario answered as before. Not
+  seen: a system or type followed on a screen (the environment's Member ID system was in force), the
+  vendor's files or service, Windows, the IDE.
+- **Left.** The keys are not read from the service's discovery answer. A key of a type PAVE does not build
+  is not sent. "Compare with a request that works" builds PAVE's side with the named Bundles whatever the
+  environment states. The Coverage id is PAVE's own until the vendor supplies one.
