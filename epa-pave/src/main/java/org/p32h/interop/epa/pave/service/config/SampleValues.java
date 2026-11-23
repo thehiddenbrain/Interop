@@ -32,6 +32,24 @@ import tools.jackson.databind.JsonNode;
  */
 public final class SampleValues {
 
+    /**
+     * A value that belongs to another: the payer identifier's system is the system of the payer
+     * identifier the same sample states, and is not laid beside an identifier that came from
+     * elsewhere, which may be another identifier with another system.
+     */
+    static final Map<String, String> PAIRED = Map.of("payerIdentifierSystem", "payerIdentifier");
+
+    /** Why a value a sample states is not taken when the value it belongs to is in force from elsewhere, or null. */
+    public static String pairedLine(Taken taken) {
+        return PAIRED.containsKey(taken.name()) ? "The collection's request \"" + taken.request() + "\" states the system of its own "
+                + "payer identifier, and the payer identifier in force comes from elsewhere, so it is not taken." : null;
+    }
+
+    /** The value a value belongs to, or null. */
+    public static String owner(String name) {
+        return PAIRED.get(name);
+    }
+
     /** The members PAVE's own hook request has at its top level (CrdRequestBuilder). */
     static final Set<String> HOOK_MEMBERS = Set.of("hook", "hookInstance", "fhirServer", "context", "prefetch");
 
@@ -95,6 +113,10 @@ public final class SampleValues {
                     }
                 }
             }
+        }
+        PostmanRequest submit = submitSample(collection);
+        if (submit != null) {
+            submit(taken, lines, submit);
         }
         return new Reading(ordered(taken), lines, hook == null ? null : hook.quotedName(), extras);
     }
@@ -165,10 +187,16 @@ public final class SampleValues {
     static EnvironmentSettings lay(EnvironmentSettings merged, List<Taken> taken, Set<String> given, List<String> said) {
         Map<String, String> values = new LinkedHashMap<>(merged.values());
         Map<String, String> origins = new LinkedHashMap<>(merged.valueOrigins());
+        java.util.Set<String> laid = new java.util.HashSet<>();
         for (Taken each : taken) {
             if (values.containsKey(each.name()) || given.contains(each.name())) {
                 continue;
             }
+            String owner = PAIRED.get(each.name());
+            if (owner != null && !laid.contains(owner) && (values.containsKey(owner) || given.contains(owner))) {
+                continue;
+            }
+            laid.add(each.name());
             values.put(each.name(), each.value().strip());
             origins.put(each.name(), each.request());
             said.add(storedLine(each));
@@ -203,6 +231,136 @@ public final class SampleValues {
             }
         }
         return only;
+    }
+
+    /**
+     * The Submit sample: the request a call for $submit would be sent from, else, when none is
+     * mapped to it, the only request whose body is a Bundle that carries a Claim.
+     */
+    static PostmanRequest submitSample(PostmanCollection collection) {
+        PostmanRequest mapped = first(collection, EpaOperation.PAS_SUBMIT);
+        if (mapped != null) {
+            return mapped;
+        }
+        PostmanRequest only = null;
+        for (PostmanRequest request : collection.requests()) {
+            if (errorSample(request) || claims(body(request)).isEmpty()) {
+                continue;
+            }
+            if (only != null) {
+                return null;
+            }
+            only = request;
+        }
+        return only;
+    }
+
+    /**
+     * What a Submit Bundle states where PAVE's builder writes the same values (PasResources): the
+     * payer is the Organization Claim.insurer refers to, its name and its one identifier; the member
+     * ID system is the system of the member ID on the Patient Claim.patient refers to, chosen as
+     * the saved lists choose a member ID (D-306): the identifier typed MB, else the only one.
+     */
+    private static void submit(Map<String, Taken> taken, Map<String, List<String>> lines, PostmanRequest from) {
+        JsonNode root = body(from);
+        List<JsonNode> claims = claims(root);
+        if (claims.size() != 1) {
+            return;
+        }
+        String where = "The collection's request \"" + from.quotedName() + "\"";
+        JsonNode claim = claims.get(0);
+        JsonNode payer = referred(root, JsonSafe.presentText(JsonSafe.child(claim, "insurer"), "reference"), "Organization");
+        if (payer != null) {
+            take(taken, lines, "payerName", JsonSafe.child(payer, "name"), from);
+            List<JsonNode> identifiers = withValue(JsonSafe.elements(payer, "identifier"));
+            if (identifiers.size() == 1) {
+                take(taken, lines, "payerIdentifier", JsonSafe.child(identifiers.get(0), "value"), from);
+                take(taken, lines, "payerIdentifierSystem", JsonSafe.child(identifiers.get(0), "system"), from);
+            } else if (identifiers.size() > 1) {
+                line(lines, "payerIdentifier", where + " gives the payer " + identifiers.size() + " identifiers" + systems(identifiers)
+                        + ", so none is taken: choose one and type it.");
+            }
+        }
+        JsonNode patient = referred(root, JsonSafe.presentText(JsonSafe.child(claim, "patient"), "reference"), "Patient");
+        if (patient != null) {
+            List<JsonNode> identifiers = withValue(JsonSafe.elements(patient, "identifier"));
+            List<JsonNode> typedMb = identifiers.stream().filter(SampleValues::typedMb).toList();
+            JsonNode member = typedMb.size() == 1 ? typedMb.get(0) : typedMb.isEmpty() && identifiers.size() == 1 ? identifiers.get(0) : null;
+            if (member != null) {
+                take(taken, lines, "memberIdSystem", JsonSafe.child(member, "system"), from);
+            } else if (identifiers.size() > 1) {
+                line(lines, "memberIdSystem", where + " gives the patient " + identifiers.size() + " identifiers" + systems(identifiers)
+                        + (typedMb.isEmpty() ? " and none is typed MB" : ", " + typedMb.size() + " of them typed MB")
+                        + ", so the member ID system is not taken.");
+            }
+        }
+    }
+
+    /** The Claims of a Bundle's entries, in their order; none for a body that is not a Bundle. */
+    static List<JsonNode> claims(JsonNode root) {
+        List<JsonNode> claims = new ArrayList<>();
+        if (!"Bundle".equals(JsonSafe.presentText(root, "resourceType"))) {
+            return claims;
+        }
+        for (JsonNode entry : JsonSafe.elements(root, "entry")) {
+            JsonNode resource = JsonSafe.child(entry, "resource");
+            if ("Claim".equals(JsonSafe.presentText(resource, "resourceType"))) {
+                claims.add(resource);
+            }
+        }
+        return claims;
+    }
+
+    /**
+     * The resource of the Bundle's entries a reference names, by its fullUrl or by type and id, or
+     * null when none is, or when more than one could be: a reference that names two is not read.
+     */
+    private static JsonNode referred(JsonNode root, String reference, String type) {
+        if (reference == null) {
+            return null;
+        }
+        JsonNode found = null;
+        for (JsonNode entry : JsonSafe.elements(root, "entry")) {
+            JsonNode resource = JsonSafe.child(entry, "resource");
+            if (!type.equals(JsonSafe.presentText(resource, "resourceType"))) {
+                continue;
+            }
+            String fullUrl = JsonSafe.presentText(entry, "fullUrl");
+            String id = JsonSafe.presentText(resource, "id");
+            String typed = id == null ? null : type + "/" + id;
+            boolean names = reference.equals(fullUrl) || reference.equals(typed) || (typed != null && fullUrl != null
+                    && fullUrl.endsWith("/" + typed) && reference.endsWith("/" + typed));
+            if (names) {
+                if (found != null) {
+                    return null;
+                }
+                found = resource;
+            }
+        }
+        return found;
+    }
+
+    private static List<JsonNode> withValue(List<JsonNode> identifiers) {
+        return identifiers.stream().filter(each -> JsonSafe.presentText(each, "value") != null).toList();
+    }
+
+    private static boolean typedMb(JsonNode identifier) {
+        for (JsonNode coding : JsonSafe.elements(JsonSafe.child(identifier, "type"), "coding")) {
+            if ("MB".equals(JsonSafe.presentText(coding, "code"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The systems of several identifiers, by name, never their values: a value can be a member's. */
+    private static String systems(List<JsonNode> identifiers) {
+        List<String> systems = new ArrayList<>();
+        for (JsonNode identifier : identifiers) {
+            String system = JsonSafe.presentText(identifier, "system");
+            systems.add(system == null ? "one with no system" : Names.shown(system));
+        }
+        return " (" + words(systems) + ")";
     }
 
     /** The first request in the order of the file mapped to the operation, passing over a sample of an error. */

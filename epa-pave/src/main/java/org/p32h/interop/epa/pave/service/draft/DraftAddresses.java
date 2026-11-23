@@ -177,12 +177,14 @@ final class DraftAddresses {
     static List<ValueDraft> values(PostmanEnvironment environment, PostmanCollection collection, String forId, DraftSupport support) {
         SampleValues.Reading samples = SampleValues.read(collection);
         List<ValueDraft> rows = new ArrayList<>();
+        java.util.Set<String> fromVariables = new java.util.HashSet<>();
         for (DraftSupport.Known known : DraftSupport.known()) {
             List<String> notes = new ArrayList<>();
             boolean hook = "fhirServer".equals(known.name());
             Resolution resolution = support.resolve(forId, environment, collection, "{{" + known.name() + "}}");
             if (resolution.complete() && !resolution.variables().isEmpty()) {
                 VariableUse use = resolution.variables().get(0);
+                fromVariables.add(known.name());
                 addIfPresent(notes, hook ? SampleValues.hookExtrasLine(samples, false) : null);
                 rows.add(new ValueDraft(known.name(), known.label(), known.why(), resolution.display(), from(use), null, null, notes));
                 continue;
@@ -200,6 +202,9 @@ final class DraftAddresses {
             if (taken != null) {
                 Resolution stated = support.resolve(forId, environment, collection, taken.value());
                 String refusal = SampleValues.refusal(taken, stated);
+                if (refusal == null && fromVariables.contains(SampleValues.owner(known.name()))) {
+                    refusal = SampleValues.pairedLine(taken);
+                }
                 if (refusal == null) {
                     undefined(stated, notes);
                     addIfPresent(notes, hook ? SampleValues.hookExtrasLine(samples, true) : null);

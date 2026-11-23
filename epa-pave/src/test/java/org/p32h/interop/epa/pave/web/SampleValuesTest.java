@@ -129,6 +129,101 @@ class SampleValuesTest {
                 .asString()).isEqualTo(SANDBOX);
     }
 
+    // ---- the Submit sample: the payer and the member ID system ----
+
+    private static final String SUBMIT = "PAS / Claim Submit";
+    private static final String MEMBER = "S123456789";
+
+    @Test
+    void theSubmitBundleGivesThePayerItsOneIdentifierAndTheSystemOfTheMemberIdTypedMb() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\", \"identifier\": [{\"system\": "
+                + "\"http://hl7.org/fhir/sid/us-npi\", \"value\": \"1234567893\"}]");
+        String patient = patient("{\"system\": \"https://payer.example.org/mrn\", \"value\": \"P-0001\"}, {\"type\": {\"coding\": "
+                + "[{\"code\": \"MB\"}]}, \"system\": \"https://payer.example.org/member-id\", \"value\": \"" + MEMBER + "\"}");
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(V21, submit(organization, patient)));
+
+        String from = "from the collection's request \"" + SUBMIT + "\"";
+        assertThat(value(values, "payerName").get("display").asString()).isEqualTo("Placeholder Health Plan");
+        assertThat(value(values, "payerName").get("from").asString()).isEqualTo(from);
+        assertThat(value(values, "payerIdentifier").get("display").asString()).isEqualTo("1234567893");
+        assertThat(value(values, "payerIdentifierSystem").get("display").asString()).isEqualTo("http://hl7.org/fhir/sid/us-npi");
+        assertThat(value(values, "memberIdSystem").get("display").asString()).isEqualTo("https://payer.example.org/member-id");
+        assertThat(value(values, "memberIdSystem").get("from").asString()).isEqualTo(from);
+        // Member data in the sample is never shown in this part: only the system of the member ID.
+        assertThat(values.toString()).doesNotContain(MEMBER).doesNotContain("P-0001");
+    }
+
+    @Test
+    void severalIdentifiersGiveNoneAndALineNamesTheirSystems() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\", \"identifier\": [{\"system\": "
+                + "\"http://hl7.org/fhir/sid/us-npi\", \"value\": \"1234567893\"}, {\"system\": \"https://payer.example.org/payer-id\", "
+                + "\"value\": \"PAYER01\"}]");
+        String patient = patient("{\"system\": \"https://payer.example.org/mrn\", \"value\": \"P-0001\"}, {\"system\": "
+                + "\"https://payer.example.org/member-id\", \"value\": \"" + MEMBER + "\"}");
+        JsonNode values = draft(ConfigFixture.mock(directory), environment(), collection(V21, submit(organization, patient)));
+
+        JsonNode identifier = value(values, "payerIdentifier");
+        assertThat(identifier.has("display")).isFalse();
+        assertThat(strings(identifier.get("notes"))).containsExactly("The collection's request \"" + SUBMIT + "\" gives the payer 2 "
+                + "identifiers (http://hl7.org/fhir/sid/us-npi and https://payer.example.org/payer-id), so none is taken: choose one and "
+                + "type it.");
+        assertThat(value(values, "payerIdentifierSystem").has("display")).isFalse();
+        assertThat(value(values, "payerName").get("display").asString()).isEqualTo("Placeholder Health Plan");
+        JsonNode system = value(values, "memberIdSystem");
+        assertThat(system.has("display")).isFalse();
+        assertThat(strings(system.get("notes"))).containsExactly("The collection's request \"" + SUBMIT + "\" gives the patient 2 "
+                + "identifiers (https://payer.example.org/mrn and https://payer.example.org/member-id) and none is typed MB, so the member "
+                + "ID system is not taken.");
+        assertThat(values.toString()).doesNotContain(MEMBER).doesNotContain("PAYER01").doesNotContain("P-0001");
+    }
+
+    @Test
+    void theSystemOfTheSamplesIdentifierIsNotLaidBesideAnIdentifierFromElsewhere() throws Exception {
+        String environment = JsonSafe.mapper().writeValueAsString(Map.of("name", "Placeholder UAT", "values", List.of(
+                Map.of("key", "base", "value", "https://vendor.example.invalid/fhir", "enabled", true),
+                Map.of("key", "payerIdentifier", "value", "OTHER01", "enabled", true))));
+        String organization = organization("\"name\": \"{{payer_display_name}}\", \"identifier\": [{\"system\": "
+                + "\"http://hl7.org/fhir/sid/us-npi\", \"value\": \"1234567893\"}]");
+        String collection = collection(V21, submit(organization, patient("{\"value\": \"" + MEMBER + "\"}")));
+        JsonNode values = draft(ConfigFixture.mock(directory), environment, collection);
+
+        assertThat(value(values, "payerIdentifier").get("from").asString()).isEqualTo("from the export's variable payerIdentifier");
+        JsonNode system = value(values, "payerIdentifierSystem");
+        assertThat(system.has("display")).isFalse();
+        assertThat(strings(system.get("notes"))).containsExactly("The collection's request \"" + SUBMIT + "\" states the system of its "
+                + "own payer identifier, and the payer identifier in force comes from elsewhere, so it is not taken.");
+        // A placeholder nothing defines stays as written; the only identifier, with no system, gives no member ID system.
+        assertThat(value(values, "payerName").get("display").asString()).isEqualTo("{{payer_display_name}}");
+        assertThat(value(values, "memberIdSystem").has("display")).isFalse();
+
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        String id = save(mvc, null, environment, collection, true, null).at("/settings/id").asString();
+        assertThat(settingsValue(mvc, id, "payerIdentifier").at("/inForce/source").asString()).isEqualTo("EXPORT");
+        assertThat(settingsValue(mvc, id, "payerIdentifierSystem").at("/inForce/source").asString()).isEqualTo("NOT_SET");
+    }
+
+    @Test
+    void theSaveStoresThePayerAndTheMemberIdSystemAndSaysEach() throws Exception {
+        String organization = organization("\"name\": \"Placeholder Health Plan\", \"identifier\": [{\"system\": "
+                + "\"http://hl7.org/fhir/sid/us-npi\", \"value\": \"1234567893\"}]");
+        String patient = patient("{\"type\": {\"coding\": [{\"code\": \"MB\"}]}, \"system\": \"https://payer.example.org/member-id\", "
+                + "\"value\": \"" + MEMBER + "\"}");
+        ConfigFixture fixture = ConfigFixture.mock(directory);
+        MockMvc mvc = TestMvc.standalone(new ConfigController(fixture.service));
+        JsonNode saved = save(mvc, null, environment(), collection(V21, submit(organization, patient)), true, null);
+
+        String from = "from the collection's request \"" + SUBMIT + "\"";
+        assertThat(strings(saved.get("warnings"))).contains("Payer name set " + from + ".", "Payer identifier set " + from + ".",
+                "Payer identifier system set " + from + ".", "Member ID system set " + from + ".");
+        String id = saved.at("/settings/id").asString();
+        for (String name : List.of("payerName", "payerIdentifier", "payerIdentifierSystem", "memberIdSystem")) {
+            assertThat(settingsValue(mvc, id, name).at("/inForce/sourceLabel").asString()).as(name).isEqualTo(from);
+        }
+        assertThat(Files.readString(directory.resolve("store.json"))).doesNotContain(MEMBER);
+    }
+
+    // ---- the save ----
     // ---- the save ----
 
     @Test
@@ -264,10 +359,31 @@ class SampleValuesTest {
                 "body", Map.of("mode", "raw", "raw", body)));
     }
 
+
+    private static String organization(String members) {
+        return "{\"fullUrl\": \"urn:uuid:payer-1\", \"resource\": {\"resourceType\": \"Organization\", \"id\": \"payer-1\", " + members + "}}";
+    }
+
+    private static String patient(String identifiers) {
+        return "{\"fullUrl\": \"http://vendor.example.invalid/fhir/Patient/pat-1\", \"resource\": {\"resourceType\": \"Patient\", "
+                + "\"id\": \"pat-1\", \"identifier\": [" + identifiers + "]}}";
+    }
+
+    /** A Submit sample whose Claim names the payer by its fullUrl and the patient by type and id. */
+    private static Map<String, Object> submit(String organization, String patient) {
+        String body = "{\"resourceType\": \"Bundle\", \"type\": \"collection\", \"entry\": [{\"fullUrl\": \"urn:uuid:claim-1\", "
+                + "\"resource\": {\"resourceType\": \"Claim\", \"use\": \"preauthorization\", \"insurer\": {\"reference\": "
+                + "\"urn:uuid:payer-1\"}, \"patient\": {\"reference\": \"Patient/pat-1\"}, \"item\": [{\"sequence\": 1}]}}, "
+                + organization + ", " + patient + "]}";
+        return Map.of("name", "Claim Submit", "request", Map.of("method", "POST", "url", Map.of("raw", "{{base}}/Claim/$submit"),
+                "header", List.of(), "body", Map.of("mode", "raw", "raw", body)));
+    }
+
     private static String collection(String schema, Map<String, Object> item) {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("info", Map.of("name", "Placeholder vendor collection", "schema", schema));
-        root.put("item", List.of(Map.of("name", "Coverage", "item", List.of(item))));
+        String folder = String.valueOf(item.get("name")).startsWith("Claim") ? "PAS" : "Coverage";
+        root.put("item", List.of(Map.of("name", folder, "item", List.of(item))));
         return JsonSafe.mapper().writeValueAsString(root);
     }
 
