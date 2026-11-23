@@ -1,6 +1,8 @@
 package org.p32h.interop.epa.pave.service.run;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import org.p32h.interop.epa.pave.model.JsonSafe;
 import org.p32h.interop.epa.pave.model.NextAction;
 import org.p32h.interop.epa.pave.model.NextStepView;
@@ -27,15 +29,24 @@ public final class PayerAdvice {
             + "a payer on every Coverage. PAVE names one only when Payer name, Payer identifier or Payer reference is set, or the "
             + "collection's request the call is sent from states one.";
 
+    /**
+     * The steps that lead on. An answer that gave one was not refused: the service read the request and decided, so
+     * the payer is not what it lacked, whatever word its answer holds.
+     */
+    private static final Set<NextAction> LEADS_ON = EnumSet.of(NextAction.START_DTR, NextAction.ANSWER_NEXT_QUESTION,
+            NextAction.SUBMIT_RESPONSE, NextAction.START_PAS, NextAction.DELIVER_SAMPLE_NOTIFICATION, NextAction.CHECK_STATUS,
+            NextAction.FLOW_ENDS, NextAction.NOTHING_FURTHER);
+
     private PayerAdvice() {
     }
 
     /**
      * The step, or in its place the advice to set the payer when the answer names payor and the
-     * request as sent carried a Coverage with none. A refused sign-in keeps its own step.
+     * request as sent carried a Coverage with none. A refused sign-in keeps its own step, and so
+     * does an answer that leads on.
      */
     public static NextStepView over(NextStepView step, VendorExchange exchange, PreparedCall call) {
-        if (!refusedForPayer(exchange)) {
+        if ((step != null && LEADS_ON.contains(step.action())) || !refusedForPayer(exchange)) {
             return step;
         }
         // The rule that kept it out only where the request the call was sent from states a payer: one that states none has no rule to name.

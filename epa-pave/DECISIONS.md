@@ -9275,7 +9275,9 @@ round of corrections; the code handed over.**
   Coverage with no payor, the next step is "The service asks for the payer of the coverage, and this
   request named none. Set Payer name or Payer identifier in Configuration > Environments > Edit >
   Values.", followed by the rule that kept the request's own payer out when that request states one. A
-  refused sign-in keeps its own step. Read as D-308 and D-309 read theirs; no general reader of refusals.
+  refused sign-in keeps its own step, and so does an answer that leads on (to the questionnaire, to
+  Submit, to the end of the flow): a service that decided was not refused, whatever word its answer
+  holds. Read as D-308 and D-309 read theirs; no general reader of refusals.
 - **The screens.** On Edit, a row of FHIR server, Payer name, Payer identifier, Payer identifier system
   or Payer reference that nothing sets says "Not set here. A call takes it from the collection request it
   is sent from, when that request states one." (source `REQUEST`) in the place of an empty box; "Change"
@@ -9291,7 +9293,7 @@ round of corrections; the code handed over.**
   the coverage check, the questionnaire request and the insurer of a Submit, each with its preview, the
   comparison, every source winning over the request, a typed address, application.yml alone, a request
   with no body, no environment at all); `PayerAdviceTest` (the card of the photo, an OperationOutcome, a
-  payer not taken, a request that carried one, a refused sign-in); `SampleValuesTest` and
+  payer not taken, a request that carried one, a refused sign-in, an answer that leads on); `SampleValuesTest` and
   `ConfigFrontendTest` (the form's rows, the save, the Edit rows). Changed, each for its reason:
   `FilesGiveTest` (the member ID system is now the sixth row, after Payer reference) and three
   expectations of `SampleValuesTest` (a row nothing sets now says `REQUEST`, where it said `NOT_SET`).

@@ -63,6 +63,9 @@ class PayerAdviceTest {
 
     private final InMemoryLedger ledger = new InMemoryLedger();
 
+    /** The last coverage check as the stand-in client answered it, for a test that asks the advice itself. */
+    private VendorExchange lastCheck;
+
     private RunSupport support() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("ledger", ledger);
@@ -80,7 +83,8 @@ class PayerAdviceTest {
             @Override
             public VendorExchange hook(PreparedCall call, ResolvedText body, MockSelection selection) {
                 VendorExchange exchange = answered(call, body, status, answer);
-                return exchange.withSignals(OnyxCrdConventions.signals(exchange));
+                lastCheck = exchange.withSignals(OnyxCrdConventions.signals(exchange));
+                return lastCheck;
             }
 
             @Override
@@ -184,6 +188,22 @@ class PayerAdviceTest {
         NextStepView refused = dtr(live(NO_PAYOR, PayerFromRequestTest.PACKAGE.replace(", \"payor\": [{\"reference\": "
                 + "\"Organization/org-payer-001\"}]", "")), 401, OUTCOME).runPackage(questionnaire(), RunOrigin.manual(), null).nextStep();
         assertThat(refused.headline()).doesNotContain("asks for the payer");
+    }
+
+    /**
+     * An answer that decided was not refused. Should it hold the word payor, in a card's text or a resource it sends
+     * back, the step it leads to stays: the advice is for an answer that leads nowhere.
+     */
+    @Test
+    void anAnswerThatLeadsOnKeepsItsStepWhateverWordItHolds() {
+        crd(live(NO_PAYOR, PayerFromRequestTest.PACKAGE), 200, PHOTO).run(check(), RunOrigin.manual(), null);
+        assertThat(PayerAdvice.refusedForPayer(lastCheck)).isTrue();
+        for (NextAction leadsOn : List.of(NextAction.START_DTR, NextAction.START_PAS, NextAction.FLOW_ENDS, NextAction.NOTHING_FURTHER)) {
+            NextStepView step = new NextStepView(leadsOn, "Next: go on.", "Why.", Map.of(), Map.of());
+            assertThat(PayerAdvice.over(step, lastCheck, null)).as(leadsOn.name()).isSameAs(step);
+        }
+        NextStepView stuck = new NextStepView(NextAction.REPORT_NO_DETERMINATION, "Next: report it.", "Why.", Map.of(), Map.of());
+        assertThat(PayerAdvice.over(stuck, lastCheck, null).action()).isEqualTo(NextAction.OPEN_CONFIG);
     }
 
     @Test
