@@ -16,6 +16,8 @@ import java.util.Map;
  *
  * @param hook            order-sign or order-select. Blank means order-sign
  * @param includePrefetch false to send the request without prefetch. Null means true
+ * @param diagnosisCodes  the Diagnosis codes of the Service card. Sent only where the collection's
+ *                        sample puts a diagnosis on its order (D-310); CRD itself requires none
  */
 public record CrdRunRequest(
         String hook,
@@ -24,6 +26,7 @@ public record CrdRunRequest(
         ProviderDetail provider,
         List<String> providerOverrides,
         List<CodeInput> procedureCodes,
+        List<CodeInput> diagnosisCodes,
         String dateOfService,
         Boolean includePrefetch,
         String scenarioId,
@@ -45,6 +48,7 @@ public record CrdRunRequest(
         memberOverrides = memberOverrides == null ? List.of() : List.copyOf(memberOverrides);
         providerOverrides = providerOverrides == null ? List.of() : List.copyOf(providerOverrides);
         procedureCodes = procedureCodes == null ? List.of() : List.copyOf(procedureCodes);
+        diagnosisCodes = diagnosisCodes == null ? List.of() : List.copyOf(diagnosisCodes);
         variables = variables == null ? Map.of() : Map.copyOf(variables);
         carry = carry == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(carry));
         unrecognised = unrecognised == null ? Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unrecognised));
@@ -67,6 +71,7 @@ public record CrdRunRequest(
         private ProviderDetail provider;
         private List<String> providerOverrides = List.of();
         private List<CodeInput> procedureCodes = List.of();
+        private List<CodeInput> diagnosisCodes = List.of();
         private String dateOfService;
         private Boolean includePrefetch;
         private String scenarioId;
@@ -110,6 +115,11 @@ public record CrdRunRequest(
 
         public Builder procedureCodes(List<CodeInput> value) {
             this.procedureCodes = value;
+            return this;
+        }
+
+        public Builder diagnosisCodes(List<CodeInput> value) {
+            this.diagnosisCodes = value;
             return this;
         }
 
@@ -174,8 +184,8 @@ public record CrdRunRequest(
         }
 
         public CrdRunRequest build() {
-            return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, dateOfService,
-                    includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry, configEpoch,
+            return new CrdRunRequest(hook, member, memberOverrides, provider, providerOverrides, procedureCodes, diagnosisCodes,
+                    dateOfService, includePrefetch, scenarioId, expected, testerRef, note, chainId, request, rawBody, variables, carry, configEpoch,
                     Map.of());
         }
     }

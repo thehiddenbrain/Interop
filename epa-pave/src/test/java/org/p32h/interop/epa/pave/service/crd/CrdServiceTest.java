@@ -1139,6 +1139,18 @@ class CrdServiceTest {
     }
 
     @Test
+    void aBlankDiagnosisCodeIsRefusedAtItsFieldAndNothingIsSent() {
+        // D-310: a diagnosis code goes on the order where the sample puts one, so a blank one is refused as on Submit.
+        CrdRunRequest request = request("S123456789").diagnosisCodes(List.of(CodeInput.of("G47.33"), CodeInput.of(" "))).build();
+        assertThatThrownBy(() -> service().run(request, RunOrigin.manual(), null))
+                .isInstanceOfSatisfying(ValidationException.class, e -> assertThat(e.fieldErrors()).singleElement().satisfies(error -> {
+                    assertThat(error.field()).isEqualTo("diagnosisCodes[1].code");
+                    assertThat(error.message()).isEqualTo("This diagnosis code is blank.");
+                }));
+        assertThat(ledger.records()).isEmpty();
+    }
+
+    @Test
     void aHookThisToolDoesNotBuildIsRefusedWithWhatItDoesBuild() {
         // CRD201-22: say plainly which hooks and order types are not built.
         assertThatThrownBy(() -> service().run(request("S123456789").hook("order-dispatch").build(), RunOrigin.manual(), null))

@@ -30,8 +30,10 @@ import tools.jackson.databind.JsonNode;
  * @param coverage  the same of the sample's first Coverage
  * @param practitionerSystem the system of the sample's first Practitioner's only identifier, or null
  * @param contextExtras the members of the sample's context that PAVE's request has no value for, by name
+ * @param reason    what the sample's order states of its diagnosis (reasonCode), or null when it carries none
  */
-public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage, String practitionerSystem, List<String> contextExtras) {
+public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage, String practitionerSystem, List<String> contextExtras,
+                             Reason reason) {
 
     /** The members of context PAVE's request sends (CrdRequestBuilder). */
     public static final Set<String> CONTEXT_SENT = Set.of("userId", "patientId", "draftOrders", "selections");
@@ -52,6 +54,15 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
         public boolean statesType() {
             return typeSystem != null && typeCode != null;
         }
+    }
+
+    /**
+     * The sample's order carries a diagnosis as reasonCode (D-310). Only the system of its first
+     * coding is kept: the code is the sample's own value and is never sent.
+     *
+     * @param system the system of the first coding of the sample's first reasonCode, or null when it states none
+     */
+    public record Reason(String system) {
     }
 
     /** The resource types PAVE builds from the case, which are all a prefetch it sends can hold. */
@@ -149,7 +160,7 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
 
     /** The keys only, as a layout read before the sample's systems and context were followed. */
     public PrefetchLayout(List<Key> keys) {
-        this(keys, null, null, null, List.of());
+        this(keys, null, null, null, List.of(), null);
     }
 
     /** Counts only. */
@@ -205,8 +216,31 @@ public record PrefetchLayout(List<Key> keys, Identity patient, Identity coverage
                 extras.add(Names.shown(member.getKey()));
             }
         }
+        JsonNode order = firstOrder(parsed.node());
         return new PrefetchLayout(keys, identity(first.get("Patient")), identity(first.get("Coverage")),
-                onlySystem(first.get("Practitioner")), extras);
+                onlySystem(first.get("Practitioner")), extras, reason(order == null ? first.get("ServiceRequest") : order));
+    }
+
+    /** The sample's first order in context.draftOrders, which is where the order a service decides on is sent; one level, by a fixed path. */
+    private static JsonNode firstOrder(JsonNode root) {
+        for (JsonNode entry : JsonSafe.elements(JsonSafe.child(JsonSafe.child(root, "context"), "draftOrders"), "entry")) {
+            JsonNode resource = JsonSafe.child(entry, "resource");
+            if ("ServiceRequest".equals(JsonSafe.presentText(resource, "resourceType"))) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
+    /** What an order of the sample states of its diagnosis, or null when it has no reasonCode. */
+    private static Reason reason(JsonNode order) {
+        JsonNode reasonCode = JsonSafe.child(order, "reasonCode");
+        if (reasonCode.isNull() || reasonCode.isMissingNode() || (reasonCode.isArray() && reasonCode.isEmpty())) {
+            return null;
+        }
+        JsonNode first = JsonSafe.elements(order, "reasonCode").stream().findFirst().orElse(null);
+        JsonNode coding = first == null ? null : JsonSafe.elements(first, "coding").stream().findFirst().orElse(null);
+        return new Reason(coding == null ? null : stated(JsonSafe.presentText(coding, "system")));
     }
 
     /** What a resource of the sample states of the member ID, or null when the sample holds no such resource. */

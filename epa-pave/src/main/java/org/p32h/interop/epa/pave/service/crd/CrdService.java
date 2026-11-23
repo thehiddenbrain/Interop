@@ -6,6 +6,7 @@ import org.p32h.interop.epa.pave.client.crd.OnyxCrdClient;
 import org.p32h.interop.epa.pave.config.EpaProperties;
 import org.p32h.interop.epa.pave.model.MaskedReading;
 import org.p32h.interop.epa.pave.model.AdditionalField;
+import org.p32h.interop.epa.pave.model.CodeInput;
 import org.p32h.interop.epa.pave.model.CrdOutcome;
 import org.p32h.interop.epa.pave.model.DeterminationRow;
 import org.p32h.interop.epa.pave.model.EpaOperation;
@@ -406,6 +407,10 @@ public class CrdService {
             }
         } else {
             inputs.member(request.member()).providerByNpiOrVendorId(request.provider()).codes(request.procedureCodes());
+        }
+        for (int i = 0; i < request.diagnosisCodes().size(); i++) {
+            CodeInput code = request.diagnosisCodes().get(i);
+            inputs.require(code != null && Texts.present(code.code()), "diagnosisCodes[" + i + "].code", "This diagnosis code is blank.");
         }
         inputs.date("dateOfService", request.dateOfService())
                 .expectation(request.expected(), CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS)
