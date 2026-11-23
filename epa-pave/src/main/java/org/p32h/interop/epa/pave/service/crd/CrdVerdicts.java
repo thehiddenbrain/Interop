@@ -577,6 +577,19 @@ public final class CrdVerdicts {
         return parsed.ok() && JsonSafe.isObject(parsed.node()) && JsonSafe.presentText(parsed.node(), "fhirServer") == null;
     }
 
+    /**
+     * Whether the saved body of the collection's request a call was sent from states a fhirServer,
+     * so the advice after a refusal for one can say the vendor's sample has it (D-308). It reads a
+     * sample the tester stored, never an answer.
+     */
+    static boolean statesFhirServer(String body) {
+        if (!Texts.present(body)) {
+            return false;
+        }
+        JsonSafe.Parsed parsed = JsonSafe.parse(VendorSamples.placeholdersAsNull(body));
+        return parsed.ok() && JsonSafe.presentText(parsed.node(), "fhirServer") != null;
+    }
+
     /** Why the next step after a 400 that names draftOrders.type points at the environment's setting (R-37). */
     static final String DRAFT_ORDERS_TYPE_REASON = "The service answered HTTP 400 and its answer names draftOrders.type, which this "
             + "request sent. FHIR requires Bundle.type, and the setting draftOrders type of the environment leaves it out for a vendor "

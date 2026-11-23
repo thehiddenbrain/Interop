@@ -80,11 +80,11 @@ class FhirServerAdviceTest {
 
     @Test
     void theSampleACallWasSentFromSaysWhetherItStatesOne() {
-        assertThat(CrdService.statesFhirServer(null)).isFalse();
-        assertThat(CrdService.statesFhirServer(WITHOUT)).isFalse();
-        assertThat(CrdService.statesFhirServer(WITH)).isTrue();
+        assertThat(CrdVerdicts.statesFhirServer(null)).isFalse();
+        assertThat(CrdVerdicts.statesFhirServer(WITHOUT)).isFalse();
+        assertThat(CrdVerdicts.statesFhirServer(WITH)).isTrue();
         // A saved body writes placeholders outside strings, and is read all the same.
-        assertThat(CrdService.statesFhirServer("{\"hook\":\"order-sign\",\"fhirServer\":\"{{ehrBase}}/fhir\",\"n\":{{count}}}")).isTrue();
-        assertThat(CrdService.statesFhirServer("{\"hook\":\"order-sign\",\"fhirServer\":\"\"}")).isFalse();
+        assertThat(CrdVerdicts.statesFhirServer("{\"hook\":\"order-sign\",\"fhirServer\":\"{{ehrBase}}/fhir\",\"n\":{{count}}}")).isTrue();
+        assertThat(CrdVerdicts.statesFhirServer("{\"hook\":\"order-sign\",\"fhirServer\":\"\"}")).isFalse();
     }
 }
