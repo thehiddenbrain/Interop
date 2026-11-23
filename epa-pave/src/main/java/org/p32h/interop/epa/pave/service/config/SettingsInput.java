@@ -172,8 +172,11 @@ final class SettingsInput {
             });
         }
         Map<String, String> values = new LinkedHashMap<>(stored.values());
+        Map<String, String> origins = new LinkedHashMap<>(stored.valueOrigins());
         if (input.values() != null) {
             input.values().forEach((name, value) -> {
+                // What is typed is the tester's own, so a value once taken from a sample no longer says it came from there.
+                origins.remove(name);
                 if (Texts.present(value)) {
                     values.put(name, value.strip());
                 } else {
@@ -181,7 +184,7 @@ final class SettingsInput {
                 }
             });
         }
-        return new EnvironmentSettings(signIn, timeouts, addresses, rule, shapes, values);
+        return new EnvironmentSettings(signIn, timeouts, addresses, rule, shapes, values, origins);
     }
 
     /** The sign-in as typed over the stored one. A blank method is not stated: application.yml's sign-in applies again. */

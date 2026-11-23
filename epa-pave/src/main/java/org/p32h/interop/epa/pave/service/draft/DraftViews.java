@@ -229,9 +229,22 @@ public final class DraftViews {
      * @param display the value, a secret masked; absent when nothing gives it
      * @param from    where it comes from, in words; absent when nothing gives it
      * @param line    when the export holds the variable with no value, a line that says so
+     * @param request when the value is taken from a sample request of the collection (D-308), that request's name with its
+     *                folders; a save stores it for a value nothing is in force for
+     * @param notes   one line each: what else the tester should know of this value and the sample it is read from
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record ValueDraft(String name, String label, String why, String display, String from, String line) {
+    public record ValueDraft(String name, String label, String why, String display, String from, String line, String request,
+                             List<String> notes) {
+
+        public ValueDraft {
+            notes = notes == null ? List.of() : List.copyOf(notes);
+        }
+
+        /** A value given by a variable or by nothing, as one read before D-308. */
+        public ValueDraft(String name, String label, String why, String display, String from, String line) {
+            this(name, label, why, display, from, line, null, null);
+        }
 
         @Override
         public String toString() {

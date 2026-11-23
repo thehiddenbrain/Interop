@@ -132,8 +132,9 @@ public final class SettingsViews {
      * A value in force and where it comes from.
      *
      * @param display     the value, a secret masked; absent when not set
-     * @param source      THIS_ENVIRONMENT, EXPORT, APPLICATION_YML or NOT_SET
-     * @param sourceLabel the source in words: "typed here", "from the export's variable <name>", "from application.yml", "not set"
+     * @param source      THIS_ENVIRONMENT, SAMPLE, EXPORT, APPLICATION_YML or NOT_SET
+     * @param sourceLabel the source in words: "typed here", "from the collection's request \"<name>\"", "from the export's
+     *                    variable <name>", "from application.yml", "not set"
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record InForce(String display, String source, String sourceLabel) {
@@ -199,11 +200,13 @@ public final class SettingsViews {
      * @param memberIdRule       absent keeps; "" clears
      * @param shapes             a key absent keeps; "" clears
      * @param values             a key absent keeps; "" clears, and the export's value applies again
+     * @param sampleValues       true to store, with the collection export, each value its samples state for a value nothing
+     *                           is in force for (D-308); absent or false stores none
      */
     public record EnvironmentSettingsInput(String id, String name, String kind, Boolean acknowledgeNotProd, FileInput environmentExport,
                                            FileInput collectionExport, SignInInput signIn, TimeoutsInput timeouts,
                                            Map<String, String> addresses, String memberIdRule, Map<String, String> shapes,
-                                           Map<String, String> values) {
+                                           Map<String, String> values, Boolean sampleValues) {
 
         /** Names the parts given and never a value: the input carries secrets, exports and addresses. */
         @Override

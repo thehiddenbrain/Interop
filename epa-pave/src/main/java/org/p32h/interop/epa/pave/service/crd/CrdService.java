@@ -235,7 +235,8 @@ public class CrdService {
 
         ExpectationView expectation = Expectations.assess(request.expected(), outcome, reading.asked(), reading.answers(),
                 CrdOutcome.values(), CrdCodes.EXPECTATION_ELEMENTS);
-        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call)), runId), exchange);
+        NextStepView nextStep = support.unsignedNextStep(followedFrom(CrdVerdicts.nextStep(reading, exchange, runId, environmentName(call),
+                statesFhirServer(call == null ? null : call.savedBody())), runId), exchange);
         VerdictView verdict = CrdVerdicts.toned(CrdVerdicts.verdict(reading, exchange), nextStep);
         // A mask on a value this verdict is read by changes the verdict without changing its rules, so the verdict, the next step
         // and the findings say so where each is read.
@@ -273,6 +274,19 @@ public class CrdService {
         Map<String, List<String>> carry = new LinkedHashMap<>(next.carry());
         carry.put(NextStepView.CARRY_RUN_ID, List.of(runId));
         return new NextStepView(next.action(), next.headline(), next.reason(), carry);
+    }
+
+    /**
+     * Whether the stored collection's request the call was sent from states a fhirServer in its
+     * body, so the advice after a refusal for one can say the vendor's sample has it (D-308).
+     */
+    static boolean statesFhirServer(String body) {
+        if (!Texts.present(body)) {
+            return false;
+        }
+        org.p32h.interop.epa.pave.model.JsonSafe.Parsed parsed = org.p32h.interop.epa.pave.model.JsonSafe.parse(
+                VendorSamples.placeholdersAsNull(body));
+        return parsed.ok() && org.p32h.interop.epa.pave.model.JsonSafe.presentText(parsed.node(), "fhirServer") != null;
     }
 
     /** The name of the environment the call went to, for a next step that names where to change a setting of it. */

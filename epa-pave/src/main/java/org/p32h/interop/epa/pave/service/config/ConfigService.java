@@ -214,14 +214,49 @@ public class ConfigService {
             throw new ValidationException(errors);
         }
         String id = Texts.present(input.id()) ? input.id().strip() : null;
+        List<SampleValues.Taken> fromSamples = new ArrayList<>();
+        Set<String> given = new LinkedHashSet<>();
+        if (Boolean.TRUE.equals(input.sampleValues()) && collectionExport != null && collectionExport.parsed() != null) {
+            fromSamples(id, environmentExport == null ? null : environmentExport.parsed(), collectionExport.parsed(), fromSamples, given);
+        }
+        List<String> sampleSaid = new ArrayList<>();
         ConfigStore.Described<ConfigStore.SettingsSaved, SettingsViews.EnvironmentSettingsView> described = store.saveSettings(
                 new ConfigStore.SettingsSave(id, input.name(), kind, Boolean.TRUE.equals(input.acknowledgeNotProd()), environmentExport,
-                        collectionExport, stored -> SettingsInput.merge(input, stored)), this::settingsView);
+                        collectionExport, stored -> {
+                            EnvironmentSettings merged = SettingsInput.merge(input, stored);
+                            sampleSaid.clear();
+                            return fromSamples.isEmpty() ? merged : SampleValues.lay(merged, fromSamples, given, sampleSaid);
+                        }), this::settingsView);
         ConfigStore.SettingsSaved saved = described.upload();
-        List<String> warnings = new ArrayList<>(saved.warnings());
+        List<String> warnings = new ArrayList<>(sampleSaid);
+        warnings.addAll(saved.warnings());
         warnings.addAll(SettingsInput.plainSecretWarnings(input, saved.environment().name(), store.directory()));
         return new SettingsViews.SettingsSaved(environmentView(saved.environment(), saved.after()), described.view(), warnings,
                 saved.epoch());
+    }
+
+    /**
+     * The values the collection's samples state that a save may store (D-308), each resolved as
+     * a call would resolve it and passed over when it holds a secret, and the names some file or
+     * application.yml already gives, which a sample's value never replaces.
+     */
+    private void fromSamples(String id, org.p32h.interop.epa.pave.postman.PostmanEnvironment environment,
+                             org.p32h.interop.epa.pave.postman.PostmanCollection collection, List<SampleValues.Taken> taken, Set<String> given) {
+        StoredEnvironment editing = id == null ? null : store.snapshot().environment(id);
+        for (KnownValues.Known known : KnownValues.ALL) {
+            Resolution resolution = gateway.draftResolution(editing, environment, collection, "{{" + known.name() + "}}");
+            if (resolution.complete() && !resolution.variables().isEmpty()) {
+                given.add(known.name());
+            }
+        }
+        if (Texts.present(onyx.subscription().callbackUrl())) {
+            given.add(KnownValues.CALLBACK_URL);
+        }
+        for (SampleValues.Taken each : SampleValues.read(collection).taken().values()) {
+            if (SampleValues.refusal(each, gateway.draftResolution(editing, environment, collection, each.value())) == null) {
+                taken.add(each);
+            }
+        }
     }
 
     /**
@@ -371,6 +406,13 @@ public class ConfigService {
 
     private SettingsViews.ValueView valueView(StoredEnvironment environment, String name, String label, String why) {
         String typed = environment.settings().values().get(name);
+        String origin = environment.settings().valueOrigins().get(name);
+        if (typed != null && origin != null) {
+            // Stored from the vendor's sample (D-308): said as where it came from, not as typed, so Edit shows no box to fill.
+            Resolution taken = gateway.resolutionUnder(environment, "{{" + name + "}}");
+            return new SettingsViews.ValueView(name, label, why, null, new SettingsViews.InForce(taken.shown(), "SAMPLE",
+                    SampleValues.fromWords(origin)));
+        }
         if (typed != null) {
             return new SettingsViews.ValueView(name, label, why, typed, new SettingsViews.InForce(typed, "THIS_ENVIRONMENT", "typed here"));
         }

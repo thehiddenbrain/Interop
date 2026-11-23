@@ -268,6 +268,93 @@ class ConfigFrontendTest {
                 "true");
     }
 
+    /**
+     * D-308: a value a sample request states is shown with the request it comes from and the
+     * box "Use the values these samples state", ticked; the save asks the server to store it, and
+     * unticked it does not. On Edit a value stored from a sample is said as in force with where it
+     * came from, its box closed, and an empty closed box keeps it; Change and a typed value replace it.
+     */
+    @Test
+    void aValueASampleStatesIsShownWithItsRequestStoredByTheTickedBoxAndKeptOnEdit(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "values from samples", PRELUDE + """
+                const {createEditor} = await import('./js/config-environments.js');
+                answers['POST /api/config/environments/draft'] = {status: 200, body: {files: [], name: 'Vendor UAT', nameTaken: false,
+                    warnings: [], epoch: 1, collectionId: 'vendor-requests-1a2b', addresses: [], requests: [],
+                    values: [
+                        {name: 'fhirServer', label: 'FHIR server', display: 'https://ehr-sandbox.example.org/fhir',
+                            from: `from the collection's request "Coverage / Prior Auth Check"`, request: 'Coverage / Prior Auth Check',
+                            notes: ['The sample also sends fhirAuthorization. PAVE does not send it: if the service refuses the check, that is the first thing to look at.']}]}};
+                answers['POST /api/config/environments/settings'] = {status: 200, body: {environment: {id: 'vendor-uat', name: 'Vendor UAT'},
+                    settings: Object.assign({}, full, {id: 'vendor-uat', name: 'Vendor UAT'}),
+                    warnings: [`FHIR server set from the collection's request "Coverage / Prior Auth Check".`], epoch: 2}};
+                const fillAndRead = async () => {
+                    const editor = createEditor({environment: null, settings: null});
+                    const dialog = editor.dialog;
+                    const boxes = inputsOf(dialog).filter(each => each.type === 'file');
+                    boxes[0].files = [new File(['{}'], 'env.json', {type: 'application/json'})];
+                    boxes[0].value = 'C:/fakepath/env.json';
+                    boxes[1].files = [new File(['{}'], 'col.json', {type: 'application/json'})];
+                    boxes[1].value = 'C:/fakepath/col.json';
+                    await dialog.querySelectorAll('button').find(each => each.textContent === 'Fill the form from these files').click();
+                    await settle();
+                    return {editor, dialog};
+                };
+                const first = await fillAndRead();
+                const part = first.dialog.querySelector('.config-gives');
+                const row = part.querySelectorAll('.config-gives__row')[0];
+                say([row.querySelector('.config-in-force').textContent, row.querySelectorAll('.field__hint').map(each => each.textContent),
+                    row.querySelector('input') === null]);
+                const choice = part.querySelector('.config-gives__choice');
+                const ticked = choice.querySelector('input');
+                say([choice.querySelector('label').textContent, ticked.checked, choice.querySelector('.field__hint').textContent]);
+                first.dialog.querySelector('select').value = 'sandbox';
+                await first.dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                say(JSON.parse(posted.filter(each => each.path === '/api/config/environments/settings').pop().body).sampleValues);
+                say(first.dialog.querySelector('.config-form__banner').textContent.includes(
+                    `FHIR server set from the collection's request "Coverage / Prior Auth Check".`));
+
+                const second = await fillAndRead();
+                second.dialog.querySelector('.config-gives__choice input').checked = false;
+                second.dialog.querySelector('select').value = 'sandbox';
+                await second.dialog.querySelectorAll('button').find(each => each.textContent === 'Save environment').click();
+                await settle();
+                say(JSON.parse(posted.filter(each => each.path === '/api/config/environments/settings').pop().body).sampleValues);
+
+                const stored = Object.assign({}, full, {values: [{name: 'fhirServer', label: 'FHIR server', why: 'Sent in CRD.',
+                    inForce: {display: 'https://ehr-sandbox.example.org/fhir', source: 'SAMPLE',
+                        sourceLabel: `from the collection's request "Coverage / Prior Auth Check"`}}]});
+                const edit = createEditor({environment: {id: full.id, name: full.name, kind: 'sandbox'}, settings: stored});
+                const field = edit.dialog.querySelectorAll('.field').find(each => each.querySelector('.field__label')
+                    && each.querySelector('.field__label').textContent === 'FHIR server');
+                const input = field.querySelector('input');
+                say([field.querySelector('.config-in-force').textContent, input.hidden,
+                    field.querySelectorAll('button').filter(each => !each.hidden).map(each => each.textContent),
+                    Object.prototype.hasOwnProperty.call(edit.input().values, 'fhirServer')]);
+                field.querySelectorAll('button').find(each => each.textContent === 'Change').click();
+                say(field.querySelectorAll('button').filter(each => !each.hidden).map(each => each.textContent));
+                input.value = 'https://typed.example.org/fhir';
+                say(edit.input().values.fhirServer);
+                field.querySelectorAll('button').find(each => each.textContent === "Use the sample's again").click();
+                say(Object.prototype.hasOwnProperty.call(edit.input().values, 'fhirServer'));
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"https://ehr-sandbox.example.org/fhir from the collection's request \\\"Coverage / Prior Auth Check\\\"\","
+                        + "[\"The sample also sends fhirAuthorization. PAVE does not send it: if the service refuses the check, that is the "
+                        + "first thing to look at.\"],true]",
+                "[\"Use the values these samples state\",true,\"Each is stored with the save where nothing else gives that value. A value "
+                        + "typed, or one the export gives, stays as it is.\"]",
+                "true",
+                "true",
+                "false",
+                "[\"https://ehr-sandbox.example.org/fhir from the collection's request \\\"Coverage / Prior Auth Check\\\"\",true,"
+                        + "[\"Change\"],false]",
+                "[\"Use the sample's again\"]",
+                "\"https://typed.example.org/fhir\"",
+                "false");
+    }
+
     @Test
     void aRefusalWhoseFieldErrorsAreAllPlacedStillSaysItsTitleAboveTheForm(@TempDir Path folder) throws Exception {
         // look-guardrail-1: a sandbox given a production address is refused at Kind; the title names the address.

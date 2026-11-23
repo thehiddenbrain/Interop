@@ -132,6 +132,10 @@ final class StoredSettings {
             ObjectNode values = node.putObject("values");
             settings.values().forEach(values::put);
         }
+        if (!settings.valueOrigins().isEmpty()) {
+            ObjectNode origins = node.putObject("valueOrigins");
+            settings.valueOrigins().forEach(origins::put);
+        }
         return node;
     }
 
@@ -203,7 +207,15 @@ final class StoredSettings {
             }
             values.put(entry.getKey(), value);
         }
-        return new Read(new EnvironmentSettings(signIn, timeouts, addresses, rule, shapes, values), null);
+        Map<String, String> origins = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonNode> entry : JsonSafe.properties(JsonSafe.child(node, "valueOrigins"))) {
+            String request = JsonSafe.presentText(entry.getValue());
+            if (request == null || !values.containsKey(entry.getKey())) {
+                return unreadable("a value is said to come from a sample, but the value or the sample's name is not stored");
+            }
+            origins.put(entry.getKey(), request);
+        }
+        return new Read(new EnvironmentSettings(signIn, timeouts, addresses, rule, shapes, values, origins), null);
     }
 
     /** True when the field holds something that did not read as a whole number: a fraction or text is never rounded into a timeout. */

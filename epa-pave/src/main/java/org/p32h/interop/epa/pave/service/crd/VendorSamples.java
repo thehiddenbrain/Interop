@@ -108,7 +108,7 @@ public final class VendorSamples {
      * depends on. A placeholder inside a string is already valid JSON and stays as written. One
      * pass over the characters, so its depth never grows with the body.
      */
-    static String placeholdersAsNull(String body) {
+    public static String placeholdersAsNull(String body) {
         StringBuilder out = new StringBuilder(body.length());
         boolean inString = false;
         int i = 0;

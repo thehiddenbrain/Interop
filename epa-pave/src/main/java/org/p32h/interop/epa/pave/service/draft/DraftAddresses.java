@@ -16,6 +16,7 @@ import org.p32h.interop.epa.pave.postman.Resolution;
 import org.p32h.interop.epa.pave.postman.UrlForms;
 import org.p32h.interop.epa.pave.postman.VariableResolver;
 import org.p32h.interop.epa.pave.service.config.DraftSupport;
+import org.p32h.interop.epa.pave.service.config.SampleValues;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.AddressDraft;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.RequestChoice;
 import org.p32h.interop.epa.pave.service.draft.DraftViews.ValueDraft;
@@ -168,13 +169,22 @@ final class DraftAddresses {
         }
     }
 
+    /**
+     * What the files give each value: a variable of its name first, then application.yml, then the
+     * sample request that states it (D-308). A variable of the name wins over a sample, as a value
+     * in force wins over one a save would store from the sample.
+     */
     static List<ValueDraft> values(PostmanEnvironment environment, PostmanCollection collection, String forId, DraftSupport support) {
+        SampleValues.Reading samples = SampleValues.read(collection);
         List<ValueDraft> rows = new ArrayList<>();
         for (DraftSupport.Known known : DraftSupport.known()) {
+            List<String> notes = new ArrayList<>();
+            boolean hook = "fhirServer".equals(known.name());
             Resolution resolution = support.resolve(forId, environment, collection, "{{" + known.name() + "}}");
             if (resolution.complete() && !resolution.variables().isEmpty()) {
                 VariableUse use = resolution.variables().get(0);
-                rows.add(new ValueDraft(known.name(), known.label(), known.why(), resolution.display(), from(use), null));
+                addIfPresent(notes, hook ? SampleValues.hookExtrasLine(samples, false) : null);
+                rows.add(new ValueDraft(known.name(), known.label(), known.why(), resolution.display(), from(use), null, null, notes));
                 continue;
             }
             if ("callbackUrl".equals(known.name()) && support.callbackUrl() != null) {
@@ -185,9 +195,30 @@ final class DraftAddresses {
             String line = resolution.reasons().containsKey(known.name())
                     ? "{{" + Names.shown(known.name()) + "}} has no value in these files. Postman exports a variable's initial value only."
                     : null;
-            rows.add(new ValueDraft(known.name(), known.label(), known.why(), null, null, line));
+            SampleValues.Taken taken = samples.taken().get(known.name());
+            notes.addAll(samples.lines(known.name()));
+            if (taken != null) {
+                Resolution stated = support.resolve(forId, environment, collection, taken.value());
+                String refusal = SampleValues.refusal(taken, stated);
+                if (refusal == null) {
+                    undefined(stated, notes);
+                    addIfPresent(notes, hook ? SampleValues.hookExtrasLine(samples, true) : null);
+                    rows.add(new ValueDraft(known.name(), known.label(), known.why(), stated.shown(), SampleValues.fromWords(taken.request()),
+                            line, taken.request(), notes));
+                    continue;
+                }
+                notes.add(refusal);
+            }
+            addIfPresent(notes, hook ? SampleValues.hookExtrasLine(samples, false) : null);
+            rows.add(new ValueDraft(known.name(), known.label(), known.why(), null, null, line, null, notes));
         }
         return rows;
+    }
+
+    private static void addIfPresent(List<String> lines, String line) {
+        if (line != null) {
+            lines.add(line);
+        }
     }
 
     private static String from(VariableUse use) {

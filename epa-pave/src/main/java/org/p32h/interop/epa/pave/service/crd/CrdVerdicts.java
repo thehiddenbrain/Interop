@@ -323,13 +323,23 @@ public final class CrdVerdicts {
      * of that environment answers can name where to change it. Null when no environment is active.
      */
     public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId, String environmentName) {
+        return nextStep(reading, exchange, runId, environmentName, false);
+    }
+
+    /**
+     * As above, knowing whether the vendor's sample request the call was sent from states a
+     * fhirServer, which the advice after a refusal that names fhirServer then says (D-308).
+     */
+    public static NextStepView nextStep(CrdReading reading, VendorExchange exchange, String runId, String environmentName,
+                                        boolean sampleStatesFhirServer) {
         // A fault a scenario played is a rehearsal on every branch, the readable answer of the wrong kind included.
-        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId, environmentName),
+        return PlayedFaults.rehearsed(exchange, reading.outcome(), asIfReal(reading, exchange, runId, environmentName, sampleStatesFhirServer),
                 PlayedFaults.aboutTheEnvironment("the member or the code"));
     }
 
     /** The next step as it would be after a real service gave this answer. */
-    private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId, String environmentName) {
+    private static NextStepView asIfReal(CrdReading reading, VendorExchange exchange, String runId, String environmentName,
+                                         boolean sampleStatesFhirServer) {
         CrdOutcome outcome = reading.outcome();
         List<CoverageInformationView> coverage = reading.detail().coverageInformation();
 
@@ -447,8 +457,12 @@ public final class CrdVerdicts {
                     "The service does not recognise the member. The environment answered normally.", carry);
             case PROVIDER_NOT_FOUND -> new NextStepView(NextAction.FIX_TEST_DATA, "Next: check the NPI against the test data.",
                     "The service does not recognise the provider. The environment answered normally.", carry);
-            case REJECTED -> notAccepted(exchange, carry, environmentName);
-            case SERVICE_ERROR, TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
+            case REJECTED -> notAccepted(exchange, carry, environmentName, sampleStatesFhirServer);
+            case SERVICE_ERROR -> refusedForFhirServer(exchange)
+                    ? new NextStepView(NextAction.OPEN_CONFIG, setFhirServer(sampleStatesFhirServer), FHIR_SERVER_REASON, carry)
+                    : new NextStepView(NextAction.CHECK_ENVIRONMENT, "Next: check the environment, then send again.",
+                    "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
+            case TIMEOUT, UNREACHABLE, MALFORMED_RESPONSE -> new NextStepView(NextAction.CHECK_ENVIRONMENT,
                     "Next: check the environment, then send again.",
                     "No usable answer came back. This is a finding about the environment, not about the member or the code.", carry);
             case NO_DETERMINATION -> noDetermination(runId, carry);
@@ -511,10 +525,14 @@ public final class CrdVerdicts {
      * the same outcome covers credentials that were not accepted and an address that does not
      * exist, and sending the tester to correct the request for either would waste their time.
      */
-    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry, String environmentName) {
+    private static NextStepView notAccepted(VendorExchange exchange, Map<String, List<String>> carry, String environmentName,
+                                            boolean sampleStatesFhirServer) {
         int status = exchange.httpStatus() == null ? 0 : exchange.httpStatus();
         if (status == 400 && refusedDraftOrdersType(exchange)) {
             return new NextStepView(NextAction.OPEN_CONFIG, leaveOutDraftOrdersType(environmentName), DRAFT_ORDERS_TYPE_REASON, carry);
+        }
+        if (status != 401 && status != 403 && refusedForFhirServer(exchange)) {
+            return new NextStepView(NextAction.OPEN_CONFIG, setFhirServer(sampleStatesFhirServer), FHIR_SERVER_REASON, carry);
         }
         if (status == 401 || status == 403) {
             return new NextStepView(NextAction.OPEN_CONFIG, "Next: check the credentials in Configuration > Environments > Sign-in.",
@@ -528,6 +546,35 @@ public final class CrdVerdicts {
         }
         return new NextStepView(NextAction.FIX_REQUEST, "Next: read the issues below and correct the request.",
                 "The service did not accept the request as it was sent.", carry);
+    }
+
+    /** Why the next step after a refusal that names fhirServer points at the environment's value (D-308). */
+    static final String FHIR_SERVER_REASON = "The service refused the check and its answer names fhirServer, which this request did not "
+            + "send. PAVE sends fhirServer only when the environment's value FHIR server is set.";
+
+    /** The next step's headline after a refusal that names fhirServer, in the words of D-308. */
+    static String setFhirServer(boolean sampleStatesOne) {
+        return "Set FHIR server in Configuration > Environments > Edit > Values." + (sampleStatesOne
+                ? " The vendor's sample request states one." : "");
+    }
+
+    /**
+     * True when the service's answer names fhirServer and the request as sent carried none. A
+     * request that sent one is not pointed at the value: the refusal is then about something
+     * else, and the issues below say what. Read as the draftOrders refusal is read, by the text of
+     * the answer, since a vendor may say it in a card's detail or in an issue.
+     */
+    static boolean refusedForFhirServer(VendorExchange exchange) {
+        String answer = exchange.responseBody();
+        if (answer == null || !answer.contains("fhirServer")) {
+            return false;
+        }
+        String sent = exchange.request() == null ? null : exchange.request().body();
+        if (sent == null) {
+            return false;
+        }
+        JsonSafe.Parsed parsed = JsonSafe.parse(sent);
+        return parsed.ok() && JsonSafe.isObject(parsed.node()) && JsonSafe.presentText(parsed.node(), "fhirServer") == null;
     }
 
     /** Why the next step after a 400 that names draftOrders.type points at the environment's setting (R-37). */

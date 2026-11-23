@@ -304,6 +304,8 @@ export function createEditor(options) {
     let picks = new Map();         // operation -> {requestId, before, label}: a request chosen in "What these files give"
     const givenAddressInputs = new Map();  // address key -> a box typed in "What these files give"
     const givenValueInputs = new Map();    // value name -> a box typed in "What these files give"
+    let useSamples = null;                 // the box "Use the values these samples state", while the draft offers one (D-308)
+    const fromSample = new Set();          // the names of Values in force from a vendor's sample, whose box stays closed
     const body = el('div', {class: 'config-form'});
     const banner = el('div', {class: 'config-form__banner', role: 'status', 'aria-live': 'polite'});
     let titleNode = null;
@@ -621,6 +623,9 @@ export function createEditor(options) {
                 placeholder: 'Type a value to use instead'});
             input.value = value.typed === null || value.typed === undefined ? '' : String(value.typed);
             valueInputs.set(value.name, input);
+            if (value.inForce && value.inForce.source === 'SAMPLE') {
+                fromSample.add(value.name);
+            }
             const wrapper = overField(value.label || value.name, input, value.inForce || {}, value.why || null);
             const exported = exportVariable(value.name);
             if (exported) {
@@ -857,6 +862,7 @@ export function createEditor(options) {
         parts.folds.clear();
         shapeInputs.clear();
         valueInputs.clear();
+        fromSample.clear();
         otherValues.length = 0;
         addressInputs.clear();
     }
@@ -873,12 +879,23 @@ export function createEditor(options) {
         picks = new Map();
         givenAddressInputs.clear();
         givenValueInputs.clear();
+        useSamples = null;
         const addresses = Array.isArray(draft.addresses) ? draft.addresses : [];
         const values = Array.isArray(draft.values) ? draft.values : [];
         if (addresses.length === 0 && values.length === 0) {
             return signInLine;
         }
         const requests = Array.isArray(draft.requests) ? draft.requests : [];
+        let samplesChoice = null;
+        if (values.some(value => value.request)) {
+            // Ticked from the start: the operator asked twice that what the files hold be taken, not typed.
+            useSamples = el('input', {type: 'checkbox'});
+            useSamples.checked = true;
+            samplesChoice = el('div', {class: 'config-gives__choice'},
+                el('label', {class: 'config-check'}, useSamples, el('span', null, 'Use the values these samples state')),
+                el('p', {class: 'field__hint'}, 'Each is stored with the save where nothing else gives that value. A value typed, '
+                    + 'or one the export gives, stays as it is.'));
+        }
         return el('div', {class: 'config-gives'},
             el('h3', {class: 'form-section__title'}, 'What these files give'),
             el('p', {class: 'section-label'}, 'Sign-in'),
@@ -889,6 +906,7 @@ export function createEditor(options) {
             el('p', {class: 'section-label'}, 'Values'),
             values.some(value => !value.display) ? el('p', {class: 'field__hint'}, 'A value these files do not give is left out of '
                 + 'the requests that read it.' + (isNew() ? ' Type it here, or on Edit once the environment is saved.' : '')) : null,
+            samplesChoice,
             el('div', {class: 'config-gives__rows'}, values.map(value => givenValue(value))));
     }
 
@@ -976,9 +994,10 @@ export function createEditor(options) {
             box.setAttribute('aria-label', value.label || value.name);
             givenValueInputs.set(value.name, box);
         }
+        const notes = (Array.isArray(value.notes) ? value.notes : []).map(each => el('p', {class: 'field__hint'}, each));
         return el('div', {class: 'config-gives__row', 'data-value': value.name},
             el('p', {class: 'field__label'}, value.label || value.name), line,
-            value.line ? el('p', {class: 'field__hint'}, value.line) : null, box);
+            value.line ? el('p', {class: 'field__hint'}, value.line) : null, notes, box);
     }
 
     /** What was typed in "What these files give" goes with the save, as typed on Edit would. */
@@ -1037,6 +1056,10 @@ export function createEditor(options) {
     function collectValues() {
         const values = {};
         for (const [name, input] of valueInputs) {
+            // A value stored from a sample is not typed: an empty closed box keeps it, as a blank secret keeps the stored one.
+            if (fromSample.has(name) && input.value.trim() === '') {
+                continue;
+            }
             values[name] = input.value.trim();
         }
         for (const entry of otherValues) {
@@ -1129,6 +1152,9 @@ export function createEditor(options) {
             body.values = collectValues();
         }
         typedInGivesPart(body);
+        if (useSamples && exportsRead.collectionExport) {
+            body.sampleValues = useSamples.checked;
+        }
         return body;
     }
 
@@ -1425,6 +1451,9 @@ function againWords(source) {
     }
     if (source === 'EXPORT') {
         return "Use the export's again";
+    }
+    if (source === 'SAMPLE') {
+        return "Use the sample's again";
     }
     return "Use the file's again";
 }

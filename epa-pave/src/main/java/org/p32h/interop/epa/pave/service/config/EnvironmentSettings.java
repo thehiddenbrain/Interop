@@ -24,9 +24,12 @@ import org.p32h.interop.epa.pave.model.RequestShape;
  * @param memberIdRule the rule its member IDs are sent by, or null when not stated
  * @param shapes       the value chosen per request shape, by option name, never null
  * @param values       variable name to value, never null, in the order typed
+ * @param valueOrigins for a value stored from a vendor's sample rather than typed, its name to the
+ *                     sample's name (D-308), so Edit says where it came from; never null
  */
 public record EnvironmentSettings(SignInSettings signIn, Timeouts timeouts, Map<EpaOperation, String> addresses,
-                                  MemberIdRule memberIdRule, Map<RequestShape, String> shapes, Map<String, String> values) {
+                                  MemberIdRule memberIdRule, Map<RequestShape, String> shapes, Map<String, String> values,
+                                  Map<String, String> valueOrigins) {
 
     private static final EnvironmentSettings NONE = new EnvironmentSettings(null, null, null, null, null, null);
 
@@ -35,6 +38,27 @@ public record EnvironmentSettings(SignInSettings signIn, Timeouts timeouts, Map<
         addresses = addresses == null || addresses.isEmpty() ? Map.of() : Collections.unmodifiableMap(new EnumMap<>(addresses));
         shapes = shapes == null || shapes.isEmpty() ? Map.of() : Collections.unmodifiableMap(new EnumMap<>(shapes));
         values = values == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(values));
+        // An origin stands only beside the value it describes: a value typed over or cleared takes its origin with it.
+        Map<String, String> kept = new LinkedHashMap<>();
+        if (valueOrigins != null) {
+            for (Map.Entry<String, String> origin : valueOrigins.entrySet()) {
+                if (values.containsKey(origin.getKey()) && origin.getValue() != null) {
+                    kept.put(origin.getKey(), origin.getValue());
+                }
+            }
+        }
+        valueOrigins = kept.isEmpty() ? Map.of() : Collections.unmodifiableMap(kept);
+    }
+
+    /** Settings that state no value from a sample, as every environment saved before D-308. */
+    public EnvironmentSettings(SignInSettings signIn, Timeouts timeouts, Map<EpaOperation, String> addresses, MemberIdRule memberIdRule,
+                               Map<RequestShape, String> shapes, Map<String, String> values) {
+        this(signIn, timeouts, addresses, memberIdRule, shapes, values, null);
+    }
+
+    /** The same settings with these values and origins. */
+    public EnvironmentSettings withValues(Map<String, String> newValues, Map<String, String> newOrigins) {
+        return new EnvironmentSettings(signIn, timeouts, addresses, memberIdRule, shapes, newValues, newOrigins);
     }
 
     /** An environment that states nothing: everything applies as it did before settings existed. */
@@ -52,6 +76,7 @@ public record EnvironmentSettings(SignInSettings signIn, Timeouts timeouts, Map<
     @Override
     public String toString() {
         return "EnvironmentSettings[signIn=" + signIn + ", timeouts=" + timeouts + ", addresses=" + addresses.keySet()
-                + ", memberIdRule=" + memberIdRule + ", shapes=" + shapes.keySet() + ", values=" + values.keySet() + "]";
+                + ", memberIdRule=" + memberIdRule + ", shapes=" + shapes.keySet() + ", values=" + values.keySet() + ", fromSamples="
+                + valueOrigins.keySet() + "]";
     }
 }

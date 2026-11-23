@@ -257,3 +257,9 @@
     gap: var(--s-1);
     min-width: 0;
 }
+
+/* The choice to store the values the samples state (D-308): above the rows it covers. */
+.config-gives__choice {
+    display: grid;
+    gap: var(--s-1);
+}
