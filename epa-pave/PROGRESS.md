@@ -20,6 +20,22 @@ jar was walked once, by the agent that joined it, on mock and on live against th
 900, and looked at at 1024 by 768 (README, "What this README was checked against"); no second agent
 checked the join.
 
+**A fourth correction after release 2, after the join: the values a sample request states are taken
+from it** (D-308). On the evening of the first real run against the vendor's UAT the coverage check was
+refused for a missing `fhirServer` that the vendor's own coverage-check sample stated; the form took a
+value only from a variable of its own name. **The code** is three commits on top of the joined head
+(`6021ab7`) on the branch `values-from-samples`: `d7a3246` (the FHIR server from the coverage-check
+sample, shown in "What these files give", stored by the save on a new environment and on Edit under the
+ticked box "Use the values these samples state", shown on Edit as in force from that request; the line
+for `fhirAuthorization`; the advice after a refusal that names `fhirServer`), `f390ba0` (the payer, its
+identifier and system, and the member ID system from the Submit sample) and `8354f76` (the PAS request,
+service and certification types and the report type). These records were committed after them. One
+builder built and walked it on live against a copy of the stand-in changed to refuse a check without
+`fhirServer`, at 1440 by 900 and 1024 by 768; no second agent checked it, and nothing ran on Windows or
+against the vendor's service. The gates of section 0 are run by the integrator on the commit that carries
+these records; their result is reported with the hand-over. **The new entry**: D-308, with a "Later:"
+line under D-307. The commit that records it changes this file, `DECISIONS.md` and `README.md` only.
+
 **A second correction after release 2: the saved lists filled from a collection** (D-306). On the same
 first run against the vendor's UAT the operator typed every member, provider and procedure code by hand,
 though the vendor's collection states them, and asked that they go into the saved lists. **The code** is
@@ -263,7 +279,14 @@ Each line can be read alone. The detail of each is in the entry named.
    The Edit form's own "Fill the form from these files" (a draft for a stored environment) was not seen in
    a browser, and no test of this correction drives it. On Edit, Timeouts still show the value in force
    as the hint of an empty box, not as a line with "Change" as Values and Addresses do.
-5. **Release 2 was checked once, and its corrections by nobody but their corrector** (D-303). The merge of
+5. **The values taken from the samples were built and walked by one builder and checked by no one else**
+   (D-308). A value is taken only when files are chosen and saved: an environment saved before keeps "not
+   set" until its collection is chosen again on Edit and "Fill the form from these files" is pressed.
+   A value stored from a sample lies over an export that later gives one of its name, and Edit offers no
+   way to empty it, only to type over it. `fhirAuthorization` is named and never sent. The callback url
+   is never read from a sample. The advice's second sentence reads the request the call was sent from,
+   not every stored collection. Not seen on a screen: a report type taken from a sample.
+6. **Release 2 was checked once, and its corrections by nobody but their corrector** (D-303). The merge of
    release 1 into it was walked by its own agent on mock at 1440 only (D-302); two agents that built none
    of it checked the merge once; one corrector corrected their five findings. No second check and no
    recheck round followed, to keep spending low. What that leaves, each with what a tester does:
@@ -296,7 +319,7 @@ Each line can be read alone. The detail of each is in the entry named.
      tool by the check of release 2 or the merge agent: the trail, Audit's folds, Download, Journeys,
      Suites, the reload and "Load into the Workbench" on mock, the lookup on live against the stand-in,
      Forget's own refusals; answers from the case only on mock.
-6. **What the checks of release 1 and the integrator's own findings on the candidate left** (D-299).
+7. **What the checks of release 1 and the integrator's own findings on the candidate left** (D-299).
    - **Two holes in the guardrail the rebuild opened, closed before any hand-over**, found by the check on
      `0b69049` before any
      hand-over: a sandbox's token url set to a production environment's remembered `$submit` address
@@ -370,7 +393,7 @@ Each line can be read alone. The detail of each is in the entry named.
    - Left for time by the sorter and corrected all the same, seen closed on `e5d0972`: critic-8, critic-10,
      critic-11, look-11, look-17, look-18 (D-299).
    - Left by the integrator's decision: hunts-1 and hunts-2 (I-9), given to release 2; hunts-1 is
-     corrected there and hunts-2 is not (line 5): after rebuilding under a PAVE started with
+     corrected there and hunts-2 is not (line 6): after rebuilding under a PAVE started with
      `-Dpave.classes.load-at-start=false`, stop PAVE and start it again before trusting any internal
      error. Also hunts-3 (the measure
      was wrong, I-10), the browser's own console line for a planned refusal (wb-mock-5, live-config-6,
@@ -401,7 +424,7 @@ Each line can be read alone. The detail of each is in the entry named.
      when given (D-300).
    - **Whether the X12 unit codes of an item's quantity are in the X12 value set PAS 2.0.1 binds** was not
      settled, for the same reason. The quantity and its unit are sent when given (D-300).
-7. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
+8. **Questions only the operator can answer.** The contracts and sign-in of the member lookup and the
    provider lookup they use (none is known; the provider lookup's own contract stays later until they
    give its address and a sample, D-285); the vendor's collection that fails for them, which nobody here
    has seen; whether the vendor's client secrets shown in the photographs of their earlier sessions were
@@ -409,17 +432,17 @@ Each line can be read alone. The detail of each is in the entry named.
    switch in the top bar (D-304, a restart in place of a few seconds, not remembered over a real start)
    is what they asked for, which closes the question D-297 left; and the questions
    D-269 left: the NPI's first digit, a sample request from the vendor.
-8. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
+9. **The last fixes of the line before the rebuild are checked by nobody but their authors, and no
    check follows them** (D-268). Four fixes (ledger, completeness on screen, walkthrough, guardrail)
    changed what keeps member data out of the ledger and what keeps writes from reaching production.
    Their screen parts went with the old screens; their server parts stand.
-9. **Not fit to be run as a shared or production service as delivered** (D-270). No sign-in, plain
+10. **Not fit to be run as a shared or production service as delivered** (D-270). No sign-in, plain
    http, secrets in plain text on disk, no record of who did what, one copy on one machine; it keeps
    listening on this machine only and is not to be opened to the network before a sign-in exists. The
    saved test lists (D-294) add member data the store keeps, on the operator's leave. The README,
    "Before PAVE is run as a shared or production service", lists what must exist first; none of it is
    built.
-10. **The guardrail, what it still lets through or cannot see.** A production environment refused at
+11. **The guardrail, what it still lets through or cannot see.** A production environment refused at
    upload is not stored, so a sandbox at its address is not refused until the production environment is
    uploaded with its address written plainly. Addresses read from `onyx.<protocol>.url` are no
    production environment's. A base path holding an encoded separator is refused at upload when it decodes
@@ -429,10 +452,10 @@ Each line can be read alone. The detail of each is in the entry named.
    explicit default ports on the wire, hosts other than loopback, a real front server, proxies and
    redirects, another DNS name for a production host (D-145, D-225, D-265). Typed addresses are among the
    production checks since D1b; the two holes the checks of release 1 found in the rebuild's new
-   destinations are line 6. An address remembered from a removed production environment is forgotten
+   destinations are line 7. An address remembered from a removed production environment is forgotten
    with "Forget this production address" since release 2 (D-301); another remembered address above or
-   beneath it still blocks, and the refusal names each (line 5, D-303).
-11. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
+   beneath it still blocks, and the refusal names each (line 6, D-303).
+12. **Member data the ledger can still keep.** A name, a date of birth written in words or an address the
    request does not carry is written as typed in a note (D-217). A body of the tester's own is read for
    identifiers only, and as typed when a placeholder has no value or is filled from a collection variable
    (D-262). A suite expectation that holds a date of birth or a name and is also malformed is repeated
@@ -444,7 +467,7 @@ Each line can be read alone. The detail of each is in the entry named.
    to compare. The configuration store keeps
    uploads as uploaded (D-213), the saved test lists by design (D-294), secrets and the installation salt
    in plain text in `config-store/` (D-234), and the wire view carries member data.
-12. **Server sentences of the old screens that a new screen may still show** (D-257, D-266). The items
+13. **Server sentences of the old screens that a new screen may still show** (D-257, D-266). The items
     that described the old tabs went with them. The second round closed the next steps of played
     faults, of an answer the tool cannot act on and the CRD label of an answer that is not a CDS Hooks
     response (D-282). Left on the server: a replay of a run id that does not exist answers with the
@@ -459,15 +482,15 @@ Each line can be read alone. The detail of each is in the entry named.
     replay, a send with no address; `c891362`); Configuration's mapping and raw-send notes and two
     start-up log lines still say "the Config tab"; the sweep of the rest (R-16) was not made in release 2
     either (D-301), and the guardrail's keep their words (I-30).
-13. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
+14. **Who answered, and what Audit can tell apart.** A notification posted to the receiver by hand
     while the tool runs on mock is recorded as answered by a mock scenario; lines written between
     `98effa6` and `428eff5` with the service beside a scenario id are read as written. When two
     responses were completed from one package, nothing says which the PAS submission carried (D-181).
-14. **What the build cannot see.** No test drives a browser: the new screens are held by Java tests that
+15. **What the build cannot see.** No test drives a browser: the new screens are held by Java tests that
     read the scripts as text and run pieces of them under Node, skipped where no `node` is on the path.
     The tests of the old screens were deleted with them (24, D-282);
     the new screens have Java tests of their own of the same kinds (D-286). A build green twice does not prove that no test passes by chance.
-15. **The fixtures and the style gate, given no fix after the last check of the line before.** Fixtures:
+16. **The fixtures and the style gate, given no fix after the last check of the line before.** Fixtures:
     a CRD note for `crd-04` chosen by hand does not say the DTR test member ID came from the body; the
     DTR note says CRD answers documentation required whatever the file says; two descriptions slip past
     the old-directory check; a PAS list filtered with `?for=inquire` or `?for=notification` hides the
@@ -477,7 +500,7 @@ Each line can be read alone. The detail of each is in the entry named.
     refused; a text file with a binary extension or an early NUL byte is skipped unread; invented
     surnames and 16 files of empty banners remain. The gate does not read commit messages or the pull
     request description.
-16. **Never run or never tried.** `run.cmd` on Windows: it ran under Wine's `cmd` (I5, with one
+17. **Never run or never tried.** `run.cmd` on Windows: it ran under Wine's `cmd` (I5, with one
     difference of quoting Wine needs), and a double-click start that finds no Java closes its window
     before its message can be read. The real Spring Tools 5.4.0 under a virtual display on Linux ran the
     line before the rebuild (D-272 to D-274) and, for release 1, imported the tree of `1a14611`, started it
@@ -487,12 +510,12 @@ Each line can be read alone. The detail of each is in the entry named.
     and in-use cases, I5), and on `1a14611` the read-only, in-use and disk-full sentences over the API
     (D-299). Also never tried: a mirror with credentials and a token server, a screen reader, contrast,
     200% zoom and phone width.
-17. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
+18. **Limits of level 1, by decision** (D-235): in the X12 275 attachment mode the tool names the
     document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no
     `$log-questionnaire-errors`, no CQL; DTR is the operations behind a SMART launch, not the launch; the
     notification receiver listens on this machine only by default and does not authenticate its caller;
     the tool has no sign-in of its own.
-18. **What the steps before the rebuild left on the server** (D-277 to D-280), unchanged by it.
+19. **What the steps before the rebuild left on the server** (D-277 to D-280), unchanged by it.
     - The net under every thread, the guard in `SuiteService.close` and the net's own guard were never
       made to fire on the real jar; tests hold them. A failure inside one of `ApiExceptionHandler`'s own
       methods is kept out of the log only by the logger level of Spring's handler resolver. A start that
@@ -509,7 +532,7 @@ Each line can be read alone. The detail of each is in the entry named.
     - History, now Audit, no longer keeps an ordinary questionnaire address with a part of 129
       characters or more. Names given as labels stay whole. The stop button of an IDE on Windows ends
       the process at once, so a call then out gets no ledger line (D-280).
-19. **What the second round of the old screens left that the rebuild did not take** (D-282, D-284): a
+20. **What the second round of the old screens left that the rebuild did not take** (D-282, D-284): a
     token endpoint that sends a status line and then cuts the body reads "closed the connection without
     answering"; the member and provider lookups keep their wording for a 401; on mock a note or a case id
     that uses the scenario word a mock member is named after is refused as holding the member's last

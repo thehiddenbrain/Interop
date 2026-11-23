@@ -18,9 +18,39 @@ between mock and live in the top bar (D-304); the sign-in read from the files, a
 that says why (D-305); the saved lists filled from a collection, with a third list for procedure codes
 (D-306); and the form that takes and shows everything the files give (D-307). They were built apart,
 after the operator's first run against the vendor's UAT, and joined on this head, which also carries
-what the join itself needed (the merge `e09dfe8` and the commits after it). The four parts below say
-what each gives, the newest first; [Setting up a service](#setting-up-a-service) gives the joined form
-step by step.
+what the join itself needed (the merge `e09dfe8` and the commits after it). A fifth, the values a
+sample request states (D-308), was added after the join. The parts below say what each gives, the newest
+first; [Setting up a service](#setting-up-a-service) gives the joined form step by step.
+
+**A fourth correction after release 2: the values a sample request states are taken from it.** On the
+evening of the first real run against the vendor's UAT, the coverage check was refused: `"fhirServer"
+is required`. The vendor's collection stated the value all along, in the body of its sample coverage
+check, but the form took a value only from a variable of its own name, so it had to be found in Postman
+and typed. The code of commits `d7a3246`, `f390ba0` and `8354f76`, with this README after them, changes
+that:
+
+- "What these files give" takes a value from the sample request that states it when no variable of its
+  name gives it, and says which: "from the collection's request "1. CRD / CRD - Prior Auth Check"". The
+  FHIR server from the coverage-check sample's `fhirServer`; from the Submit sample's Bundle, the payer's
+  name, its identifier and that identifier's system (the Organization `Claim.insurer` refers to, when it
+  has one identifier), the member ID system (the identifier typed MB on the Patient `Claim.patient`
+  refers to, else the only one), and the PAS request, service and certification types (the first item,
+  where PAVE writes them) and the report type. Several identifiers, or items that disagree, give none,
+  and a line says so.
+- "Save environment" stores them, on a new environment and on Edit, under the ticked box "Use the values
+  these samples state", for a value nothing else gives; a typed value and the export's are never
+  replaced. The result says each ("FHIR server set from the collection's request "..."."), and Edit
+  shows each as in force from that request, with "Change".
+- What the coverage-check sample sends and PAVE does not is said by name: "The sample also sends
+  fhirAuthorization. PAVE does not send it: if the service refuses the check, that is the first thing to
+  look at."
+- A refusal of the coverage check that names `fhirServer` now says "Set FHIR server in Configuration >
+  Environments > Edit > Values.", and "The vendor's sample request states one." when the request it was
+  sent from does.
+
+The callback url is not taken from any sample: it is the address of PAVE's own receiver. Seen on live
+against a copy of the stand-in that refuses a check without `fhirServer`, at 1440 by 900 and 1024 by 768,
+never against the vendor's service (D-308).
 
 **A third correction after release 2: the form takes, and shows, everything the files give.** After
 "Fill the form from these files" on that first UAT run the addresses and the values had to be typed by
@@ -373,9 +403,15 @@ by the next call.
      states `"hook": "order-sign"`, a Bundle that carries a Claim (sent to `$submit` or `$inquire`), a
      Parameters body that names a coverage (`$questionnaire-package`).
    - **Values**: the FHIR server, the payer's name and identifier, the member ID system and the others,
-     each with what the files give and the variable it comes from ("from the export's variable
-     fhirServer"), or "not given". A value these files do not give is left out of the requests that
-     read it; type it in its box there, or on Edit.
+     each with what the files give and where it comes from: a variable of its name ("from the export's
+     variable fhirServer"), else the sample request that states it ("from the collection's request "1.
+     CRD / CRD - Prior Auth Check""), or "not given". The coverage-check sample gives the FHIR server;
+     the Submit sample the payer, its identifier and system, the member ID system and the PAS types.
+     With such a value, the box "Use the values these samples state" stands ticked above the rows: the
+     save then stores each for a value nothing else gives. What the coverage-check sample sends and PAVE
+     does not is named under the FHIR server ("The sample also sends fhirAuthorization. ..."). A value
+     these files do not give is left out of the requests that read it; type it in its box there, or on
+     Edit.
    - **Found in the collection**, after "What these files give" when a collection is chosen: the
      members, providers and procedure codes its requests state, each with the request it was found in,
      what was seen and not used, and the box "Add these to the saved lists when the environment is
@@ -419,7 +455,8 @@ by the next call.
    request chosen in step 2 for an operation is mapped and the entries found are added to the saved
    lists (with the box ticked), and the result says both: "CRD order-sign uses the request "Coverage /
    Prior auth sample"." and "Added to the saved lists: 2 members, 1 provider, 4 procedure codes.", with
-   links to the lists. If a chosen request could not be mapped, the save says "The environment is
+   links to the lists. Each value stored from a sample is said too: "FHIR server set from the
+   collection's request "1. CRD / CRD - Prior Auth Check".". If a chosen request could not be mapped, the save says "The environment is
    saved, but the request chosen for <operation> was not recorded." and the environment stays saved:
    choose it again in Configuration > Collections.
 6. **Edit** the saved environment for the rest. A new environment chosen without files says "The
@@ -442,9 +479,11 @@ by the next call.
    - **Values**: the FHIR server, the payer's name and identifier, the member ID system, the PAS
      request, service, certification and report types, the callback url, and any other variable a
      request reads. Each row shows the value in force and where it comes from ("from the export's
-     variable fhirServer", "from application.yml", "typed here", "not set"). A typed value lies over the
-     export's own; "Use the file's again" takes it away at the next save. A name that reads as a secret
-     is refused there.
+     variable fhirServer", "from the collection's request ...", "from application.yml", "typed here",
+     "not set"). A typed value lies over the export's own; "Use the file's again" takes it away at the
+     next save. A value stored from a sample stays when its box is left closed; "Change" and a typed
+     value replace it. To take a sample's value on Edit, choose the collection export there, press "Fill
+     the form from these files" and save. A name that reads as a secret is refused there.
    - **Addresses**: one row per operation, with the address in force and where it comes from ("from
      the collection's request ...", "from application.yml", "typed here", "not set"). A typed address
      replaces the collection request for that operation, its headers and saved body included; "Use the
@@ -1473,6 +1512,11 @@ open item, the worst first, with the entry that gives the reason.
   real STS 5.4.0 on Linux and on the Windows Java under Wine
   ([How the switch was checked](#how-the-switch-was-checked)). The mode it chooses is not remembered
   over a real start.
+- **A value is taken from a sample only when files are chosen and saved** (D-308): an environment saved
+  before keeps "not set" until its collection is chosen again on Edit, "Fill the form from these files"
+  pressed and the environment saved. A value stored from a sample stays when the export later gives one
+  under its own name, and Edit offers no way to empty it: type another value over it with "Change".
+  `fhirAuthorization` is never sent.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.

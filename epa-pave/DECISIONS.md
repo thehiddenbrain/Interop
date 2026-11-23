@@ -70,6 +70,7 @@ entry.
 | D-305 | A correction after release 2: the sign-in is read from the collection's token request and from wider variable names, several candidates are offered as buttons, an empty value is said; a refused sign-in says what the token endpoint said and names the setting (`80962e5`, `c0f9cf1`, `27e3a96`, `b7a1770`) | On the operator's first run against the vendor's UAT the files filled no sign-in and a refused sign-in said only "HTTP 401". The scripts of a collection are still never read. The service's words are shown made safe and never logged. Seen on live against the stand-in and a token endpoint of the builder's own, not against the vendor's service |
 | D-306 | A second correction after release 2: what a collection's requests state about members, providers and procedure codes goes into the saved lists, on the tester's tick; procedure codes a third list, picked in the Service card; a saved member may hold a vendor patient id alone (`babb793`, `fdce17b`, `85b8834`, `76743d4`, merged as `165bbd2`) | The operator asked for it after the first real run. It stays inside D-298's bounds: the box is the purpose, and the stored collection already holds every value. Only what a request sends is read, nothing is guessed, the log holds counts only, nothing goes to the ledger. Seen on mock and on live against the stand-in, not with the vendor's files |
 | D-307 | A third correction after release 2: right after Fill the form shows every address and value the files give with where it comes from, and a request can be chosen for an operation none was found for; on Edit nothing in force is an empty box; a request is also told by its body; a v2.0 collection is read (`25b200a`, `6664bd1`, `fc80b7d`, `050f977`) | On the operator's first run against the vendor's UAT every address and value was typed by hand, and a typed address replaced the collection's request. A chosen request is the collection's mapping, recorded in a second call after the save. Seen on live against the stand-in, not against the vendor's service |
+| D-308 | A fourth correction after release 2: the values of the Edit form a vendor's sample requests state (the FHIR server from the coverage-check sample; the payer, its identifier and system, the member ID system and the PAS types from the Submit sample) are shown with the request they come from and stored by the save for a value nothing else gives; what the coverage-check sample sends and PAVE does not is named; a refusal that names fhirServer says where to set it (`d7a3246`, `f390ba0`, `8354f76`) | The coverage check was refused for a missing fhirServer the vendor's own sample stated. A value is read only where PAVE's own builder writes it, from the sample a call for that operation is sent from; a value typed or given by the export is never replaced; the callback url is never taken from a sample. Seen on live against a changed copy of the stand-in, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -8643,3 +8644,125 @@ round of corrections; the code handed over.**
   these files give": what configures the environment first, the case data after. A save records the
   requests chosen and then adds the entries found, and its result says both; a recorded pick is now
   said ("CRD order-sign uses the request "...".") where before only a failed one was (`7c14ef8`).
+  Later (D-308): a value no variable of its name gives is also taken from the sample request that
+  states it, where PAVE's own builder writes that value, and the save stores it; a value is still never
+  matched to a variable of another name.
+
+
+**D-308. A fourth correction after release 2: the values a sample request states are taken from it.**
+- **What happened.** On the evening of the first real run against the vendor's UAT, once the address
+  was put right, the vendor's service refused the coverage check: `"fhirServer" is required`. The value
+  was in the vendor's Postman collection all along, in the body of its sample coverage-check request.
+  PAVE sends `fhirServer` only when the environment's value "FHIR server" is set, and the form filled a
+  value only from a variable of exactly that name (D-307), so the operator found the line in Postman and
+  typed it under Edit > Values. They had said twice that everything the files hold is to be taken from
+  them. The values of the Edit form (`KnownValues`) are, in a vendor's collection, stated in the bodies
+  of its samples rather than in variables of PAVE's names, and the same refusal waited at Submit for the
+  payer. Their files were not seen and were not asked for. Decided by the integrator
+  (`TASK_VALUES_FROM_SAMPLES.md`).
+- **Where a value is read** (`SampleValues`). Only from the place in a sample where PAVE's own builder
+  writes that value, and only from the sample a call for the operation is sent from: the first request
+  in the order of the file mapped to it, passing over one whose name says "error", as the gateway
+  chooses (R-02); with none mapped, the only request whose body can state it. Each body is parsed once
+  (a bare placeholder read as null, as `VendorSamples` reads it) and read by fixed paths, so no walk
+  grows with the file.
+  - **FHIR server**: `fhirServer` at the top of the coverage-check (order-sign) sample; with no request
+    mapped to order-sign, the only request whose body states a `hook`.
+  - **Payer name, payer identifier, payer identifier system**: in the Submit sample's Bundle, the
+    Organization that `Claim.insurer` refers to (by the entry's fullUrl, or by type and id; a reference
+    two entries could answer names none): its `name`; its identifier, value and system, when it has
+    exactly one. With several, none is taken and a line names their systems, never their values: "The
+    collection's request "<name>" gives the payer 2 identifiers (<system> and <system>), so none is
+    taken: choose one and type it."
+  - **Member ID system**: PAVE writes the system on the Patient's identifier typed MB (`PasResources`).
+    From the Patient `Claim.patient` refers to: the identifier typed MB, else the only one, else none,
+    the rule D-306 reads a member ID by. Several: "... gives the patient 2 identifiers (...) and none is
+    typed MB, so the member ID system is not taken." The member ID itself, and every other member value,
+    is never shown in this part.
+  - **PAS request, service and certification types**: from the first item of the sample's Claim, where
+    `PasRequestBuilder` writes them: the item's extensions `serviceItemRequestType` and
+    `certificationType`, and `item.category`, each a coding of its X12 system. A code of another system
+    is not that place and is not read. Items that state different codes give none: "The items of the
+    collection's request "<name>" state different PAS request types (HS and AR), so none is taken." The
+    builder writes these in the same place under PAS 2.0.1 and 2.2.1, so the guide in force changes
+    nothing of where they are read.
+  - **PAS report type**: the `reportTypeCode` of the `documentInformation` extension on the Claim's
+    supporting information, where the builder writes it under PAS 2.2.1; entries that state different
+    codes give none. Under 2.0.1 a stored report type is not sent, as a typed one is not.
+  - **Callback url**: not taken. It is where the vendor reaches PAVE's own receiver; the subscription
+    sample's endpoint is the vendor's example of a receiver, not this tool's address, so reading it would
+    be a guess.
+  A variable of the value's own name wins over a sample. A value the sample writes as a `{{placeholder}}`
+  is resolved through the layers an address is and, when nothing defines it, stays as written with the
+  line D-307 uses. Not taken: a value that is only `{{<its own name>}}` ("... writes it as {{fhirServer}},
+  which these files do not define."), one that resolves through a secret or holds a credential ("...
+  states it through a secret, so it is not taken."), one longer than a value may be, and the payer
+  identifier's system when the payer identifier in force comes from elsewhere, since it is the system of
+  the sample's own identifier ("... states the system of its own payer identifier, and the payer
+  identifier in force comes from elsewhere, so it is not taken.").
+- **What the form shows.** The draft's value rows gain `request` and `notes`. A row taken from a sample
+  reads "<value> from the collection's request "<name>"", and above the rows a box, ticked, "Use the
+  values these samples state", with "Each is stored with the save where nothing else gives that value. A
+  value typed, or one the export gives, stays as it is." Under the FHIR server, what the coverage-check
+  sample sends at its top level that PAVE's hook request (hook, hookInstance, fhirServer, context,
+  prefetch) does not, by name only: "The sample also sends fhirAuthorization. PAVE does not send it: if
+  the service refuses the check, that is the first thing to look at." (with several, "... PAVE does not
+  send them: ... they are the first things to look at."; where the row does not come from that sample,
+  it starts "The collection's request "<name>" also sends").
+- **How it is stored.** The save takes `sampleValues` (true when the box is ticked and a collection
+  export goes with it); the server reads the samples of that export again, so what is stored never rests
+  on what the page sent. For each value that nothing is in force for (no value typed or stored, no
+  variable of its name in the export, the stored export on Edit, the collection or application.yml, no
+  callback url in application.yml) the value as the sample writes it is stored under Values, with its
+  origin in a new `valueOrigins` map of the settings (`store.json`; an origin whose value is absent makes
+  the entry unreadable, as every other unknown does; an older build ignores it). The result says each:
+  "FHIR server set from the collection's request "<name>".". The stored value passes the production
+  checks a typed value does. Edit shows it with source `SAMPLE` and "from the collection's request
+  "<name>"", its box closed, "Change" to open it and "Use the sample's again" under the opened box; a
+  closed or empty box keeps it, and a value typed there replaces it and its origin. On Edit the part needs
+  the collection export chosen and "Fill the form from these files" pressed, as before.
+- **The refusal points at the fix** (`CrdVerdicts`). As the 400 that names draftOrders.type is read (R-37),
+  by the text of the answer: when the service refuses the check (4xx other than 401 and 403, or 5xx), its
+  answer names `fhirServer` and the request as sent carried none, the next step is "Set FHIR server in
+  Configuration > Environments > Edit > Values.", with " The vendor's sample request states one." when the
+  saved body of the collection request the call was sent from states one; the reason: "The service
+  refused the check and its answer names fhirServer, which this request did not send. PAVE sends
+  fhirServer only when the environment's value FHIR server is set." No general reader of refusals was
+  built.
+- **What holds it.** `SampleValuesTest` (the draft: each value from a sample written for the test,
+  placeholders only; a variable of the name wins; several identifiers; items that disagree; a code of
+  another system; a placeholder defined and not; a value naming itself; a secret; a v2.0 collection; a
+  collection with no sample; the only hook body; the payer identifier's system beside an identifier from
+  the export. The save: on a new environment and on Edit the value is in force with where it came from,
+  and read back by a service started on the same folder; a typed value and the export's are not replaced;
+  the box unticked stores nothing; the member ID is in neither the answer nor `store.json`);
+  `FhirServerAdviceTest` (the advice with and without its second sentence, in a card's detail and in an
+  issue's text, and a request that sent fhirServer, another refusal, a 401 and a body that is not JSON
+  keeping their own next step); `ConfigFrontendTest` (the row, the note, the box ticked and unticked as
+  sent, the result line, and on Edit the closed row kept, "Change", a typed value sent and "Use the
+  sample's again"). No expectation of an existing test changed. `RecursionGuardTest`, `RegexStackGuardTest` and
+  `DeepAnswerStackTest` unchanged. Not shown to fail without the change.
+- **What was seen.** On the jar of each commit, on live, in Chromium, with files written for the check
+  (placeholders only): an environment export that defines none of the ten values under PAVE's names, and
+  a collection whose coverage-check sample states `fhirServer` `https://ehr-sandbox.example.org/fhir` and
+  a `fhirAuthorization`, and whose Submit Bundle states a payer with one identifier, a Patient whose
+  member ID is typed MB, and the request, service and certification types. Against a copy of the
+  stand-in changed to refuse a hook request with no `fhirServer` (`"fhirServer" is required`, HTTP 400):
+  first an environment whose collection's sample states none, saved and made active: the check was
+  refused and the card said "Set FHIR server in Configuration > Environments > Edit > Values.". Then, on a
+  fresh store, at 1440 by 900: Fill showed the FHIR server from the coverage-check sample with the line
+  for fhirAuthorization and the ticked box; saved as sandbox, the result said "FHIR server set from the
+  collection's request "1. CRD / CRD - Prior Auth Check"."; Edit showed it as in force from that request
+  with "Change"; made active, the coverage check was answered "Documentation is required." with no value
+  typed, the stand-in's log showing `fhirServer` sent. At 1024 by 768: an environment saved from the
+  export alone, then Edit, the collection chosen, Fill and save: the value stored and shown on Edit. The
+  payer, the member ID system and the three PAS types the same way, and a Submit preview through the API
+  carried the insurer, its identifier and system, the member ID system and the item types. No value of a
+  secret was in the log. Not seen: the report type taken from a sample on a screen, the vendor's own
+  files or service, Windows, the IDE.
+- **Left.** A value is taken only when files are chosen and saved: an environment saved before keeps
+  "not set" until its collection is chosen again on Edit. A value stored from a sample lies over an export
+  that later gives one of its name, and Edit offers no way to empty it, only to type over it.
+  `fhirAuthorization` is never sent, and no other member of a sample is copied into PAVE's request. The
+  advice's second sentence reads the call's own request only, not every stored collection. The callback
+  url is never read from a sample.
