@@ -336,6 +336,11 @@ public final class CaseResources {
      * collection request it is sent from states (D-320). A preview and a send each read through
      * this, so the two build the same body.
      */
+    public static Reads reading(Function<String, ResolvedText> variables, org.p32h.interop.epa.pave.service.config.RequestValues.ForCall request) {
+        return new Reads(variables, request);
+    }
+
+    /** See {@link #reading(Function, org.p32h.interop.epa.pave.service.config.RequestValues.ForCall)}. */
     public static Reads reading(org.p32h.interop.epa.pave.service.config.PreparedCall call) {
         return call == null ? new Reads(null, null) : new Reads(call::resolve, call.requestValues());
     }

@@ -84,6 +84,16 @@ public final class CrdRequestComparer {
      * @param variables fills in placeholders, in the pasted text and for the builder alike
      */
     public RequestComparison compare(CrdRunRequest form, Function<String, ResolvedText> variables) {
+        return compare(form, variables, variables);
+    }
+
+    /**
+     * @param builtWith the values this tool's request is built with: those of {@code variables}, and
+     *              under them what the collection request a send would use states (D-320), so the
+     *              request compared is the one a send builds. The pasted request is filled from
+     *              {@code variables} alone
+     */
+    public RequestComparison compare(CrdRunRequest form, Function<String, ResolvedText> variables, Function<String, ResolvedText> builtWith) {
         List<String> notes = new ArrayList<>();
         String yourText = fillIn(form.rawBody(), variables, notes);
         JsonSafe.Parsed parsed = JsonSafe.parse(yourText);
@@ -125,7 +135,7 @@ public final class CrdRequestComparer {
         String toolBody = null;
         JsonNode tool = null;
         if (built.lacking.isEmpty()) {
-            toolBody = builder.build(built.request, HOOK_INSTANCE, variables).json();
+            toolBody = builder.build(built.request, HOOK_INSTANCE, builtWith).json();
             tool = JsonSafe.parse(toolBody).node();
         } else {
             String lacking = "the form has " + list(built.lacking) + ", and " + (built.lacking.size() == 1 ? "it" : "they")

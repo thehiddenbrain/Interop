@@ -139,11 +139,12 @@ public class CrdService {
                 unreadableOnMock = epa.mock();
             }
         } else {
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             CrdRequestBuilder.Built built = builder.build(request, UUID.randomUUID().toString(), reads, shapes(call), call.memberIdRule(),
                     sampleLayout(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
+            requestNotes.addAll(reads.requestNotes());
             orders = built.orders();
             incomplete = built.incomplete();
         }
@@ -347,11 +348,12 @@ public class CrdService {
         } else {
             // A real id, so a preview sent as the tester's own body is a valid request. The note says it is not the one a run sends.
             String hookInstance = UUID.randomUUID().toString();
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             CrdRequestBuilder.Built built = builder.build(request, hookInstance, reads, shapes(call), call.memberIdRule(),
                     sampleLayout(call));
             body = reads.shown(built.json());
             notes = new ArrayList<>(built.notes());
+            notes.addAll(reads.requestNotes());
             notes.add("The hookInstance " + hookInstance + " was made for this preview. A new one is made each time the request is sent.");
         }
         return RequestPreview.of(operation, call, body, notes, shown);
@@ -376,7 +378,10 @@ public class CrdService {
         }
         // The same checks a run with its own body gets: whatever the form holds is checked, and the body is not.
         validate(request);
-        return new CrdRequestComparer(builder).compare(request, template -> gateway.resolve(template, request.variables()));
+        java.util.function.Function<String, ResolvedText> variables = template -> gateway.resolve(template, request.variables());
+        // This tool's side takes what the request a send would use states, as the send does (D-320).
+        return new CrdRequestComparer(builder).compare(request, variables, CaseResources.reading(variables,
+                gateway.requestValues(operation(CrdRequestBuilder.hook(request)), request.request(), request.variables())));
     }
 
     /** Calls CDS Hooks discovery and lists the services the environment offers. Not a test run, so it is not recorded. */

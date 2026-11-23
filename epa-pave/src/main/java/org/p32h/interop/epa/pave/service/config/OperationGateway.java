@@ -249,6 +249,19 @@ public interface OperationGateway {
         return WrittenBody.none(null, false);
     }
 
+    /**
+     * What the collection request a call of the operation would be sent from states of the FHIR
+     * server and of the payer (D-320), for a request built to be shown with no call prepared, such
+     * as "Compare with a request that works", so that it takes the values a send takes. This
+     * default knows no collection and answers that there are none.
+     *
+     * @param request   the request named for the run, or null
+     * @param runValues the values typed for the run
+     */
+    default RequestValues.ForCall requestValues(EpaOperation operation, RequestRef request, Map<String, String> runValues) {
+        return RequestValues.ForCall.NONE;
+    }
+
     default org.p32h.interop.epa.pave.model.MemberIdRule memberIdRule() {
         return org.p32h.interop.epa.pave.model.MemberIdRule.PACKED;
     }

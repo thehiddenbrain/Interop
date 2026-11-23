@@ -134,11 +134,12 @@ public class PasService {
                         + "added to the body you supplied. Only what the body itself holds was sent.");
             }
         } else {
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             PasRequestBuilder.Built built = builder.submit(request, claimId(request, true), claimId(request, false) == null,
                     "urn:uuid:" + UUID.randomUUID(), reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
+            requestNotes.addAll(reads.requestNotes());
             sent = built.sent();
             attachmentMode = built.attachmentMode();
             leftOut = built.leftOut();
@@ -199,11 +200,12 @@ public class PasService {
         } else {
             String claimId = claimId(request, false);
             Codes codes = inquiryCodes(request, claimId);
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), "urn:uuid:" + UUID.randomUUID(),
                     reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
             body = reads.body(built.json());
             requestNotes.addAll(built.notes());
+            requestNotes.addAll(reads.requestNotes());
             sent = built.sent();
             leftOut = built.leftOut();
         }
@@ -371,11 +373,19 @@ public class PasService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request, shown, written);
         }
-        CaseResources.Reads reads = CaseResources.reading(call::resolve);
+        CaseResources.Reads reads = CaseResources.reading(call);
         PasRequestBuilder.Built built = builder.submit(request, Texts.orElse(claimId(request, false), NEW_ID), claimId(request, false) == null,
                 NEW_ID, reads, call.memberIdRule(), PasGuide.of(call.shapes()), guideStated(call));
-        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown)
+        String shownBody = reads.shown(built.json());
+        return RequestPreview.of(operation, call, shownBody, withRequestNotes(PasNotes.asPreview(built.notes()), reads), shown)
                 .withToComplete(built.toComplete());
+    }
+
+    /** A preview's notes with what the request it is sent from gave (D-320), read once the body was built. */
+    private static List<String> withRequestNotes(List<String> notes, CaseResources.Reads reads) {
+        List<String> all = new ArrayList<>(notes);
+        all.addAll(reads.requestNotes());
+        return all;
     }
 
     /** True when the call's environment states its PAS guide; false when 2.0.1 holds only as the default. */
@@ -403,10 +413,11 @@ public class PasService {
         }
         String claimId = claimId(request, false);
         Codes codes = inquiryCodes(request, claimId);
-        CaseResources.Reads reads = CaseResources.reading(call::resolve);
+        CaseResources.Reads reads = CaseResources.reading(call);
         PasRequestBuilder.Built built = builder.inquire(request, claimId, codes.codes(), codes.from(), NEW_ID, reads, call.memberIdRule(),
                 PasGuide.of(call.shapes()), guideStated(call));
-        return RequestPreview.of(operation, call, reads.shown(built.json()), PasNotes.asPreview(built.notes()), shown);
+        String shownBody = reads.shown(built.json());
+        return RequestPreview.of(operation, call, shownBody, withRequestNotes(PasNotes.asPreview(built.notes()), reads), shown);
     }
 
     private static RequestPreview ownBodyPreview(EpaOperation operation, PreparedCall call, RunRequest request, MemberIdForms shown,

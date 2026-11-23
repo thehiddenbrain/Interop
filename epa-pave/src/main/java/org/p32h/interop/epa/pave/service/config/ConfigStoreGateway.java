@@ -238,7 +238,58 @@ public class ConfigStoreGateway implements OperationGateway {
                 : resolvedSignIn(snapshot, settings.signIn(), plan.target().collection());
         return new IssuedCall.Settings(signIn, settings.memberIdRule(),
                 shapes(settings, plan.target()), Texts.trimToNull(settings.values().get(KnownValues.CALLBACK_URL)),
-                plan.target().sampleName(), plan.target().sampleBody());
+                plan.target().sampleName(), plan.target().sampleBody(), requestValues(snapshot, plan.intent().runValues(), plan.target()));
+    }
+
+    /**
+     * What the collection request a call is sent from states of the FHIR server and of the payer,
+     * read at the time of the call from the snapshot the call is prepared against (D-320): no save
+     * is needed, so an environment saved long ago takes them on its next call. Each value is
+     * resolved through the layers the call's body is resolved through, with the variables of the
+     * collection that request belongs to. A call with no such request, a lookup, or a request with
+     * no body or a body that is not JSON, takes nothing.
+     */
+    private RequestValues.ForCall requestValues(ConfigSnapshot snapshot, Map<String, String> runValues, Target target) {
+        if (target == null || target.sample() == null || target.source() == Source.LOOKUP) {
+            return RequestValues.ForCall.NONE;
+        }
+        PostmanRequest request = target.sample().request();
+        RequestValues.Stated stated = RequestValues.read(request.quotedName(), request.name(), target.sampleBody());
+        if (stated.values().isEmpty() && stated.lines().isEmpty()) {
+            return RequestValues.ForCall.NONE;
+        }
+        StoredCollection collection = target.collection() != null ? target.collection() : holding(snapshot, target.sample());
+        List<VariableLayer> layers = layers(snapshot, runValues == null ? Map.of() : runValues, collection, Map.of());
+        return RequestValues.forCall(stated, text -> resolver.resolve(text, layers));
+    }
+
+    @Override
+    public RequestValues.ForCall requestValues(EpaOperation operation, RequestRef request, Map<String, String> runValues) {
+        if (operation == null || !operation.outbound() || operation == EpaOperation.UNMAPPED) {
+            return RequestValues.ForCall.NONE;
+        }
+        ConfigSnapshot snapshot = store.snapshot();
+        Map<String, String> values = runValues == null ? Map.of() : runValues;
+        Target target;
+        try {
+            target = target(snapshot, CallIntent.of(operation).withRequest(request).withRunValues(values));
+        } catch (NotFoundException | BadInputException stale) {
+            // A request chosen from a list that has changed since: what is shown has no request to follow, and the send would say why.
+            return RequestValues.ForCall.NONE;
+        }
+        return requestValues(snapshot, values, target);
+    }
+
+    /** The stored collection that holds a request, or null. */
+    private static StoredCollection holding(ConfigSnapshot snapshot, StoredCollection.Mapped request) {
+        for (StoredCollection collection : snapshot.collections()) {
+            for (StoredCollection.Mapped each : collection.requests()) {
+                if (each == request) {
+                    return collection;
+                }
+            }
+        }
+        return null;
     }
 
     /**

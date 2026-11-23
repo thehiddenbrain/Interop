@@ -231,7 +231,7 @@ public final class RequestValues {
     }
 
     /** The first Coverage of a prefetch: alone under a key, or the first Coverage entry of a Bundle under a key. */
-    static JsonNode prefetchCoverage(JsonNode root) {
+    public static JsonNode prefetchCoverage(JsonNode root) {
         for (Map.Entry<String, JsonNode> member : JsonSafe.properties(JsonSafe.child(root, "prefetch"))) {
             JsonNode value = member.getValue();
             String type = JsonSafe.presentText(value, "resourceType");
@@ -270,7 +270,7 @@ public final class RequestValues {
     }
 
     /** The first Coverage among a Parameters body's parameters. */
-    static JsonNode parametersCoverage(JsonNode root) {
+    public static JsonNode parametersCoverage(JsonNode root) {
         for (JsonNode parameter : JsonSafe.elements(root, "parameter")) {
             JsonNode resource = JsonSafe.child(parameter, "resource");
             if ("Coverage".equals(JsonSafe.presentText(resource, "resourceType"))) {

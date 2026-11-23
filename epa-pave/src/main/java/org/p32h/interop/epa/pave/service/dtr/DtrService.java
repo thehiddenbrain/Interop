@@ -158,10 +158,11 @@ public class DtrService {
                 requestNotes.add(draftNote);
             }
         } else {
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             sent = builder.buildPackage(request, reads, call.memberIdRule());
             body = reads.body(sent.json());
             requestNotes.addAll(packageNotes(sent));
+            requestNotes.addAll(reads.requestNotes());
         }
         if (written != null) {
             List<String> said = written.resultNotes(requestNotes, true);
@@ -223,9 +224,12 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), shown, written);
         }
-        CaseResources.Reads reads = CaseResources.reading(call::resolve);
+        CaseResources.Reads reads = CaseResources.reading(call);
         DtrRequestBuilder.Package built = builder.buildPackage(request, reads, call.memberIdRule());
-        return RequestPreview.of(operation, call, reads.shown(built.json()), packageNotes(built), shown);
+        String shownBody = reads.shown(built.json());
+        List<String> notes = new ArrayList<>(packageNotes(built));
+        notes.addAll(reads.requestNotes());
+        return RequestPreview.of(operation, call, shownBody, notes, shown);
     }
 
     // ---- the adaptive loop ----
@@ -272,11 +276,12 @@ public class DtrService {
                 requestNotes.add("The body you supplied was not put inside a Parameters resource. It was sent exactly as written.");
             }
         } else {
-            CaseResources.Reads reads = CaseResources.reading(call::resolve);
+            CaseResources.Reads reads = CaseResources.reading(call);
             DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request, reads), support.clock(),
                     request.wrapInParameter());
             body = reads.body(built.json());
             requestNotes.addAll(loopNotes(posted, built, call));
+            requestNotes.addAll(reads.requestNotes());
             sent = built.response();
             gaps = built.gaps();
         }
@@ -336,10 +341,13 @@ public class DtrService {
         if (RunSupport.ownBody(request)) {
             return ownBodyPreview(operation, call, request.rawBody(), null, written);
         }
-        CaseResources.Reads reads = CaseResources.reading(call::resolve);
+        CaseResources.Reads reads = CaseResources.reading(call);
         DtrRequestBuilder.LoopBody built = builder.buildNextQuestion(posted, filler(request, reads), support.clock(),
                 request.wrapInParameter());
-        return RequestPreview.of(operation, call, reads.shown(built.json()), loopNotes(posted, built, call), null);
+        String shownBody = reads.shown(built.json());
+        List<String> notes = new ArrayList<>(loopNotes(posted, built, call));
+        notes.addAll(reads.requestNotes());
+        return RequestPreview.of(operation, call, shownBody, notes, null);
     }
 
     /**
