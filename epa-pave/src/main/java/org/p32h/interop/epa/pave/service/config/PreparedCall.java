@@ -91,6 +91,16 @@ public sealed interface PreparedCall permits IssuedCall {
     }
 
     /**
+     * What the collection request this call is sent from (the one {@link #sampleName} names) states
+     * of the FHIR server and of the payer, each value resolved against the same snapshot and each
+     * refusal said (D-320). A body this tool builds takes a value from here only when nothing else
+     * gives it. Empty for a call with no such request.
+     */
+    default RequestValues.ForCall requestValues() {
+        return RequestValues.ForCall.NONE;
+    }
+
+    /**
      * Every secret this tool holds for the configuration this call was prepared in, whether or not
      * the call carries it: the secret variables of the environment, of the collection the request
      * came from and of application.yml with the values given for this run, the client secret, the

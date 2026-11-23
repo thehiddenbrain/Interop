@@ -77,7 +77,8 @@ class FilesGiveTest {
         // What follows when nothing gives a value is said once, on screen; a row has its own line only for a blank variable.
         assertThat(payerName.has("from")).isFalse();
         assertThat(payerName.has("line")).isFalse();
-        JsonNode blank = values.get(4);
+        // Payer reference (D-320) stands after the payer identifier's system, so the member ID system is the sixth row.
+        JsonNode blank = values.get(5);
         assertThat(blank.get("name").asString()).isEqualTo("memberIdSystem");
         assertThat(blank.get("line").asString()).isEqualTo("{{memberIdSystem}} has no value in these files. Postman exports a variable's "
                 + "initial value only.");

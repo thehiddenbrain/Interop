@@ -28,6 +28,8 @@ final class KnownValues {
             new Known("payerName", "Payer name", "PAS requires the payer as insurer."),
             new Known("payerIdentifier", "Payer identifier", "The insurer's identifier in PAS; PAS 2.2.1 also requires its system."),
             new Known("payerIdentifierSystem", "Payer identifier system", "The system of the insurer's identifier in PAS."),
+            new Known(RequestValues.PAYER_REFERENCE, "Payer reference",
+                    "The payer of the coverage in CRD and DTR as a reference to an Organization the service holds, such as Organization/<id>."),
             new Known("memberIdSystem", "Member ID system", "The system of the member ID on the Coverage."),
             new Known("pasRequestType", "PAS request type", "The X12 request type of each item when the Service card states none."),
             new Known("pasServiceType", "PAS service type", "The X12 service type of each item when the Service card states none."),

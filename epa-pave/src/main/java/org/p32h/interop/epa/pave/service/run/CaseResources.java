@@ -106,6 +106,8 @@ public final class CaseResources {
     public static final String VAR_PAYER_NAME = "payerName";
     public static final String VAR_PAYER_ID_SYSTEM = "payerIdentifierSystem";
     public static final String VAR_PAYER_ID = "payerIdentifier";
+    /** The payer as a reference to an Organization the service holds (D-320); written on a Coverage of CRD and DTR only. */
+    public static final String VAR_PAYER_REFERENCE = org.p32h.interop.epa.pave.service.config.RequestValues.PAYER_REFERENCE;
     /** The member's medical record number, for the MR identifier CRD 2.0.1 profile-patient requires. Never the member ID. */
     public static final String VAR_PATIENT_MRN = "patientMrn";
     /** The system of that medical record number, which CRD 2.0.1 requires beside the value. */
@@ -326,23 +328,47 @@ public final class CaseResources {
      * response be searched for them, as it is for a secret resolved into a collection's body.
      */
     public static Reads reading(Function<String, ResolvedText> variables) {
-        return new Reads(variables);
+        return new Reads(variables, null);
+    }
+
+    /**
+     * As {@link #reading(Function)} for a prepared call: its values, and under them the values the
+     * collection request it is sent from states (D-320). A preview and a send each read through
+     * this, so the two build the same body.
+     */
+    public static Reads reading(org.p32h.interop.epa.pave.service.config.PreparedCall call) {
+        return call == null ? new Reads(null, null) : new Reads(call::resolve, call.requestValues());
     }
 
     /** See {@link #reading}. Used for one body. */
     public static final class Reads implements Function<String, ResolvedText> {
 
         private final Function<String, ResolvedText> variables;
+        private final org.p32h.interop.epa.pave.service.config.RequestValues.ForCall request;
         private final Map<String, String> secrets = new java.util.LinkedHashMap<>();
         private final List<org.p32h.interop.epa.pave.model.VariableUse> uses = new java.util.ArrayList<>();
+        private final java.util.Set<String> fromRequest = new java.util.LinkedHashSet<>();
+        private final java.util.Set<String> unset = new java.util.LinkedHashSet<>();
 
-        private Reads(Function<String, ResolvedText> variables) {
+        private Reads(Function<String, ResolvedText> variables, org.p32h.interop.epa.pave.service.config.RequestValues.ForCall request) {
             this.variables = variables;
+            this.request = request == null ? org.p32h.interop.epa.pave.service.config.RequestValues.ForCall.NONE : request;
         }
 
         @Override
         public ResolvedText apply(String template) {
             ResolvedText resolved = variables == null ? null : variables.apply(template);
+            String name = requestValue(template);
+            if (name != null && !hasValue(resolved)) {
+                // The lowest of all sources: asked only when nothing typed, stored, exported or configured gives the value.
+                String stated = request.values().get(name);
+                if (stated != null && pairedInForce(name)) {
+                    fromRequest.add(name);
+                    return ResolvedText.plain(stated);
+                }
+                unset.add(name);
+                return resolved;
+            }
             if (resolved == null || !resolved.resolved() || resolved.value() == null) {
                 return resolved;
             }
@@ -354,6 +380,58 @@ public final class CaseResources {
                 }
             }
             return resolved;
+        }
+
+        /** The name of one of the values a call takes from its request, when the text is that placeholder alone; else null. */
+        private static String requestValue(String template) {
+            if (template == null) {
+                return null;
+            }
+            String text = template.strip();
+            if (!text.startsWith("{{") || !text.endsWith("}}")) {
+                return null;
+            }
+            String name = text.substring(2, text.length() - 2);
+            return org.p32h.interop.epa.pave.service.config.RequestValues.NAMES.contains(name) ? name : null;
+        }
+
+        private static boolean hasValue(ResolvedText resolved) {
+            return resolved != null && resolved.resolved() && Texts.present(resolved.value());
+        }
+
+        /**
+         * The payer identifier's system is the system of the identifier the same request states: it
+         * is not laid beside an identifier from elsewhere, which may have another system (D-308).
+         */
+        private boolean pairedInForce(String name) {
+            if (!VAR_PAYER_ID_SYSTEM.equals(name)) {
+                return true;
+            }
+            return request.values().containsKey(VAR_PAYER_ID) && !hasValue(variables == null ? null : variables.apply("{{" + VAR_PAYER_ID + "}}"));
+        }
+
+        /**
+         * What the request's notes say of the values this body read from the request it is sent
+         * from, and, for one nothing gave, which rule kept the request's own out (D-320). Empty when
+         * neither applies.
+         */
+        public List<String> requestNotes() {
+            List<String> notes = new java.util.ArrayList<>();
+            String taken = org.p32h.interop.epa.pave.service.config.RequestValues.takenNote(request.request(), List.copyOf(fromRequest));
+            if (taken != null) {
+                notes.add(taken);
+            }
+            java.util.Set<String> lines = new java.util.LinkedHashSet<>();
+            for (String name : unset) {
+                lines.addAll(request.lines(name));
+            }
+            notes.addAll(lines);
+            return notes;
+        }
+
+        /** The names of the values this body took from the request it is sent from, in the order they were read. */
+        public List<String> fromRequest() {
+            return List.copyOf(fromRequest);
         }
 
         /** The built body, sent as built and shown with each secret value this builder read masked. */
@@ -574,11 +652,18 @@ public final class CaseResources {
     }
 
     /**
-     * The payer as a logical reference: an identifier, a display name, or both, from the payer
-     * placeholders. Empty when neither is set, and the caller then leaves the element out.
+     * The payer as a reference: a reference to an Organization the service holds, an identifier, a
+     * display name, or any of them, from the payer placeholders. Empty when none is set, and the
+     * caller then leaves the element out.
      */
     public static ObjectNode payer(Function<String, ResolvedText> variables) {
         ObjectNode payor = JSON.objectNode();
+        // FHIR orders a Reference as reference, type, identifier, display. A reference is to an
+        // Organization the service holds, beside what names it here (D-320).
+        String payerReference = value(variables, VAR_PAYER_REFERENCE);
+        if (payerReference != null) {
+            payor.put("reference", payerReference);
+        }
         String payerId = value(variables, VAR_PAYER_ID);
         if (payerId != null) {
             ObjectNode identifier = payor.putObject("identifier");

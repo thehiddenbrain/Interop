@@ -34,6 +34,7 @@ final class IssuedCall implements PreparedCall {
     private final String callbackUrl;
     private final String sampleName;
     private final String sampleBody;
+    private final RequestValues.ForCall requestValues;
 
     IssuedCall(EpaOperation operation, String method, ResolvedUrl url, List<ResolvedHeader> headers, EnvironmentRef environment,
                String requestName, boolean scripted, long epoch, Function<String, ResolvedText> resolver) {
@@ -85,13 +86,19 @@ final class IssuedCall implements PreparedCall {
      * @param callbackUrl  the callback url it types (R-42), as a template, or null when it types none
      */
     record Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl, String sampleName,
-                    String sampleBody) {
+                    String sampleBody, RequestValues.ForCall requestValues) {
 
         static final Settings NONE = new Settings(null, null, null, null);
 
+        /** Without values of the request: the call then takes none from it. */
+        Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl, String sampleName,
+                 String sampleBody) {
+            this(signIn, memberIdRule, shapes, callbackUrl, sampleName, sampleBody, null);
+        }
+
         /** Without a sample of its own: the call then follows the request it comes from, if any. */
         Settings(SignInSettings signIn, MemberIdRule memberIdRule, RequestShapes shapes, String callbackUrl) {
-            this(signIn, memberIdRule, shapes, callbackUrl, null, null);
+            this(signIn, memberIdRule, shapes, callbackUrl, null, null, null);
         }
 
         /** Names what is set and never a value: the sign-in holds secrets, the callback url can hold a credential. */
@@ -127,6 +134,12 @@ final class IssuedCall implements PreparedCall {
         this.callbackUrl = given.callbackUrl();
         this.sampleName = given.sampleName();
         this.sampleBody = given.sampleBody();
+        this.requestValues = given.requestValues() == null ? RequestValues.ForCall.NONE : given.requestValues();
+    }
+
+    @Override
+    public RequestValues.ForCall requestValues() {
+        return requestValues;
     }
 
     @Override

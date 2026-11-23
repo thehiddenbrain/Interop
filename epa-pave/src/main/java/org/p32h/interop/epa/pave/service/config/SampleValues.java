@@ -400,7 +400,7 @@ public final class SampleValues {
      * The resource of the Bundle's entries a reference names, by its fullUrl or by type and id, or
      * null when none is, or when more than one could be: a reference that names two is not read.
      */
-    private static JsonNode referred(JsonNode root, String reference, String type) {
+    static JsonNode referred(JsonNode root, String reference, String type) {
         if (reference == null) {
             return null;
         }
