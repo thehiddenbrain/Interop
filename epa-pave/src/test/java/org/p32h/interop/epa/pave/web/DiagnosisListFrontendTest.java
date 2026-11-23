@@ -143,6 +143,51 @@ class DiagnosisListFrontendTest {
     }
 
     @Test
+    void theFoundPartShowsTheFourthListAndTellsAPerformerFromARequester(@TempDir Path folder) throws Exception {
+        NodeRun run = StaticSources.runModule(folder, "the found part with diagnosis codes and performers", PRELUDE + """
+                const {createFoundPart} = await import('./js/cfg-found.js');
+                const part = createFoundPart({mode: 'box'});
+                document.body.append(part.node);
+                answers['POST /api/lists/found'] = {status: 200, body: {enabled: true, members: [],
+                    providers: [
+                        {vendorPractitionerId: 'prac-001', from: 'Order sign', requesterIn: 'Order sign', performerIn: 'Submit'},
+                        {npi: '9999999995', organization: 'Placeholder Sleep Laboratory', phone: '617-555-0110', from: 'Order sign', performerIn: 'Order sign'},
+                        {vendorPractitionerId: 'prac-002', from: 'Order two', requesterIn: 'Order two', performerIn: 'Order two'},
+                        {vendorPractitionerId: 'prac-003', from: 'Order three', requesterIn: 'Order three'}],
+                    codes: [],
+                    diagnoses: [{code: 'G47.33', system: ICD, systemShort: 'ICD-10-CM', description: 'Obstructive sleep apnea', from: 'Order sign'},
+                        {code: 'R06.83', from: 'Submit'}],
+                    notUsed: []}};
+                await part.read({collectionExport: {fileName: 'vendor.json', text: '{}'}});
+                say(['groups', part.node.querySelectorAll('.notes__title').map(text)]);
+                say(['lines', part.node.querySelectorAll('li').map(text)]);
+                say(['wanted', part.wanted()]);
+                // Only diagnosis codes found: the box is still offered.
+                answers['POST /api/lists/found'] = {status: 200, body: {enabled: true, members: [], providers: [], codes: [],
+                    diagnoses: [{code: 'G47.33', from: 'Order sign'}], notUsed: []}};
+                await part.read({collectionExport: {fileName: 'vendor.json', text: '{}'}});
+                say(['only diagnoses', part.wanted()]);
+                // An answer of an older server, with no diagnoses: the group says none.
+                answers['POST /api/lists/found'] = {status: 200, body: {enabled: true, members: [{vendorPatientId: 'pat-001', from: 'Order sign'}],
+                    providers: [], codes: [], notUsed: []}};
+                await part.read({collectionExport: {fileName: 'vendor.json', text: '{}'}});
+                say(['older', part.node.querySelectorAll('.notes__title').map(text), text(part.node).includes('None stated.'), stored]);
+                """);
+        assertThat(run.exit()).as(run.output()).isZero();
+        assertThat(run.lines()).containsExactly(
+                "[\"groups\",[\"Members (0)\",\"Providers (4)\",\"Procedure codes (0)\",\"Diagnosis codes (2)\"]]",
+                "[\"lines\",[\"vendor practitioner id prac-001 Requester in \\\"Order sign\\\", performer in \\\"Submit\\\".\","
+                        + "\"NPI 9999999995, Placeholder Sleep Laboratory Performer in \\\"Order sign\\\".\","
+                        + "\"vendor practitioner id prac-002 Requester and performer in \\\"Order two\\\".\","
+                        + "\"vendor practitioner id prac-003 Requester in \\\"Order three\\\".\","
+                        + "\"G47.33 ICD-10-CM, Obstructive sleep apnea From \\\"Order sign\\\".\","
+                        + "\"R06.83 no code system From \\\"Submit\\\".\"]]",
+                "[\"wanted\",true]",
+                "[\"only diagnoses\",true]",
+                "[\"older\",[\"Members (1)\",\"Providers (0)\",\"Procedure codes (0)\",\"Diagnosis codes (0)\"],true,[]]");
+    }
+
+    @Test
     void switchedOffUnreadableOrFailingThePageStillOpensAndSaysWhy(@TempDir Path folder) throws Exception {
         NodeRun run = StaticSources.runModule(folder, "the diagnosis codes list in its bad states", PRELUDE + """
                 const {mount} = await import('./js/cfg-lists.js');

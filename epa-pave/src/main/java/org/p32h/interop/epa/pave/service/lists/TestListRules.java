@@ -53,8 +53,10 @@ final class TestListRules {
 
     static List<FieldError> provider(TestProviderInput provider) {
         List<FieldError> errors = new ArrayList<>();
-        if (provider.npi() == null && provider.vendorPractitionerId() == null) {
-            errors.add(new FieldError("npi", "Enter an NPI or a vendor practitioner id."));
+        // An organization's name alone is enough: a facility that performs the service is often
+        // named so in a vendor's request, and a case sends one known by its name alone (D-321, D-322).
+        if (provider.npi() == null && provider.vendorPractitionerId() == null && provider.organization() == null) {
+            errors.add(new FieldError("npi", "Enter an NPI, a vendor practitioner id or an organization."));
         } else if (provider.npi() != null) {
             String problem = Npi.problem(provider.npi());
             if (problem != null) {

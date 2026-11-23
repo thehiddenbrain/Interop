@@ -100,8 +100,10 @@ public class TestListService {
                 "Its member ID and its vendor patient id belong to two different saved members. Correct one of them.");
         this.providers = new Kind<>(TestListStore.PROVIDERS, TestProvider.class, "p-", "provider", TestProvider.COLUMNS,
                 TestProviderInput::of, TestProviderInput::withId, TestProvider::values, input -> input.withId(null).values(),
-                TestListRules::provider, TestListService::sameProvider, List.of("npi", "vendorPractitionerId"),
-                field -> "A saved provider has this " + ("npi".equals(field) ? "NPI" : "vendor practitioner id")
+                TestListRules::provider, TestListService::sameProvider, List.of("npi", "vendorPractitionerId", "organization"),
+                field -> "organization".equals(field)
+                        ? "A saved provider has this organization, with no NPI and no vendor practitioner id, already. Edit that entry instead."
+                        : "A saved provider has this " + ("npi".equals(field) ? "NPI" : "vendor practitioner id")
                         + " already. Edit that entry instead.",
                 "Its NPI and its vendor practitioner id belong to two different saved providers. Correct one of them.");
         this.codes = new Kind<>(CODES, TestCode.class, "c-", "procedure code", TestCode.COLUMNS, TestCodeInput::of,
@@ -156,7 +158,15 @@ public class TestListService {
         if (a.get("vendorPractitionerId") != null && a.get("vendorPractitionerId").equals(b.get("vendorPractitionerId"))) {
             return "vendorPractitionerId";
         }
+        // A facility known by its name alone is told by that name, as nothing else tells it.
+        if (organizationAlone(a) && organizationAlone(b) && a.get("organization").equals(b.get("organization"))) {
+            return "organization";
+        }
         return null;
+    }
+
+    private static boolean organizationAlone(Map<String, String> values) {
+        return values.get("npi") == null && values.get("vendorPractitionerId") == null && values.get("organization") != null;
     }
 
     public boolean enabled() {
@@ -264,7 +274,7 @@ public class TestListService {
      *
      * @param notAdded each entry a list's rules refused, with the reason
      */
-    public record FoundAdd(Counts members, Counts providers, Counts codes, List<String> notAdded) {
+    public record FoundAdd(Counts members, Counts providers, Counts codes, Counts diagnoses, List<String> notAdded) {
 
         public FoundAdd {
             notAdded = notAdded == null ? List.of() : List.copyOf(notAdded);
@@ -272,16 +282,18 @@ public class TestListService {
 
         @Override
         public String toString() {
-            return "FoundAdd[" + members + ", " + providers + ", " + codes + "]";
+            return "FoundAdd[" + members + ", " + providers + ", " + codes + ", " + diagnoses + "]";
         }
     }
 
     /**
      * Adds what a collection states to the saved lists. An entry a list holds already (the same
      * member ID or vendor patient id, NPI or vendor practitioner id) is left as it is; an entry
-     * that does not fit a full list is counted, never dropped in silence. A procedure code is the
-     * same when its code and its code system are. Each entry is labelled
-     * with the request it was found in, so that it is told apart from one typed by hand.
+     * that does not fit a full list is counted, never dropped in silence. A procedure code or a
+     * diagnosis code is the same when its code and its code system are. Each entry is labelled
+     * with the request it was found in, so that it is told apart from one typed by hand, and a
+     * provider with whether it requests or performs, so that a servicing provider is told from the
+     * requester when it is picked.
      */
     public synchronized FoundAdd addFound(Finds finds) {
         requireEnabled();
@@ -297,8 +309,8 @@ public class TestListService {
         List<TestProviderInput> providerInputs = new ArrayList<>();
         List<String> providerFrom = new ArrayList<>();
         for (FoundProvider found : finds.providers()) {
-            providerInputs.add(new TestProviderInput(label(found.from()), found.npi(), found.vendorPractitionerId(), found.firstName(),
-                    found.lastName(), null, null, null, null, null));
+            providerInputs.add(new TestProviderInput(providerLabel(found), found.npi(), found.vendorPractitionerId(), found.firstName(),
+                    found.lastName(), found.organization(), null, found.phone(), found.fax(), null));
             providerFrom.add(found.from());
         }
         Counts memberCounts = addAll(members, memberInputs, memberFrom, notAdded);
@@ -310,7 +322,33 @@ public class TestListService {
             codeFrom.add(found.from());
         }
         Counts codeCounts = addAll(codes, codeInputs, codeFrom, notAdded);
-        return new FoundAdd(memberCounts, providerCounts, codeCounts, notAdded);
+        List<TestCodeInput> diagnosisInputs = new ArrayList<>();
+        List<String> diagnosisFrom = new ArrayList<>();
+        for (FoundCode found : finds.diagnoses()) {
+            // The code, its system and its words: nothing of whose diagnosis it is goes into a list.
+            diagnosisInputs.add(new TestCodeInput(label(found.from()), found.code(), found.system(), found.description()));
+            diagnosisFrom.add(found.from());
+        }
+        Counts diagnosisCounts = addAll(diagnoses, diagnosisInputs, diagnosisFrom, notAdded);
+        return new FoundAdd(memberCounts, providerCounts, codeCounts, diagnosisCounts, notAdded);
+    }
+
+    /**
+     * The label of a provider found in a collection: "Performer in <request>" for one an order or a
+     * claim names as who performs the service, "Requester in <request>" for the one that orders,
+     * both when it is both, else where it came from.
+     */
+    static String providerLabel(FoundProvider found) {
+        String requester = Texts.trimToNull(found.requesterIn());
+        String performer = Texts.trimToNull(found.performerIn());
+        if (requester != null && performer != null) {
+            return requester.equals(performer) ? "Requester and performer in " + performer
+                    : "Requester in " + requester + ", performer in " + performer;
+        }
+        if (performer != null) {
+            return "Performer in " + performer;
+        }
+        return requester != null ? "Requester in " + requester : label(found.from());
     }
 
     /** The label of an entry found in a collection: where it came from, in the tester's list of labels. */
@@ -319,7 +357,17 @@ public class TestListService {
     }
 
     private <E extends TestListEntry, I> Counts addAll(Kind<E, I> kind, List<I> inputs, List<String> from, List<String> notAdded) {
-        List<E> entries = current(kind);
+        TestListStore.Loaded<E> loaded = store.read(kind.file(), kind.type());
+        if (!loaded.readable() && !inputs.isEmpty()) {
+            // A list whose file cannot be read takes nothing, and the other lists are still added
+            // to: the store refuses to write over such a file, and one damaged list is no reason to
+            // lose what the others take.
+            notAdded.add(loaded.problem());
+            // Counts only. Never an entry.
+            log.info("Test {} from a collection: {} not added, the list's file could not be read", kind.what() + "s", inputs.size());
+            return new Counts(0, 0, 0, 0, inputs.size());
+        }
+        List<E> entries = new ArrayList<>(loaded.entries());
         int added = 0;
         int already = 0;
         int full = 0;
@@ -550,7 +598,10 @@ public class TestListService {
             throw new BadInputException("The file holds no header row.", "Start from the CSV template and keep its first row.");
         }
         if (kind.keyColumns().stream().noneMatch(table.columnsUsed()::contains)) {
-            throw new BadInputException("The file has no " + String.join(" or ", kind.keyColumns()) + " column, so no row can be "
+            List<String> keys = kind.keyColumns();
+            String named = keys.size() < 2 ? String.join("", keys)
+                    : String.join(", ", keys.subList(0, keys.size() - 1)) + " or " + keys.get(keys.size() - 1);
+            throw new BadInputException("The file has no " + named + " column, so no row can be "
                     + "matched to a saved " + kind.what() + ".", "Start from the CSV template and keep its first row.");
         }
         List<E> working = current(kind);

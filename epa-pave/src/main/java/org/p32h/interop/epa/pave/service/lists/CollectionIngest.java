@@ -33,7 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Reads the members, providers and procedure codes an uploaded collection's requests state, and
+ * Reads the members, providers, procedure codes and diagnosis codes an uploaded collection's requests state, and
  * adds them to the saved lists when the tester asks. The same on mock and on live: what a vendor's
  * sample states is the tester's test data whichever profile runs.
  *
@@ -91,23 +91,24 @@ public class CollectionIngest {
      */
     public Added add(FoundRequest request) {
         if (!lists.enabled()) {
-            return new Added(false, TestListService.OFF, null, null, null, null, null, null);
+            return new Added(false, TestListService.OFF, null, null, null, null, null, null, null);
         }
         Read read = read(request);
         if (read.finds() == null) {
-            return new Added(true, read.line(), read.reference(), read.cause(), null, null, null, read.notes());
+            return new Added(true, read.line(), read.reference(), read.cause(), null, null, null, null, read.notes());
         }
         if (read.finds().empty()) {
-            return new Added(true, NOTHING, null, null, null, null, null, null);
+            return new Added(true, NOTHING, null, null, null, null, null, null, null);
         }
         TestListService.FoundAdd done = lists.addFound(read.finds());
-        return new Added(true, line(done), null, null, done.members(), done.providers(), done.codes(), done.notAdded());
+        return new Added(true, line(done), null, null, done.members(), done.providers(), done.codes(), done.diagnoses(), done.notAdded());
     }
 
-    /** "Added to the saved lists: 3 members, 2 providers, 4 procedure codes. Already there: 1 member." */
+    /** "Added to the saved lists: 3 members, 2 providers, 4 procedure codes, 1 diagnosis code. Already there: 1 member." */
     static String line(TestListService.FoundAdd done) {
-        Counts[] counts = {done.members(), done.providers(), done.codes()};
-        String[][] words = {{"member", "members"}, {"provider", "providers"}, {"procedure code", "procedure codes"}};
+        Counts[] counts = {done.members(), done.providers(), done.codes(), done.diagnoses()};
+        String[][] words = {{"member", "members"}, {"provider", "providers"}, {"procedure code", "procedure codes"},
+            {"diagnosis code", "diagnosis codes"}};
         List<String> added = new ArrayList<>();
         List<String> already = new ArrayList<>();
         List<String> refused = new ArrayList<>();
@@ -121,6 +122,10 @@ public class CollectionIngest {
             }
             if (counts[i].refused() > 0) {
                 refused.add(counted(counts[i].refused(), words[i]));
+            }
+            if (counts[i].unread() > 0) {
+                full.append(" The ").append(words[i][1]).append(" list could not be read: ").append(counted(counts[i].unread(), words[i]))
+                        .append(counts[i].unread() == 1 ? " was" : " were").append(" not added.");
             }
             if (counts[i].full() > 0) {
                 full.append(" The ").append(words[i][1]).append(" list is full (").append(TestListRules.MAX_ENTRIES).append(" entries): ")

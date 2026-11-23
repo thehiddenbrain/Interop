@@ -200,8 +200,9 @@ class FoundListsControllerTest {
                 .andExpect(jsonPath("$.members[0].label").value("Typed by hand")).andExpect(jsonPath("$.members[0].vendorPatientId").doesNotExist())
                 .andExpect(jsonPath("$.members[1].label").value("From Read second patient"))
                 .andExpect(jsonPath("$.members[1].vendorPatientId").value("pat-002")).andExpect(jsonPath("$.members[1].memberId").doesNotExist());
+        // The user of a CDS Hooks request orders, so its label says it is the requester (D-322).
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/lists/providers"))
-                .andExpect(jsonPath("$.providers[0].label").value("From Order sign")).andExpect(jsonPath("$.providers[0].npi").value("1234567893"))
+                .andExpect(jsonPath("$.providers[0].label").value("Requester in Order sign")).andExpect(jsonPath("$.providers[0].npi").value("1234567893"))
                 .andExpect(jsonPath("$.providers[0].vendorPractitionerId").value("prac-001"));
 
         // The same files again: everything is there already, nothing is added twice.

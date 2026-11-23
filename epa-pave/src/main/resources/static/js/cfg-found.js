@@ -1,5 +1,5 @@
-// "Found in the collection": the members, providers and procedure codes the requests of an uploaded
-// collection state, shown where the collection is chosen, and added to the saved lists on the
+// "Found in the collection": the members, providers, procedure codes and diagnosis codes the
+// requests of an uploaded collection state, shown where the collection is chosen, and added to the saved lists on the
 // tester's word (the box in the environment form, the button on the Collections page).
 //
 // The server reads the files and says what it found and what it could not use (POST
@@ -17,11 +17,12 @@ const ADD = '/api/lists/found/add';
 export const BOX_WORDS = 'Add these to the saved lists when the environment is saved';
 export const BUTTON_WORDS = 'Add to the saved lists';
 
-/** The three saved lists, by where each opens, for the result line. */
+/** The four saved lists, by where each opens, for the result line. */
 export const LIST_LINKS = [
     {words: 'Members', href: '#configuration/members'},
     {words: 'Providers', href: '#configuration/providers'},
-    {words: 'Procedure codes', href: '#configuration/procedure-codes'}
+    {words: 'Procedure codes', href: '#configuration/procedure-codes'},
+    {words: 'Diagnosis codes', href: '#configuration/diagnosis-codes'}
 ];
 
 function present(value) {
@@ -58,13 +59,31 @@ export function memberLine(entry) {
     ]), fromWords(entry));
 }
 
+/**
+ * Where a provider was found and what it is there, as its saved label will say: a servicing
+ * provider is told from the requester when it is picked.
+ */
+function roleWords(entry) {
+    const requester = present(entry.requesterIn) ? entry.requesterIn : null;
+    const performer = present(entry.performerIn) ? entry.performerIn : null;
+    if (requester && performer) {
+        return el('span', {class: 'muted'}, requester === performer ? ' Requester and performer in "' + named(performer) + '".'
+            : ' Requester in "' + named(requester) + '", performer in "' + named(performer) + '".');
+    }
+    if (performer || requester) {
+        return el('span', {class: 'muted'}, (performer ? ' Performer in "' + named(performer) : ' Requester in "' + named(requester)) + '".');
+    }
+    return fromWords(entry);
+}
+
 export function providerLine(entry) {
     const name = [entry.firstName, entry.lastName].filter(present).join(' ');
     return el('li', null, joined([
         present(entry.npi) ? ['NPI ', mono(entry.npi)] : null,
         present(entry.vendorPractitionerId) ? ['vendor practitioner id ', mono(entry.vendorPractitionerId)] : null,
-        name || null
-    ]), fromWords(entry));
+        name || null,
+        present(entry.organization) ? entry.organization : null
+    ]), roleWords(entry));
 }
 
 export function codeLine(entry) {
@@ -109,7 +128,7 @@ export function createFoundPart(options) {
     let reads = 0;           // a slow answer is dropped once a newer reading was asked for
 
     function entries(data) {
-        const lists = [data.members, data.providers, data.codes];
+        const lists = [data.members, data.providers, data.codes, data.diagnoses];
         return lists.reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
     }
 
@@ -126,7 +145,8 @@ export function createFoundPart(options) {
         const groups = [
             ['Members', data.members, memberLine],
             ['Providers', data.providers, providerLine],
-            ['Procedure codes', data.codes, codeLine]
+            ['Procedure codes', data.codes, codeLine],
+            ['Diagnosis codes', data.diagnoses, codeLine]
         ].map(([words, list, line]) => {
             const items = Array.isArray(list) ? list : [];
             return el('div', {class: 'found__group'},

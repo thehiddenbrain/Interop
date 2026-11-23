@@ -139,9 +139,14 @@ public final class FoundViews {
      * @param already entries the list held already, left as they were
      * @param full    entries that did not fit, the list holding the most it keeps
      * @param refused entries the list's rules refused
+     * @param unread  entries not added because the list's file could not be read, which is never written over
      */
-    @JsonPropertyOrder({"added", "already", "full", "refused"})
-    public record Counts(int added, int already, int full, int refused) {
+    @JsonPropertyOrder({"added", "already", "full", "refused", "unread"})
+    public record Counts(int added, int already, int full, int refused, int unread) {
+
+        public Counts(int added, int already, int full, int refused) {
+            this(added, already, full, refused, 0);
+        }
     }
 
     /**
@@ -151,9 +156,9 @@ public final class FoundViews {
      * @param notUsed what was found and not added, one sentence each, with the reason
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonPropertyOrder({"enabled", "line", "reference", "cause", "members", "providers", "codes", "notUsed"})
+    @JsonPropertyOrder({"enabled", "line", "reference", "cause", "members", "providers", "codes", "diagnoses", "notUsed"})
     public record Added(boolean enabled, String line, String reference, String cause, Counts members, Counts providers, Counts codes,
-            List<String> notUsed) {
+            Counts diagnoses, List<String> notUsed) {
 
         public Added {
             notUsed = notUsed == null ? List.of() : List.copyOf(notUsed);
@@ -161,7 +166,7 @@ public final class FoundViews {
 
         @Override
         public String toString() {
-            return "Added[" + members + ", " + providers + ", " + codes + "]";
+            return "Added[" + members + ", " + providers + ", " + codes + ", " + diagnoses + "]";
         }
     }
 

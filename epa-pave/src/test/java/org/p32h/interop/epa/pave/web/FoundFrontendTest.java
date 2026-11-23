@@ -108,7 +108,7 @@ class FoundFrontendTest {
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
                 "[\"before\",true,false]",
-                "[\"shown\",false,\"Found in the collection\",[\"Members (2)\",\"Providers (1)\",\"Procedure codes (1)\",\"Seen and not used\"],"
+                "[\"shown\",false,\"Found in the collection\",[\"Members (2)\",\"Providers (1)\",\"Procedure codes (1)\",\"Diagnosis codes (0)\",\"Seen and not used\"],"
                         + "[\"Member ID S123456789, vendor patient id pat-001, Sample Placeholder-One, born 1980-01-31 From \\\"Order sign\\\".\","
                         + "\"vendor patient id pat-002 From \\\"Read patient\\\".\","
                         + "\"NPI 1234567893, vendor practitioner id prac-001, Sample Placeholder-Provider From \\\"Order sign\\\".\","
@@ -117,7 +117,7 @@ class FoundFrontendTest {
                 "[\"box\",true,true,true]",
                 "[\"unticked\",false]",
                 "[\"added\",[\"/api/lists/found\",\"/api/lists/found/add\"],true,\"Added to the saved lists: 2 members, 1 provider. Already there: "
-                        + "1 member.Open the saved lists: Members, Providers and Procedure codes.\",[\"#configuration/members\",\"#configuration/providers\",\"#configuration/procedure-codes\"]]",
+                        + "1 member.Open the saved lists: Members, Providers, Procedure codes and Diagnosis codes.\",[\"#configuration/members\",\"#configuration/providers\",\"#configuration/procedure-codes\",\"#configuration/diagnosis-codes\"]]",
                 "[\"nothing\",0,[\"Nothing to add to the saved lists was found in the collection.\"],false]",
                 "[\"failed\",true,true,false]",
                 "[\"cleared\",true,0,false,[]]");
@@ -169,11 +169,11 @@ class FoundFrontendTest {
                 """);
         assertThat(run.exit()).as(run.output()).isZero();
         assertThat(run.lines()).containsExactly(
-                "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Seen and not used\"],[\"/api/config/environments/draft\","
+                "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Diagnosis codes (0)|Seen and not used\"],[\"/api/config/environments/draft\","
                         + "\"/api/lists/found\",\"/api/config/environments/settings\",\"/api/lists/found/add\"],true,"
                         + "\"Saved \\\"Vendor UAT\\\". Its other settings can be set now.Added to the saved lists: 2 members, 1 provider. Already "
-                        + "there: 1 member.Open the saved lists: Members, Providers and Procedure codes.\",true]",
-                "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Seen and not used\"],[\"/api/config/environments/draft\","
+                        + "there: 1 member.Open the saved lists: Members, Providers, Procedure codes and Diagnosis codes.\",true]",
+                "[[false,\"Members (2)|Providers (1)|Procedure codes (1)|Diagnosis codes (0)|Seen and not used\"],[\"/api/config/environments/draft\","
                         + "\"/api/lists/found\",\"/api/config/environments/settings\"],null,\"Saved \\\"Vendor UAT\\\". Its other settings can be "
                         + "set now.\",true]",
                 "[\"changed\",false,true,[]]");
@@ -235,8 +235,8 @@ class FoundFrontendTest {
                         + "\"PUT /api/config/collections/vendor-1a2b/mapping\",\"POST /api/lists/found/add\"]",
                 "[{\"requestId\":\"r-c\",\"operation\":\"CRD_ORDER_SIGN\"}]",
                 "\"Saved \\\"Vendor UAT\\\". Its other settings can be set now.CRD order-sign uses the request \\\"CRD / Check\\\"."
-                        + "Added to the saved lists: 2 members, 1 provider. Already there: 1 member.Open the saved lists: Members, Providers and "
-                        + "Procedure codes.\"",
+                        + "Added to the saved lists: 2 members, 1 provider. Already there: 1 member.Open the saved lists: Members, Providers, "
+                        + "Procedure codes and Diagnosis codes.\"",
                 "[]");
     }
 

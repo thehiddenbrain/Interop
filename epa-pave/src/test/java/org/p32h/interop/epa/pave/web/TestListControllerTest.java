@@ -156,8 +156,9 @@ class TestListControllerTest {
     @Test
     void eachProviderFieldIsRefusedAtItsField() throws Exception {
         MockMvc mvc = mvc();
+        // An organization's name alone is enough since D-322: a facility that performs the service is often known so.
         refusedAt(mvc.perform(json(post(PROVIDERS), "{\"label\": \"No identifier\", \"firstName\": \"Sample\"}")), "npi",
-                "Enter an NPI or a vendor practitioner id.");
+                "Enter an NPI, a vendor practitioner id or an organization.");
         refusedAt(mvc.perform(json(post(PROVIDERS), "{\"npi\": \"1234567890\"}")), "npi",
                 "The last digit of this NPI does not match the other nine. Check the number for a typing mistake.");
         refusedAt(mvc.perform(json(post(PROVIDERS), "{\"npi\": \"12345\", \"vendorPractitionerId\": \"P123\"}")), "npi",
@@ -307,8 +308,9 @@ class TestListControllerTest {
         mvc.perform(json(post(MEMBERS + "/import"), importBody("label,plan\r\nFirst,Gold\r\n", true))).andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.title").value("The file has no memberId or vendorPatientId column, so no row can be matched to a "
                         + "saved member."));
+        // A provider may be known by its organization alone since D-322, so that column matches a row too.
         mvc.perform(json(post(PROVIDERS + "/import"), importBody("label\r\nFirst\r\n", true))).andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.title").value("The file has no npi or vendorPractitionerId column, so no row can be matched to a saved "
+                .andExpect(jsonPath("$.title").value("The file has no npi, vendorPractitionerId or organization column, so no row can be matched to a saved "
                         + "provider."));
         // I-23: two files often chosen by mistake are named for what they are, not as a CSV missing its key column.
         for (String separated : List.of("memberId;label\r\nS123456789;First\r\n", "memberId\tlabel\r\nS123456789\tFirst\r\n")) {
