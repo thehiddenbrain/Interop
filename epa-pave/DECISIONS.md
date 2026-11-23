@@ -83,6 +83,7 @@ entry.
 | D-319 | Each resource this tool builds for a Submit or an inquiry declares the PAS profile it is built as | A service that refuses a Bundle for naming no profile may look for one on each resource. The guide's examples declare them, and waiting for one refusal after another costs the tester a pull and a run each time |
 | D-320 | A call takes the FHIR server and the payer from the collection request it is sent from, at the time of the call, when nothing else sets them; a new value Payer reference; a refusal naming payor says where to set it | The vendor's service refused a coverage check whose Coverage named no payer, while the vendor's own request stated one. Lowest of all sources, so whatever the tester sets still wins. Seen against a stand-in only |
 | D-321 | The diagnosis codes and the servicing provider are part of the case for every step: the coverage check and the questionnaire request send each code as the order's reasonCode and the servicing provider as its performer, with its resources where the requester's travel; Submit's wire is unchanged; one coding rule for the three steps; a line before sending when the collection's request carries either and the case names none | A business analyst read the requests PAVE sent and said a diagnosis code and a servicing provider were missing. The requester never stands in for a performer; nothing is filled in on live. Seen against a stand-in only |
+| D-322 | Diagnosis codes are a fourth saved list, picked in the Service card with their system; a collection's diagnosis codes and the providers its orders and claims name as performer or care team go into the saved lists on the tester's tick, a facility among them, labelled "Performer in" or "Requester in"; a saved provider may be known by its organization alone | The analyst's words after D-321 left the tester typing what the vendor's requests state. A list of codes names no one, as the list of procedure codes does. Seen against a stand-in only |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9439,3 +9440,127 @@ round of corrections; the code handed over.**
 - **Left.** A saved list of diagnosis codes, and taking diagnosis codes or performers from a collection
   into the saved lists, are the next piece. A suite row can state neither today. No `reasonReference`.
   Whether the vendor's service reads the performer and the reasonCode as sent is not known.
+  Later (D-322): the saved list of diagnosis codes, and both read from a collection, are built.
+
+**D-322. Diagnosis codes are a saved list of their own, and a collection's diagnosis codes and servicing providers fill the lists.**
+- **What happened.** After D-321 every step sends the case's diagnosis codes and its servicing
+  provider, but the tester typed both, though the vendor's own requests state them: the diagnosis on
+  the order (`reasonCode`) and on the claim, the servicing provider as the order's performer and on the
+  claim's care team. The operator's rule for the first run against the vendor's UAT was that what the
+  collections state about members, providers and codes goes into the lists so it can be used at once
+  (D-306). A servicing provider is as often a facility as a person, and a facility's NPI is nothing a
+  tester can guess. The operator's files and screens were not seen and were not asked for. Decided by
+  the integrator (`TASK_LISTS_DIAGNOSIS_PERFORMERS.md`).
+- **What was so.** Three saved lists: members, providers, procedure codes. The Service card's Diagnosis
+  codes took typed text only and sent each code with no system, so D-321's coding rule never met a
+  system typed with a code. The reading of a collection took providers from `context.userId`, a url and
+  each Practitioner resource, never from an order's performer, and read no Organization and no
+  diagnosis. A saved provider needed an NPI or a vendor practitioner id.
+- **Decided.**
+  - **The fourth list.** Configuration > Diagnosis codes, built from the code of Procedure codes and
+    looking the same: label, code (1 to 40 characters, no space), code system (at most 255), description
+    (at most 500); one entry for one code in one system; add, edit, remove, the CSV import with its dry
+    run and the template (`test-diagnosis-codes-template.csv`: placeholder codes and descriptions only);
+    at most 200 entries; off with `test-lists.enabled: false`. Kept in `test-lists/diagnoses.json`
+    beside the three other files; a store written before it has no such file and reads as an empty list.
+    Endpoints `/api/lists/diagnoses` with the routes and shapes of `/api/lists/codes`, the answer's list
+    under `diagnoses`. The words: "Enter the code, for example G47.33."; "A saved diagnosis code has
+    this code and code system already. Edit that entry instead."
+  - **The Service card.** "Saved diagnosis codes" stands under Diagnosis codes, offered only when the
+    list holds any. A pick adds the code with its system and its description as a line of its own,
+    marked "<code> from saved list", with "Remove"; a code picked twice says "This diagnosis code is in
+    the case already." The field keeps the codes typed. The case sends the typed codes as typed, then
+    each picked one as `{code, system, description}`; the three steps pass it on, and D-321's rule takes
+    the system that came with it first, so a picked code goes out with the system of the saved entry,
+    whatever the collection's request uses. A reload and "Load into the Workbench" give back a code
+    posted with a system or a description as a picked line with both, marked where it came from ("from
+    the trail"), and any other as typed.
+  - **What is read from a collection** (D-306's rules, extended). Diagnosis codes: the codings of the
+    `reasonCode` of a ServiceRequest, DeviceRequest or Procedure and of
+    `Claim.diagnosis[].diagnosisCodeableConcept`, the code, the system as written, the display or else
+    the concept's text as the description; a diagnosis with no code gives nothing and the line "<request>:
+    a diagnosis is stated with no code, so it was left out."; a `reasonReference` is not followed. Servicing
+    providers: the resource `ServiceRequest.performer[].reference` or `Claim.careTeam[].provider.reference`
+    names, found by `RequestValues.named` over `RequestValues.carried` (D-320's walk, made public for
+    this: a contained resource by "#id", a resource the body carries by type and id or by its fullUrl).
+    A Practitioner is read as D-306 reads one; a PractitionerRole gives the Practitioner it names, which
+    takes the name of the Organization the role names, and that Organization; an Organization gives its
+    name, its NPI when the check digit holds, its phone and fax, and one with neither NPI nor name gives
+    nothing ("an Organization states neither an NPI nor a name, so it cannot be saved."). A reference to
+    nothing the request carries gives a provider only when it reads `Practitioner/<id>`; an Organization
+    the request does not carry gives "... names an Organization the request does not carry, and a saved
+    provider has no place for an organization's id, so it was not read." A request whose name marks it as
+    a sample of an error gives no diagnosis code and no performer, said once; what D-306 read from it
+    before, it still reads.
+  - **Labels.** A provider found as the user of a CDS Hooks request, an order's requester or a claim's
+    provider is a requester; one an order or a claim's care team names is a performer. One entry holds
+    both, from the first request of each. Its label is "Requester in <request>", "Performer in
+    <request>", "Requester and performer in <request>" or "Requester in <one>, performer in <other>";
+    any other provider keeps "From <request>". "Found in the collection" says the same after each line.
+  - **A saved provider may be known by its organization alone**: "Enter an NPI, a vendor practitioner id
+    or an organization."; such an entry is the same as another known by that name alone ("A saved
+    provider has this organization, with no NPI and no vendor practitioner id, already. Edit that entry
+    instead."); a CSV is matched by `npi`, `vendorPractitionerId` or `organization`. The Provider cards'
+    picks name it by its name, and one with an NPI by "(NPI <npi>)".
+  - **The adding.** The one ticked box adds all four lists; the line counts the diagnosis codes
+    ("Added to the saved lists: 1 member, 2 providers, 1 procedure code, 1 diagnosis code."). A list
+    whose file cannot be read now takes nothing and the others are still added: the line says "The
+    diagnosis codes list could not be read: 2 diagnosis codes were not added." and the file's own line
+    follows; before, the whole adding answered the store's error.
+- **Why a list of codes is not member data.** A diagnosis code beside a member is that member's (D-321),
+  and stays so on the wire, where nothing changed. An entry of this list stands beside no one: it holds
+  a code, a system, words and a label, and the label says the request it was read from, never a member,
+  a patient id or a name. The list's file holds nothing a vendor's collection does not already hold, and
+  that collection is in the store (D-213). The operator relaxed the rule that no member data is kept for
+  lists entered on purpose (D-294, D-298); a list of codes is less than that.
+- **Why a performer the request does not carry is saved only when it is a practitioner.** A saved
+  provider has a vendor practitioner id, which a case sends as `Practitioner/<id>`, so such a reference
+  is kept as it is written, as D-306 keeps a `context.userId`. It has no place for an organization's id:
+  a case sends a facility as PAVE's own Organization built from its name and NPI (D-321), so an
+  Organization's id alone would make an entry that names nothing a tester can use.
+- **Rules kept.** Nothing found is logged; the log counts, now with the diagnosis codes ("Test diagnosis
+  codes from a collection: 1 added, 0 there already, 0 did not fit, 0 refused"). No line of the reading
+  quotes a diagnosis code. Nothing goes to the ledger, the trail or the browser's storage (its one key
+  stays `pave.tab`). Nothing is filled into a case by itself. The same on mock and on live. Bodies are
+  read by fixed paths or walked with a stack (`RecursionGuardTest`, `RegexStackGuardTest` and
+  `DeepAnswerStackTest` unchanged).
+- **What holds it.** `DiagnosisListControllerTest` (the list over HTTP: add, edit, remove, every field's
+  limit, a property naming a member refused, a full list, the CSV and its template, a store written by
+  an older PAVE with three lists, an empty, a cut, a wrong-version and a wrong-shape file never written
+  over, switched off), `DiagnosisListFrontendTest` (the page, the found part's fourth list and labels, an
+  older server's answer, "Saved diagnosis codes" with the three steps' bodies and a reload, the Provider
+  card's picks of a facility, the page when switched off, unreadable or failing),
+  `DiagnosisAndPerformerFindsTest` (one, two and no codings; a placeholder defined and not; a claim's
+  diagnosis and care team; one code in three requests; a performer that is a Practitioner, a role with
+  and without its Organization, an Organization with an NPI, a wrong check digit, a name only, neither,
+  contained by "#id"; references to nothing carried; requester and performer in two requests; a sample
+  of an error; a body not JSON, a deep one, v2.0), `DiagnosisAndPerformerAddTest` (the counts, the
+  labels, entries left as they are, a facility by name alone, a full list, switched off, a store before
+  the fourth list, a damaged list taking nothing while the others add), `PickedDiagnosisAndFacilityStepsTest`
+  (a picked system beside a typed code through the three steps, against a collection whose reasonCode
+  uses another system; a facility as the order's performer). Changed, each for its reason:
+  `CollectionFindsTest` and `FoundListsControllerTest` (the context's user is now labelled the
+  requester), `TestListControllerTest` (a provider may be an organization alone; the column sentence),
+  `FoundFrontendTest` and `ConfigFrontendTest` (a fourth list and page), `ServiceCardFrontendTest` (the
+  new choice is not a choice of the service). Not shown to fail without the change.
+- **What was seen.** On a copy of the jar of the commit before the documents, against a copy of the
+  stand-in on loopback, with a collection and an export written for the check (placeholders only)
+  whose coverage-check order names a facility (`Organization/org-facility-001`, NPI `9999999995`) as its
+  performer and carries `G47.33`. On live in Chromium at 1440 by 900: Fill showed the four lists, the
+  facility as "Performer in ..." and the context's user as "Requester in ..."; the save with the box
+  ticked said "Added to the saved lists: 1 member, 2 providers, 1 procedure code, 1 diagnosis code.";
+  Configuration > Diagnosis codes at 1440 by 900 and 1024 by 768; a code added there with a SNOMED
+  system; on the Workbench the saved member (its member ID typed), the requester, the procedure code,
+  the facility as servicing provider and the diagnosis codes picked, beside a code typed: the stand-in
+  received the coverage check with the typed code under the system of the collection's `reasonCode`
+  (ICD-10-CM), the picked one under the SNOMED system of its saved entry, and `performer`
+  `Organization/organization-servicing-1`, the facility with its NPI in the prefetch; a reload gave the
+  picked code back with its system. Every tab opened with no answer of the 5xx kind, on live and then on
+  mock with `diagnoses.json` damaged by hand; the browser held only `pave.tab`; the log held counts
+  only and no diagnosis code. Not seen: the vendor's files or service, Windows, the IDE, the
+  questionnaire request and Submit on a screen, Configuration > Collections' button, the lists
+  switched off on a running jar.
+- **Left.** The Workbench reads the saved lists once a configuration epoch, so an entry added by hand
+  on a list page shows on the Workbench after the next change of configuration or a reload of the page,
+  as before for the other lists. A diagnosis picked from the list is not checked against the code list.
+  A list of places of service, a `reasonReference` and a suite column for either part are not built.

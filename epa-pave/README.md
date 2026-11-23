@@ -13,6 +13,25 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Diagnosis codes are a fourth saved list, and a collection fills it (D-322).** After D-321 a tester
+had to type the diagnosis code and the servicing provider that the vendor's own requests state. Now:
+
+- **Configuration > Diagnosis codes** keeps diagnosis codes as Procedure codes keeps procedure codes:
+  label, code, code system, description; add, edit, remove, "Import CSV" and "CSV template". An entry
+  holds a code alone and never says whose diagnosis it is.
+- **The Service card** offers "Saved diagnosis codes". A pick goes into the case with its system and its
+  description, as a line of its own under Diagnosis codes, marked "from saved list"; codes typed in the
+  field stay as typed. The coverage check, the questionnaire request and Submit send a picked code with
+  its system. A reload and "Load into the Workbench" bring a picked code back with its system.
+- **"Found in the collection"** lists the diagnosis codes a collection's requests state (an order's
+  `reasonCode`, a claim's diagnosis) and the providers its orders and claims name as performer or on
+  the care team, a facility (an Organization) among them. The one ticked box adds all four lists, and
+  the line counts the diagnosis codes. A provider's label says "Performer in <request>", "Requester in
+  <request>" or both, so the Provider card's picks tell a servicing provider from the requester; a
+  saved facility fills the Organization and the NPI.
+
+Seen in Chromium against a stand-in on this machine, not against the vendor's service.
+
 **The diagnosis and the servicing provider go out with every step (D-321).** The business analyst of
 the team testing against the vendor's UAT read the requests PAVE sent and said: "You are missing a Diag
 code and Servicing Provider". Before this, the coverage check sent the Diagnosis codes only beside a
@@ -996,15 +1015,20 @@ uses 2.0.1, so 2.0.1 is the default and 2.2.1 is kept as a choice, with everythi
 
 ## Lookups and test lists
 
-**Saved test members, providers and procedure codes** live in Configuration > Members,
-Configuration > Providers and Configuration > Procedure codes, for sandbox test data only: "Add
+**Saved test members, providers, procedure codes and diagnosis codes** live in Configuration > Members,
+Configuration > Providers, Configuration > Procedure codes and Configuration > Diagnosis codes, for
+sandbox test data only: "Add
 member", "Import CSV", "CSV template" ("Manage lists" in the Case column opens them). They are kept in
 `config-store/test-lists/`, readable by your account only, never in the ledger or the log, at most
 200 entries a list. Picking a saved entry in the Case column fills the card, each field marked
 "from saved list"; it does not look the member up. A saved member holds a member ID, a vendor patient
 id, or both; picking one that holds only the vendor patient id fills that and leaves Member ID empty
-for you to type. A saved procedure code (label, code, code system, description) is picked in the
-Service card under "Saved codes". Load the vendor's sandbox patient and practitioner once, with the
+for you to type. A saved provider holds an NPI, a vendor practitioner id or an organization's name. A
+saved procedure code (label, code, code system, description) is picked in the Service card under
+"Saved codes"; a saved diagnosis code, of the same shape, under "Saved diagnosis codes", and goes out
+with its system. A list of diagnosis codes holds codes alone: nothing in an entry says whose diagnosis
+it is. A store written before Diagnosis codes existed has no `diagnoses.json`, and the list reads as
+empty. Load the vendor's sandbox patient and practitioner once, with the
 vendor patient id and the vendor practitioner id, from a collection (below), by hand or with the
 CSV import, which shows the columns used and each row's outcome before anything is stored. From
 Excel, save the sheet as CSV first. `test-lists.enabled: false` switches the lists off, and the
@@ -1026,9 +1050,24 @@ nothing fills, or that uses a secret, is not read, and one line says so.
 - **Providers**: `context.userId` when it reads `Practitioner/<id>`, a Practitioner id in a request's
   url, and each `Practitioner` resource: its id, its name, and its NPI (system
   `http://hl7.org/fhir/sid/us-npi`) only when its check digit holds.
+- **Servicing providers**: the resource an order names as its performer
+  (`ServiceRequest.performer[].reference`) and the one a claim's care team names
+  (`Claim.careTeam[].provider.reference`), found in the same request: a contained resource by `#id`,
+  a resource elsewhere in the body by type and id or by its `fullUrl`. A Practitioner is read as above;
+  a PractitionerRole gives the Practitioner and the Organization it names; an Organization gives its
+  name, its NPI when the check digit holds, its phone and fax, and one with neither NPI nor name gives
+  nothing. A reference to nothing the request carries gives a provider only when it reads
+  `Practitioner/<id>` (its id alone); an Organization the request does not carry gives nothing, as a
+  saved provider has no place for an organization's id. The label says "Performer in <request>",
+  "Requester in <request>" (the context's user, an order's requester, a claim's provider) or both.
 - **Procedure codes**: the codings of `ServiceRequest.code`, `Procedure.code`,
   `DeviceRequest.codeCodeableConcept` and `Claim.item.productOrService` with its details. An RxNorm or
   NDC code is a medication and is left out.
+- **Diagnosis codes**: the codings of the `reasonCode` of a ServiceRequest, DeviceRequest or Procedure
+  and of `Claim.diagnosis[].diagnosisCodeableConcept`: the code, its system as written, the display or
+  text as the description. A diagnosis stated with no code gives nothing, and a line says so without
+  quoting it. A `reasonReference` is not followed. A request whose name marks it as a sample of an
+  error gives no diagnosis code and no performer.
 - The same member, provider or code in several requests is one entry.
 
 It is offered in two places: the environment form, after "Fill the form from these files", with the
@@ -1036,7 +1075,8 @@ box "Add these to the saved lists when the environment is saved", ticked at firs
 added only once the save went through); and Configuration > Collections, after an upload, with the
 button "Add to the saved lists". An entry a list already holds (the same member ID, vendor patient id,
 NPI, vendor practitioner id, or code and code system) is left as it is; a full list says how many did
-not fit; an entry the list's rules refuse is named with why. Choose the collection at that moment: a
+not fit; an entry the list's rules refuse is named with why; a list whose file cannot be read takes
+nothing, says so, and the other lists are still added to. Choose the collection at that moment: a
 collection already stored is not read again. A collection in Postman's older format v2.0 is read as
 v2.1 is (D-307); a format the parser does not read gives one line ("The collection was not read: ...
 This tool reads formats v2.1 and v2.0.").
@@ -1410,8 +1450,9 @@ normal answer.
 | POST | `/api/lists/members/import` | Import CSV text (`{csv, dryRun}`; a dry run stores nothing) |
 | GET, POST, PUT, DELETE | `/api/lists/providers`, `/api/lists/providers/{id}`, `.../template.csv`, `.../import` | The same for saved test providers |
 | GET, POST, PUT, DELETE | `/api/lists/codes`, `/api/lists/codes/{id}`, `.../template.csv`, `.../import` | The same for saved test procedure codes |
-| POST | `/api/lists/found` | What a collection's requests state for the saved lists (`{collectionExport, environmentExport, forId, fromActiveEnvironment}`, each export `{fileName, text}`); stores nothing |
-| POST | `/api/lists/found/add` | The same files read again, and what they state added to the saved lists |
+| GET, POST, PUT, DELETE | `/api/lists/diagnoses`, `/api/lists/diagnoses/{id}`, `.../template.csv`, `.../import` | The same for saved test diagnosis codes; the answer's list is `diagnoses` |
+| POST | `/api/lists/found` | What a collection's requests state for the saved lists (`{collectionExport, environmentExport, forId, fromActiveEnvironment}`, each export `{fileName, text}`): `members`, `providers` (with `organization`, `phone`, `fax`, `requesterIn`, `performerIn`), `codes`, `diagnoses`, `notUsed`; stores nothing |
+| POST | `/api/lists/found/add` | The same files read again, and what they state added to the saved lists; the counts of each list (`added`, `already`, `full`, `refused`, `unread`) under `members`, `providers`, `codes` and `diagnoses` |
 | GET | `/api/members/{memberId}`, `/api/members?memberId=` | Member lookup (the query form for an ID with a slash; optional `dateOfService`) |
 | GET | `/api/providers/{npi}`, `/api/providers?npi=` | Provider lookup (the NPI check digit first; optional `dateOfService`) |
 | GET | `/api/procedure-codes?q=&lob=` | Code type ahead |
@@ -1990,3 +2031,10 @@ looked at at 1024 by 768, on mock. A v2.0 collection was read for the saved list
 jar's endpoint, not on a screen. Not seen: the Edit form's own "Fill the form from these files", the
 vendor's files or service, Windows, STS. The gates of section 0 are run by the integrator on the
 commit that carries this README; their result is reported with the hand-over.
+
+For the saved diagnosis codes and the servicing providers read from a collection (D-322), the parts that
+changed (This release, Lookups and test lists, Endpoints) were checked against the code at the commit
+that carries them and against a copy of its jar on live, with a stand-in on a loopback port and files
+written for the check: the four lists after Fill, the line of the save, Configuration > Diagnosis codes
+at 1440 by 900 and 1024 by 768, and the coverage check sent with a picked diagnosis code and a saved
+facility as the servicing provider. Not seen: the vendor's files or service, Windows, STS.

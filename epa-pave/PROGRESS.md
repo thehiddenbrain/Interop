@@ -4,6 +4,17 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Diagnosis codes are a fourth saved list, and a collection fills it** (D-322). After D-321 the tester
+still typed the diagnosis code and the servicing provider the vendor's own requests state. Configuration
+> Diagnosis codes keeps codes alone, as Procedure codes does; the Service card's "Saved diagnosis codes"
+puts a pick into the case with its system and description beside the typed codes, every step sends that
+system, and a reload keeps it. "Found in the collection" lists the diagnosis codes of the orders and
+claims and the providers they name as performer or on the care team, a facility among them, labelled
+"Performer in" or "Requester in", and the one box adds all four lists; a saved provider may now be known
+by its organization alone, and a list whose file cannot be read takes nothing while the others still
+add. Built and tested by one builder, seen in Chromium against a stand-in on loopback, not against the
+vendor's service or with the vendor's files.
+
 **The diagnosis and the servicing provider go out with every step** (D-321). The business analyst of
 the operator's team read the requests PAVE sent to the vendor's UAT and said a diagnosis code and a
 servicing provider were missing. The coverage check and the questionnaire request now put each diagnosis
@@ -660,10 +671,15 @@ Each line can be read alone. The detail of each is in the entry named.
     that uses the scenario word a mock member is named after is refused as holding the member's last
     name.
 22. **The diagnosis and the servicing provider** (D-321): not seen against the vendor's service. Not
-    built: a saved list of diagnosis codes, taking diagnosis codes or performers from an uploaded
-    collection into the saved lists (the next piece), a `reasonReference` to a Condition, and columns for
-    either in a suite file. "Compare with a request that works" builds PAVE's side with the form's
+    built: a `reasonReference` to a Condition, and columns for either in a suite file. Later: the saved
+    list of diagnosis codes and the reading of both from a collection are built (D-322). "Compare with a request that works" builds PAVE's side with the form's
     diagnosis and servicing provider; it was not looked at on a screen.
+23. **The saved diagnosis codes and the servicing providers read from a collection** (D-322): not seen
+    with the vendor's files or service, nor on Windows. The Workbench reads the saved lists once a
+    configuration epoch, so an entry added by hand on a list page shows there after the next change of
+    configuration or a reload of the page. Not looked at on a screen: Configuration > Collections'
+    button with the fourth list, the questionnaire request and Submit with a picked code, the lists
+    switched off on a running jar.
 
 ### Gates, first
 
