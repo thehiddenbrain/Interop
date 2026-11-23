@@ -4,6 +4,15 @@ Where the build is, what is done, what remains. Updated at every commit.
 
 ## Current position
 
+**Each step says which request it sends, and can send it as the collection writes it** (D-313). The
+Workbench's coverage check, questionnaire package and next question, Submit and inquiry each name the
+request of the collection in force under "Request" in their Options, list every request that fits, send
+the one chosen, and can make it the one for every run (`c7adbfa`); the coverage check (`51c1a3e`) and the
+later steps (`ed9d05e`) can send the request's own body as the collection writes it. Built and tested by
+one agent and seen on live against a stand-in at 1440 by 900 and 1024 by 768, and on mock; not seen
+against the vendor's service, and the next question as written was sent through the API only. Open: a
+body as written gets only its placeholders filled; a value a script sets is asked for, never computed.
+
 **The right sample among several** (D-312). The operator's collection holds several coverage checks; a
 call to a typed address followed the first in the file and the service found no patient again. Such a call
 now follows the request that goes to the typed address. Built and tested by the integrator from the

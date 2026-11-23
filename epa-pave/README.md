@@ -13,6 +13,17 @@ nothing leaves the machine, and no credential or configuration is needed.
 
 ## This release
 
+**Each step of the Workbench says which request it sends, and can send it as the collection writes it
+(D-313).** The operator's collection holds 124 mapped requests, several for each step, each for a service
+of its own, and PAVE used the first in the file that fits without saying so. Every step that sends a
+request (the coverage check, the questionnaire package and the next question, Submit, the inquiry) now
+names, in its Options under "Request", the request in force and where it comes from; "Change" lists every
+request that fits, and the one chosen is sent, to its own address with its own headers, until another is
+chosen or the page is left. "Use for every run" makes it the one in force. Under "Body", "As the
+collection writes it" sends that request's own body with the environment's values put in, as Postman
+would. See [The Request line and the two bodies](#the-request-line-and-the-two-bodies). Seen on live
+against a stand-in, not against the vendor's service.
+
 **The right sample among several (D-312).** The operator's collection holds 124 mapped requests,
 several of them coverage checks, each for a service of its own. With the address of the coverage check
 typed, PAVE followed the first of them in the file, which carries the patient in a Bundle under
@@ -398,6 +409,51 @@ On mock every member, provider and code is invented.
 10. Press **Open in Audit** to see the run as the ledger holds it.
 
 These words were seen in a browser on the release candidate's jar (`7fc32c8`, mock).
+
+## The Request line and the two bodies
+
+A collection can hold several requests for one step: a coverage check for each service, a Submit and a
+sample of an error. Each step of the Workbench that sends a request says which one, in its Options:
+
+- **Request** names the request in force by its folder and name, with its method and the end of its
+  address, and where it comes from: "the first in the file that fits", "the one chosen in
+  Configuration", "chosen here, for this page", or "The address typed in the settings". While several
+  fit, a line under the step's head names the one in force without opening the Options.
+- **Change** lists every request of the stored collections that fits the step, by folder and name, with
+  its collection; the one in force is marked "in force" and a sample of an error "sample of an error". A
+  long list has a box to filter it by name, folder or address. With one request or none, the line says
+  so and offers no list.
+- **A request chosen there** is used for the step's runs and previews until another is chosen, "Use the
+  request in force" is pressed or the page is left: its address, its headers and its sample for the
+  arrangement. It wins over an address typed in the settings, and the Options say "This run goes to the
+  request's own address, not the one typed in the settings." The preview, the result's notes ("Sent with
+  the request chosen for this run: ...") and "Wire traffic" (the row "From") name the request used.
+- **Use for every run** maps the chosen request to the step's operation in Configuration > Collections
+  and takes off it each request that fits before it in the file (a sample of an error is left as it is).
+  Configuration > Advanced > In force now then shows it. An address typed in the settings still wins
+  for a run that names no request until it is taken away, and the line says so with a link to Edit.
+
+**Body** has two choices for the request in use:
+
+- **Built from the case** (as before): PAVE builds the body from the Case column, arranged as the
+  request's sample.
+- **As the collection writes it**: the request's own body, as stored with the collection, with the
+  environment's values put in, is sent as Postman would send it, and the answer is read as any answer
+  of that step (the result card, the verdict, what is handed to the next step). The member, provider
+  and codes in it are sent, not those of the Case column, which is not cleared. In a step after the
+  coverage check, what the step before handed on is not put into it. PAVE makes `{{$guid}}`,
+  `{{$randomUUID}}`, `{{$timestamp}}`, `{{$isoTimestamp}}` and `{{$randomInt}}` afresh at each send, so
+  a hookInstance written as `{{$guid}}` is new each time. The page never holds the body: the server takes
+  it from the stored collection. The ledger records that a body of its own went, never the body; a
+  credential written into it is sent and masked in every view.
+
+What a body written for Postman needs and PAVE cannot give is said before anything is sent, each
+placeholder with a box in "Values for this run": a placeholder nothing defines; one a script of the
+collection would have set ("a script of the collection sets {{accessToken}}, and PAVE never runs a
+script"; the script's text is searched for the name, never run); and any other dynamic value of
+Postman's. An address typed in the settings has no body of a request: choose a request to send one as
+written. On mock the Request line describes the stored collection as on live, and a body as written is
+answered by a scenario, as a body of your own is.
 
 ## Reading a result
 
@@ -1599,6 +1655,12 @@ open item, the worst first, with the entry that gives the reason.
   Patient's address, telecom or extensions, a Coverage's relationship or class of type group. PAVE has
   no field for them, and a member's address the case holds is not written on the coverage check's
   Patient. Only the diagnosis is sent, and only where the sample's order carries one.
+- **A body as the collection writes it** (D-313) is sent with its placeholders filled and nothing else
+  done to it: a value a script of the collection would have set must be typed, Postman's dynamic values
+  other than the five PAVE makes are not made, and nothing handed on by the step before is put into it.
+  The next question as written was seen through the API only: the stand-in's questionnaire is a static
+  form, so the Workbench never sent a next question. "Use for every run" takes the earlier requests off
+  the operation for every environment, as the form's pick does.
 - **No second sign-in for Submit and Status**, which the vendor's sandbox holds a client for; never
   shown to be needed.
 - **Inquiry needs a claim id**: inquiry by member and dates of service is not built.

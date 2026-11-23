@@ -75,6 +75,7 @@ entry.
 | D-310 | A sixth correction after release 2: where the coverage-check sample's order carries a diagnosis (`reasonCode`), the Diagnosis codes of the Service card go on every order with the sample's coding system; what the sample's resources carry and PAVE's do not is named, by resource type, in the request's notes, under Prefetch in the form and in "Compare with a request that works" (`51b3505`, `7f951cd`, `6256f1f`) | The operator asked that anything missing be added and anything not standard be said. The diagnosis is the case's own and the only element added; every other element is standard FHIR that CRD does not require and that the case holds no value for (or, for a member's address, that the coverage check does not write), so it is named and never filled in. Names only, never a value. Seen on live against the stand-in, not against the vendor's service |
 | D-311 | A call to a typed address follows the sample of the collection's request for its operation in its request shapes (it still carries no header and no body of that request); the Submit options answer with no call in hand (`4d9d85a`) | The operator typed the address of the coverage check to correct it, the request fell back to PAVE's named Bundles and the vendor's service answered "No patient data provided" again. The build of `a580682` read the shapes of the active environment through a request that was not there, and every page that asks for the Submit options got an internal error. Held by tests; not seen against the vendor's service |
 | D-312 | A call to a typed address follows the collection request that goes to that address; the first mapped only when none does | The operator's collection holds several coverage checks, each for a service of its own. The first in the file was followed, its sample carries the patient under `patientBundle`, and the vendor's service answered "No patient data provided" a third time. Read from the operator's recording of In force now: one collection, 124 requests mapped, the address of the coverage check typed. Held by a test; not seen against the vendor's service |
+| D-313 | Each Workbench step that sends a request names the collection request in force and where it comes from, lists every request that fits, sends the one chosen (its address, headers and sample, over a typed address) and can make it the one for every run through the mapping; "As the collection writes it" sends that request's stored body with the environment's values put in and Postman's five common dynamic values made afresh (`c7adbfa`, `51c1a3e`, `ed9d05e`) | The first request in the file is no safe default in a collection of 124 mapped requests, several for each step; the operator spent an evening finding, one difference at a time, what PAVE builds and the vendor's request sends. A body as written gives up the Case column and what was handed on; scripts are never run, a value a script sets is asked for, and no body reaches the page or the ledger. Seen on live against the stand-in and on mock, not against the vendor's service |
 | D-233 | The token request authenticates the client by HTTP Basic | An open item of section 26, decided in code. A vendor that wants the credentials in the form body or a signed assertion answers 401; `OnyxTokenService.requestToken` is the one method to change |
 | D-234 | The installation salt (`config-store/installation-salt`) is a secret | With it and the four characters the ledger keeps, a member ID is recovered from its token at once. Never copy it with the ledger or its export |
 | D-235 | Level 1 is described with its named limits beside it | The X12 275 mode names a document and sends nothing; no `$submit-attachment`, no claim update, no `$expand`, no `$log-questionnaire-errors`, no CQL. Never "nothing stubbed" |
@@ -9022,3 +9023,62 @@ round of corrections; the code handed over.**
 - **Left.** Not seen against the vendor's service. The form's Request shapes and "What these files give"
   still show the Prefetch shape of the first sample in the file; the request's notes name the request
   really followed. The Workbench offers no choice of request for a step.
+
+**D-313. Each step of the Workbench says which request it sends, and can send it as the collection writes it.**
+- **What happened.** After D-312 the operator was still finding, one at a time, the differences between
+  what PAVE builds and what the vendor's own request sends, which works in Postman: "It is Postman, it is
+  working. It should work with this one too." and, after the sixth correction, "So many issues, will this
+  ever work?" The collection holds 124 mapped requests, several coverage checks, questionnaire requests
+  and submits, each for a service of its own. PAVE used, for each step, the first request in the file that
+  fits, and said so only in Configuration > Advanced. The first coverage check belonged to another
+  service; the operator typed the right address, and the request then went in the arrangement of the
+  wrong sample (D-311, D-312). The steps after the coverage check had never met the vendor's service and
+  had the same two weaknesses. The server already took, for a run, a request of the collection named for
+  it and a body of the tester's own; the rebuilt Workbench offered neither. The operator said "Go" to this
+  work; the integrator decided its shape (`TASK_REQUEST_PICKER.md`).
+- **Why the first in the file is not a safe default here.** In a collection with one request per step the
+  first that fits is the one meant. In a collection of this size it is chosen by the order of the file,
+  which says nothing about which service the tester tests, and nothing on the Workbench said which one
+  went. A typed address corrected where the call went but not what it carried. The tester is the only one
+  who knows which service is meant, so the Workbench now asks, and says what it uses until asked.
+- **Decided.** Each step that sends a request (the coverage check, the questionnaire package and the next
+  question, Submit, the inquiry) shows "Request" in its Options: the request in force by folder and name,
+  with its method and the end of its address, and where it comes from (the first in the file that fits,
+  the one chosen in Configuration, chosen here for this page, or the address typed in the settings). While
+  several fit, a line under the step's head names it. "Change" lists the requests of the stored
+  collections mapped to the step's operation, the one in force and a sample of an error marked (the server
+  says which is which: `AvailableRequest.errorSample`, `TargetView.typed`), with a filter box for a long
+  list; with one or none the line says so and offers no list. A request chosen there lives in the page's
+  memory and goes with the step's runs and previews as `request`, which already won over a typed address
+  (R-02): its address, its headers and its sample. The result's notes and the wire view (`WireRequest.from`)
+  name the request used. "Use for every run" is the form's pick (D-307): each request that fits before the
+  chosen one in the file is taken off the operation, a sample of an error left as it is, and the chosen one
+  mapped to it; a typed address still wins for a run that names no request, and the line and In force now
+  say so. "Body" offers "Built from the case" (as before) and "As the collection writes it": the run posts
+  `asWritten`, the server takes the stored body of the request the run uses (`OperationGateway.writtenBody`)
+  and sends it down the path a body of the tester's own takes (`AsWritten`), and the answer is read as the
+  step's own. `{{$guid}}`, `{{$randomUUID}}`, `{{$timestamp}}`, `{{$isoTimestamp}}` and, new,
+  `{{$randomInt}}` are made afresh at each send; any other dynamic value is named as one PAVE does not
+  make. A placeholder with no value is refused before anything is sent, each named with what is known of
+  why: a script of the collection sets it (its text searched with index searches for the quoted name,
+  never parsed, never run), Postman makes it, or nothing defines it; "Values for this run" takes a value.
+- **What a body as written gives up.** The member, provider and codes it carries are sent, not the Case
+  column's, which the page neither sends for it nor clears; in a later step, what the step before handed
+  on is not put into it, and the result says so. The run is still linked to the step before.
+- **What is never done.** No script is run. No body is fetched into the page or kept by the browser: the
+  only storage key stays `pave.tab`, and the choice of request is page memory. The ledger records that a
+  body of its own went (`INPUT_BODY`), never the body. A credential written into the body is sent and
+  masked in every view, as before. On an environment of kind prod a Submit as written is blocked as any
+  Submit is, with the guardrail's words unchanged. The scenario selector stays on mock only; on mock the
+  Request line describes the stored collection and a body as written is answered by a scenario.
+- **What holds it.** `StepRequestTest` (the list across two collections with the one in force and the
+  sample of an error marked; a named request while an address is typed goes to its own address with its
+  headers and its notes name it; "Use for every run"), `AsWrittenCoverageCheckTest` and
+  `AsWrittenLaterStepsTest` (the stored body sent with values put in and dynamic values made afresh; an
+  undefined, a script-set and an unsupported placeholder refused before the send; the ledger holds no
+  body; the guardrail on prod), `StepRequestFrontendTest` (the line, the list, the choice, the body
+  choice and the mappings), `VariableResolverTest` (`{{$randomInt}}`).
+- **Left.** Not seen against the vendor's service. The next question as written was sent through the API
+  only: the stand-in's questionnaire is a static form, so the Workbench never sends a next question to it.
+  "Use for every run" changes the collection's mapping, which every environment shares. "Compare with a
+  request that works" still builds PAVE's request as before.
