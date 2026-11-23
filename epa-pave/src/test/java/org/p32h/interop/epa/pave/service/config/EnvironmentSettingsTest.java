@@ -132,8 +132,10 @@ class EnvironmentSettingsTest {
         assertThat(shape.get("value").stringValue()).isEqualTo("LEFT_OUT");
         assertThat(shape.get("from").stringValue()).isEqualTo("this environment");
         assertThat(shape.get("why").stringValue()).isEqualTo(RequestShape.CRD_DRAFT_ORDERS_TYPE.why());
+        // The shapes stand in the order the form draws them: the two of the coverage check, then the PAS guide.
+        assertThat(view.get("shapes").get(1).get("key").stringValue()).isEqualTo("CRD_PREFETCH");
         // The PAS guide is drawn as the other shapes are: its label, value, source, options and why.
-        JsonNode guide = view.get("shapes").get(1);
+        JsonNode guide = view.get("shapes").get(2);
         assertThat(guide.get("key").stringValue()).isEqualTo("PAS_GUIDE");
         assertThat(guide.get("label").stringValue()).isEqualTo("PAS guide");
         assertThat(guide.get("value").stringValue()).isEqualTo("2.2.1");
