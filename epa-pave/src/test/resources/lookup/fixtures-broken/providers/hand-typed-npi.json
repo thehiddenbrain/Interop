@@ -1,0 +1,11 @@
+{
+  "npi": "1234567890",
+  "description": "Test resource. A plausible ten digit number typed by hand, whose check digit is wrong. The loader must refuse it.",
+  "basis": "Synthetic. Every value in this file is invented.",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "npi": "1234567890",
+    "lastName": "Placeholder-HandTyped"
+  }
+}

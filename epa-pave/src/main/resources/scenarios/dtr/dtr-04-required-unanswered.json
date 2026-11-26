@@ -1,0 +1,328 @@
+{
+  "id": "dtr-04-required-unanswered",
+  "number": 4,
+  "label": "Required question left unanswered",
+  "short": "required left blank",
+  "description": "The package holds one conventional questionnaire with two groups and enableWhen branching. Answering yes to a question enables a required follow-up. Leaving that follow-up unanswered must never be reported as a complete response. It models DTR 2.0.1: the package carries the draft response to start from.",
+  "sentinelMemberId": "P32H-DTR-REQUIRED",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PACKAGE_LOADED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "questionnaires": "1",
+      "questionnaire-kind": "static",
+      "questionnaire-status": "active",
+      "questions": "5"
+    }
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "responses": [
+    {
+      "name": "two follow-up questions enabled and left unanswered",
+      "answers": [
+        {
+          "linkId": "pac-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "pac-3",
+          "values": [
+            "true"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "REQUIRED_UNANSWERED",
+        "unanswered": [
+          "pac-2",
+          "pac-4"
+        ],
+        "codes": {
+          "response-status": "in-progress",
+          "questions": "5",
+          "answered": "2",
+          "required-unanswered": "2"
+        }
+      }
+    },
+    {
+      "name": "both follow-up questions disabled by the answers, so nothing required is missing",
+      "answers": [
+        {
+          "linkId": "pac-1",
+          "values": [
+            "false"
+          ]
+        },
+        {
+          "linkId": "pac-3",
+          "values": [
+            "false"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "5",
+          "answered": "2",
+          "required-unanswered": "0"
+        }
+      }
+    },
+    {
+      "name": "every enabled question answered, one of them twice",
+      "answers": [
+        {
+          "linkId": "pac-1",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "pac-2",
+          "values": [
+            "bathing",
+            "transferring"
+          ]
+        },
+        {
+          "linkId": "pac-3",
+          "values": [
+            "true"
+          ]
+        },
+        {
+          "linkId": "pac-4",
+          "values": [
+            "Placeholder description of the skilled need"
+          ]
+        },
+        {
+          "linkId": "pac-5",
+          "values": [
+            "21"
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "RESPONSE_COMPLETED",
+        "codes": {
+          "response-status": "completed",
+          "questions": "5",
+          "answered": "5",
+          "required-unanswered": "0"
+        }
+      }
+    },
+    {
+      "name": "nothing answered at all",
+      "answers": [],
+      "expect": {
+        "outcome": "REQUIRED_UNANSWERED",
+        "unanswered": [
+          "pac-1"
+        ],
+        "codes": {
+          "response-status": "in-progress",
+          "answered": "0",
+          "required-unanswered": "1"
+        }
+      }
+    }
+  ],
+  "response": {
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "PackageBundle",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "collection",
+          "entry": [
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/Questionnaire/post-acute-criteria",
+              "resource": {
+                "resourceType": "Questionnaire",
+                "id": "post-acute-criteria",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-std-questionnaire"
+                  ]
+                },
+                "text": {
+                  "status": "generated",
+                  "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Post-acute care criteria (placeholder)</div>"
+                },
+                "url": "https://example.org/p32h-placeholder/Questionnaire/post-acute-criteria",
+                "version": "1.2.0",
+                "name": "PostAcuteCriteria",
+                "title": "Post-acute care criteria (placeholder)",
+                "status": "active",
+                "subjectType": [
+                  "Patient"
+                ],
+                "item": [
+                  {
+                    "linkId": "pac-g1",
+                    "text": "Functional status",
+                    "type": "group",
+                    "item": [
+                      {
+                        "linkId": "pac-1",
+                        "text": "Does the member need help with two or more activities of daily living?",
+                        "type": "boolean",
+                        "required": true
+                      },
+                      {
+                        "linkId": "pac-2",
+                        "text": "Which activities does the member need help with?",
+                        "type": "open-choice",
+                        "required": true,
+                        "repeats": true,
+                        "enableWhen": [
+                          {
+                            "question": "pac-1",
+                            "operator": "=",
+                            "answerBoolean": true
+                          }
+                        ],
+                        "answerOption": [
+                          {
+                            "valueCoding": {
+                              "system": "https://example.org/p32h-placeholder/CodeSystem/daily-living",
+                              "code": "bathing",
+                              "display": "Bathing"
+                            }
+                          },
+                          {
+                            "valueCoding": {
+                              "system": "https://example.org/p32h-placeholder/CodeSystem/daily-living",
+                              "code": "dressing",
+                              "display": "Dressing"
+                            }
+                          },
+                          {
+                            "valueCoding": {
+                              "system": "https://example.org/p32h-placeholder/CodeSystem/daily-living",
+                              "code": "transferring",
+                              "display": "Transferring"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "linkId": "pac-g2",
+                    "text": "Skilled need",
+                    "type": "group",
+                    "enableWhen": [
+                      {
+                        "question": "pac-1",
+                        "operator": "exists",
+                        "answerBoolean": true
+                      }
+                    ],
+                    "item": [
+                      {
+                        "linkId": "pac-3",
+                        "text": "Is a skilled nursing need documented?",
+                        "type": "boolean",
+                        "required": true
+                      },
+                      {
+                        "linkId": "pac-4",
+                        "text": "Describe the skilled need",
+                        "type": "text",
+                        "required": true,
+                        "enableWhen": [
+                          {
+                            "question": "pac-3",
+                            "operator": "=",
+                            "answerBoolean": true
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "linkId": "pac-5",
+                    "text": "Expected length of stay in days",
+                    "type": "integer",
+                    "required": false
+                  }
+                ]
+              }
+            },
+            {
+              "fullUrl": "https://example.org/p32h-placeholder/QuestionnaireResponse/post-acute-criteria-draft",
+              "resource": {
+                "resourceType": "QuestionnaireResponse",
+                "id": "post-acute-criteria-draft",
+                "meta": {
+                  "profile": [
+                    "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/dtr-questionnaireresponse"
+                  ]
+                },
+                "extension": [
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "Coverage/coverage-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/qr-context",
+                    "valueReference": {
+                      "reference": "ServiceRequest/service-request-1"
+                    }
+                  },
+                  {
+                    "url": "http://hl7.org/fhir/us/davinci-dtr/StructureDefinition/intendedUse",
+                    "valueCodeableConcept": {
+                      "coding": [
+                        {
+                          "system": "http://hl7.org/fhir/us/davinci-crd/CodeSystem/temp",
+                          "code": "withpa"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "questionnaire": "https://example.org/p32h-placeholder/Questionnaire/post-acute-criteria|1.2.0",
+                "status": "in-progress",
+                "subject": {
+                  "reference": "Patient/patient-1"
+                },
+                "authored": "2026-03-10T09:00:00-04:00",
+                "item": [
+                  {
+                    "linkId": "pac-g1",
+                    "text": "Functional status"
+                  },
+                  {
+                    "linkId": "pac-g2",
+                    "text": "Skilled need"
+                  },
+                  {
+                    "linkId": "pac-5",
+                    "text": "Expected length of stay in days"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

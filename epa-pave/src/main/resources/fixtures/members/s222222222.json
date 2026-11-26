@@ -1,0 +1,30 @@
+{
+  "memberId": "S222222222",
+  "description": "A placeholder for a coverage status this tool does not recognise: a Commercial member whose status is neither called active nor inactive, and is said to be unrecognised.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": true,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "S222222222",
+    "firstName": "Reese",
+    "lastName": "Placeholder-Pending",
+    "dateOfBirth": "1992-02-02",
+    "gender": "female",
+    "lineOfBusiness": "Commercial",
+    "planName": "Synthetic Commercial HMO",
+    "coverageStatus": "Pending enrollment review",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "S222222222",
+    "address": {
+      "line1": "18 Placeholder Street",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

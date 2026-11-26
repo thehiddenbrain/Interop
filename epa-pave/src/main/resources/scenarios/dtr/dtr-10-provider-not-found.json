@@ -1,0 +1,39 @@
+{
+  "id": "dtr-10-provider-not-found",
+  "number": 10,
+  "label": "Provider not found",
+  "short": "provider not found",
+  "description": "The service does not recognise the ordering provider. Selected by the test NPI as well as by the test member ID, so the provider CRD scenario 9 uses gets the same answer here. It models DTR 2.0.1, whose operation answers a failure with an OperationOutcome. The CRD test member ID P32H-NOPROV selects it too, so a case means the same thing in CRD and in DTR.",
+  "sentinelMemberId": "P32H-DTR-NOPROV",
+  "crdSentinelMemberIds": [
+    "P32H-NOPROV"
+  ],
+  "sentinelNpi": "9999999995",
+  "sampleCase": {"npi": "9999999995", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 404,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PROVIDER_NOT_FOUND",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 404
+  },
+  "basis": "Synthetic. Shaped to DTR 2.0.1, the version this tool is held to, from the guide's own examples where it has them, with this project's placeholders for every value the guide leaves open. It has not been observed from the live service.",
+  "assumption": "How the live service signals an unknown provider is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the PractitionerRole.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "not-found",
+        "details": {
+          "text": "No provider matches the NPI supplied."
+        },
+        "diagnostics": "No provider matches the NPI supplied.",
+        "expression": [
+          "PractitionerRole.practitioner"
+        ]
+      }
+    ]
+  }
+}

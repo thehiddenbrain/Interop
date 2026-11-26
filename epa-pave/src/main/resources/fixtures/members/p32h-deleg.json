@@ -1,0 +1,37 @@
+{
+  "memberId": "P32H-DELEG",
+  "description": "Sentinel for CRD scenario 10, delegated vendor routing. A Medicare member: the scenario routes to Evolent, which serves Medicare. The record is a list of one inside results, with a count beside it and two fields the mapping does not know.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "count": 1,
+    "results": [
+      {
+        "memberId": "P32H-DELEG",
+        "firstName": "Indigo",
+        "lastName": "Placeholder-Delegated",
+        "dob": "1949-04-22",
+        "gender": "female",
+        "lob": "Medicare",
+        "plan": "Synthetic Medicare Plan B",
+        "enrollmentStatus": "Active",
+        "startDate": "2025-01-01",
+        "subscriberId": "P32H-DELEG",
+        "groupNumber": "GRP-PLACEHOLDER-09",
+        "preferredLanguage": "en",
+        "primaryAddress": {
+          "line1": "9 Placeholder Street",
+          "city": "Sampletown",
+          "state": "MA",
+          "postalCode": "00000"
+        }
+      }
+    ]
+  }
+}

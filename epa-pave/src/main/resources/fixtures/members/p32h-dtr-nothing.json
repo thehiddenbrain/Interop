@@ -1,0 +1,30 @@
+{
+  "memberId": "P32H-DTR-NOTHING",
+  "description": "Sentinel for DTR scenario 8, an adaptive questionnaire that asks nothing. A Medicare member with active coverage, so a tester who looks the sentinel up before the run is shown a member and not a finding about test data.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-DTR-NOTHING",
+    "firstName": "Indigo",
+    "lastName": "Placeholder-DtrNothing",
+    "dateOfBirth": "1950-10-10",
+    "gender": "male",
+    "lineOfBusiness": "Medicare",
+    "planName": "Synthetic Medicare Plan A",
+    "coverageStatus": "Active",
+    "coverageStart": "2025-01-01",
+    "subscriberId": "P32H-DTR-NOTHING",
+    "address": {
+      "line1": "26 Placeholder Avenue",
+      "city": "Sampletown",
+      "state": "MA",
+      "postalCode": "00000"
+    }
+  }
+}

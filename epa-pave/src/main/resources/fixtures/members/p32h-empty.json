@@ -1,0 +1,39 @@
+{
+  "memberId": "P32H-EMPTY",
+  "description": "Sentinel for CRD scenario 14, an empty response with no determination. A Commercial member with active coverage: it is the CRD answer that is empty, not the member. The record is a list of one inside members, with coverage and subscriber as groups.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Commercial"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "members": [
+      {
+        "memberIdentifier": "P32H-EMPTY",
+        "firstName": "Morgan",
+        "lastName": "Placeholder-Empty",
+        "birthday": "1988-10-30",
+        "genderCode": "U",
+        "coverage": {
+          "lob": "Commercial",
+          "plan": "Synthetic Commercial PPO",
+          "status": "Active",
+          "effectiveDate": "2025-01-01",
+          "terminationDate": "2099-12-31"
+        },
+        "subscriber": {
+          "id": "P32H-EMPTY"
+        },
+        "residentialAddress": {
+          "line1": "13 Placeholder Street",
+          "city": "Sampletown",
+          "state": "MA",
+          "postalCode": "00000"
+        }
+      }
+    ]
+  }
+}

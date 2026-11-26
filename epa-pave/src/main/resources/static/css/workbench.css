@@ -1,0 +1,758 @@
+/*
+ * The Workbench's own classes, beside the shared components of pave.css: the case column's fields
+ * and marks, the code type-ahead, the step panels' options and busy line, and the result's lines.
+ */
+
+/* The Workbench uses the whole width of the window. */
+.workbench {
+    max-width: none;
+}
+
+/* A field's mark says where its value came from; it sits after the label, small. */
+.field__mark {
+    margin-left: var(--s-2);
+}
+
+.field__mark .chip {
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11.5px;
+    vertical-align: middle;
+}
+
+.card__extra {
+    display: inline-flex;
+    gap: var(--s-1);
+}
+
+.card__tick::before {
+    content: "\2713";
+    margin-right: 4px;
+    color: var(--ink-strong);
+}
+
+.card__icon .icon {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.card__body > .select {
+    width: 100%;
+}
+
+.lookup-line {
+    margin: 0;
+}
+
+.servicing {
+    display: grid;
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+    padding-top: var(--s-3);
+    border-top: 1px dashed var(--line);
+}
+
+.servicing__closed {
+    margin: 0;
+}
+
+.servicing__body {
+    display: grid;
+    gap: var(--s-2);
+}
+
+.servicing__body > p {
+    margin: 0;
+}
+
+/* ---------- the code type-ahead ---------- */
+
+.picker__entry {
+    position: relative;
+}
+
+.picker__popup {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r-box);
+    background: var(--surface);
+    box-shadow: 0 6px 18px rgba(20, 20, 30, 0.12);
+}
+
+.picker__options {
+    margin: 0;
+    padding: var(--s-1) 0;
+    list-style: none;
+}
+
+.picker__option {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 6px var(--s-3);
+    cursor: pointer;
+}
+
+.picker__option[aria-selected="true"],
+.picker__option:hover {
+    background: var(--surface-sunk);
+}
+
+.picker__note:empty {
+    display: none;
+}
+
+.code-lines {
+    display: grid;
+    gap: var(--s-1);
+    margin-top: var(--s-2);
+}
+
+.code-line .btn--small {
+    flex: none;
+}
+
+.per-code__row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s-2);
+    align-items: end;
+}
+
+.per-code__code {
+    padding-bottom: 10px;
+}
+
+/* ---------- the step panels ---------- */
+
+.stepper__step {
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.stepper__step[aria-selected="true"] {
+    box-shadow: inset 0 -3px 0 var(--purple);
+}
+
+.stepper__step:focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: -4px;
+}
+
+.stepper__chip:empty {
+    display: none;
+}
+
+/* A step's text never takes more than its step: a long chip is cut on screen (its words in its title)
+   instead of running into the next step. */
+.stepper__step {
+    min-width: 0;
+}
+
+.stepper__text {
+    grid-template-columns: minmax(0, 100%);
+    overflow: hidden;
+}
+
+.stepper__chip {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.stepper__chip .chip {
+    max-width: 100%;
+}
+
+.panel:focus {
+    outline: none;
+}
+
+.panel__options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--s-3);
+    margin-top: var(--s-3);
+    padding: var(--s-3);
+    border-radius: var(--r-box);
+    background: var(--surface-sunk);
+}
+
+.panel__options[hidden] {
+    display: none;
+}
+
+.panel__options .field {
+    min-width: 200px;
+}
+
+.step-result:not(:empty),
+.readiness:not(:empty) {
+    margin-top: var(--s-4);
+}
+
+.busy {
+    margin: var(--s-3) 0 0;
+}
+
+.readiness__line {
+    margin: 0;
+}
+
+.handed {
+    margin: var(--s-3) 0 0;
+}
+
+/* What a reload read back (R-38): one line under the banner, and a result the step's module does not draw. */
+.readback:not(:empty) {
+    margin: 0;
+}
+
+.readback__line {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+    border-left: 3px solid var(--line-strong);
+    background: var(--surface-sunk);
+}
+
+.step-restored:not(:empty) {
+    display: grid;
+    gap: var(--s-3);
+    margin-top: var(--s-4);
+}
+
+/* Values for one run: shown only after a refusal names placeholders with no value. */
+.run-values {
+    display: grid;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-box);
+    background: var(--surface);
+}
+
+.run-values[hidden] {
+    display: none;
+}
+
+.run-values__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--s-3);
+}
+
+.run-values > .btn {
+    justify-self: start;
+}
+
+.wire__download:empty {
+    display: none;
+}
+
+/* ---------- the result ---------- */
+
+.result {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.verdict__facts {
+    display: grid;
+    gap: var(--s-2);
+}
+
+.result__not-recorded {
+    margin: 0;
+    font-weight: 600;
+}
+
+.result__stale {
+    margin: 0;
+}
+
+.why {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.why__part p {
+    margin: 0 0 var(--s-1);
+}
+
+.wire__side {
+    display: grid;
+    gap: var(--s-2);
+    min-width: 0;
+}
+
+/* What must be read before acting: a heavy rule on its left. */
+.masked-reading,
+.masked-carry {
+    margin: 0;
+    padding-left: var(--s-3);
+    border-left: 4px solid currentColor;
+    font-weight: 600;
+}
+
+.preview {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.card__body > p:empty,
+.card__body > div:empty {
+    display: none;
+}
+
+/* Each code is one row under the input (look-16): the code, its description, the list's tags and
+   Remove. The description and the tags give way first, cut with their words in a title. */
+.code-lines .code-line {
+    flex-wrap: nowrap;
+}
+
+.code-line > .code-line__tags,
+.code-line > span:not(.chip) {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.code-line > .btn {
+    margin-left: auto;
+}
+
+.code-lines .code-line .code-line__text {
+    flex: 1 1 0;
+    min-width: 4em;
+}
+
+/* Whatever a fold of a result holds (a wide table of the response detail, a long url), it scrolls
+   inside the fold and never makes the page wider than the window. */
+.panel,
+.result,
+.result .fold,
+.verdict {
+    min-width: 0;
+}
+
+.result .fold__body {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-wrap: anywhere;
+}
+
+/* A child of a fold never takes its min-content width, so a wide table or a long line scrolls in
+   its fold instead of widening the page (NEEDS from H0). A grid track sized auto still grows to
+   its widest child, so every grid inside a result gets one column that may shrink to the fold,
+   and only a table's own wrapper scrolls. */
+.fold__body > *,
+.detail > *,
+.detail__part > *,
+.verdict > * {
+    min-width: 0;
+}
+
+.fold__body,
+.detail,
+.detail__part,
+.verdict,
+.result {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.detail p,
+.detail li {
+    overflow-wrap: anywhere;
+}
+
+/* A response table's cells wrap inside the fold, so a long meaning or url is read, not cut at the
+   fold's edge (critic-2). They wrap at spaces and hyphens only: a column is then never narrower
+   than its longest word, so a short code name such as questionnaire stays whole (critic-k3-1);
+   a value with no break in it still breaks rather than run past the cell. The column heads stay on
+   one line and the wrapper scrolls only past that. */
+.detail .table td {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    vertical-align: top;
+}
+
+.fold__body .table-wrap,
+.detail__part > .table-wrap,
+.detail__part > table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* In the narrow case column the wire traffic of a lookup stacks its request over its response. */
+.case .wire {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* A field's label keeps one height whether or not it carries a mark, so a row's inputs line up. */
+.case .field__label,
+.panel__options .field__label {
+    align-items: center;
+    min-height: 22px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.case .field__mark {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.case .field .input,
+.case .field .select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* The response detail's parts (detail.js, batch H). */
+.detail {
+    display: grid;
+    gap: var(--s-3);
+}
+
+.detail__part {
+    display: grid;
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+}
+
+.detail__item,
+.detail__nested {
+    padding-left: var(--s-3);
+    border-left: 2px solid var(--line);
+}
+
+.detail__head,
+.detail__sub {
+    font-weight: 600;
+}
+
+/* A payer that delegates to a vendor: a callout, because the next call goes elsewhere. */
+.detail__vendor {
+    padding-left: var(--s-3);
+    border-left: 3px solid var(--action-edge);
+}
+
+.detail__text {
+    white-space: pre-wrap;
+}
+
+.detail__depth-1 > :first-child { padding-left: 12px; }
+.detail__depth-2 > :first-child { padding-left: 24px; }
+.detail__depth-3 > :first-child { padding-left: 36px; }
+.detail__depth-4 > :first-child { padding-left: 48px; }
+.detail__depth-5 > :first-child { padding-left: 60px; }
+.detail__depth-6 > :first-child { padding-left: 72px; }
+
+td .notes {
+    border-left: 0;
+    padding-left: 0;
+}
+
+/* Steps 2 and 3 (batch H): what goes, the gaps, the questionnaire's lines. */
+.goes__line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    align-items: center;
+}
+
+.gaps {
+    margin-top: var(--s-2);
+}
+
+/* A question that appeared or went away is a visible line, ruled in the tone that asks for action. */
+.dtr-change {
+    padding-left: var(--s-3);
+    border-left: 3px solid var(--action-edge);
+}
+
+.dtr-withdrawn {
+    color: var(--action-ink);
+}
+
+.dtr-count {
+    margin-top: var(--s-2);
+}
+
+.question__group {
+    margin-top: var(--s-3);
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-3);
+}
+
+.choices--prefilled {
+    background-color: var(--surface-sunk);
+}
+
+.attachments .table input {
+    width: 100%;
+}
+
+/* Beside Send PAS request on kind prod, like the production line under the top bar; nothing at all
+   on any other kind, where the step mounts it empty. */
+.submit-writes:empty {
+    display: none;
+}
+
+.submit-writes {
+    background: var(--purple-deep);
+    color: var(--white);
+    padding: var(--s-1) var(--s-2);
+    border-radius: 6px;
+}
+
+/* Step 4: the subscription id beside its call, and the notifications the receiver holds. */
+.call__id {
+    width: 14em;
+    max-width: 100%;
+}
+
+.receiver__line {
+    margin-top: var(--s-2);
+}
+
+.notes-list {
+    list-style: none;
+    margin: var(--s-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--s-1);
+}
+
+.note-open {
+    display: grid;
+    gap: var(--s-2);
+}
+
+/* A refusal or a fault of a step sits under the panel's head as a result does: a rule, then a gap. */
+.step-refusal:not(:empty) {
+    margin-top: var(--s-4);
+    padding-top: var(--s-4);
+    border-top: 1px solid var(--line);
+}
+
+/* The banner and the stepper never widen the page, whatever font the browser falls back to. */
+.banner,
+.stepper,
+.stepper__step {
+    min-width: 0;
+}
+
+/* In the narrow case column the lookup's request and response stand one above the other, so no
+   cell of the wire view is squeezed to a letter a line. */
+.lookup-returned .wire {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.lookup-returned .mono {
+    overflow-wrap: anywhere;
+}
+
+/* Edit member and provider fields, and the Service card (wb-mock-1, wb-mock-8): a row's two columns
+   may shrink to the card, a label stays on one line with its "from lookup" chip on the line under
+   it, and the inputs of a row line up at the bottom whatever their labels hold. */
+.field-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+}
+
+.field-row > .field {
+    align-content: end;
+}
+
+.field-row .field__label {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.field-row .field__mark:not(:empty) {
+    flex-basis: 100%;
+    margin-left: 0;
+}
+
+.field-row .input,
+.field-row .select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* In the case column two fields share a row only where both have room for their content (a date
+   input needs about 136 px); at 1024 px they stand one above the other instead of being cut. */
+.case .field-row {
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.code-lines .code-line > .chip:not(:first-child) {
+    flex: 0 1 auto;
+    min-width: 3em;
+}
+
+/* A step's chip is cut inside its own step, never drawn over the next one (look-17). */
+.stepper__text {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.stepper__chip {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+/* A question its conditions turn off is quieter than the asked ones, yet still takes an answer (I-36). */
+.question--off .field__label {
+    color: var(--ink-soft);
+    font-weight: 400;
+}
+
+.question--off .input,
+.question--off .select {
+    border-style: dashed;
+}
+
+/* The Request line of a step (D-313): a whole row of the step's Options, the list under it. */
+.request-line {
+    flex-basis: 100%;
+    min-width: 0;
+}
+
+.request-line p {
+    margin: var(--s-1) 0 0;
+}
+
+.request-line__head {
+    overflow-wrap: anywhere;
+}
+
+.request-line__label {
+    display: inline-block;
+    min-width: 72px;
+    font-weight: 600;
+}
+
+.request-line__note,
+.request-line__said {
+    padding-left: var(--s-2);
+    border-left: 3px solid var(--line-strong);
+}
+
+.request-line__summary {
+    margin: var(--s-2) 0 0;
+    overflow-wrap: anywhere;
+}
+
+/* What the collection's request carries and the case names not (D-321): a line where the step is sent, never a block. */
+.before-line {
+    margin: var(--s-2) 0 0;
+    padding-left: var(--s-2);
+    border-left: 3px solid var(--action-edge);
+    color: var(--action-ink);
+    overflow-wrap: anywhere;
+}
+
+.request-list__wrap {
+    margin-top: var(--s-2);
+}
+
+.request-list__wrap .input {
+    width: 100%;
+    max-width: 480px;
+    margin-top: var(--s-1);
+}
+
+.request-list {
+    list-style: none;
+    margin: var(--s-2) 0 0;
+    padding: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r-box);
+    background: var(--surface);
+}
+
+.request-list li + li {
+    border-top: 1px solid var(--line);
+}
+
+.request-list__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--s-1) var(--s-3);
+    width: 100%;
+    padding: var(--s-2) var(--s-3);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.request-list__item:hover,
+.request-list__item:focus-visible {
+    background: var(--surface-sunk);
+}
+
+.request-list__item--current {
+    box-shadow: inset 3px 0 0 var(--line-strong);
+}
+
+.request-list__name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.request-list__marks {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--s-1);
+    align-items: baseline;
+}
+
+.request-body {
+    margin-top: var(--s-2);
+}
+
+.request-body__option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-1);
+    margin-right: var(--s-3);
+}
+
+/* The way on to Submit from a questionnaire result that offers none: under the verdict, apart from it. */
+.verdict__aside {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line, #d7d9de);
+}

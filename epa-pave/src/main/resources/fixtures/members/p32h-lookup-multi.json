@@ -1,0 +1,26 @@
+{
+  "memberId": "P32H-LOOKUP-MULTI",
+  "description": "Sentinel for a member API that returns two records for one ID. A lookup by identifier is never answered by choosing, so this is its own state, several matched, and says how many came back.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "SEVERAL"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "data": [
+      {
+        "memberId": "P32H-LOOKUP-MULTI",
+        "firstName": "Tatum",
+        "lastName": "Placeholder-First",
+        "lineOfBusiness": "Medicare"
+      },
+      {
+        "memberId": "P32H-LOOKUP-MULTI",
+        "firstName": "Tatum",
+        "lastName": "Placeholder-Second",
+        "lineOfBusiness": "Medicaid"
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "npi": "1000000038",
+  "description": "An orthopaedic surgeon whose network status the directory does not return, so the result says it was not returned and does not call the provider in network. The record has the shape of the public NPI registry: a list of one inside results, with the name in basic and lists of one for the address and the taxonomy.",
+  "basis": "Synthetic. Every value in this file is invented and no real provider was used to make it. The NPI was made with the application's own check digit rule. The shape of the response is one the mapping tolerates, not one observed from the provider directory, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "result_count": 1,
+    "results": [
+      {
+        "number": "1000000038",
+        "enumeration_type": "NPI-1",
+        "basic": {
+          "first_name": "Sam",
+          "last_name": "Placeholder-Orthopaedics",
+          "credential": "MD"
+        },
+        "addresses": [
+          {
+            "address_purpose": "LOCATION",
+            "address_1": "4 Placeholder Avenue",
+            "city": "Sampletown",
+            "state": "MA",
+            "postal_code": "00000",
+            "telephone_number": "617-555-0104"
+          }
+        ],
+        "taxonomies": [
+          {
+            "code": "207X00000X",
+            "desc": "Orthopaedic Surgery",
+            "primary": true
+          }
+        ]
+      }
+    ]
+  }
+}

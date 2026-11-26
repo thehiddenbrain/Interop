@@ -1,0 +1,79 @@
+{
+  "id": "crd-02-no-auth",
+  "number": 2,
+  "label": "No prior authorization required",
+  "short": "no prior authorization",
+  "description": "The payer answers that the service is covered and that prior authorization is not needed. Models CRD 2.0.1.",
+  "sentinelMemberId": "P32H-NO-AUTH",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "NO_AUTH_REQUIRED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "covered",
+      "pa-needed": "no-auth"
+    }
+  },
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-no-auth",
+        "summary": "No prior authorization is required for this service",
+        "indicator": "info",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        }
+      }
+    ],
+    "systemActions": [
+      {
+        "type": "update",
+        "description": "Coverage information added to the order",
+        "resource": {
+          "resourceType": "ServiceRequest",
+          "id": "service-request-1",
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+              "extension": [
+                {
+                  "url": "coverage",
+                  "valueReference": {
+                    "reference": "Coverage/coverage-1"
+                  }
+                },
+                {
+                  "url": "covered",
+                  "valueCode": "covered"
+                },
+                {
+                  "url": "pa-needed",
+                  "valueCode": "no-auth"
+                },
+                {
+                  "url": "date",
+                  "valueDate": "2026-01-15"
+                },
+                {
+                  "url": "coverage-assertion-id",
+                  "valueString": "assertion-no-auth"
+                }
+              ]
+            }
+          ],
+          "status": "draft",
+          "intent": "order",
+          "subject": {
+            "reference": "Patient/patient-1"
+          }
+        }
+      }
+    ]
+  }
+}

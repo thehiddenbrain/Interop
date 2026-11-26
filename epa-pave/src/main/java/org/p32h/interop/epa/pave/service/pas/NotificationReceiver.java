@@ -1,0 +1,953 @@
+package org.p32h.interop.epa.pave.service.pas;
+
+import org.p32h.interop.epa.pave.client.pas.MockNotifications;
+import org.p32h.interop.epa.pave.client.pas.MockOnyxPasClient;
+import org.p32h.interop.epa.pave.model.MaskedReading;
+import org.p32h.interop.epa.pave.model.EnvironmentRef;
+import org.p32h.interop.epa.pave.model.EpaOperation;
+import org.p32h.interop.epa.pave.model.Finding;
+import org.p32h.interop.epa.pave.model.FindingKind;
+import org.p32h.interop.epa.pave.model.JsonSafe;
+import org.p32h.interop.epa.pave.model.TrackedJson;
+import org.p32h.interop.epa.pave.model.LedgerReceipt;
+import org.p32h.interop.epa.pave.model.NextAction;
+import org.p32h.interop.epa.pave.model.NextStepView;
+import org.p32h.interop.epa.pave.model.OutcomeCode;
+import org.p32h.interop.epa.pave.model.RunOrigin;
+import org.p32h.interop.epa.pave.model.RunOutcome;
+import org.p32h.interop.epa.pave.model.RunQuery;
+import org.p32h.interop.epa.pave.model.RunRecord;
+import org.p32h.interop.epa.pave.model.TestResult;
+import org.p32h.interop.epa.pave.model.ResolvedText;
+import org.p32h.interop.epa.pave.model.Texts;
+import org.p32h.interop.epa.pave.model.VerdictView;
+import org.p32h.interop.epa.pave.model.crd.CodedValue;
+import org.p32h.interop.epa.pave.model.pas.NotificationKind;
+import org.p32h.interop.epa.pave.model.pas.NotificationList;
+import org.p32h.interop.epa.pave.model.pas.NotificationOutcome;
+import org.p32h.interop.epa.pave.model.pas.NotificationView;
+import org.p32h.interop.epa.pave.model.pas.SubscriptionOutcome;
+import org.p32h.interop.epa.pave.service.RunLedger;
+import org.p32h.interop.epa.pave.service.config.OperationGateway;
+import org.p32h.interop.epa.pave.service.error.Faults;
+import org.p32h.interop.epa.pave.service.error.NotFoundException;
+import org.p32h.interop.epa.pave.service.error.ValidationException;
+import org.p32h.interop.epa.pave.service.run.RunSupport;
+import org.p32h.interop.epa.pave.service.scenario.Scenario;
+import org.p32h.interop.epa.pave.service.scenario.ScenarioRepository;
+import org.p32h.interop.epa.pave.service.scenario.ScenarioStep;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+
+/**
+ * The notification receiver: what the service calls back when a subscription has something to say.
+ *
+ * <p><b>It accepts anything and drops nothing.</b> Whatever is posted is read as far as it can be
+ * read, given a line in the ledger, matched to the runs it belongs to and kept for the screen. A
+ * body that is not JSON, one that is not a notification and one for a subscription nobody here
+ * created are each recorded as exactly that. Nothing in this class throws for what a sender sent.
+ *
+ * <p><b>Where the payload lives.</b> A notification can carry a ClaimResponse, which is member
+ * data. The payload is held in memory only, in a bounded list, for the screen. It is never written
+ * to disk and never logged. The ledger line holds ids and codes and nothing else. After a restart
+ * the ledger lines remain and the payloads are gone.
+ *
+ * <p><b>One instance.</b> The list of what has arrived is the state of this object, so an
+ * application has exactly one receiver.
+ */
+@Service
+public class NotificationReceiver {
+
+    /** The most bytes of one body that are held. A longer body is cut here, and the record says so. */
+    public static final int MAX_KEPT_BYTES = 131_072;
+
+    /** Reading a body stops here. What lies beyond is not read at all, and the record says the size is not known. */
+    public static final long MAX_READ_BYTES = 8L * 1024 * 1024;
+
+    /** The most notifications held at once. The oldest is let go when one more arrives. Its ledger line remains. */
+    public static final int CAPACITY = 200;
+
+    private static final Logger log = LoggerFactory.getLogger(NotificationReceiver.class);
+
+    private static final Pattern SUBSCRIPTION_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
+
+    private static final String HELD_NOTE = "Notifications are held in memory only: at most " + CAPACITY + " at once, each cut at "
+            + MAX_KEPT_BYTES + " bytes, and none of them after a restart. The ledger line of every notification remains.";
+
+    /**
+     * The body of one request to the receiver, as far as it was read.
+     *
+     * @param kept          the bytes that are held: the start of the body, up to {@link #MAX_KEPT_BYTES}
+     * @param bytesReceived how many bytes were read off the connection
+     * @param complete      false when reading stopped before the end of the body, so its true size is not known
+     * @param whole         every byte of a body that was read to its end, for reading it once and
+     *                      letting it go: it is not held. Null when reading stopped before the end
+     */
+    public record Inbound(byte[] kept, long bytesReceived, boolean complete, byte[] whole) {
+
+        /** A body of which only these bytes are known. */
+        public Inbound(byte[] kept, long bytesReceived, boolean complete) {
+            this(kept, bytesReceived, complete, complete && bytesReceived == (kept == null ? 0 : kept.length) ? kept : null);
+        }
+
+        /**
+         * Reads a body to its end, up to a limit. Only its start is held once the notification has
+         * been read; the whole is read, mapped and matched first, so a body longer than what is held
+         * still gets its designed view, its run and every field it carries. A connection that ends
+         * early, or a stream that fails, yields what arrived until then: the receiver records that too.
+         */
+        public static Inbound read(InputStream in) {
+            ByteArrayOutputStream kept = new ByteArrayOutputStream();
+            ByteArrayOutputStream all = new ByteArrayOutputStream();
+            long received = 0;
+            boolean complete = false;
+            if (in == null) {
+                return new Inbound(new byte[0], 0, true);
+            }
+            byte[] chunk = new byte[8192];
+            try {
+                while (received < MAX_READ_BYTES) {
+                    int read = in.read(chunk, 0, (int) Math.min(chunk.length, MAX_READ_BYTES - received));
+                    if (read < 0) {
+                        complete = true;
+                        break;
+                    }
+                    int room = MAX_KEPT_BYTES - kept.size();
+                    if (room > 0) {
+                        kept.write(chunk, 0, Math.min(room, read));
+                    }
+                    all.write(chunk, 0, read);
+                    received += read;
+                }
+                // A body that is exactly as long as the limit is complete, and one byte more says it is not.
+                if (!complete && in.read() < 0) {
+                    complete = true;
+                }
+            } catch (IOException | RuntimeException e) {
+                // The sender went away part way through. What arrived is what there is.
+                complete = false;
+            }
+            return new Inbound(kept.toByteArray(), received, complete, complete ? all.toByteArray() : null);
+        }
+
+        /** A body that is already text in this process, as a sample is. */
+        public static Inbound of(String text) {
+            byte[] bytes = text == null ? new byte[0] : text.getBytes(StandardCharsets.UTF_8);
+            byte[] kept = bytes.length > MAX_KEPT_BYTES ? java.util.Arrays.copyOf(bytes, MAX_KEPT_BYTES) : bytes;
+            return new Inbound(kept, bytes.length, true, bytes);
+        }
+
+        /** True when the whole body was read, so it can be read as a notification even where only its start is held. */
+        public boolean readWhole() {
+            return whole != null;
+        }
+
+        /** True when what is held is not all that was sent. */
+        public boolean cut() {
+            return !complete || bytesReceived > kept.length;
+        }
+
+        /** Redacted, because the bytes are a payload. */
+        @Override
+        public String toString() {
+            return "Inbound[bytesReceived=" + bytesReceived + ", kept=" + kept.length + ", complete=" + complete + "]";
+        }
+    }
+
+    /** One notification that is held, with the instant it was stamped. */
+    private record Held(Instant stamp, NotificationView view) {
+    }
+
+    /**
+     * The two links of a notification to earlier runs, and how each was or was not established.
+     *
+     * @param unmatched why no run was found to have created the subscription the notification
+     *                  names. Null when one was found, and for a body that is not a notification
+     * @param notes     how each link was established, or why it was not, in the order they were worked out
+     * @param unasked   those of the notes that say a link could not be looked up, because there is
+     *                  no ledger or it could not be read. Empty when everything that needed asking
+     *                  was asked and answered, whatever the answers were
+     */
+    private record Links(String subscriptionRunId, NotificationVerdicts.Unmatched unmatched, String submissionRunId, String submissionClaimId,
+                         List<String> notes, List<String> unasked) {
+    }
+
+    /** Everything worked out from one body, before anything is written. */
+    private record Interpreted(OutcomeCode outcome, NotificationReading reading, Links links, List<Finding> findings, VerdictView verdict,
+                               NextStepView nextStep, List<String> codes, Map<String, String> correlation, String claimId) {
+
+        /** The correlation holds identifiers read from the payload, an authorization number among them. Only the outcome is printed. */
+        @Override
+        public String toString() {
+            return "Interpreted[" + outcome + "]";
+        }
+    }
+
+    private final OperationGateway gateway;
+    private final RunSupport support;
+    private final ObjectProvider<RunLedger> ledger;
+    private final ScenarioRepository scenarios;
+    private final Function<String, NotificationReading> reader;
+
+    private final Object lock = new Object();
+    private final Deque<Held> held = new ArrayDeque<>();
+    private Instant lastStamp;
+    private long received;
+    private long evicted;
+
+    /**
+     * @param gateway   asked which environment is active when a notification arrives, for its ledger line
+     * @param ledger    asked which run created a subscription and which run submitted a claim. A
+     *                  notification's own line is written through {@code support}
+     * @param scenarios read for the notification a sample is built from, on the mock profile
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    public NotificationReceiver(OperationGateway gateway, RunSupport support, ObjectProvider<RunLedger> ledger, ScenarioRepository scenarios) {
+        this(gateway, support, ledger, scenarios, new NotificationReader()::read);
+    }
+
+    /** For a test of what the receiver does when its own reading of a body fails. */
+    NotificationReceiver(OperationGateway gateway, RunSupport support, ObjectProvider<RunLedger> ledger, ScenarioRepository scenarios,
+                         Function<String, NotificationReading> reader) {
+        this.gateway = gateway;
+        this.support = support;
+        this.ledger = ledger;
+        this.scenarios = scenarios;
+        this.reader = reader;
+    }
+
+    /**
+     * Everything this tool could have sent to a service, by the rule the wire view of a call masks
+     * by: the secret variables of the active environment, of each collection and of application.yml,
+     * the access token, the client secret, and the credentials of the address to call back and of
+     * the lookup configuration. A service may repeat any of them in a
+     * notification. Asked of the gateway each time, so a switch of environment is followed.
+     */
+    private org.p32h.interop.epa.pave.model.SentSecrets givenToServices() {
+        if (gateway == null) {
+            return org.p32h.interop.epa.pave.model.SentSecrets.none();
+        }
+        try {
+            return gateway.secretsGivenToServices();
+        } catch (RuntimeException e) {
+            // A configuration that cannot be read now leaves the payload as it arrived; the run's
+            // own call would report the configuration. The exception type only, never its message.
+            log.warn("The secrets to mask a notification with could not be worked out ({})", e.getClass().getSimpleName());
+            // Said in the payload's notes: nothing was searched for.
+            return org.p32h.interop.epa.pave.model.SentSecrets.builder().incomplete().build();
+        }
+    }
+
+    /** Records whatever arrived at the receiver. Never throws for anything a sender sent. */
+    public NotificationView receive(Inbound inbound) {
+        return accept(inbound == null ? new Inbound(new byte[0], 0, true) : inbound, null, List.of(), null);
+    }
+
+    /**
+     * Delivers the notification a mock scenario holds to the same code a real one reaches, made to
+     * be about the submission the tester names. On the mock profile only: on live a notification
+     * comes from the service, and one this tool made up would be a result that did not.
+     *
+     * @throws ValidationException when the request cannot be used, naming the field
+     * @throws NotFoundException   when the run that is named is not in the ledger
+     */
+    public NotificationView deliverSample(NotificationSampleRequest request) {
+        if (!support.epa().mock()) {
+            throw ValidationException.of("scenarioId", "A sample notification can be delivered on the mock profile only. On live a "
+                    + "notification comes from the service.");
+        }
+        String runId = request == null ? null : Texts.trimToNull(request.runId());
+        String scenarioId = request == null ? null : Texts.trimToNull(request.scenarioId());
+        String subscriptionId = request == null ? null : Texts.trimToNull(request.subscriptionId());
+        if (subscriptionId != null && !SUBSCRIPTION_ID.matcher(subscriptionId).matches()) {
+            throw ValidationException.of("subscriptionId", "A subscription id is one word of up to 64 letters, digits, dots, hyphens, "
+                    + "underscores and colons.");
+        }
+        RunLedger target = available();
+        RunRecord run = null;
+        if (runId != null) {
+            if (!PasService.isRunId(runId)) {
+                throw ValidationException.of("runId", RUN_ID_TO_COPY);
+            }
+            run = target == null ? null : target.find(runId).orElse(null);
+            if (run == null) {
+                // The id is not repeated: a 404 answers with the tool's own words only, never with what the request held.
+                throw new NotFoundException(target == null ? "No ledger is available, so that run cannot be looked up."
+                        : "There is no run with that id in the ledger.");
+            }
+            if (run.operation() != EpaOperation.PAS_SUBMIT) {
+                throw ValidationException.of("runId", "Name a PAS submission. The run " + runId + " is a " + run.operation().label() + " run.");
+            }
+        }
+        boolean fromRun = false;
+        if (scenarioId == null && run != null) {
+            // The notification that belongs to the answer the submission was given.
+            scenarioId = Texts.trimToNull(run.scenarioId());
+            fromRun = scenarioId != null;
+        }
+        if (scenarioId == null && run == null) {
+            // On the usual path the scenario is left to the submission, so what is missing is the run.
+            throw ValidationException.of("runId", "Name the submission this notification is about, or choose a scenario.");
+        }
+        if (scenarioId == null) {
+            throw ValidationException.of("scenarioId", "Choose the scenario whose notification to deliver.");
+        }
+        List<Scenario> all = scenarios.list(MockOnyxPasClient.SCENARIOS);
+        String wanted = scenarioId;
+        Scenario scenario = all.stream().filter(s -> s.id().equals(wanted)).findFirst()
+                .orElseThrow(() -> ValidationException.of("scenarioId", "There is no scenario with id \"" + wanted + "\"."));
+        ScenarioStep notify = MockNotifications.step(scenario);
+        if (notify == null || notify.body() == null) {
+            // Named as the drop-down names them, so the tester finds each one there; file ids are not on screen.
+            String choices = String.join(", ", all.stream().filter(s -> MockNotifications.step(s) != null).map(NotificationReceiver::shownName).toList());
+            throw ValidationException.of("scenarioId", (fromRun
+                    ? "The submission was answered by scenario " + shownName(scenario) + ", which sends no notification."
+                    : "Scenario " + shownName(scenario) + " sends no notification.") + " Choose one that does: " + choices + ".");
+        }
+        String claimId = null;
+        String claimResponseId = null;
+        if (MockNotifications.aboutASubmission(notify)) {
+            if (run == null) {
+                throw ValidationException.of("runId", "The notification of scenario " + scenario.id() + " is about a submission. Name the run "
+                        + "it should be about.");
+            }
+            claimId = run.correlation().get(RunRecord.CORR_CLAIM_ID);
+            if (Texts.blank(claimId)) {
+                throw ValidationException.of("runId", "The run " + runId + " recorded no claim id, so a notification cannot be made about it.");
+            }
+            claimResponseId = Texts.orElse(run.correlation().get(RunRecord.CORR_CLAIM_RESPONSE_ID), MockNotifications.claimResponseIdFor(claimId));
+        }
+        List<String> notes = new ArrayList<>();
+        String toSeeAMatch = null;
+        if (subscriptionId == null) {
+            boolean[] lookupFailed = new boolean[1];
+            String[] deletedBy = new String[1];
+            subscriptionId = latestCreatedSubscription(target, lookupFailed, deletedBy);
+            if (subscriptionId != null && !notify.body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)) {
+                // This sample names a subscription of its own, which nobody created here, on purpose. Creating
+                // another subscription would change nothing, so the step names a sample that would be matched.
+                toSeeAMatch = all.stream().filter(s -> MockNotifications.step(s) != null && MockNotifications.step(s).body() != null
+                        && MockNotifications.step(s).body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)
+                        && !MockNotifications.aboutASubmission(MockNotifications.step(s))).map(Scenario::id).findFirst().orElse(null);
+                if (toSeeAMatch == null) {
+                    toSeeAMatch = all.stream().filter(s -> MockNotifications.step(s) != null && MockNotifications.step(s).body() != null
+                            && MockNotifications.step(s).body().contains(MockNotifications.SUBSCRIPTION_ID_TOKEN)).map(Scenario::id)
+                            .findFirst().orElse(null);
+                }
+            }
+            if (subscriptionId == null) {
+                notes.add(target == null || lookupFailed[0]
+                        ? "The ledger could not be asked which subscription this tool created last, so this sample names one nobody created."
+                        : deletedBy[0] != null
+                        ? "The subscription this tool created last was deleted by this tool in the run " + deletedBy[0] + ", and no other it "
+                                + "created is still there, so this sample names one nobody created and is shown as unmatched. Create a "
+                                + "subscription first to see a notification that is matched to it."
+                        : "No run in the ledger has created a subscription, so this sample names one nobody created and is shown as "
+                                + "unmatched. Create a subscription first to see a notification that is matched to it.");
+            }
+        }
+        return accept(Inbound.of(MockNotifications.body(notify, subscriptionId, claimId, claimResponseId)), scenario.id(), notes,
+                toSeeAMatch);
+    }
+
+    /**
+     * What the receiver holds, newest first.
+     *
+     * @param since the stamp of the newest notification the caller already has, or blank for all
+     *              that are held. Only notifications stamped after it are returned
+     * @throws ValidationException when {@code since} is not a timestamp
+     */
+    public NotificationList list(String since) {
+        Instant after = null;
+        if (Texts.present(since)) {
+            try {
+                after = OffsetDateTime.parse(since.strip()).toInstant();
+            } catch (DateTimeParseException e) {
+                throw ValidationException.of("since", "Give since as the stamp of a notification this endpoint returned, for example "
+                        + "2026-01-31T14:05:00.123Z.");
+            }
+        }
+        synchronized (lock) {
+            // The list is in the order of its stamps, so a poll stops at the first one the caller has seen.
+            List<NotificationView> out = new ArrayList<>();
+            Iterator<Held> newestFirst = held.descendingIterator();
+            while (newestFirst.hasNext()) {
+                Held one = newestFirst.next();
+                if (after != null && !one.stamp().isAfter(after)) {
+                    break;
+                }
+                out.add(one.view());
+            }
+            return new NotificationList(out, held.size(), received, evicted, CAPACITY, held.isEmpty() ? null : held.peekLast().view().receivedAt(),
+                    HELD_NOTE);
+        }
+    }
+
+    /**
+     * @param toSeeAMatch for a sample that names a subscription nobody created here on purpose,
+     *                    while this tool has created one: the scenario whose sample would be
+     *                    matched to it. Null otherwise
+     */
+    private NotificationView accept(Inbound inbound, String sampleScenarioId, List<String> sampleNotes, String toSeeAMatch) {
+        List<String> payloadNotes = new ArrayList<>(sampleNotes);
+        String text = decode(inbound.kept(), inbound.cut(), payloadNotes);
+        // What is read is the whole body when it was read to its end, and what is held is its start.
+        // A body longer than what is held is then still read as JSON, mapped and matched.
+        boolean readWhole = inbound.cut() && inbound.readWhole();
+        String whole = readWhole ? decode(inbound.whole(), false, new ArrayList<>()) : text;
+        org.p32h.interop.epa.pave.model.SentSecrets secrets = givenToServices();
+        org.p32h.interop.epa.pave.model.SentSecrets.Masked masked = secrets.mask(readWhole ? whole : text);
+        // Asked of the body as it arrived, before the mask: where a mask falls on a value the verdict is read by.
+        MaskedReading maskedReading = masked.places() == 0 ? null
+                : MaskedReading.of(JsonSafe.parse(readWhole ? whole : text).node(), secrets, MaskedReading.Reading.NOTIFICATION);
+        if (readWhole) {
+            whole = masked.text();
+            text = secrets.mask(text).text();
+        }
+        if (masked.places() > 0) {
+            // Masked before anything reads it, so the designed view, the payload and the ledger line see the mask alone.
+            if (!readWhole) {
+                text = masked.text();
+                whole = text;
+            }
+            payloadNotes.add(masked.places() == 1
+                    ? "1 place in this payload is masked because it repeats a secret this tool could have sent to the service: a secret "
+                            + "variable, the access token, the client secret or a credential of the address to call back, of a lookup or "
+                            + "of a request of a collection. What is shown is therefore not exactly what was received."
+                    : masked.places() + " places in this payload are masked because they repeat secrets this tool could have sent to the "
+                            + "service: a secret variable, the access token, the client secret or a credential of the address to call back, "
+                            + "of a lookup or of a request of a collection. What is shown is therefore not exactly what was received.");
+        }
+        // As the wire view of a call says it: a payload shown with a secret in it and no word about
+        // it would pass for one that was searched and found clean.
+        if (secrets.tooShort() > 0) {
+            payloadNotes.add("This tool could have sent the service " + (secrets.tooShort() == 1 ? "1 secret" : secrets.tooShort() + " secrets")
+                    + " shorter than " + org.p32h.interop.epa.pave.model.SentSecrets.SHORTEST_SEARCHED + " characters. A secret that "
+                    + "short is not searched for, because it would be found by accident, so this payload is not masked where it repeats "
+                    + (secrets.tooShort() == 1 ? "that one." : "one of those."));
+        }
+        if (secrets.incomplete()) {
+            payloadNotes.add("At least one secret this tool could have sent to the service could not be worked out, so this payload was "
+                    + "not searched for it. Check what is shown here before you share it.");
+        }
+        String cut = null;
+        if (readWhole && !Texts.blank(whole) && !JsonSafe.parse(whole).ok()) {
+            // Text that is not JSON has nothing to read from it but the text itself, and a
+            // notification has no wire view: what lies after the held part is on no screen.
+            cut = "The body was " + inbound.bytesReceived() + " bytes long and is not JSON. Only its first " + inbound.kept().length
+                    + " bytes are held and shown below. The text after them is not shown anywhere.";
+            payloadNotes.add(cut);
+        } else if (readWhole) {
+            cut = "The body was " + inbound.bytesReceived() + " bytes long. All of it was read, and everything above comes from all of it. "
+                    + "Only its first " + inbound.kept().length + " bytes are held, so the payload text below is cut there.";
+            payloadNotes.add(cut);
+        } else if (inbound.cut()) {
+            cut = (inbound.complete() ? "The body was " + inbound.bytesReceived() + " bytes long."
+                    : "The body was longer than the " + inbound.bytesReceived() + " bytes that were read, and reading stopped there.")
+                    + " Only its first " + inbound.kept().length + " bytes are held and shown, so what is read here is not all that was sent.";
+            payloadNotes.add(cut);
+        }
+
+        RunRecord.Builder draft = support.localDraft(EpaOperation.SUBSCRIPTION_NOTIFICATION, environment(), RunOrigin.manual())
+                .scenarioId(sampleScenarioId).result(TestResult.UNVERIFIED).unrecordedInputs(List.of(RunRecord.INPUT_INBOUND));
+        NotificationView.Builder view = NotificationView.builder().sample(sampleScenarioId != null).scenarioId(sampleScenarioId)
+                .payload(text.isEmpty() ? null : text).bytesReceived(inbound.bytesReceived()).bytesKept(inbound.kept().length)
+                .truncated(inbound.cut()).payloadNotes(payloadNotes);
+        OutcomeCode outcome;
+        try {
+            // Only the reading, the matching and the wording are inside the try. The ledger write is
+            // outside it, so a failure after the write cannot produce a second line for one notification.
+            Interpreted read = interpret(whole, inbound.cut(), sampleScenarioId, cut, toSeeAMatch, maskedReading);
+            outcome = read.outcome();
+            draft.outcome(outcome).coverageCodes(read.codes()).correlation(read.correlation()).nextAction(read.nextStep().action())
+                    .findings(read.findings().stream().map(f -> f.kind().name()).distinct().toList());
+            NotificationReading reading = read.reading();
+            view.verdict(read.verdict()).nextStep(read.nextStep()).kind(reading.kind()).type(reading.status().type())
+                    .subscriptionStatus(reading.status().subscriptionStatus()).subscription(reading.status().subscription())
+                    .subscriptionId(reading.status().subscriptionId()).topic(reading.status().topic())
+                    .eventsSinceSubscriptionStart(reading.status().eventsSinceSubscriptionStart()).events(reading.status().events())
+                    .errors(reading.status().errors())
+                    .errorsPresence(reading.status().errorsPresence()).payloadContent(reading.payloadContent()).bundleType(reading.carried().bundleType())
+                    .bundleId(reading.carried().bundleId()).bundleTimestamp(reading.carried().bundleTimestamp())
+                    .claimResponses(reading.carried().claimResponses()).otherResources(reading.carried().otherResources())
+                    .issues(reading.carried().issues()).subscriptionRunId(read.links().subscriptionRunId())
+                    .correlatedRunId(read.links().submissionRunId()).claimId(read.claimId())
+                    .claimResponseId(reading.identifiers().claimResponseId()).correlationNotes(read.links().notes()).findings(read.findings())
+                    .additionalFields(reading.additionalFields());
+        } catch (RuntimeException | LinkageError e) {
+            // This tool failed to read what arrived. It still arrived: it gets its line, and the
+            // payload is still kept for the screen. A LinkageError is caught too: a class missing
+            // from the build would otherwise lose the notification and its line, and name its cause
+            // only in a log the tester may never see. The exception types and frames only are
+            // logged, with no message beyond what Faults.cause allows: a message can quote the payload.
+            String reference = UUID.randomUUID().toString();
+            log.error("The receiver failed while reading a notification, reference {}: {}", reference, Faults.describe(e));
+            view.fault(reference, Faults.cause(e));
+            outcome = RunOutcome.TOOL_ERROR;
+            draft.outcome(outcome).coverageCodes(List.of()).correlation(Map.of()).findings(List.of()).nextAction(NextAction.REVIEW);
+            view.verdict(VerdictView.of(outcome, "Something arrived at the receiver, and this tool then failed while reading it.",
+                            List.of("This is a defect in this tool, not a finding about what was sent. Report the reference " + reference
+                                    + ". The server log holds the detail under the same reference.", "The payload is shown below as it arrived.")))
+                    .nextStep(NextStepView.of(NextAction.REVIEW, "Next: read the payload below as it arrived, and report the reference and the cause.",
+                            "This tool failed before it could say what the notification is."))
+                    .kind(Texts.blank(whole) ? NotificationKind.NO_BODY : JsonSafe.parse(whole).ok() ? NotificationKind.OTHER_JSON : NotificationKind.NOT_JSON);
+        }
+
+        RunRecord record = draft.build();
+        LedgerReceipt receipt = support.record(record);
+        NotificationView stored;
+        synchronized (lock) {
+            // Stamped and added in one step, so the list is always in the order of its stamps and
+            // no two notifications share one.
+            Instant now = support.clock().instant().truncatedTo(ChronoUnit.MILLIS);
+            lastStamp = lastStamp != null && !now.isAfter(lastStamp) ? lastStamp.plusMillis(1) : now;
+            stored = view.id(record.runId()).receivedAt(DateTimeFormatter.ISO_INSTANT.format(lastStamp)).ledger(receipt).build();
+            held.addLast(new Held(lastStamp, stored));
+            received++;
+            while (held.size() > CAPACITY) {
+                held.removeFirst();
+                evicted++;
+            }
+        }
+        // The outcome and the sizes only. Never the payload, and never an identifier read from it.
+        log.info("Notification received: outcome {}, {} bytes read, {} held, ledger line written: {}", outcome.name(), inbound.bytesReceived(),
+                inbound.kept().length, receipt.recorded());
+        return stored;
+    }
+
+    /** @param masked where a mask fell on a value the verdict is read by, or null */
+    private Interpreted interpret(String text, boolean wasCut, String sampleScenarioId, String cut, String toSeeAMatch, MaskedReading masked) {
+        NotificationReading reading = reader.apply(text);
+        Links links = correlate(reading);
+        NotificationOutcome outcome = NotificationVerdicts.outcome(reading, links.unmatched());
+        NotificationReading.Status status = reading.status();
+        NotificationReading.Identifiers ids = reading.identifiers();
+        String claimId = Texts.firstPresent(ids.claimId(), links.submissionClaimId());
+
+        List<Finding> findings = new ArrayList<>();
+        // Raised only when it is known that nobody here created the subscription. When the ledger
+        // could not be asked that is not known, and the finding after this one says so in its place.
+        if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION && links.unmatched() == NotificationVerdicts.Unmatched.DELETED) {
+            findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification is on a subscription this tool deleted",
+                    "It names the subscription " + status.subscriptionId() + ", which this tool created and then deleted, and the service "
+                            + "confirmed the delete. A service that still notifies on it has not let it go. It is recorded and shown, "
+                            + "never dropped.", status.subscriptionId(), null, null));
+        } else if (outcome == NotificationOutcome.UNMATCHED_NOTIFICATION) {
+            findings.add(new Finding(FindingKind.UNMATCHED_NOTIFICATION, "This notification matches no subscription this tool created",
+                    (status.subscriptionId() == null ? "It names no subscription, so there is none to look up."
+                            : "It names the subscription " + status.subscriptionId() + ", and no run in the ledger created a subscription "
+                            + "with that id. Another client may have created it, or it was created before this ledger began, or by "
+                            + "another installation of this tool.")
+                            + " It is recorded and shown, never dropped.", status.subscriptionId(), null, null));
+        }
+        // Raised whenever a link was to be looked up and could not be: the subscription, the
+        // submission, or both. The kind goes on the ledger line, where a line with no link would
+        // otherwise read as a notification that was checked and matched nothing. The finding names
+        // the subscription only when the subscription is what could not be looked up. A body that
+        // is not a notification can still carry a ClaimResponse to look up, so it is not called one.
+        if (!links.unasked().isEmpty()) {
+            boolean notification = reading.notification();
+            findings.add(new Finding(FindingKind.UNCHECKED_NOTIFICATION,
+                    (notification ? "This notification" : "What arrived") + " could not be checked against the ledger",
+                    String.join(" ", links.unasked()) + " A run that could not be looked up may exist all the same. "
+                            + (notification ? "The notification" : "What arrived") + " is recorded and shown, never dropped.",
+                    links.unmatched() == NotificationVerdicts.Unmatched.NOT_ASKED ? status.subscriptionId() : null, null, null));
+        }
+        unrecognised(findings, "notification type", PasCodes.NOTIFICATION_TYPE, status.type());
+        unrecognised(findings, "subscription status", PasCodes.SUBSCRIPTION_STATUS, status.subscriptionStatus());
+        // A key sent twice where the notification view read it: the value shown is the last, and
+        // every value is said here, as for the answers of the services.
+        JsonSafe.Parsed parsed = JsonSafe.parse(text);
+        if (parsed.ok()) {
+            findings.addAll(TrackedJson.repeatedKeyFindings(parsed.node(), parsed, reading.additionalFields()));
+        }
+
+        List<String> codes = new ArrayList<>();
+        codes.add("notification-kind=" + reading.kind().name());
+        if (status.type().code() != null) {
+            codes.add(PasCodes.NOTIFICATION_TYPE + "=" + status.type().code());
+        }
+        if (status.subscriptionStatus().code() != null) {
+            codes.add(PasCodes.SUBSCRIPTION_STATUS + "=" + status.subscriptionStatus().code());
+        }
+        if (reading.payloadContent() != null) {
+            codes.add(PasCodes.PAYLOAD_CONTENT + "=" + reading.payloadContent());
+        }
+        codes.addAll(PasReading.ledgerCodes(reading.carried().claimResponses()));
+        if (wasCut) {
+            codes.add("body=truncated");
+        }
+
+        Map<String, String> correlation = new LinkedHashMap<>();
+        put(correlation, RunRecord.CORR_SUBSCRIPTION_ID, status.subscriptionId());
+        put(correlation, RunRecord.CORR_SUBSCRIPTION_RUN_ID, links.subscriptionRunId());
+        put(correlation, RunRecord.CORR_RUN_ID, links.submissionRunId());
+        put(correlation, RunRecord.CORR_CLAIM_ID, claimId);
+        put(correlation, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId());
+        put(correlation, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef());
+
+        // A sample unmatched by design while a subscription of this tool exists is not said to be one "no subscription was created here" for.
+        VerdictView verdict = NotificationVerdicts.verdict(outcome, reading, links.notes(), sampleScenarioId, cut, links.unmatched(),
+                toSeeAMatch == null ? links.submissionRunId() : null);
+        NextStepView nextStep = NotificationVerdicts.nextStep(outcome, reading, claimId, links.submissionRunId(), status.subscriptionId(),
+                links.unmatched(), sampleScenarioId != null, toSeeAMatch);
+        // As on a call: the verdict, the next step and the findings say that a value they rest on was read as a mask.
+        if (masked != null) {
+            findings.add(0, masked.finding());
+            verdict = masked.on(verdict);
+            nextStep = masked.on(nextStep);
+        }
+        return new Interpreted(outcome, reading, links, findings, verdict, nextStep, codes, correlation, claimId);
+    }
+
+    /**
+     * Finds the two runs a notification belongs to. The run that created the subscription it
+     * names, and the submission it is about, found by the claim id, the ClaimResponse id or the
+     * authorization number it carries, tried in that order: the claim id is the one identifier
+     * this tool minted itself.
+     *
+     * <p>Every comparison with a stored value is the ledger's own. A stored authorization number
+     * may be a token, and only the ledger can say whether a token is a given number.
+     */
+    private Links correlate(NotificationReading reading) {
+        List<String> notes = new ArrayList<>();
+        // What could not be looked up at all. Kept apart from what was looked up and not found: the
+        // first leaves a link unknown, the second says there is none.
+        List<String> unasked = new ArrayList<>();
+        RunLedger target = available();
+        NotificationReading.Identifiers ids = reading.identifiers();
+
+        // "No run created it" and "the ledger could not be asked" are kept apart from here on: the
+        // first is a fact about the subscription, the second leaves it unknown.
+        String subscriptionRunId = null;
+        NotificationVerdicts.Unmatched unmatched = null;
+        if (reading.notification()) {
+            String subscriptionId = reading.status().subscriptionId();
+            if (subscriptionId == null) {
+                unmatched = NotificationVerdicts.Unmatched.NAMES_NONE;
+                notes.add("It names no subscription, so it cannot be matched to one this tool created.");
+            } else if (target == null) {
+                unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
+                notLookedUp(notes, unasked, "No ledger is available, so the subscription it names could not be looked up.");
+            } else if (!RunRecord.keepsIdentifier(subscriptionId)) {
+                // Not one identifier: the ledger writes such a value as its length, so no line can
+                // be found by it, and "no run created it" would not be known to be true. Every
+                // identifier it does keep, in clear or as a token, is looked up below.
+                unmatched = NotificationVerdicts.Unmatched.NOT_KEPT;
+                notLookedUp(notes, unasked, NOT_KEPT_SUBSCRIPTION);
+            } else {
+                boolean[] lookupFailed = new boolean[1];
+                RunRecord created = find(target, EpaOperation.SUBSCRIPTION_CREATE, RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId, lookupFailed);
+                RunRecord deleted = created == null ? null : deletedAfter(target, created, subscriptionId, lookupFailed);
+                if (deleted != null) {
+                    // The run that created it is still the run it belongs to, but the subscription is
+                    // not live: this tool deleted it, and a notification on it is not "still there".
+                    subscriptionRunId = created.runId();
+                    unmatched = NotificationVerdicts.Unmatched.DELETED;
+                    notes.add("The subscription it names was created by the run " + created.runId() + " and deleted by this tool in the run "
+                            + deleted.runId() + ", so a notification on it was not expected.");
+                } else if (created != null) {
+                    subscriptionRunId = created.runId();
+                    notes.add("The subscription it names was created by the run " + created.runId() + ".");
+                } else if (lookupFailed[0]) {
+                    unmatched = NotificationVerdicts.Unmatched.NOT_ASKED;
+                    notLookedUp(notes, unasked, "The ledger could not be read, so the subscription it names could not be looked up.");
+                } else {
+                    unmatched = NotificationVerdicts.Unmatched.NOT_IN_LEDGER;
+                    notes.add("No run in the ledger created the subscription it names.");
+                }
+            }
+        }
+
+        String submissionRunId = null;
+        String submissionClaimId = null;
+        // A flag of its own, so a failure to look the subscription up is not reported as a failure to look the submission up.
+        boolean[] failed = new boolean[1];
+        if (ids.any() && target != null) {
+            // Each identifier is asked about on its own, so one that points somewhere else is seen and said.
+            Map<String, RunRecord> found = new LinkedHashMap<>();
+            // An id the ledger does not keep cannot be found in it, so it is not asked about, and that is said.
+            List<String> notKept = new ArrayList<>();
+            if (ids.claimId() != null && !RunRecord.keepsIdentifier(ids.claimId())) {
+                notKept.add("the claim id");
+            } else if (ids.claimId() != null) {
+                found.put("the claim id", find(target, EpaOperation.PAS_SUBMIT, RunRecord.CORR_CLAIM_ID, ids.claimId(), failed));
+            }
+            if (ids.claimResponseId() != null && !RunRecord.keepsIdentifier(ids.claimResponseId())) {
+                notKept.add("the ClaimResponse id");
+            } else if (ids.claimResponseId() != null) {
+                found.put("the ClaimResponse id", submission(target, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId(), failed));
+            }
+            if (ids.authorizationRef() != null) {
+                found.put("the authorization number", submission(target, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef(), failed));
+            }
+            String by = null;
+            RunRecord chosen = null;
+            for (Map.Entry<String, RunRecord> entry : found.entrySet()) {
+                if (chosen == null && entry.getValue() != null) {
+                    by = entry.getKey();
+                    chosen = entry.getValue();
+                }
+            }
+            if (chosen != null) {
+                submissionRunId = chosen.runId();
+                submissionClaimId = chosen.correlation().get(RunRecord.CORR_CLAIM_ID);
+                notes.add("It is about the submission " + chosen.runId() + ", matched by " + by + " it carries.");
+                for (Map.Entry<String, RunRecord> entry : found.entrySet()) {
+                    if (entry.getValue() != null && !entry.getValue().runId().equals(chosen.runId())) {
+                        notes.add("By " + entry.getKey() + " it carries it would be about another run, " + entry.getValue().runId()
+                                + ". The match by " + by + " was kept.");
+                    }
+                }
+                differs(notes, target, chosen, RunRecord.CORR_CLAIM_RESPONSE_ID, ids.claimResponseId(), "The ClaimResponse id it carries");
+                differs(notes, target, chosen, RunRecord.CORR_AUTHORIZATION_REF, ids.authorizationRef(), "The authorization number it carries");
+            } else if (failed[0]) {
+                notLookedUp(notes, unasked, "The ledger could not be read, so the submission it is about could not be looked up.");
+            } else if (!found.isEmpty()) {
+                notes.add("No submission in the ledger carries " + String.join(" or ", found.keySet()) + " this notification carries.");
+            }
+            if (!notKept.isEmpty()) {
+                notLookedUp(notes, unasked, "The submission it is about could not be looked up by " + String.join(" or ", notKept)
+                        + " it carries: " + (notKept.size() == 1 ? "it is not" : "they are not") + " one identifier (more than 128 "
+                        + "characters, or a space or a sign an identifier does not hold), which the ledger does not keep, so no run can be "
+                        + "found by " + (notKept.size() == 1 ? "it" : "them") + ".");
+            }
+        } else if (ids.any()) {
+            notLookedUp(notes, unasked, "No ledger is available, so the submission it is about could not be looked up.");
+        } else if (reading.notification() && !reading.status().events().isEmpty()) {
+            notes.add("It reports an event and names no claim, ClaimResponse or authorization number, so it cannot be tied to a submission.");
+        }
+        return new Links(subscriptionRunId, unmatched, submissionRunId, submissionClaimId, notes, List.copyOf(unasked));
+    }
+
+    /** What to do when the run named for a sample notification is not a run id. */
+    static final String RUN_ID_TO_COPY = "This is not a run id. Copy the run id of a PAS submission, which starts with run-, from its "
+            + "result in step 3 Submit of the Workbench or from the Runs list in Audit, and paste it into About the submission (run id).";
+
+    /** Why a subscription named by an id the ledger does not keep is not looked up. */
+    static final String NOT_KEPT_SUBSCRIPTION = "The subscription id it names is not one identifier (more than 128 characters, or a space "
+            + "or a sign an identifier does not hold), which the ledger does not keep, so the run that created the subscription cannot be "
+            + "found by it and was not looked up.";
+
+    /** Says that a link could not be looked up, in the notes a reader sees and in the list the finding is raised from. */
+    private static void notLookedUp(List<String> notes, List<String> unasked, String why) {
+        notes.add(why);
+        unasked.add(why);
+    }
+
+    /**
+     * The submission that recorded an identifier: the submission's own line, or, when only an
+     * inquiry saw the identifier, the submission that inquiry says it follows from.
+     */
+    private RunRecord submission(RunLedger target, String key, String value, boolean[] failed) {
+        RunRecord submitted = find(target, EpaOperation.PAS_SUBMIT, key, value, failed);
+        if (submitted != null) {
+            return submitted;
+        }
+        RunRecord inquiry = find(target, EpaOperation.PAS_INQUIRE, key, value, failed);
+        String follows = inquiry == null ? null : inquiry.correlation().get(RunRecord.CORR_RUN_ID);
+        if (follows == null) {
+            return null;
+        }
+        try {
+            return target.find(follows).filter(run -> run.operation() == EpaOperation.PAS_SUBMIT).orElse(null);
+        } catch (RuntimeException e) {
+            failed[0] = true;
+            return null;
+        }
+    }
+
+    /** Says so when the submission recorded a different value than the notification carries. The ledger does the comparing. */
+    private static void differs(List<String> notes, RunLedger target, RunRecord submission, String key, String carried, String what) {
+        String stored = submission.correlation().get(key);
+        // A value the record wrote as its length cannot be compared, and is not said to differ.
+        if (carried == null || stored == null || stored.matches("\\(not recorded, \\d+ characters\\)")) {
+            return;
+        }
+        boolean same;
+        try {
+            same = target.matches(stored, carried);
+        } catch (RuntimeException e) {
+            return;
+        }
+        if (!same) {
+            notes.add(what + " is not the one that submission recorded.");
+        }
+    }
+
+    /**
+     * The newest run of one operation that carries an identifier and was sent, or null. A run the
+     * guardrail refused names what it was aimed at and sent nothing, so a notification is never
+     * about it. A ledger that fails is reported and never fatal.
+     */
+    private static RunRecord find(RunLedger target, EpaOperation operation, String key, String value, boolean[] failed) {
+        try {
+            return SentRuns.newest(target, operation, key, value);
+        } catch (RuntimeException e) {
+            failed[0] = true;
+            return null;
+        }
+    }
+
+    /**
+     * The id of the subscription this tool created most recently, or null when the ledger holds
+     * none or could not be asked.
+     *
+     * @param failed set when the ledger could not be read, so "none" is not said when it is not known
+     */
+    private static String latestCreatedSubscription(RunLedger target, boolean[] failed) {
+        return latestCreatedSubscription(target, failed, new String[1]);
+    }
+
+    /**
+     * The same, skipping a subscription whose later delete the ledger recorded: it is not the
+     * latest one this tool created that is still there.
+     *
+     * @param deletedBy set to the run that deleted the newest subscription this tool created, when
+     *                  that is why none is returned
+     */
+    private static String latestCreatedSubscription(RunLedger target, boolean[] failed, String[] deletedBy) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            for (RunRecord run : target.query(RunQuery.builder().operation(EpaOperation.SUBSCRIPTION_CREATE)
+                    .outcome(SubscriptionOutcome.CREATED.name()).limit(20).build())) {
+                String id = run.correlation().get(RunRecord.CORR_SUBSCRIPTION_ID);
+                if (Texts.blank(id) || id.matches("\\(not recorded, \\d+ characters\\)")) {
+                    continue;
+                }
+                RunRecord deleted = deletedAfter(target, run, id, failed);
+                if (deleted == null) {
+                    return id;
+                }
+                if (deletedBy[0] == null) {
+                    deletedBy[0] = deleted.runId();
+                }
+            }
+        } catch (RuntimeException e) {
+            failed[0] = true;
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * The run in which this tool deleted a subscription after the run that created it, or null. Only
+     * a delete the service confirmed counts, never one the guardrail refused or the service did not
+     * carry out. The ledger is read newest first, so whichever of a confirmed create and a confirmed
+     * delete of this id comes first is the latest thing this tool did to it. The id may be the
+     * ledger's token, which the ledger compares as it compares the id.
+     */
+    private static RunRecord deletedAfter(RunLedger target, RunRecord created, String subscriptionId, boolean[] failed) {
+        try {
+            for (RunRecord run : target.query(RunQuery.builder().protocol(created.protocol())
+                    .correlation(RunRecord.CORR_SUBSCRIPTION_ID, subscriptionId).build())) {
+                if (run.operation() == EpaOperation.SUBSCRIPTION_DELETE && SubscriptionOutcome.DELETED.name().equals(run.outcome())) {
+                    return run;
+                }
+                if (run.operation() == EpaOperation.SUBSCRIPTION_CREATE && SubscriptionOutcome.CREATED.name().equals(run.outcome())) {
+                    return null;
+                }
+            }
+        } catch (RuntimeException e) {
+            failed[0] = true;
+        }
+        return null;
+    }
+
+    private RunLedger available() {
+        try {
+            return ledger == null ? null : ledger.getIfAvailable();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The environment that is active as the notification arrives. Which environment sent it cannot be known. */
+    private EnvironmentRef environment() {
+        try {
+            EnvironmentRef active = gateway == null ? null : gateway.activeEnvironment();
+            return active == null ? EnvironmentRef.none() : active;
+        } catch (RuntimeException e) {
+            return EnvironmentRef.none();
+        }
+    }
+
+    /**
+     * The kept bytes as text. A notification is JSON, which is UTF-8. Bytes that are not are shown
+     * with a replacement mark and a note, so text that changed on the way to the screen does not
+     * pass for what was sent.
+     *
+     * @param cut true when the bytes are only the start of the body. A cut can fall inside one
+     *            character. That is the doing of this tool and not of the sender, so the body is
+     *            not called invalid for it: the incomplete character is left out, with a note
+     */
+    private static String decode(byte[] kept, boolean cut, List<String> notes) {
+        if (kept.length == 0) {
+            return "";
+        }
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        ByteBuffer in = ByteBuffer.wrap(kept);
+        // No byte of UTF-8 becomes more than one char, so the text never needs more room than this.
+        CharBuffer out = CharBuffer.allocate(kept.length);
+        // Told that more input follows, the decoder leaves an incomplete last character unread and does not report it.
+        CoderResult result = decoder.decode(in, out, !cut);
+        if (result.isError()) {
+            notes.add("The body is not valid UTF-8. What could not be read is shown as a replacement mark, so the text below is not exactly "
+                    + "what was sent.");
+            return new String(kept, StandardCharsets.UTF_8);
+        }
+        if (in.hasRemaining()) {
+            notes.add("What is held ends inside one character. That character is left out of the text below.");
+        }
+        return out.flip().toString();
+    }
+
+    private static void unrecognised(List<Finding> findings, String what, String element, CodedValue value) {
+        if (value.code() != null && !value.recognised()) {
+            findings.add(new Finding(FindingKind.CODE_OUTSIDE_VALUE_SET, "The " + what + " is not a code this tool knows",
+                    "It is expected to be one of " + String.join(", ", PasCodes.codes(element)) + ". The code that came is shown as it came "
+                            + "and is not read as any of them.", element, null, value.code()));
+        }
+    }
+
+    private static void put(Map<String, String> correlation, String key, String value) {
+        if (Texts.present(value)) {
+            correlation.put(key, value);
+        }
+    }
+
+    /** A scenario as the sample's drop-down shows it: its number and its label. */
+    private static String shownName(Scenario scenario) {
+        // Quoted as the drop-down shows it, so "1. Approved" does not run into the sentence around it.
+        return "\"" + scenario.number() + ". " + scenario.label() + "\"";
+    }
+}

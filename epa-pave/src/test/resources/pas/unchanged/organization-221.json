@@ -1,0 +1,339 @@
+{
+  "resourceType" : "Bundle",
+  "meta" : {
+    "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-pas-request-bundle" ]
+  },
+  "identifier" : {
+    "system" : "urn:ietf:rfc:3986",
+    "value" : "urn:uuid:00000000-0000-4000-8000-0000000000b1"
+  },
+  "type" : "collection",
+  "timestamp" : "2026-11-23T09:00:00Z",
+  "entry" : [ {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000001",
+    "resource" : {
+      "resourceType" : "Claim",
+      "id" : "claim-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-claim" ]
+      },
+      "identifier" : [ {
+        "value" : "claim-00000000-0000-4000-8000-000000000001"
+      } ],
+      "status" : "active",
+      "type" : {
+        "coding" : [ {
+          "system" : "http://terminology.hl7.org/CodeSystem/claim-type",
+          "code" : "professional"
+        } ]
+      },
+      "use" : "preauthorization",
+      "patient" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000002"
+      },
+      "created" : "2026-11-23T09:00:00Z",
+      "insurer" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000004"
+      },
+      "provider" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000006"
+      },
+      "priority" : {
+        "coding" : [ {
+          "system" : "http://terminology.hl7.org/CodeSystem/processpriority",
+          "code" : "normal"
+        } ]
+      },
+      "careTeam" : [ {
+        "extension" : [ {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-careTeamClaimScope",
+          "valueBoolean" : true
+        } ],
+        "sequence" : 1,
+        "provider" : {
+          "reference" : "urn:uuid:00000000-0000-4000-8000-000000000007"
+        },
+        "role" : {
+          "coding" : [ {
+            "system" : "https://codesystem.x12.org/005010/98",
+            "code" : "SJ"
+          } ]
+        }
+      } ],
+      "diagnosis" : [ {
+        "sequence" : 1,
+        "diagnosisCodeableConcept" : {
+          "coding" : [ {
+            "system" : "http://hl7.org/fhir/sid/icd-10-cm",
+            "code" : "G47.33"
+          } ]
+        }
+      }, {
+        "sequence" : 2,
+        "diagnosisCodeableConcept" : {
+          "coding" : [ {
+            "system" : "urn:placeholder:dx",
+            "code" : "E66.01"
+          } ]
+        }
+      }, {
+        "sequence" : 3,
+        "diagnosisCodeableConcept" : {
+          "coding" : [ {
+            "code" : "12345"
+          } ]
+        }
+      } ],
+      "insurance" : [ {
+        "sequence" : 1,
+        "focal" : true,
+        "coverage" : {
+          "reference" : "urn:uuid:00000000-0000-4000-8000-000000000003"
+        }
+      } ],
+      "item" : [ {
+        "extension" : [ {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+          "valueIdentifier" : {
+            "value" : "claim-00000000-0000-4000-8000-000000000001-1"
+          }
+        }, {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-certificationType",
+          "valueCodeableConcept" : {
+            "coding" : [ {
+              "system" : "https://codesystem.x12.org/005010/1322",
+              "code" : "I"
+            } ]
+          }
+        }, {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-requestedService",
+          "valueReference" : {
+            "reference" : "urn:uuid:00000000-0000-4000-8000-000000000008"
+          }
+        } ],
+        "sequence" : 1,
+        "productOrService" : {
+          "coding" : [ {
+            "system" : "http://www.ama-assn.org/go/cpt",
+            "code" : "95810",
+            "display" : "Sleep study, attended"
+          } ]
+        },
+        "servicedDate" : "2026-03-20",
+        "locationCodeableConcept" : {
+          "coding" : [ {
+            "system" : "https://www.cms.gov/Medicare/Coding/place-of-service-codes/Place_of_Service_Code_Set",
+            "code" : "11"
+          } ]
+        }
+      }, {
+        "extension" : [ {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-itemTraceNumber",
+          "valueIdentifier" : {
+            "value" : "claim-00000000-0000-4000-8000-000000000001-2"
+          }
+        }, {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-certificationType",
+          "valueCodeableConcept" : {
+            "coding" : [ {
+              "system" : "https://codesystem.x12.org/005010/1322",
+              "code" : "I"
+            } ]
+          }
+        }, {
+          "url" : "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/extension-requestedService",
+          "valueReference" : {
+            "reference" : "urn:uuid:00000000-0000-4000-8000-000000000009"
+          }
+        } ],
+        "sequence" : 2,
+        "productOrService" : {
+          "coding" : [ {
+            "system" : "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+            "code" : "E0601"
+          } ]
+        },
+        "servicedDate" : "2026-03-20",
+        "locationCodeableConcept" : {
+          "coding" : [ {
+            "system" : "https://www.cms.gov/Medicare/Coding/place-of-service-codes/Place_of_Service_Code_Set",
+            "code" : "11"
+          } ]
+        }
+      } ]
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000002",
+    "resource" : {
+      "resourceType" : "Patient",
+      "id" : "patient-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-beneficiary" ]
+      },
+      "identifier" : [ {
+        "type" : {
+          "coding" : [ {
+            "system" : "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code" : "MB"
+          } ]
+        },
+        "value" : "S123456789"
+      } ],
+      "name" : [ {
+        "family" : "Placeholder-Surname",
+        "given" : [ "Given" ]
+      } ],
+      "birthDate" : "1970-01-31",
+      "gender" : "female"
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000003",
+    "resource" : {
+      "resourceType" : "Coverage",
+      "id" : "coverage-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-coverage" ]
+      },
+      "status" : "active",
+      "identifier" : [ {
+        "type" : {
+          "coding" : [ {
+            "system" : "http://terminology.hl7.org/CodeSystem/v2-0203",
+            "code" : "MB"
+          } ]
+        },
+        "value" : "S123456789"
+      } ],
+      "beneficiary" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000002"
+      },
+      "payor" : [ {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000004"
+      } ]
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000004",
+    "resource" : {
+      "resourceType" : "Organization",
+      "id" : "organization-insurer-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-insurer" ]
+      },
+      "active" : true,
+      "identifier" : [ {
+        "value" : "PAYER-001"
+      } ],
+      "type" : [ {
+        "coding" : [ {
+          "system" : "https://codesystem.x12.org/005010/98",
+          "code" : "PR",
+          "display" : "Payer"
+        } ]
+      } ],
+      "name" : "Placeholder Health Plan"
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000005",
+    "resource" : {
+      "resourceType" : "Practitioner",
+      "id" : "prac-001",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-practitioner" ]
+      },
+      "identifier" : [ {
+        "system" : "http://hl7.org/fhir/sid/us-npi",
+        "value" : "1234567893"
+      } ],
+      "name" : [ {
+        "family" : "Provider",
+        "given" : [ "Pat" ]
+      } ]
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000006",
+    "resource" : {
+      "resourceType" : "PractitionerRole",
+      "id" : "practitioner-role-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-practitionerrole" ]
+      },
+      "practitioner" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000005"
+      }
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000007",
+    "resource" : {
+      "resourceType" : "Organization",
+      "id" : "organization-servicing-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-organization" ]
+      },
+      "active" : true,
+      "identifier" : [ {
+        "system" : "http://hl7.org/fhir/sid/us-npi",
+        "value" : "9999999995"
+      } ],
+      "name" : "Placeholder Sleep Laboratory"
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000008",
+    "resource" : {
+      "resourceType" : "ServiceRequest",
+      "id" : "service-request-1",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-servicerequest" ]
+      },
+      "status" : "draft",
+      "intent" : "order",
+      "code" : {
+        "coding" : [ {
+          "system" : "http://www.ama-assn.org/go/cpt",
+          "code" : "95810",
+          "display" : "Sleep study, attended"
+        } ]
+      },
+      "subject" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000002"
+      },
+      "occurrenceTiming" : {
+        "event" : [ "2026-03-20" ]
+      },
+      "requester" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000006"
+      },
+      "insurance" : [ {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000003"
+      } ]
+    }
+  }, {
+    "fullUrl" : "urn:uuid:00000000-0000-4000-8000-000000000009",
+    "resource" : {
+      "resourceType" : "ServiceRequest",
+      "id" : "service-request-2",
+      "meta" : {
+        "profile" : [ "http://hl7.org/fhir/us/davinci-pas/StructureDefinition/profile-servicerequest" ]
+      },
+      "status" : "draft",
+      "intent" : "order",
+      "code" : {
+        "coding" : [ {
+          "system" : "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+          "code" : "E0601"
+        } ]
+      },
+      "subject" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000002"
+      },
+      "occurrenceTiming" : {
+        "event" : [ "2026-03-20" ]
+      },
+      "requester" : {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000006"
+      },
+      "insurance" : [ {
+        "reference" : "urn:uuid:00000000-0000-4000-8000-000000000003"
+      } ]
+    }
+  } ]
+}

@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+
+# IDE output and metadata. STS generates these on import.
+bin/
+out/
+.classpath
+.project
+.settings/
+.factorypath
+.idea/
+*.iml
+.vscode/
+
+# Runtime data. config-store can hold credentials from an uploaded Postman environment and
+# run-history is the test run ledger. Neither is ever committed.
+config-store/
+run-history/
+
+*.log
+.DS_Store

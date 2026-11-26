@@ -1,0 +1,133 @@
+package org.p32h.interop.epa.pave.model;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
+
+/**
+ * A part of a request where a vendor's sandbox departs from FHIR or the guides, so the shape sent
+ * is a setting of the environment rather than a fixed choice.
+ *
+ * <p>Shapes that the guides allow and the vendor accepted are simply what the tool sends, and are
+ * not listed here. A departure from FHIR becomes a setting, and its default is always the shape
+ * FHIR requires: turning a departure on needs evidence (the environment states it, or the vendor's
+ * own sample in the collection shows it), never a guess. The prefetch's arrangement is a setting for
+ * another reason: CDS Hooks fixes no names for the prefetch, each service names its own keys, so
+ * neither arrangement is the one FHIR requires; its default is the one PAVE has always sent, and a
+ * vendor's sample turns the other on. The version of the PAS guide Submit is
+ * held against is a setting too, because payers run different versions; its default is the one the
+ * payer this tool was built for runs.
+ */
+public enum RequestShape {
+    CRD_DRAFT_ORDERS_TYPE("draftOrders type", "context.draftOrders.type",
+            List.of(new Option(RequestShape.SENT, "Sent (FHIR requires it)"),
+                    new Option(RequestShape.LEFT_OUT, "Left out (this vendor refuses it)")),
+            RequestShape.SENT,
+            "The vendor's sandbox refused context.draftOrders.type with HTTP 400; FHIR requires Bundle.type."),
+    CRD_PREFETCH("Prefetch", "prefetch",
+            List.of(new Option(RequestShape.NAMED_BUNDLES, "PAVE's named Bundles (patientBundle, coverageBundle, ...)"),
+                    new Option(RequestShape.AS_SAMPLE, "As the collection's sample")),
+            RequestShape.NAMED_BUNDLES,
+            "CDS Hooks fixes no names for the prefetch: each service names its own keys, and a service that looks for the patient "
+                    + "under another key finds none."),
+    PAS_GUIDE("PAS guide", "the Claim of Submit and of the inquiry",
+            List.of(new Option(RequestShape.PAS_201, "2.0.1"), new Option(RequestShape.PAS_221, "2.2.1")),
+            RequestShape.PAS_201,
+            "Submit follows Da Vinci PAS 2.0.1 unless the service asks for 2.2.1.");
+
+    /** The value of a shape whose element is sent as FHIR requires. */
+    public static final String SENT = "SENT";
+    /** The value of a shape whose element is left out because the vendor refuses it. */
+    public static final String LEFT_OUT = "LEFT_OUT";
+    /** The value of the prefetch shape that sends the five Bundles under PAVE's own names, as an earlier sandbox accepted them. */
+    public static final String NAMED_BUNDLES = "NAMED_BUNDLES";
+    /** The value of the prefetch shape that sends each key the collection's sample has, holding what the sample holds there. */
+    public static final String AS_SAMPLE = "AS_SAMPLE";
+    /** The value of the PAS guide for Da Vinci PAS 2.0.1, the version the payer runs. */
+    public static final String PAS_201 = "2.0.1";
+    /** The value of the PAS guide for Da Vinci PAS 2.2.1, for a service that asks for it. */
+    public static final String PAS_221 = "2.2.1";
+
+    /**
+     * One value a shape can take, with the words a tester picks it by.
+     *
+     * @param value the stored value, such as SENT
+     * @param words the option as the form shows it
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Option(String value, String words) {
+
+        /** The value only, by the rule every record holding text keeps: its toString prints nothing free-form. */
+        @Override
+        public String toString() {
+            return "Option[" + value + "]";
+        }
+    }
+
+    private final String label;
+    private final String field;
+    private final List<Option> options;
+    private final String defaultValue;
+    private final String why;
+
+    RequestShape(String label, String field, List<Option> options, String defaultValue, String why) {
+        this.label = label;
+        this.field = field;
+        this.options = List.copyOf(options);
+        this.defaultValue = defaultValue;
+        this.why = why;
+    }
+
+    /** The setting's name in the environment's form. */
+    public String label() {
+        return label;
+    }
+
+    /** The element of the request the setting decides, as a path a tester finds in the wire view. */
+    public String field() {
+        return field;
+    }
+
+    /** The values the setting takes, the default first. */
+    public List<Option> options() {
+        return options;
+    }
+
+    /** The value FHIR requires (for the PAS guide, the payer's version), which applies when nothing states another. */
+    public String defaultValue() {
+        return defaultValue;
+    }
+
+    /** One line on why this is a setting at all. */
+    public String why() {
+        return why;
+    }
+
+    /** True when the value is one of this shape's options, exactly as stored. */
+    public boolean allows(String value) {
+        return words(value) != null;
+    }
+
+    /** The words of one of this shape's values, or null when the value is not one of its options. */
+    public String words(String value) {
+        for (Option option : options) {
+            if (option.value().equals(value)) {
+                return option.words();
+            }
+        }
+        return null;
+    }
+
+    /** The shape a stored or posted key names, or null when it names none, so an unknown key is refused, never dropped. */
+    public static RequestShape parse(String name) {
+        if (Texts.blank(name)) {
+            return null;
+        }
+        String wanted = name.strip();
+        for (RequestShape shape : values()) {
+            if (shape.name().equals(wanted)) {
+                return shape;
+            }
+        }
+        return null;
+    }
+}

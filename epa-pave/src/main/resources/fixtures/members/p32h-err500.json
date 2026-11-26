@@ -1,0 +1,34 @@
+{
+  "memberId": "P32H-ERR500",
+  "description": "Sentinel for CRD scenario 12, the service fails with HTTP 500. A Medicare member. The record is wrapped twice, in member inside data, and coverage is stated as a yes or no.",
+  "basis": "Synthetic. Every value in this file is invented and no real member was used to make it. The shape of the response is one the mapping tolerates, not one observed from the member API, whose contract is not final.",
+  "expect": {
+    "status": "FOUND",
+    "needsALook": false,
+    "lineOfBusiness": "Medicare"
+  },
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "data": {
+      "member": {
+        "memberId": "P32H-ERR500",
+        "firstName": "Kai",
+        "lastName": "Placeholder-Err500",
+        "dob": "1955-08-18",
+        "sex": "male",
+        "lineOfBusiness": "Medicare",
+        "planName": "Synthetic Medicare Plan A",
+        "coverageActive": true,
+        "effectiveDate": "2025-01-01",
+        "subscriberId": "P32H-ERR500",
+        "address": {
+          "line1": "11 Placeholder Street",
+          "city": "Sampletown",
+          "state": "MA",
+          "postalCode": "00000"
+        }
+      }
+    }
+  }
+}

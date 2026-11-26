@@ -1,0 +1,26 @@
+{
+  "id": "pas-13-transport-failure",
+  "number": 13,
+  "label": "Transport failure",
+  "short": "transport failure",
+  "description": "The service cannot be reached, for a submission and for an inquiry alike. This is a finding about the environment, not about the member or the code. It has no body, so it is in no version's shape.",
+  "sentinelMemberId": "P32H-PAS-DOWN",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0470"]},
+  "behavior": "unavailable",
+  "delayMillis": 100,
+  "expect": {
+    "outcome": "UNREACHABLE",
+    "errorType": "UNAVAILABLE"
+  },
+  "basis": "Synthetic. It models the transport and has no body in the shape of PAS 2.0.1 or any other version. It has not been observed from the live service.",
+  "steps": {
+    "inquire": {
+      "behavior": "unavailable",
+      "delayMillis": 100,
+      "expect": {
+        "outcome": "UNREACHABLE",
+        "errorType": "UNAVAILABLE"
+      }
+    }
+  }
+}

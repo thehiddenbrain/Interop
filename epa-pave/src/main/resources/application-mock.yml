@@ -1,0 +1,7 @@
+# Applied on the mock profile, which is the default.
+epa:
+  mode: mock
+
+tracking:
+  # Every identifier on mock is synthetic, so the ledger records it and runs can be replayed.
+  record-member-id: true

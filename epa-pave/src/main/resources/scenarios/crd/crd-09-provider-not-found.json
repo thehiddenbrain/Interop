@@ -1,0 +1,36 @@
+{
+  "id": "crd-09-provider-not-found",
+  "number": 9,
+  "label": "Provider not found",
+  "short": "provider not found",
+  "description": "The service does not recognise the ordering provider. Selected by the test NPI as well as by the test member ID. CRD 2.0.1 has no code for this.",
+  "sentinelMemberId": "P32H-NOPROV",
+  "sentinelNpi": "9999999995",
+  "sampleCase": {"npi": "9999999995", "procedureCodes": ["E0470"]},
+  "behavior": "respond",
+  "httpStatus": 404,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "PROVIDER_NOT_FOUND",
+    "errorType": "BAD_REQUEST",
+    "httpStatus": 404
+  },
+  "basis": "Synthetic. CRD 2.0.1 defines no body for a failed call, so this models a FHIR OperationOutcome. It has not been observed from the live service.",
+  "assumption": "How the live service signals an unknown provider is not known. This file models an HTTP 404 carrying a FHIR OperationOutcome whose issue code is not-found and whose expression names the PractitionerRole.",
+  "response": {
+    "resourceType": "OperationOutcome",
+    "issue": [
+      {
+        "severity": "error",
+        "code": "not-found",
+        "details": {
+          "text": "No provider matches the NPI supplied."
+        },
+        "diagnostics": "No provider matches the NPI supplied.",
+        "expression": [
+          "PractitionerRole.practitioner"
+        ]
+      }
+    ]
+  }
+}

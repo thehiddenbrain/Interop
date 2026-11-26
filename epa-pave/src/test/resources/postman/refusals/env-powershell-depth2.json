@@ -1,0 +1,10 @@
+{
+    "environment": {
+        "id": "x",
+        "name": "Vendor Sandbox",
+        "values": [
+            "@{key=baseUrl; value=https://sandbox.vendor.example.invalid; enabled=True}",
+            "@{key=clientId; value=placeholder; enabled=True}"
+        ]
+    }
+}

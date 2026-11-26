@@ -1,0 +1,12 @@
+{
+  "memberId": "P32H-TEST-DUPLICATE",
+  "description": "Test resource. The second of two files that use the same member ID.",
+  "basis": "Synthetic. Every value in this file is invented.",
+  "behavior": "respond",
+  "httpStatus": 200,
+  "response": {
+    "memberId": "P32H-TEST-DUPLICATE",
+    "firstName": "Second",
+    "lastName": "Placeholder-Duplicate"
+  }
+}

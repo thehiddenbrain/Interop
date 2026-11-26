@@ -1,0 +1,97 @@
+{
+  "id": "crd-05-info-needed",
+  "number": 5,
+  "label": "Additional information needed",
+  "short": "information needed",
+  "description": "The payer cannot answer until it knows who will perform the service and where, and says coverage and prior authorization are conditional on that. The coverage information sits on the order inside a card suggestion: a resource CRD 2.0.1 allows it on, though whether 2.0.1 expects it there or in a system action is in pages its package does not ship. Models CRD 2.0.1.",
+  "sentinelMemberId": "P32H-INFO",
+  "sampleCase": {"npi": "1234567893", "procedureCodes": ["E0601"]},
+  "behavior": "respond",
+  "httpStatus": 200,
+  "delayMillis": 150,
+  "expect": {
+    "outcome": "INFORMATION_NEEDED",
+    "errorType": "NONE",
+    "httpStatus": 200,
+    "codes": {
+      "covered": "conditional",
+      "pa-needed": "conditional",
+      "info-needed": "performer"
+    }
+  },
+  "basis": "Synthetic. The coverage information follows Da Vinci CRD 2.0.1, the version this tool judges by. CRD 2.0.1 ships no model of a CDS Hooks response, so the cards and system actions around it follow CDS Hooks as this tool reads it. It has not been observed from the live service.",
+  "response": {
+    "cards": [
+      {
+        "uuid": "card-info-needed",
+        "summary": "More information is needed to determine coverage",
+        "detail": "Add the performing provider and the place of service to the order.",
+        "indicator": "warning",
+        "source": {
+          "label": "Placeholder payer",
+          "url": "https://example.org/p32h-placeholder/payer"
+        },
+        "suggestions": [
+          {
+            "label": "Add the missing information to the order",
+            "uuid": "suggestion-info-needed",
+            "isRecommended": true,
+            "actions": [
+              {
+                "type": "update",
+                "description": "Update the order with coverage information",
+                "resource": {
+                  "resourceType": "ServiceRequest",
+                  "id": "service-request-1",
+                  "extension": [
+                    {
+                      "url": "http://hl7.org/fhir/us/davinci-crd/StructureDefinition/ext-coverage-information",
+                      "extension": [
+                        {
+                          "url": "coverage",
+                          "valueReference": {
+                            "reference": "Coverage/coverage-1"
+                          }
+                        },
+                        {
+                          "url": "covered",
+                          "valueCode": "conditional"
+                        },
+                        {
+                          "url": "pa-needed",
+                          "valueCode": "conditional"
+                        },
+                        {
+                          "url": "info-needed",
+                          "valueCode": "performer"
+                        },
+                        {
+                          "url": "info-needed",
+                          "valueCode": "location"
+                        },
+                        {
+                          "url": "date",
+                          "valueDate": "2026-01-15"
+                        },
+                        {
+                          "url": "coverage-assertion-id",
+                          "valueString": "assertion-info-needed"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "draft",
+                  "intent": "order",
+                  "subject": {
+                    "reference": "Patient/patient-1"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "selectionBehavior": "at-most-one"
+      }
+    ]
+  }
+}
